@@ -5,6 +5,9 @@
     setPower(v) {
       State.enabled = v;
       if (!v) State.hoverEl = null;
+      // A selection the page already had would be extended by the first
+      // shift-click instead of measured from, so start the session clean.
+      if (v) { try { getSelection()?.removeAllRanges(); } catch {} }
       Panel.setOn(v);
       Render.schedule();
     },

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.3
+// @version      3.8.4
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -1253,6 +1253,12 @@ HOW TO USE
       return t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ''));
     },
 
+    // Is this pointer event ours to swallow? Alt is the page's escape hatch,
+    // and the panel handles its own clicks.
+    ours(e) {
+      return State.enabled && !e.altKey && !root.contains(e.target);
+    },
+
     // in remove mode only pins are targetable — pick the innermost one
     pinAt(x, y) {
       let best = null, bestArea = Infinity;
@@ -1308,9 +1314,24 @@ HOW TO USE
         if (el !== State.hoverEl) { State.hoverEl = el; Render.schedule(); }
       }, true);
 
+      // Swallowing only the click is too late. The browser starts a text
+      // selection on mousedown, and a shift-click extends whatever is already
+      // selected — so measuring from one element to another also dragged a
+      // selection across everything between them. The page's own focus and
+      // drag handling starts there too, which is the other half of the same
+      // symptom: the overlay's clicks were reaching the page underneath.
+      for (const type of ['mousedown', 'mouseup', 'dblclick']) {
+        addEventListener(type, (e) => {
+          // primary button only: no other one starts a selection, and taking
+          // them all would swallow the context menu with them
+          if (e.button !== 0 || !Interactions.ours(e)) return;
+          e.preventDefault();
+          e.stopPropagation();
+        }, true);
+      }
+
       addEventListener('click', (e) => {
-        if (!State.enabled || e.altKey) return;
-        if (root.contains(e.target)) return;
+        if (!Interactions.ours(e)) return;
         e.preventDefault();
         e.stopPropagation();
         if (State.removeMode) {
@@ -1336,6 +1357,9 @@ HOW TO USE
     setPower(v) {
       State.enabled = v;
       if (!v) State.hoverEl = null;
+      // A selection the page already had would be extended by the first
+      // shift-click instead of measured from, so start the session clean.
+      if (v) { try { getSelection()?.removeAllRanges(); } catch {} }
       Panel.setOn(v);
       Render.schedule();
     },

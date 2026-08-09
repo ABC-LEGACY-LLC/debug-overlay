@@ -123,6 +123,32 @@ window.dispatchEvent(new window.KeyboardEvent('keydown', { ...hot, bubbles: true
 ok('hotkey powers it back off', !!status && status.textContent === 'OFF',
   status && `status reads ${status.textContent}`);
 
+console.log('\nMOUSE');
+// The overlay used to swallow only the click, which is after the browser has
+// already started a selection and after the page has already reacted.
+const target = window.document.getElementById('a');
+let pageSawIt = false;
+target.addEventListener('mousedown', () => { pageSawIt = true; });
+const down = (el, opts) => {
+  const e = new window.MouseEvent('mousedown', { bubbles: true, cancelable: true, ...opts });
+  el.dispatchEvent(e);
+  return e;
+};
+
+ok('powered off, the page keeps its mouse', !down(target).defaultPrevented);
+
+window.dispatchEvent(new window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+pageSawIt = false;
+ok('inspecting, mousedown is swallowed', down(target).defaultPrevented,
+  'a text selection starts here — shift-click would drag one across the page');
+ok('inspecting, the page never sees it', !pageSawIt);
+ok('alt hands the page back', !down(target, { altKey: true }).defaultPrevented);
+ok('right-click is left alone', !down(target, { button: 2 }).defaultPrevented,
+  'swallowing it would take the context menu too');
+ok('the panel keeps its own clicks',
+  !down(bar.querySelector('button.pwr')).defaultPrevented);
+window.dispatchEvent(new window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+
 console.log('\nGUARD');
 // running twice must not build a second panel — Tampermonkey can inject again
 // on soft navigations, and two overlays fighting over the same keys is worse
