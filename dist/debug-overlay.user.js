@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.1
+// @version      3.8.2
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -496,11 +496,12 @@ HOW TO USE
                          border-left: 7px solid #b5e853; }
     .dbgov-ext { position: fixed; pointer-events: none;
       background: repeating-linear-gradient(to right,
+        rgba(181,232,83,.7) 0 4px, transparent 4px 8px); }
     .dbgov-ext.v { background: repeating-linear-gradient(to bottom,
         rgba(181,232,83,.7) 0 4px, transparent 4px 8px); }
     .dbgov-dist { position: fixed; pointer-events: none;
       background: rgba(24,28,14,.95); color: #b5e853; border-radius: 7px;
-      padding: 3px 8px; font-size: 12px; font-weight: 700; white-space: nowrap;
+      padding: 3px 8px; font-size: 12px; font-weight: 700; white-space: nowrap; }
     .dbgov-dist.vert { border-left: 2px solid #b5e853; }
     `,
       id: 'measure',
@@ -730,9 +731,6 @@ HOW TO USE
       display: flex; align-items: center; justify-content: center;
       box-shadow: 0 2px 6px rgba(0,0,0,.5); transition: transform .1s ease; }
     .dbgov-rm.target { transform: scale(1.3); background: #ff2f2f; }
-
-        rgba(181,232,83,.7) 0 4px, transparent 4px 8px); }
-      box-shadow: 0 2px 8px rgba(0,0,0,.5); }
 
     #__dbgov-bar { position: fixed; right: 14px; top: 50%;
       pointer-events: auto; display: flex; flex-direction: column; align-items: center;

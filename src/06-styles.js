@@ -66,9 +66,6 @@
       box-shadow: 0 2px 6px rgba(0,0,0,.5); transition: transform .1s ease; }
     .dbgov-rm.target { transform: scale(1.3); background: #ff2f2f; }
 
-        rgba(181,232,83,.7) 0 4px, transparent 4px 8px); }
-      box-shadow: 0 2px 8px rgba(0,0,0,.5); }
-
     #__dbgov-bar { position: fixed; right: 14px; top: 50%;
       pointer-events: auto; display: flex; flex-direction: column; align-items: center;
       gap: 7px; background: rgba(18,18,20,.96); border-radius: 999px; padding: 8px;

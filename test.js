@@ -71,6 +71,35 @@ ok('tool CSS reached the stylesheet',
   !!style && style.textContent.includes('.dbgov-line'),
   'measure tool css missing — the tools[].css concat in 07-dom.js broke');
 
+console.log('\nSTYLESHEET');
+// Malformed CSS in one tool does not fail loudly. The parser gives up at the
+// break and silently drops every rule after it, including the CSS of tools
+// concatenated later — so a typo in the first tool can blank out the last.
+// These checks read the composed sheet, which is exactly what ships.
+const css = style ? style.textContent : '';
+const bare = css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/"[^"]*"|'[^']*'/g, '""');
+
+let depth = 0, parens = 0, topLevel = 0, stray = false;
+for (const ch of bare) {
+  if (ch === '(') parens++;
+  else if (ch === ')') parens--;
+  else if (parens > 0) continue;          // braces inside gradient()/url() are data
+  else if (ch === '{') { if (depth === 0) topLevel++; depth++; }
+  else if (ch === '}') { if (--depth < 0) { stray = true; depth = 0; } }
+}
+ok('braces balance', depth === 0 && !stray, stray ? 'stray }' : `${depth} rule(s) left open`);
+ok('parens balance', parens === 0, `${parens > 0 ? parens + ' unclosed' : -parens + ' extra'}`);
+
+const sheet = style && style.sheet;
+const selectors = sheet ? [...sheet.cssRules].map((r) => r.selectorText).filter(Boolean) : [];
+ok('no rule dropped by the parser', !!sheet && sheet.cssRules.length === topLevel,
+  sheet && `wrote ${topLevel} rules, parser kept ${sheet.cssRules.length} — it stopped at "${selectors[selectors.length - 1]}"`);
+
+// the last tool in the registry is the one a mid-sheet break silently eats
+ok('the last tool\'s CSS survives',
+  selectors.some((s) => s.includes('.dbgov-badge') && s.includes('.bad')),
+  'contrast tool css was dropped');
+
 console.log('\nPANEL');
 const bar = window.document.getElementById('__dbgov-bar');
 ok('panel built', !!bar);

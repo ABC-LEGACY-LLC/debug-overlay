@@ -18,11 +18,12 @@
                          border-left: 7px solid #b5e853; }
     .dbgov-ext { position: fixed; pointer-events: none;
       background: repeating-linear-gradient(to right,
+        rgba(181,232,83,.7) 0 4px, transparent 4px 8px); }
     .dbgov-ext.v { background: repeating-linear-gradient(to bottom,
         rgba(181,232,83,.7) 0 4px, transparent 4px 8px); }
     .dbgov-dist { position: fixed; pointer-events: none;
       background: rgba(24,28,14,.95); color: #b5e853; border-radius: 7px;
-      padding: 3px 8px; font-size: 12px; font-weight: 700; white-space: nowrap;
+      padding: 3px 8px; font-size: 12px; font-weight: 700; white-space: nowrap; }
     .dbgov-dist.vert { border-left: 2px solid #b5e853; }
     `,
       id: 'measure',
