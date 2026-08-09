@@ -1,0 +1,100 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>dbgov — dev harness</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0; font: 15px/1.5 system-ui, sans-serif; background: #f6f6f8; color: #16161a; }
+  header { padding: 24px 32px; background: #16161a; color: #fff; }
+  header h1 { margin: 0 0 4px; font-size: 20px; }
+  header p { margin: 0; color: #9a9aa4; font-size: 13px; }
+  kbd { background: #2c2c33; border-radius: 4px; padding: 1px 5px; font-size: 12px; }
+  main { padding: 32px; display: grid; gap: 24px; max-width: 900px; }
+  section { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  h2 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: .08em; color: #6b6b76; }
+
+  /* deliberately off the 4px grid — the grid tool should flag these */
+  .offgrid { display: flex; gap: 13px; }
+  .offgrid div { padding: 7px 11px; background: #eef1f6; border-radius: 6px; }
+
+  /* clean 4px multiples — the grid tool should stay quiet here */
+  .ongrid { display: flex; gap: 16px; }
+  .ongrid div { padding: 8px 12px; background: #eef6ee; border-radius: 8px; }
+
+  .sizes div { background: #ffeede; border-radius: 6px; margin-bottom: 12px; }
+  .a { width: 320px; height: 48px; }
+  .b { width: 180px; height: 32px; }
+  .c { width: 90px;  height: 90px; border-radius: 50%; }
+
+  /* contrast tool fodder: the first fails AA for normal text, the rest pass */
+  .faint  { color: #9b9ba3; }
+  .ok     { color: #55555f; }
+  .strong { color: #16161a; font-weight: 700; }
+  .big    { color: #9b9ba3; font-size: 28px; font-weight: 700; }
+
+  #iframe-warning {
+    display: none; margin: 0; padding: 14px 32px;
+    background: #ffdf6b; color: #3a2c00; font-size: 14px;
+  }
+</style>
+
+<p id="iframe-warning">
+  This page is inside a frame, so the overlay will not start — it skips frames
+  on purpose. Open <b>http://localhost:8080</b> in a real browser tab.
+</p>
+
+<header>
+  <h1>dbgov — dev harness</h1>
+  <p>
+    <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd> power ·
+    hover to read a box · click to pin · <kbd>Shift</kbd>+click two elements to
+    measure between them · hold <kbd>X</kbd> to remove a pin
+  </p>
+</header>
+
+<main>
+  <section>
+    <h2>Off the 4px grid — grid tool should mark these</h2>
+    <div class="offgrid"><div>gap 13</div><div>padding 7/11</div><div>third</div></div>
+  </section>
+
+  <section>
+    <h2>On the grid — grid tool should stay quiet</h2>
+    <div class="ongrid"><div>gap 16</div><div>padding 8/12</div><div>third</div></div>
+  </section>
+
+  <section class="sizes">
+    <h2>Sizes and radius — measure between any two</h2>
+    <div class="a"></div>
+    <div class="b"></div>
+    <div class="c"></div>
+  </section>
+
+  <section>
+    <h2>Contrast — first line should fail AA</h2>
+    <p class="faint">Faint body text, around 2.8:1 against white.</p>
+    <p class="ok">Comfortable body text.</p>
+    <p class="strong">Strong body text.</p>
+    <p class="big">Large text passes at a lower ratio.</p>
+  </section>
+</main>
+
+<script>
+  // The bundle bails out inside frames (00-banner.js), which is easy to hit by
+  // accident in an editor's embedded preview — say so instead of looking broken.
+  if (window.top !== window.self) {
+    document.getElementById('iframe-warning').style.display = 'block';
+  }
+
+  // reload when serve.js reports a fresh build, so saving a src/ file is the
+  // whole loop
+  let rev = null;
+  setInterval(async () => {
+    try {
+      const r = await (await fetch('/__rev', { cache: 'no-store' })).json();
+      if (rev !== null && r.rev !== rev) location.reload();
+      rev = r.rev;
+    } catch {}
+  }, 800);
+</script>
+
+<script src="/dist/debug-overlay.user.js"></script>

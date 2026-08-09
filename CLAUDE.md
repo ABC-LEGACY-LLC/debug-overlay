@@ -1,8 +1,36 @@
 # Working on dbgov with Claude Code
 
+`npm install` once — jsdom, for the smoke test. Nothing else is needed.
+
 ## Before finishing any change
 Run `npm run check` — it rebuilds, runs the architecture audit and the jsdom
 smoke test. Do not consider a change done until all three pass.
+
+Edit `src/`. Never edit `dist/` — the next build overwrites it.
+
+## Shipping a change (this is where it goes wrong)
+`npm run check` builds with `--same`, so it does **not** bump the version.
+A green check does not mean a push will reach anybody. The full sequence:
+
+```bash
+npm run check     # verify — no bump
+node build.js     # bump + rebuild dist/  ← skipping this is the whole bug
+git add -A && git commit -m "…" && git push
+```
+
+Push without `node build.js` and the version Tampermonkey sees is the one it
+already has, so it decides there is nothing to fetch. The push succeeds, the
+overlay never changes, and nothing reports an error. If a change appears not
+to reach the browser, check `@version` in `dist/debug-overlay.meta.js` first.
+
+## Looking at a change before shipping it
+`npm run dev` serves `dev/index.html` with the built bundle and rebuilds on
+save. Tampermonkey is production — it only ever sees pushed, version-bumped
+builds — so use the dev page for anything visual.
+
+The page carries deliberate fodder for every tool: off-grid padding and gaps,
+a failing contrast ratio, boxes to measure between. Open it in a real browser
+tab: the bundle skips frames, so an embedded editor preview shows nothing.
 
 ## Where things go
 - A new debug capability is a NEW FILE in `src/tools/`, never an edit to the
@@ -18,6 +46,14 @@ smoke test. Do not consider a change done until all three pass.
   fires callbacks; the controller handles them.
 - `11-renderer.js` / `13-interactions.js` / `14-controller.js` — never
   hardcode a tool id such as `'measure'`. Use hooks and `CONFIG.PIN_KIND`.
+
+## The stylesheet (test.js enforces this)
+Every tool's `css:` is concatenated into one sheet, so malformed CSS in an
+early tool makes the parser drop everything after it — including other tools'
+rules — without raising anything. That shipped once: an unclosed `(` cost the
+grid and contrast tools their styling entirely. `test.js` now checks braces
+and parens balance, that the parsed rule count matches what was written, and
+that the last tool's CSS survives. Keep those checks.
 
 ## Versioning
 `build.js` bumps `@version` automatically. Tampermonkey only updates when the

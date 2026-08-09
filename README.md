@@ -13,10 +13,10 @@ updates by itself after a `git push`.
 
 ```bash
 npm install            # once — jsdom, for the smoke test
+npm run dev            # local page + rebuild on save — look at it first
 npm run check          # rebuild (no bump) + architecture rules + fake-DOM boot
 node build.js          # patch bump + bundle + syntax check
 node build.js --minor  # feature bump
-node build.js --watch  # rebuild on save (no bump — local testing)
 ```
 
 `npm run check` deliberately builds with `--same`, so verifying a change never
@@ -30,6 +30,34 @@ git add -A && git commit -m "measure: fix diagonal spans" && git push
 ```
 
 Every machine picks the new version up on its own. No copy-paste.
+
+---
+
+## Seeing a change before shipping it
+
+Tampermonkey is production: it only ever runs what has been built, bumped,
+committed and pushed. For anything visual that round trip is far too slow, so
+there is a local one:
+
+```bash
+npm run dev        # http://localhost:8080  (PORT=3000 npm run dev to move it)
+```
+
+It serves `dev/index.html` with the built bundle loaded by a plain `<script>`
+tag — which works because the userscript grants nothing and uses no `GM_*`
+API. `build.js --watch` runs alongside it, and the page reloads itself when a
+rebuild lands, so saving a file in `src/` is the entire loop.
+
+The page carries something for each tool on purpose: padding and gaps off the
+4px grid, a paragraph that fails AA contrast, and boxes worth measuring
+between.
+
+Open it in a **real browser tab**. The bundle skips frames by design
+(`00-banner.js`), so an embedded editor preview renders the page with no
+overlay at all — the page says so if it detects it is framed.
+
+The dev loop never bumps the version: `--watch` builds with `--same`, so it
+cannot burn version numbers that Tampermonkey would then skip past.
 
 ---
 
