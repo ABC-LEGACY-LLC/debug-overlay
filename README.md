@@ -12,12 +12,16 @@ updates by itself after a `git push`.
 ## Everyday use
 
 ```bash
+npm install            # once — jsdom, for the smoke test
+npm run check          # rebuild (no bump) + architecture rules + fake-DOM boot
 node build.js          # patch bump + bundle + syntax check
 node build.js --minor  # feature bump
 node build.js --watch  # rebuild on save (no bump — local testing)
-node audit.js          # architecture rules
-node test.js           # boot the bundle in a fake DOM
 ```
+
+`npm run check` deliberately builds with `--same`, so verifying a change never
+inflates the version. The bump belongs to the release step — `node build.js` —
+right before you commit.
 
 Then:
 
@@ -29,34 +33,30 @@ Every machine picks the new version up on its own. No copy-paste.
 
 ---
 
-## One-time setup
+## Setup
 
-**1. Create a public GitHub repo** (public matters: Tampermonkey fetches the
-raw URL without credentials).
-
-**2. Put your repo in `userscript.json`:**
+The repo side is done: `AlonurKomilov/debug-overlay-abc` is public (public
+matters — Tampermonkey fetches the raw URL without credentials) and
+`userscript.json` already points at it:
 
 ```json
-"rawBase": "https://raw.githubusercontent.com/YOURNAME/dbgov/main/dist"
+"rawBase": "https://raw.githubusercontent.com/AlonurKomilov/debug-overlay-abc/main/dist"
 ```
 
-**3. Build and push:**
-
-```bash
-node build.js && git add -A && git commit -m "init" && git push
-```
-
-**4. Install once per machine** — open this URL in the browser:
+**Install once per machine** — open this URL in the browser:
 
 ```
-https://raw.githubusercontent.com/YOURNAME/dbgov/main/dist/debug-overlay.user.js
+https://raw.githubusercontent.com/AlonurKomilov/debug-overlay-abc/main/dist/debug-overlay.user.js
 ```
 
 Tampermonkey offers to install it. Done — that machine now self-updates.
 
-**5. Optional but recommended — Tampermonkey Sync.** Dashboard → Settings →
+**Optional but recommended — Tampermonkey Sync.** Dashboard → Settings →
 Sync to Google Drive / Dropbox / OneDrive. A brand-new machine then only needs
 you to sign in; the script arrives on its own and keeps updating from GitHub.
+
+Forking this for a different account? Change `rawBase` in `userscript.json`,
+run `node build.js`, and push — the header is generated from that one field.
 
 ### How the auto-update actually works
 

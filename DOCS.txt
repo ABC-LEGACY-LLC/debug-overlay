@@ -1,0 +1,84 @@
+HOW TO USE
+  ----------
+  Alt+Shift+D ......... power on/off (or click ⏻ on the panel)
+  Hover ............... live badge for the element under the cursor
+  Click ............... INSPECT one element (orange, dashed). Its badge freezes
+                        in place. No measuring, no green line.
+  Shift+Click ......... MEASURE (lime, solid). These pin in PAIRS: the 1st is
+                        "from" (cyan, marked 1…), the 2nd is "to" and draws the
+                        dimension. The 3rd starts a brand new pair — nothing is
+                        ever chained off your previous selection.
+                        Set CONFIG.MEASURE_MODE = 'chain' for the old behaviour.
+  Click again ......... unpin (or click with the other modifier to switch the
+                        pin between inspect and measure)
+  Hold X .............. REMOVE mode: a red ✕ appears on every pin and only pins
+                        are clickable — click one to delete it. Works even for
+                        pins whose element is hard to hit again. Release to exit.
+  Hold Alt ............ pass clicks through to the page (links keep working)
+  Esc ................. clear pins (press again to power off)
+  ≡ ................... compact / full badges
+  ⧉ ................... copy structured report → paste into Claude with a screenshot
+  Count chip .......... click the pin count to open the pin list: every pin and
+                        measured pair in one place, even ones scrolled off
+                        screen. Click a row to scroll to it and flash it; click
+                        its ✕ to remove (a pair row removes both). Click the
+                        chip again to close it before taking a screenshot.
+  ✕ ................... clear pins
+  Panel ............... drag by ⋮⋮; snaps to nearest edge; while OFF it tucks
+                        away after ~2s leaving a 10px peek. Position remembered.
+
+  POWER vs TOOLS
+  --------------
+  ⏻ is the master switch: it only decides whether the overlay is listening
+  at all. WHAT gets measured is decided by the tools below it, each an
+  independent toggle you can mix freely:
+
+    📐 measure   sizes, radius, padding/margin, gap, font, pin distances
+    ▦ grid       flags any value that is off the 4px grid (⚠)
+    ◐ contrast   WCAG text contrast ratio + AA pass/fail
+
+  Active tools are remembered per site.
+
+  ARCHITECTURE — each numbered section is independent; edit one to change
+  one behaviour. Sections appear in dependency order: nothing is used before
+  it is defined.
+
+    1. CONFIG        every tunable number/key
+    2. STATE         single source of truth, plain data only
+    3. UTILS         pure functions — no DOM writes, no State reads
+    4. MEASURE       dimension-line geometry & drawing (tool-agnostic)
+    5. TOOLS         ⭐ the plugin registry — add a debug mode here
+    6. STYLES        all CSS in one template string
+    7. DOM           root & drawing layer
+    8. PANEL         control panel: UI, drag, snap, auto-tuck
+    9. PLACEMENT     collision-free badge positioning
+   10. BADGES        composes badge HTML from the ACTIVE tools
+   11. RENDERER      draws one frame from STATE
+   12. REPORT        structured text export, also composed from tools
+   13. INTERACTIONS  page-level mouse & keyboard
+   14. CONTROLLER    the only glue between modules
+
+  RULES that keep it from turning to mush:
+    · UTILS is pure. It never reads State and never asks "is tool X on?" —
+      callers pass flags in (see U.mark(n, flag)).
+    · Tool-specific behaviour lives in that tool, never in RENDERER. If the
+      renderer needs to know something, the tool exposes a hook and the
+      renderer asks every active tool (see pendingIndex).
+    · PANEL never touches State. It fires callbacks; CONTROLLER handles them.
+    · MEASURE knows nothing about tools, panels or reports — only rectangles.
+    · CONTROLLER is the one place modules are wired together.
+
+  ADDING A NEW DEBUG TOOL — one object in section 5, nothing else:
+
+    {
+      id: 'zindex', icon: '⧉', title: 'Stacking — z-index & position',
+      badge:   (i) => `<span class="sp">z ${i.cs.zIndex}</span>`,  // optional
+      compact: (i) => null,                                       // optional
+      report:  (i) => [`  z-index: ${i.cs.zIndex}`],              // optional
+      draw:    (ctx) => {},                                       // optional
+      reportTail: () => [],        // optional, summary lines after all pins
+      pendingIndex: () => -1,      // optional, pin still being chosen
+    }
+
+  The panel button, persistence, badge composition and report inclusion are
+  all derived from the registry automatically.

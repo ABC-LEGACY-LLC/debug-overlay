@@ -1,0 +1,15 @@
+{
+  "name": "dbgov",
+  "private": true,
+  "description": "Debug Overlay — a screenshot-friendly UI inspector shipped as a Tampermonkey userscript. The shipped version number lives in userscript.json, not here — build.js owns it.",
+  "scripts": {
+    "check": "node build.js --same && node audit.js && node test.js",
+    "build": "node build.js",
+    "watch": "node build.js --watch",
+    "audit": "node audit.js",
+    "test": "node test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^30.0.1"
+  }
+}
