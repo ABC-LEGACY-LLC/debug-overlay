@@ -235,6 +235,26 @@ ok('two different colour pairs stay two findings',
 ok('a hidden element is skipped', !/#h/.test(swept), 'display:none was audited');
 ok('the pin blocks are gone but the audit remains', !/\[#1\]/.test(swept),
   'a sweep does not need pins, and clearing them must not clear it');
+
+console.log('\nFINDINGS LIST');
+window.HTMLElement.prototype.scrollIntoView = function () {};   // jsdom has none
+const listEl = window.document.getElementById('__dbgov-list');
+ok('the sweep opens its own view', listEl.classList.contains('open'));
+const rows = () => [...listEl.querySelectorAll('.row')];
+ok('one row per distinct problem', rows().length === 2, `${rows().length} rows`);
+ok('worst first', (rows()[0]?.querySelector('.tag') || {}).textContent === 'error');
+ok('a finding has no remove button', !listEl.querySelector('.rm'),
+  'there is no pin behind a finding for a ✕ to drop');
+// A finding is a place on the page. Clicking one should take you there and
+// leave something behind that the badge and the report can both use.
+rows()[0].dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+// the count chip is painted by the renderer on the next frame, so ask the
+// pin list instead — it is rebuilt synchronously
+bar.querySelector('[data-c]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+ok('clicking a finding pins its element', rows().length === 1,
+  `${rows().length} pin rows after clicking one finding`);
+ok('and the chip still means pins', !!listEl.querySelector('.rm'),
+  'switching views lost the remove button');
 window.dispatchEvent(new window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
 
 console.log('\nCANVAS');

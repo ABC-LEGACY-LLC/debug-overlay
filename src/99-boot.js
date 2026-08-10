@@ -8,7 +8,8 @@
   Panel.onCopy = Report.copy;
   Panel.onSweep = Controller.sweep;
   Panel.onClear = Controller.clearPins;
-  Panel.onListOpen = () => Panel.setList(Controller.pinList());
+  Panel.onListOpen = (view) =>
+    Panel.setList(Controller.rows(view), Controller.emptyFor(view));
   Panel.onRowActivate = Controller.revealRow;
   Panel.onRowRemove = Controller.removeRow;
 

@@ -33,6 +33,16 @@
     #__dbgov-list .lbl { flex: 1 1 auto; overflow: hidden;
       text-overflow: ellipsis; white-space: nowrap; }
     #__dbgov-list .det { flex: none; color: #b5e853; font-weight: 700; }
+    /* A row may carry an opaque accent; the panel copies it onto the element
+       without knowing what any of the values mean. */
+    #__dbgov-list .row[data-accent="error"] .tag { color: #ff6b6b; }
+    #__dbgov-list .row[data-accent="warn"]  .tag { color: #ffd54f; }
+    #__dbgov-list .row[data-accent="info"]  .tag { color: #9ad0ff; }
+    /* the message carries the finding; the selector is where to look for it,
+       so give the message the room and let the selector ellipsise first */
+    #__dbgov-list .row[data-accent] .det { flex: 2 1 auto; color: #e6e6ea;
+      font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #__dbgov-list .row[data-accent] .lbl { color: #8f8f96; direction: rtl; text-align: left; }
     #__dbgov-list .rm { flex: none; width: 20px; height: 20px; border: 0; cursor: pointer;
       border-radius: 50%; background: #2c2c31; color: #ff8a8a; font-size: 11px;
       display: flex; align-items: center; justify-content: center; }

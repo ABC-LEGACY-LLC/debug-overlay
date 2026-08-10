@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.11
+// @version      3.8.12
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -903,6 +903,16 @@ HOW TO USE
     #__dbgov-list .lbl { flex: 1 1 auto; overflow: hidden;
       text-overflow: ellipsis; white-space: nowrap; }
     #__dbgov-list .det { flex: none; color: #b5e853; font-weight: 700; }
+    /* A row may carry an opaque accent; the panel copies it onto the element
+       without knowing what any of the values mean. */
+    #__dbgov-list .row[data-accent="error"] .tag { color: #ff6b6b; }
+    #__dbgov-list .row[data-accent="warn"]  .tag { color: #ffd54f; }
+    #__dbgov-list .row[data-accent="info"]  .tag { color: #9ad0ff; }
+    /* the message carries the finding; the selector is where to look for it,
+       so give the message the room and let the selector ellipsise first */
+    #__dbgov-list .row[data-accent] .det { flex: 2 1 auto; color: #e6e6ea;
+      font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #__dbgov-list .row[data-accent] .lbl { color: #8f8f96; direction: rtl; text-align: left; }
     #__dbgov-list .rm { flex: none; width: 20px; height: 20px; border: 0; cursor: pointer;
       border-radius: 50%; background: #2c2c31; color: #ff8a8a; font-size: 11px;
       display: flex; align-items: center; justify-content: center; }
@@ -1011,9 +1021,9 @@ HOW TO USE
       <hr class="sep whenOn">
       ${toolButtons}
       <hr class="sep whenOn">
-      <button class="cnt whenOn" data-c title="Pinned elements — click for the list">0</button>
+      <button class="cnt whenOn" data-c data-view="pins" title="Pinned elements — click for the list">0</button>
       <button class="act whenOn" data-detail title="Compact / full badges">≡</button>
-      <button class="act whenOn" data-sweep title="Audit the whole page">⌕</button>
+      <button class="act whenOn" data-sweep data-view="findings" title="Audit the whole page">⌕</button>
       <button class="act whenOn" data-copy title="Copy report">⧉</button>
       <button class="act whenOn" data-clear title="Clear pins">✕</button>`;
     root.append(el);
@@ -1023,6 +1033,7 @@ HOW TO USE
     listEl.id = '__dbgov-list';
     root.append(listEl);
     let listOpen = false;
+    let listView = null;   // opaque name of whichever view is showing
 
     function placeList() {
       const r = el.getBoundingClientRect();
@@ -1058,20 +1069,33 @@ HOW TO USE
       setCount(n) { el.querySelector('[data-c]').textContent = String(n); },
 
       isListOpen: () => listOpen,
-      toggleList(v) {
-        listOpen = v === undefined ? !listOpen : v;
+      /**
+       * One popover, several views. `view` is an opaque name off the button
+       * that opened it — the panel carries it and hands it back, and never
+       * learns what any of them mean.
+       */
+      view: () => listView,
+      toggleList(v, view = 'pins') {
+        const same = listOpen && listView === view;
+        listOpen = v === undefined ? !same : !!v;
+        listView = listOpen ? view : null;
         listEl.classList.toggle('open', listOpen);
-        el.querySelector('[data-c]').classList.toggle('armed', listOpen);
-        if (listOpen) { api.onListOpen?.(); placeList(); }
+        el.querySelectorAll('[data-view]').forEach((b) =>
+          b.classList.toggle('armed', listOpen && b.dataset.view === listView));
+        if (listOpen) { api.onListOpen?.(listView); placeList(); }
       },
-      /** rows: [{ tag, label, detail, pins }] — built by CONTROLLER */
-      setList(rows) {
+      /**
+       * rows: [{ tag, label, detail, removable }] — built by CONTROLLER, which
+       * is also where the empty-state wording comes from, because only it
+       * knows what this view is a list of.
+       */
+      setList(rows, empty = '') {
         listEl.textContent = '';
         if (!rows.length) {
-          const empty = document.createElement('div');
-          empty.className = 'empty';
-          empty.textContent = 'No pins yet — click to inspect, Shift+click to measure.';
-          listEl.append(empty);
+          const e = document.createElement('div');
+          e.className = 'empty';
+          e.textContent = empty;
+          listEl.append(e);
           placeList();
           return;
         }
@@ -1087,13 +1111,20 @@ HOW TO USE
           const det = document.createElement('span');
           det.className = 'det';
           det.textContent = row.detail || '';
-          const rm = document.createElement('button');
-          rm.className = 'rm';
-          rm.textContent = '✕';
-          rm.title = 'Remove';
-          rm.addEventListener('click', (e) => { e.stopPropagation(); api.onRowRemove?.(i); });
+          // carried, not interpreted — the stylesheet decides what it means
+          if (row.accent) r.dataset.accent = row.accent;
           r.addEventListener('click', () => api.onRowActivate?.(i));
-          r.append(tag, lbl, det, rm);
+          r.append(tag, lbl, det);
+          // Only rows that own something can drop it. A finding is a fact
+          // about the page; there is nothing there for a ✕ to remove.
+          if (row.removable) {
+            const rm = document.createElement('button');
+            rm.className = 'rm';
+            rm.textContent = '✕';
+            rm.title = 'Remove';
+            rm.addEventListener('click', (e) => { e.stopPropagation(); api.onRowRemove?.(i); });
+            r.append(rm);
+          }
           listEl.append(r);
         });
         placeList();
@@ -1111,7 +1142,7 @@ HOW TO USE
     el.querySelector('.pwr').addEventListener('click', () => api.onToggle?.());
     el.querySelectorAll('[data-tool]').forEach((b) =>
       b.addEventListener('click', () => api.onTool?.(b.dataset.tool)));
-    el.querySelector('[data-c]').addEventListener('click', () => api.toggleList());
+    el.querySelector('[data-c]').addEventListener('click', () => api.toggleList(undefined, 'pins'));
     el.querySelector('[data-detail]').addEventListener('click', () => api.onDetail?.());
     el.querySelector('[data-sweep]').addEventListener('click', () => api.onSweep?.());
     el.querySelector('[data-copy]').addEventListener('click', () => api.onCopy?.());
@@ -1602,6 +1633,28 @@ HOW TO USE
       // the grouped count, not the raw one: "3" is a page with three problems,
       // "5000" is the same page with one of them on every row
       Panel.flash(`${Sweep.group(State.findings).length}`, '[data-sweep]');
+      Panel.toggleList(true, 'findings');
+    },
+
+    /** Rows for whichever view the panel is showing. */
+    rows(view) {
+      return view === 'findings' ? Controller.findingRows() : Controller.pinList();
+    },
+    /** One row per distinct problem, worst first. No pin, so nothing to remove. */
+    findingRows() {
+      return Sweep.group(State.findings || []).map((g) => ({
+        tag: g.n > 1 ? `${g.severity} ×${g.n}` : g.severity,
+        label: U.selectorOf(g.el),
+        detail: g.message,
+        accent: g.severity,
+        el: g.el,
+      }));
+    },
+    emptyFor(view) {
+      return view === 'findings'
+        ? (State.findings ? 'Nothing to report — every rule is happy.'
+                          : 'Press ⌕ to audit the page.')
+        : 'No pins yet — click to inspect, Shift+click to measure.';
     },
 
     toggleTool(id) {
@@ -1672,17 +1725,32 @@ HOW TO USE
                     detail: `${Math.round(r.width)}×${Math.round(r.height)}`, pins: [p] });
       }
       const first = (row) => Math.min(...row.pins.map((p) => p.id));
+      // every row here owns pins, so every row here can drop them — the panel
+      // renders a ✕ only where the row says one belongs
+      rows.forEach((r) => { r.removable = true; });
       return rows.sort((a, b) => first(a) - first(b));
     },
     refreshList() {
-      if (Panel.isListOpen()) Panel.setList(Controller.pinList());
+      if (!Panel.isListOpen()) return;
+      const view = Panel.view();
+      Panel.setList(Controller.rows(view), Controller.emptyFor(view));
     },
     revealRow(i) {
-      const row = Controller.pinList()[i];
+      const row = Controller.rows(Panel.view())[i];
       if (!row) return;
-      const el = row.pins[0].el;
+      // A finding has no pin, so clicking one pins the element on the way to
+      // it. That is the useful move anyway: the badge, the measurements and
+      // the copied report all pick it up from there.
+      let pins = row.pins;
+      if (!pins) {
+        if (!row.el || !document.contains(row.el)) return;
+        const had = State.pins.find((p) => p.el === row.el);
+        if (!had) Controller.togglePin(row.el, CONFIG.PIN_KIND.PLAIN);
+        pins = [State.pins.find((p) => p.el === row.el)];
+      }
+      const el = pins[0].el;
       el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
-      State.flashPins = row.pins;
+      State.flashPins = pins;
       Render.schedule();
       clearTimeout(Controller._flash);
       Controller._flash = setTimeout(() => { State.flashPins = null; Render.schedule(); }, 900);
@@ -1774,7 +1842,8 @@ HOW TO USE
   Panel.onCopy = Report.copy;
   Panel.onSweep = Controller.sweep;
   Panel.onClear = Controller.clearPins;
-  Panel.onListOpen = () => Panel.setList(Controller.pinList());
+  Panel.onListOpen = (view) =>
+    Panel.setList(Controller.rows(view), Controller.emptyFor(view));
   Panel.onRowActivate = Controller.revealRow;
   Panel.onRowRemove = Controller.removeRow;
 

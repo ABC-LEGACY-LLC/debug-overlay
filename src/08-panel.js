@@ -14,9 +14,9 @@
       <hr class="sep whenOn">
       ${toolButtons}
       <hr class="sep whenOn">
-      <button class="cnt whenOn" data-c title="Pinned elements — click for the list">0</button>
+      <button class="cnt whenOn" data-c data-view="pins" title="Pinned elements — click for the list">0</button>
       <button class="act whenOn" data-detail title="Compact / full badges">≡</button>
-      <button class="act whenOn" data-sweep title="Audit the whole page">⌕</button>
+      <button class="act whenOn" data-sweep data-view="findings" title="Audit the whole page">⌕</button>
       <button class="act whenOn" data-copy title="Copy report">⧉</button>
       <button class="act whenOn" data-clear title="Clear pins">✕</button>`;
     root.append(el);
@@ -26,6 +26,7 @@
     listEl.id = '__dbgov-list';
     root.append(listEl);
     let listOpen = false;
+    let listView = null;   // opaque name of whichever view is showing
 
     function placeList() {
       const r = el.getBoundingClientRect();
@@ -61,20 +62,33 @@
       setCount(n) { el.querySelector('[data-c]').textContent = String(n); },
 
       isListOpen: () => listOpen,
-      toggleList(v) {
-        listOpen = v === undefined ? !listOpen : v;
+      /**
+       * One popover, several views. `view` is an opaque name off the button
+       * that opened it — the panel carries it and hands it back, and never
+       * learns what any of them mean.
+       */
+      view: () => listView,
+      toggleList(v, view = 'pins') {
+        const same = listOpen && listView === view;
+        listOpen = v === undefined ? !same : !!v;
+        listView = listOpen ? view : null;
         listEl.classList.toggle('open', listOpen);
-        el.querySelector('[data-c]').classList.toggle('armed', listOpen);
-        if (listOpen) { api.onListOpen?.(); placeList(); }
+        el.querySelectorAll('[data-view]').forEach((b) =>
+          b.classList.toggle('armed', listOpen && b.dataset.view === listView));
+        if (listOpen) { api.onListOpen?.(listView); placeList(); }
       },
-      /** rows: [{ tag, label, detail, pins }] — built by CONTROLLER */
-      setList(rows) {
+      /**
+       * rows: [{ tag, label, detail, removable }] — built by CONTROLLER, which
+       * is also where the empty-state wording comes from, because only it
+       * knows what this view is a list of.
+       */
+      setList(rows, empty = '') {
         listEl.textContent = '';
         if (!rows.length) {
-          const empty = document.createElement('div');
-          empty.className = 'empty';
-          empty.textContent = 'No pins yet — click to inspect, Shift+click to measure.';
-          listEl.append(empty);
+          const e = document.createElement('div');
+          e.className = 'empty';
+          e.textContent = empty;
+          listEl.append(e);
           placeList();
           return;
         }
@@ -90,13 +104,20 @@
           const det = document.createElement('span');
           det.className = 'det';
           det.textContent = row.detail || '';
-          const rm = document.createElement('button');
-          rm.className = 'rm';
-          rm.textContent = '✕';
-          rm.title = 'Remove';
-          rm.addEventListener('click', (e) => { e.stopPropagation(); api.onRowRemove?.(i); });
+          // carried, not interpreted — the stylesheet decides what it means
+          if (row.accent) r.dataset.accent = row.accent;
           r.addEventListener('click', () => api.onRowActivate?.(i));
-          r.append(tag, lbl, det, rm);
+          r.append(tag, lbl, det);
+          // Only rows that own something can drop it. A finding is a fact
+          // about the page; there is nothing there for a ✕ to remove.
+          if (row.removable) {
+            const rm = document.createElement('button');
+            rm.className = 'rm';
+            rm.textContent = '✕';
+            rm.title = 'Remove';
+            rm.addEventListener('click', (e) => { e.stopPropagation(); api.onRowRemove?.(i); });
+            r.append(rm);
+          }
           listEl.append(r);
         });
         placeList();
@@ -114,7 +135,7 @@
     el.querySelector('.pwr').addEventListener('click', () => api.onToggle?.());
     el.querySelectorAll('[data-tool]').forEach((b) =>
       b.addEventListener('click', () => api.onTool?.(b.dataset.tool)));
-    el.querySelector('[data-c]').addEventListener('click', () => api.toggleList());
+    el.querySelector('[data-c]').addEventListener('click', () => api.toggleList(undefined, 'pins'));
     el.querySelector('[data-detail]').addEventListener('click', () => api.onDetail?.());
     el.querySelector('[data-sweep]').addEventListener('click', () => api.onSweep?.());
     el.querySelector('[data-copy]').addEventListener('click', () => api.onCopy?.());

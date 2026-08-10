@@ -26,6 +26,28 @@
       // the grouped count, not the raw one: "3" is a page with three problems,
       // "5000" is the same page with one of them on every row
       Panel.flash(`${Sweep.group(State.findings).length}`, '[data-sweep]');
+      Panel.toggleList(true, 'findings');
+    },
+
+    /** Rows for whichever view the panel is showing. */
+    rows(view) {
+      return view === 'findings' ? Controller.findingRows() : Controller.pinList();
+    },
+    /** One row per distinct problem, worst first. No pin, so nothing to remove. */
+    findingRows() {
+      return Sweep.group(State.findings || []).map((g) => ({
+        tag: g.n > 1 ? `${g.severity} ×${g.n}` : g.severity,
+        label: U.selectorOf(g.el),
+        detail: g.message,
+        accent: g.severity,
+        el: g.el,
+      }));
+    },
+    emptyFor(view) {
+      return view === 'findings'
+        ? (State.findings ? 'Nothing to report — every rule is happy.'
+                          : 'Press ⌕ to audit the page.')
+        : 'No pins yet — click to inspect, Shift+click to measure.';
     },
 
     toggleTool(id) {
@@ -96,17 +118,32 @@
                     detail: `${Math.round(r.width)}×${Math.round(r.height)}`, pins: [p] });
       }
       const first = (row) => Math.min(...row.pins.map((p) => p.id));
+      // every row here owns pins, so every row here can drop them — the panel
+      // renders a ✕ only where the row says one belongs
+      rows.forEach((r) => { r.removable = true; });
       return rows.sort((a, b) => first(a) - first(b));
     },
     refreshList() {
-      if (Panel.isListOpen()) Panel.setList(Controller.pinList());
+      if (!Panel.isListOpen()) return;
+      const view = Panel.view();
+      Panel.setList(Controller.rows(view), Controller.emptyFor(view));
     },
     revealRow(i) {
-      const row = Controller.pinList()[i];
+      const row = Controller.rows(Panel.view())[i];
       if (!row) return;
-      const el = row.pins[0].el;
+      // A finding has no pin, so clicking one pins the element on the way to
+      // it. That is the useful move anyway: the badge, the measurements and
+      // the copied report all pick it up from there.
+      let pins = row.pins;
+      if (!pins) {
+        if (!row.el || !document.contains(row.el)) return;
+        const had = State.pins.find((p) => p.el === row.el);
+        if (!had) Controller.togglePin(row.el, CONFIG.PIN_KIND.PLAIN);
+        pins = [State.pins.find((p) => p.el === row.el)];
+      }
+      const el = pins[0].el;
       el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
-      State.flashPins = row.pins;
+      State.flashPins = pins;
       Render.schedule();
       clearTimeout(Controller._flash);
       Controller._flash = setTimeout(() => { State.flashPins = null; Render.schedule(); }, 900);
