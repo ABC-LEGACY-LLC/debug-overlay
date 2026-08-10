@@ -13,6 +13,7 @@
         const fg = U.parseColor(cs.color);
         if (!fg) return null;
         const bg = U.effectiveBg(el.parentElement || el);
+        if (!bg) return null;   // unreadable background — say nothing
         const ratio = U.contrastRatio(fg, bg);
         const size = parseFloat(cs.fontSize);
         const bold = parseInt(cs.fontWeight, 10) >= 700;

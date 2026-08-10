@@ -41,6 +41,9 @@ function makeDom() {
        <div id="a" style="width:100px;height:40px;padding:8px">alpha</div>
        <div id="b" style="width:60px;height:20px;margin:12px">beta</div>
        <p id="c" style="color:#bbb">faint text nobody can read</p>
+       <div style="background:oklch(0.275 0 0)">
+         <p id="d" style="color:oklch(0.985 0 0)">near-white on dark, ~10.9:1</p>
+       </div>
      </body></html>`,
     { url: 'https://example.test/', pretendToBeVisual: true, runScripts: 'outside-only', virtualConsole: vc },
   );
@@ -171,6 +174,7 @@ const pin = (id) => {
 };
 pin('c');            // 1.92:1 — fails AA
 pin('a');            // black on white — passes
+pin('d');            // oklch on oklch — a colour space we cannot read
 bar.querySelector('[data-copy]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 ok('the report is built and copied', typeof copied === 'string', String(copied).slice(0, 40));
 ok('a failing element produces a finding',
@@ -178,6 +182,12 @@ ok('a failing element produces a finding',
   'audit() hook produced nothing');
 ok('a passing element produces none', /## findings \(1\)/.test(copied || ''),
   'a rule must only speak when something is wrong');
+// Scraping numbers out of oklch(0.985 0 0) reads near-white as near-black and
+// reports 1.00:1 against a background it also misread. Three pins, still one
+// finding: the unreadable one has to produce nothing at all.
+ok('an unreadable colour space stays silent',
+  /\[#3\]/.test(copied || '') && /## findings \(1\)/.test(copied || ''),
+  'oklch was guessed at instead of skipped — that is the 1.00:1 false FAIL');
 window.dispatchEvent(new window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
 
 console.log('\nGUARD');

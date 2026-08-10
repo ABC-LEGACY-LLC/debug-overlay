@@ -56,6 +56,15 @@ tab: the bundle skips frames, so an embedded editor preview shows nothing.
   checks it against the hooks the file implements — `annotate` ⇒ lens,
   `audit` ⇒ rule — so the field cannot quietly become a lie.
 
+## A rule that cannot measure says nothing
+Silence is a valid answer and the only safe one. `U.parseColor` returns null
+for any colour it does not actually understand, and `U.effectiveBg` returns
+null rather than falling through to its white default when it meets one — so
+contrast skips the element instead of scoring it against a background that
+was never there. Scraping numbers out of `oklch(0.985 0 0)` read near-white
+as near-black and shipped `1.00:1 FAIL` for text that is fine. A quiet rule
+is recoverable; a confidently wrong one teaches you to distrust all of them.
+
 ## The stylesheet (test.js enforces this)
 Every tool's `css:` is concatenated into one sheet, so malformed CSS in an
 early tool makes the parser drop everything after it — including other tools'

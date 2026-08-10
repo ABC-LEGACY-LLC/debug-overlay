@@ -68,16 +68,37 @@
       Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t)),
 
     // --- colour helpers (used by the contrast tool)
+
+    /**
+     * rgb()/rgba() only — null for anything else, which the caller must read
+     * as "unknown", never as a colour.
+     *
+     * getComputedStyle serialises legacy colours as rgb(), but a page authored
+     * in a modern colour space gets its oklch()/lab()/color() back untouched.
+     * Scraping the first three numbers out of those read oklch(0.985 0 0) —
+     * near white — as r:0.985, near black, and reported 1.00:1 FAIL for text
+     * that is actually 10.9:1 and fine. A rule that goes quiet is recoverable;
+     * one that is confidently wrong teaches you to distrust all of them.
+     */
     parseColor(str) {
-      const m = String(str).match(/[\d.]+/g);
+      const s = String(str);
+      if (!/^rgba?\(/.test(s)) return null;
+      const m = s.match(/[\d.]+/g);
       if (!m || m.length < 3) return null;
       return { r: +m[0], g: +m[1], b: +m[2], a: m[3] !== undefined ? +m[3] : 1 };
     },
+    /** The nearest opaque background, or null if one of them is unreadable. */
     effectiveBg(el) {
       let e = el;
       while (e && e.nodeType === 1) {
-        const c = U.parseColor(getComputedStyle(e).backgroundColor);
-        if (c && c.a > 0.05) return c;
+        const raw = getComputedStyle(e).backgroundColor;
+        const c = U.parseColor(raw);
+        // A colour we cannot read is not the same as no colour. Walking past
+        // it lands on the white default below and turns "I don't know" into a
+        // confident verdict against a background that was never there.
+        if (!c) {
+          if (raw && raw !== 'transparent') return null;
+        } else if (c.a > 0.05) return c;
         e = e.parentElement;
       }
       return { r: 255, g: 255, b: 255, a: 1 };
