@@ -40,12 +40,21 @@ tab: the bundle skips frames, so an embedded editor preview shows nothing.
 - Tool-specific CSS goes in that tool's `css:` field, not `src/06-styles.js`.
 
 ## Boundaries (audit.js enforces these)
-- `03-utils.js` — pure. No `State.`, no DOM creation. Callers pass flags in.
+- `03-utils.js` — pure. No `State.`, no DOM creation, no markup. Callers hand
+  in a decorator; the tool that styles a class is the tool that emits it.
 - `04-measure.js` — rectangles only. No `Tools.`, no `Panel.`.
 - `08-panel.js` — no `State.`, and it must not know what a "pair" is. It
   fires callbacks; the controller handles them.
 - `11-renderer.js` / `13-interactions.js` / `14-controller.js` — never
   hardcode a tool id such as `'measure'`. Use hooks and `CONFIG.PIN_KIND`.
+  The banned ids are derived from what is registered, so a fourth tool is
+  guarded the day it lands.
+- `src/tools/*` — no tool names another tool. No `Tools.byId('grid')`, no
+  `t.id === 'grid'`. Ask the registry a question with no id in it; a lens
+  reaches the tools, the tools never reach back.
+- Every tool declares `kind: 'instrument' | 'rule' | 'lens'`, and the audit
+  checks it against the hooks the file implements — `annotate` ⇒ lens,
+  `audit` ⇒ rule — so the field cannot quietly become a lie.
 
 ## The stylesheet (test.js enforces this)
 Every tool's `css:` is concatenated into one sheet, so malformed CSS in an

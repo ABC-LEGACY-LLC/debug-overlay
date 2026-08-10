@@ -171,7 +171,10 @@ Available hooks, all optional: `badge`, `compact`, `report`, `reportTail`,
 
 ## Rules the audit enforces
 
-- `03-utils.js` is pure — it never reads state and never builds DOM.
+- `03-utils.js` is pure — it never reads state, builds DOM, or owns markup.
+- No file in `src/tools/` names another tool — no `Tools.byId('grid')`, no
+  `t.id === 'grid'`. A lens reaches the tools; the tools never reach back.
+- Every tool declares a `kind`, checked against the hooks it implements.
 - `04-measure.js` knows only rectangles, never tools or the panel.
 - `08-panel.js` never touches state and never learns what a "pair" is.
 - `11-renderer.js`, `13-interactions.js`, `14-controller.js` never hardcode a

@@ -15,20 +15,54 @@ const SRC = path.join(__dirname, 'src');
 const read = (f) => fs.readFileSync(path.join(SRC, f), 'utf8');
 const exists = (f) => fs.existsSync(path.join(SRC, f));
 
+let fail = 0;
+
+/* ---- pass 1: the tool files, read before any rule runs -------------------
+   The cross-tool rule needs every id before it can judge the first file
+   (measure is read before grid's id is known), and the core-file id bans
+   below are derived from that same list. */
+const toolDir = path.join(SRC, 'tools');
+const toolFiles = fs.existsSync(toolDir)
+  ? fs.readdirSync(toolDir).filter((f) => f.endsWith('.js')).sort()
+  : [];
+const tools = toolFiles.map((f) => {
+  const s = fs.readFileSync(path.join(toolDir, f), 'utf8');
+  return {
+    f, s,
+    id: (s.match(/id: '([a-z][a-z0-9-]*)'/) || [])[1],
+    kind: (s.match(/kind: '(instrument|rule|lens)'/) || [])[1],
+    defs: (s.match(/defineTool\(/g) || []).length,
+    lines: s.split('\n').length,
+  };
+});
+const ids = tools.map((t) => t.id).filter(Boolean);
+
 /** file → [ruleName, forbidden regex, why] */
 const RULES = [
-  ['03-utils.js', /\bState\./, 'UTILS must stay pure — callers pass flags in'],
+  ['03-utils.js', /\bState\./, 'UTILS must stay pure — callers pass decorators in'],
   ['03-utils.js', /document\.createElement/, 'UTILS must not build DOM'],
+  ['03-utils.js', /class="/, 'UTILS must not own markup — the tool that styles it does'],
   ['04-measure.js', /\bTools\.|\bPanel\./, 'MEASURE is tool-agnostic geometry'],
   ['08-panel.js', /\bState\./, 'PANEL fires callbacks; CONTROLLER owns state'],
   ['08-panel.js', /\bpairs?\b|measurePins/, 'PANEL must not know what a pair is'],
-  ['11-renderer.js', /'measure'|'grid'|'contrast'|MEASURE_MODE/, 'RENDERER must ask tools via hooks'],
-  ['13-interactions.js', /'measure'|'grid'|'contrast'/, 'INTERACTIONS must use CONFIG.PIN_KIND'],
-  ['14-controller.js', /'measure'|'grid'|'contrast'/, 'CONTROLLER must not hardcode tool ids'],
+  ['11-renderer.js', /MEASURE_MODE/, 'RENDERER must ask tools via hooks'],
   ['09-placement.js', /\bTools\.|\bState\./, 'PLACEMENT only positions boxes'],
 ];
 
-let fail = 0;
+// The three files that must never name a tool. Derived from the ids collected
+// above, so a fourth tool is guarded the day it registers instead of the day
+// someone remembers to edit three regexes.
+const ID_FREE = ['11-renderer.js', '13-interactions.js', '14-controller.js'];
+if (ids.length) {
+  const idRe = new RegExp(ids.map((i) => `'${i}'`).join('|'));
+  for (const f of ID_FREE) RULES.push([f, idRe, 'must reach tools through hooks, never by id']);
+} else {
+  // never let a broken extractor degrade into new RegExp('') — that matches
+  // every file and would report three violations that are not there
+  console.log("\n✗ no tool ids found — the id: extractor in audit.js is out of date");
+  fail++;
+}
+
 console.log('\nARCHITECTURE RULES');
 for (const [file, pattern, why] of RULES) {
   if (!exists(file)) { console.log(`  ? ${file} missing`); fail++; continue; }
@@ -39,23 +73,46 @@ for (const [file, pattern, why] of RULES) {
 }
 
 console.log('\nTOOL FILES');
-const toolDir = path.join(SRC, 'tools');
-const tools = fs.readdirSync(toolDir).filter((f) => f.endsWith('.js')).sort();
-for (const f of tools) {
-  const s = fs.readFileSync(path.join(toolDir, f), 'utf8');
-  const calls = (s.match(/defineTool\(/g) || []).length;
-  const id = (s.match(/id: '([a-z]+)'/) || [])[1];
-  const hooks = ['badge', 'compact', 'report', 'reportTail', 'draw', 'listRows', 'pendingIndex']
-    .filter((h) => new RegExp(`\\b${h}\\s*[({]`).test(s));
-  const bad = calls !== 1 || !id;
-  if (bad) fail++;
-  console.log(`  ${bad ? '✗' : '✓'} ${f.padEnd(16)} id=${id || '??'}  ` +
-              `${String(s.split('\n').length).padStart(3)} lines  hooks: ${hooks.join(', ') || 'none'}`);
+/* A tool may not reach for another tool by id — that coupling is what the
+   registry exists to prevent. Match the ACCESSOR, never the bare word:
+   'grid' is also a CSS display value (measure has cs.display.includes('grid'))
+   and 'contrast' is a CSS filter function, so a quoted-literal scan would be
+   permanently red. */
+const ACCESSOR = /(?:Tools\.\w+|State\.tools\.has)\s*\(\s*'([a-z][\w-]*)'/g;
+const BY_FIELD = /\.id\s*===?\s*'([a-z][\w-]*)'/g;   // the other way back in
+// \b would match U.mark(…) and this.pairs(); a hook is never called through a dot
+const calls = (s, h) => new RegExp(`(^|[^.\\w])${h}\\s*\\(`, 'm').test(s);
+const HOOKS = ['badge', 'compact', 'report', 'reportTail', 'draw', 'listRows',
+               'pendingIndex', 'annotate', 'audit'];
+
+for (const t of tools) {
+  const bad = [];
+  if (t.defs !== 1) bad.push(`${t.defs} defineTool() calls, expected 1`);
+  if (!t.id) bad.push('no id');
+  else if (ids.indexOf(t.id) !== ids.lastIndexOf(t.id)) bad.push(`duplicate id '${t.id}'`);
+  if (!t.kind) bad.push("no kind: 'instrument' | 'rule' | 'lens'");
+  if (t.kind === 'lens' && !calls(t.s, 'annotate')) bad.push("kind 'lens' but no annotate() hook");
+  if (calls(t.s, 'annotate') && t.kind !== 'lens') bad.push("annotate() hook but kind is not 'lens'");
+  if (calls(t.s, 'audit') && t.kind !== 'rule') bad.push("audit() hook but kind is not 'rule'");
+  t.s.split('\n').forEach((line, n) => {
+    for (const m of line.matchAll(ACCESSOR))
+      if (m[1] !== t.id) bad.push(`line ${n + 1}: names another tool — ${m[0].trim()})`);
+    for (const m of line.matchAll(BY_FIELD))
+      // only another TOOL's id counts; el.id === 'header' is page data
+      if (m[1] !== t.id && ids.includes(m[1])) bad.push(`line ${n + 1}: names another tool — ${m[0].trim()}`);
+  });
+
+  const hooks = HOOKS.filter((h) => calls(t.s, h));
+  if (bad.length) fail++;
+  console.log(`  ${bad.length ? '✗' : '✓'} ${t.f.padEnd(16)} id=${(t.id || '??').padEnd(9)}` +
+              `${(t.kind || '??').padEnd(11)}${String(t.lines).padStart(3)} lines  ` +
+              `hooks: ${hooks.join(', ') || 'none'}`);
+  bad.forEach((b) => console.log(`      ${b}`));
 }
 
 console.log('\nFILE SIZES');
 const all = [...fs.readdirSync(SRC).filter((f) => f.endsWith('.js')).map((f) => [f, path.join(SRC, f)]),
-             ...tools.map((f) => ['tools/' + f, path.join(toolDir, f)])];
+             ...toolFiles.map((f) => ['tools/' + f, path.join(toolDir, f)])];
 const BIG = 220;
 for (const [name, p] of all.sort()) {
   const n = fs.readFileSync(p, 'utf8').split('\n').length;
