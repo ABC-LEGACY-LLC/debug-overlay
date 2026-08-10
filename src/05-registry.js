@@ -4,12 +4,12 @@
         No tool ever names another tool. When one needs something another
         provides it asks the registry a question with no id in it.
 
-        Every tool declares what it IS. The kind decides which of the two
-        exclusive hooks it owns, and audit.js checks the declaration against
-        the hooks the file actually implements:
-          'instrument'  describes the element under the cursor
-          'rule'        judges an element → audit(info)
-          'lens'        decorates the numbers other tools print → annotate()
+        A tool declares nothing about what it IS. What it can do is the set of
+        hooks it implements, and that is what everything dispatches on — a
+        label would only repeat it, and could go stale against it.
+
+        Roles are not exclusive. A tool may decorate other tools' numbers AND
+        produce findings; grid does both.
 
         Hooks, all optional, all invoked as hook.call(tool, …):
           badge(info)    → HTML string for the full badge
@@ -31,7 +31,20 @@
     all: TOOLS,
     byId: (id) => TOOLS.find((t) => t.id === id),
     active: () => TOOLS.filter((t) => State.tools.has(t.id)),
-    ofKind: (kind) => TOOLS.filter((t) => t.kind === kind && State.tools.has(t.id)),
+
+    /**
+     * Tools are asked what they can DO, never what they are. A `kind` field
+     * used to answer this, and it could only ever repeat what the hooks
+     * already said — audit.js checked it by grepping for the hook, which is
+     * the tell. Worse, one label per tool forced roles to be exclusive, so
+     * grid could decorate numbers or produce findings but not both, for no
+     * reason beyond the shape of the label.
+     *
+     * `armed` matters for anything the user SEES and not for anything that
+     * gets CHECKED, so the caller says which it wants.
+     */
+    withHook: (h, armed) =>
+      TOOLS.filter((t) => t[h] && (!armed || State.tools.has(t.id))),
 
     /**
      * WHY THIS EXISTS: measure used to ask whether one specific NAMED tool was
@@ -45,7 +58,7 @@
      * order), each one wrapping the previous one's html.
      */
     annotator(info) {
-      const lenses = Tools.ofKind('lens');
+      const lenses = Tools.withHook('annotate', true);
       if (!lenses.length) return null;
       return (n) => lenses.reduce(
         (html, t) => t.annotate?.call(t, html, n, info) || html, `${n}`);

@@ -13,7 +13,6 @@
     .dbgov-flag.review { outline: 2px dotted #8ab4f8; }
     `,
       id: 'contrast',
-      kind: 'rule',
       icon: '◐',
       title: 'Contrast — WCAG text contrast ratio (AA)',
 

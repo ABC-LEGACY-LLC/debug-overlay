@@ -52,9 +52,14 @@ tab: the bundle skips frames, so an embedded editor preview shows nothing.
 - `src/tools/*` — no tool names another tool. No `Tools.byId('grid')`, no
   `t.id === 'grid'`. Ask the registry a question with no id in it; a lens
   reaches the tools, the tools never reach back.
-- Every tool declares `kind: 'instrument' | 'rule' | 'lens'`, and the audit
-  checks it against the hooks the file implements — `annotate` ⇒ lens,
-  `audit` ⇒ rule — so the field cannot quietly become a lie.
+- A tool declares nothing about what it IS. Its hooks are the declaration,
+  and everything dispatches on them via `Tools.withHook(name, armed)`. There
+  was a `kind` field; it could only repeat what the hooks said, and one label
+  per tool made roles exclusive for no reason. Roles compose — grid decorates
+  other tools' numbers *and* produces findings.
+- Every name in `HOOKS` must be consumed by some file. A hook nothing calls
+  is a contract nobody honours: a tool could implement it, pass the audit,
+  and never run.
 
 ## A rule has three answers, not two
 Pass, fail, and **`verdict: 'review'`** — I tried and could not tell. The third

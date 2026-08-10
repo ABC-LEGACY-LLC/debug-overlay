@@ -153,7 +153,6 @@ Create `src/tools/40-yourtool.js`:
 ```js
 defineTool({
   id: 'zindex',
-  kind: 'instrument',
   icon: '⧉',
   title: 'Stacking — z-index & position',
   css: `
@@ -168,10 +167,9 @@ defineTool({
 Then `node build.js`. The panel button, persistence, badge composition and
 report inclusion all follow from the registry — no other file changes.
 
-Every tool declares a `kind`: `instrument` (describes an element), `rule`
-(judges it → findings), or `lens` (decorates the numbers other tools print).
-The audit checks the declaration against the hooks the file implements, so the
-field cannot quietly become a lie.
+A tool declares no type. The hooks it implements are what it is, and it may
+have any combination of them — `grid` decorates the numbers other tools print
+*and* produces findings, which one label per tool could never express.
 
 A `rule`'s `audit(info)` returns `{ el, verdict, severity, rule, message, key }`
 and says nothing when the element is fine. `verdict` is `fail` or `review` —
@@ -190,7 +188,8 @@ Available hooks, all optional: `badge`, `compact`, `report`, `reportTail`,
 - `03-utils.js` is pure — it never reads state, builds DOM, or owns markup.
 - No file in `src/tools/` names another tool — no `Tools.byId('grid')`, no
   `t.id === 'grid'`. A lens reaches the tools; the tools never reach back.
-- Every tool declares a `kind`, checked against the hooks it implements.
+- Every name in `HOOKS` is consumed by some file — no hook exists that
+  nothing would ever call.
 - `04-measure.js` knows only rectangles, never tools or the panel.
 - `08-panel.js` never touches state and never learns what a "pair" is.
 - `11-renderer.js`, `13-interactions.js`, `14-controller.js` never hardcode a

@@ -90,13 +90,11 @@ for (const t of tools) {
   if (t.defs !== 1) bad.push(`${t.defs} defineTool() calls, expected 1`);
   if (!t.id) bad.push('no id');
   else if (ids.indexOf(t.id) !== ids.lastIndexOf(t.id)) bad.push(`duplicate id '${t.id}'`);
-  if (!t.kind) bad.push("no kind: 'instrument' | 'rule' | 'lens'");
-  if (t.kind === 'lens' && !calls(t.s, 'annotate')) bad.push("kind 'lens' but no annotate() hook");
-  if (calls(t.s, 'annotate') && t.kind !== 'lens') bad.push("annotate() hook but kind is not 'lens'");
-  if (calls(t.s, 'audit') && t.kind !== 'rule') bad.push("audit() hook but kind is not 'rule'");
-  // now that the report calls it, a rule without one is a tool the report
-  // silently skips
-  if (t.kind === 'rule' && !calls(t.s, 'audit')) bad.push("kind 'rule' but no audit() hook");
+  // The four kind rules that used to live here are gone. A `kind` label could
+  // only repeat what the hooks already said — this file proved it by checking
+  // the label by grepping for the hook — and one label per tool made roles
+  // exclusive for no reason but the shape of the label. Tools now declare
+  // nothing; the hook list below IS the declaration, and it cannot go stale.
   t.s.split('\n').forEach((line, n) => {
     for (const m of line.matchAll(ACCESSOR))
       if (m[1] !== t.id) bad.push(`line ${n + 1}: names another tool — ${m[0].trim()})`);
@@ -106,11 +104,26 @@ for (const t of tools) {
   });
 
   const hooks = HOOKS.filter((h) => calls(t.s, h));
+  if (!hooks.length) bad.push('implements no hook — nothing would ever call it');
   if (bad.length) fail++;
   console.log(`  ${bad.length ? '✗' : '✓'} ${t.f.padEnd(16)} id=${(t.id || '??').padEnd(9)}` +
-              `${(t.kind || '??').padEnd(11)}${String(t.lines).padStart(3)} lines  ` +
-              `hooks: ${hooks.join(', ') || 'none'}`);
+              `${String(t.lines).padStart(3)} lines  hooks: ${hooks.join(', ') || 'none'}`);
   bad.forEach((b) => console.log(`      ${b}`));
+}
+
+/* Nothing declares a tool's role any more, so the hook list has to be true.
+   A name in HOOKS that no file consumes is a contract nobody honours: a tool
+   implementing it would pass this audit, print in the column above, and never
+   be called. That is exactly the silent failure the kind rules were guarding
+   against, moved to where it can actually be checked. */
+console.log('\nHOOK CONTRACT');
+const consumers = fs.readdirSync(SRC).filter((f) => f.endsWith('.js'))
+  .map((f) => [f, read(f)]);
+for (const h of HOOKS) {
+  const users = consumers.filter(([, s]) =>
+    new RegExp(`\\.${h}\\b|\\bt\\.${h}|withHook\\('${h}'`).test(s)).map(([f]) => f);
+  if (!users.length) fail++;
+  console.log(`  ${users.length ? '✓' : '✗'} ${h.padEnd(14)}${users.join(', ') || 'nothing calls this'}`);
 }
 
 console.log('\nFILE SIZES');

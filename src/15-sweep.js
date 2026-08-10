@@ -17,7 +17,7 @@
      * what was not checked.
      */
     run() {
-      const rules = TOOLS.filter((t) => t.audit);
+      const rules = Tools.withHook('audit');   // not `armed` — see above
       // byTool is built here, once, rather than filtered per frame by the
       // renderer: a page can return thousands of findings and draw() runs at
       // 60fps.

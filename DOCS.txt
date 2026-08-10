@@ -42,8 +42,8 @@ HOW TO USE
   independent toggle you can mix freely:
 
     📐 measure   sizes, radius, padding/margin, gap, font, pin distances
-    ▦ grid       a lens: marks any number another tool prints that is off
-                 the 4px grid (⚠)
+    ▦ grid       marks any number another tool prints that is off the 4px
+                 grid (⚠), and reports off-grid values page-wide in ⌕
     ◐ contrast   WCAG text contrast ratio + AA pass/fail
 
   Active tools are remembered per site.
@@ -83,7 +83,7 @@ HOW TO USE
   ADDING A NEW DEBUG TOOL — one object in section 5, nothing else:
 
     {
-      id: 'zindex', kind: 'instrument',   // instrument | rule | lens
+      id: 'zindex',
       icon: '⧉', title: 'Stacking — z-index & position',
       badge:   (i) => `<span class="sp">z ${i.cs.zIndex}</span>`,  // optional
       compact: (i) => null,                                       // optional
@@ -91,16 +91,21 @@ HOW TO USE
       draw:    (ctx) => {},                                       // optional
       reportTail: () => [],        // optional, summary lines after all pins
       pendingIndex: () => -1,      // optional, pin still being chosen
-      // kind: 'lens' only —  annotate: (html, n, i) => html
-      // kind: 'rule' only —  audit: (i) => [{ el, verdict, severity, rule, message, key }]
+      annotate: (html, n, i) => html,   // optional, decorate other tools' numbers
+      audit: (i) => [{ el, verdict, severity, rule, message, key }],  // optional
     }
 
-    verdict ∈ fail | review. A rule has three answers, not two: it passed (say
-    nothing), it failed, or it could not be measured — and the last one has to
-    be said out loud, with a reason, or an unreadable page reports clean.
-    severity ∈ error | warn | info (CONFIG.SEVERITY). `rule` is a rule id, not
-    a tool id — one tool may own several. `key` decides which findings collapse
-    into one line; without one they collapse by rule + message.
+    A tool declares no type. Its hooks are what it is, and it may have any
+    combination of them — grid decorates other tools' numbers AND audits.
+
+    audit() has three answers, not two: the element passed (say nothing), it
+    failed, or it could not be measured. The last one has to be said out loud,
+    with a reason, or a page nobody could read reports clean.
+      verdict  ∈ fail | review
+      severity ∈ error | warn | info   (CONFIG.SEVERITY — the sort order)
+      rule      a rule id, not a tool id; one tool may own several
+      key       which findings collapse into one line. Without one they
+                collapse by rule + message.
 
   The panel button, persistence, badge composition and report inclusion are
   all derived from the registry automatically.

@@ -27,7 +27,6 @@
     .dbgov-dist.vert { border-left: 2px solid #b5e853; }
     `,
       id: 'measure',
-      kind: 'instrument',
       icon: '📐',
       title: 'Measure — size, radius, spacing, font, pin distances',
       // this tool owns the geometry read-out and the pin distance lines

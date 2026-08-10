@@ -243,7 +243,7 @@ ok('reviews sort below anything measured',
 // A zero that means "nothing was checked" and a zero that means "nothing is
 // wrong" must not print the same line, so the scope travels with the count.
 ok('the report says what was checked',
-  /— whole page · 1 rule · \d+ elements/.test(swept),
+  /— whole page · 2 rules · \d+ elements/.test(swept),
   swept.slice(swept.indexOf('## findings')).split('\n')[0]);
 // Arming decides what is DRAWN. With the only rule disarmed the page still
 // has the same problems, and the audit still has to find them.
@@ -262,6 +262,37 @@ ok('a hidden element is skipped', !/#h/.test(swept), 'display:none was audited')
 ok('the pin blocks are gone but the audit remains', !/\[#1\]/.test(swept),
   'a sweep does not need pins, and clearing them must not clear it');
 
+console.log('\nTWO ROLES');
+// grid decorates other tools' numbers AND produces findings. The old
+// one-label-per-tool taxonomy made that impossible for no reason but the
+// shape of the label.
+{
+  const g = new JSDOM('<!doctype html><html><body>' +
+    '<div style="padding:7px"><p style="color:#000">a</p></div>' +
+    '<div style="padding:11px"><p style="color:#000">b</p></div>' +
+    '<div style="padding:7px"><p style="color:#000">c</p></div></body></html>',
+    { url: 'https://example.test/', pretendToBeVisual: true, runScripts: 'outside-only',
+      virtualConsole: new VirtualConsole() });
+  const wg = g.window;
+  wg.HTMLElement.prototype.scrollIntoView = function () {};
+  let gcopy = null;
+  Object.defineProperty(wg.navigator, 'clipboard',
+    { value: { writeText: async (t) => { gcopy = t; } }, configurable: true });
+  wg.eval(source);
+  const barg = wg.document.getElementById('__dbgov-bar');
+  wg.dispatchEvent(new wg.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  barg.querySelector('[data-sweep]').dispatchEvent(new wg.MouseEvent('click', { bubbles: true }));
+  barg.querySelector('[data-copy]').dispatchEvent(new wg.MouseEvent('click', { bubbles: true }));
+  ok('a lens can also be a rule', /grid-off/.test(gcopy || ''),
+    'grid produced no findings, so the sweep still cannot see it');
+  // keyed by value: 7px used twice is one decision, not two mistakes. Two
+  // divs at 7px and one at 11px = 8 raw findings, 2 lines.
+  ok('off-grid values group by value, not by element',
+    /grid-off ×8: 7px is off the 4px grid/.test(gcopy || ''),
+    ((/\[info\][^\n]*/.exec(gcopy || '') || [])[0]) || 'no grid finding');
+  g.window.close();
+}
+
 console.log('\nHONEST ZERO');
 // The sentence a clean page gets is the most-read line in the product, and it
 // used to claim "every rule is happy" on pages where no rule had run at all.
@@ -276,7 +307,7 @@ console.log('\nHONEST ZERO');
   wc.dispatchEvent(new wc.KeyboardEvent('keydown', { ...hot, bubbles: true }));
   barc.querySelector('[data-sweep]').dispatchEvent(new wc.MouseEvent('click', { bubbles: true }));
   const msg = (wc.document.querySelector('#__dbgov-list .empty') || {}).textContent || '';
-  ok('a clean page reports its scope, not a mood', /1 rule over \d+ elements/.test(msg), msg);
+  ok('a clean page reports its scope, not a mood', /2 rules over \d+ elements/.test(msg), msg);
   ok('and never claims every rule is happy', !/happy/.test(msg), msg);
   clean.window.close();
 }

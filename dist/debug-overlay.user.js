@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.17
+// @version      3.8.18
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -56,8 +56,8 @@ HOW TO USE
   independent toggle you can mix freely:
 
     📐 measure   sizes, radius, padding/margin, gap, font, pin distances
-    ▦ grid       a lens: marks any number another tool prints that is off
-                 the 4px grid (⚠)
+    ▦ grid       marks any number another tool prints that is off the 4px
+                 grid (⚠), and reports off-grid values page-wide in ⌕
     ◐ contrast   WCAG text contrast ratio + AA pass/fail
 
   Active tools are remembered per site.
@@ -97,7 +97,7 @@ HOW TO USE
   ADDING A NEW DEBUG TOOL — one object in section 5, nothing else:
 
     {
-      id: 'zindex', kind: 'instrument',   // instrument | rule | lens
+      id: 'zindex',
       icon: '⧉', title: 'Stacking — z-index & position',
       badge:   (i) => `<span class="sp">z ${i.cs.zIndex}</span>`,  // optional
       compact: (i) => null,                                       // optional
@@ -105,16 +105,21 @@ HOW TO USE
       draw:    (ctx) => {},                                       // optional
       reportTail: () => [],        // optional, summary lines after all pins
       pendingIndex: () => -1,      // optional, pin still being chosen
-      // kind: 'lens' only —  annotate: (html, n, i) => html
-      // kind: 'rule' only —  audit: (i) => [{ el, verdict, severity, rule, message, key }]
+      annotate: (html, n, i) => html,   // optional, decorate other tools' numbers
+      audit: (i) => [{ el, verdict, severity, rule, message, key }],  // optional
     }
 
-    verdict ∈ fail | review. A rule has three answers, not two: it passed (say
-    nothing), it failed, or it could not be measured — and the last one has to
-    be said out loud, with a reason, or an unreadable page reports clean.
-    severity ∈ error | warn | info (CONFIG.SEVERITY). `rule` is a rule id, not
-    a tool id — one tool may own several. `key` decides which findings collapse
-    into one line; without one they collapse by rule + message.
+    A tool declares no type. Its hooks are what it is, and it may have any
+    combination of them — grid decorates other tools' numbers AND audits.
+
+    audit() has three answers, not two: the element passed (say nothing), it
+    failed, or it could not be measured. The last one has to be said out loud,
+    with a reason, or a page nobody could read reports clean.
+      verdict  ∈ fail | review
+      severity ∈ error | warn | info   (CONFIG.SEVERITY — the sort order)
+      rule      a rule id, not a tool id; one tool may own several
+      key       which findings collapse into one line. Without one they
+                collapse by rule + message.
 
   The panel button, persistence, badge composition and report inclusion are
   all derived from the registry automatically.
@@ -483,12 +488,12 @@ HOW TO USE
         No tool ever names another tool. When one needs something another
         provides it asks the registry a question with no id in it.
 
-        Every tool declares what it IS. The kind decides which of the two
-        exclusive hooks it owns, and audit.js checks the declaration against
-        the hooks the file actually implements:
-          'instrument'  describes the element under the cursor
-          'rule'        judges an element → audit(info)
-          'lens'        decorates the numbers other tools print → annotate()
+        A tool declares nothing about what it IS. What it can do is the set of
+        hooks it implements, and that is what everything dispatches on — a
+        label would only repeat it, and could go stale against it.
+
+        Roles are not exclusive. A tool may decorate other tools' numbers AND
+        produce findings; grid does both.
 
         Hooks, all optional, all invoked as hook.call(tool, …):
           badge(info)    → HTML string for the full badge
@@ -510,7 +515,20 @@ HOW TO USE
     all: TOOLS,
     byId: (id) => TOOLS.find((t) => t.id === id),
     active: () => TOOLS.filter((t) => State.tools.has(t.id)),
-    ofKind: (kind) => TOOLS.filter((t) => t.kind === kind && State.tools.has(t.id)),
+
+    /**
+     * Tools are asked what they can DO, never what they are. A `kind` field
+     * used to answer this, and it could only ever repeat what the hooks
+     * already said — audit.js checked it by grepping for the hook, which is
+     * the tell. Worse, one label per tool forced roles to be exclusive, so
+     * grid could decorate numbers or produce findings but not both, for no
+     * reason beyond the shape of the label.
+     *
+     * `armed` matters for anything the user SEES and not for anything that
+     * gets CHECKED, so the caller says which it wants.
+     */
+    withHook: (h, armed) =>
+      TOOLS.filter((t) => t[h] && (!armed || State.tools.has(t.id))),
 
     /**
      * WHY THIS EXISTS: measure used to ask whether one specific NAMED tool was
@@ -524,7 +542,7 @@ HOW TO USE
      * order), each one wrapping the previous one's html.
      */
     annotator(info) {
-      const lenses = Tools.ofKind('lens');
+      const lenses = Tools.withHook('annotate', true);
       if (!lenses.length) return null;
       return (n) => lenses.reduce(
         (html, t) => t.annotate?.call(t, html, n, info) || html, `${n}`);
@@ -561,7 +579,6 @@ HOW TO USE
     .dbgov-dist.vert { border-left: 2px solid #b5e853; }
     `,
       id: 'measure',
-      kind: 'instrument',
       icon: '📐',
       title: 'Measure — size, radius, spacing, font, pin distances',
       // this tool owns the geometry read-out and the pin distance lines
@@ -670,7 +687,6 @@ HOW TO USE
     .dbgov-badge .warn{ color: #ffd54f; }
     `,
       id: 'grid',
-      kind: 'lens',
       icon: '▦',
       title: `Grid — flag values off the ${CONFIG.GRID}px grid`,
       // 0 is never off the grid, or every padding:0 would light up
@@ -682,13 +698,46 @@ HOW TO USE
       annotate(html, n) {
         return this._off(n) ? `<span class="warn">${html}⚠</span>` : html;
       },
-      report({ r, cs }) {
+      /** Every off-grid number on one element, as [name, value] pairs. */
+      _scan({ r, cs }) {
         const pad = U.fourPlain(cs, 'padding'), mar = U.fourPlain(cs, 'margin');
-        const bad = [];
-        const check = (n, v) => { if (this._off(v)) bad.push(`${n}:${v}`); };
+        const out = [];
+        const check = (n, v) => { if (this._off(v)) out.push([n, v]); };
         check('w', Math.round(r.width)); check('h', Math.round(r.height));
         ['t', 'r', 'b', 'l'].forEach((k) => { check('pad-' + k, pad[k]); check('mar-' + k, mar[k]); });
-        return bad.length ? [`  ⚠ off ${CONFIG.GRID}px grid: ${bad.join(', ')}`] : [];
+        return out;
+      },
+      report(i) {
+        const bad = this._scan(i);
+        return bad.length
+          ? [`  ⚠ off ${CONFIG.GRID}px grid: ${bad.map(([n, v]) => `${n}:${v}`).join(', ')}`]
+          : [];
+      },
+
+      /**
+       * RULE hook. This tool decorates other tools' numbers AND produces
+       * findings — two roles at once, which the old one-label-per-tool
+       * taxonomy made impossible for no reason but the shape of the label.
+       *
+       * Keyed by VALUE, not by element: one 13px used in forty places is one
+       * decision someone made, not forty mistakes. That is the page-wide
+       * pattern a per-element read-out could never show you — it is why this
+       * belongs in a sweep and not only on a badge.
+       */
+      audit(i) {
+        return this._scan(i).map(([n, v]) => ({
+          el: i.el,
+          verdict: 'fail',
+          // a spacing system is a convention, not a rule anyone can be hurt
+          // by breaking — it ranks below anything a reader actually suffers
+          severity: 'info',
+          rule: 'grid-off',
+          // the VALUE, not the side it appeared on: these group by value, and
+          // "pad-t ×24" would read as 24 top paddings when it is one number
+          // used in twenty-four places. The sides are in the per-pin report.
+          message: `${v}px is off the ${CONFIG.GRID}px grid`,
+          key: `grid-off|${v}`,
+        }));
       },
     });
 
@@ -708,7 +757,6 @@ HOW TO USE
     .dbgov-flag.review { outline: 2px dotted #8ab4f8; }
     `,
       id: 'contrast',
-      kind: 'rule',
       icon: '◐',
       title: 'Contrast — WCAG text contrast ratio (AA)',
 
@@ -1916,7 +1964,7 @@ HOW TO USE
      * what was not checked.
      */
     run() {
-      const rules = TOOLS.filter((t) => t.audit);
+      const rules = Tools.withHook('audit');   // not `armed` — see above
       // byTool is built here, once, rather than filtered per frame by the
       // renderer: a page can return thousands of findings and draw() runs at
       // 60fps.
