@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.20
+// @version      3.8.21
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -59,6 +59,7 @@ HOW TO USE
     ▦ grid       marks any number another tool prints that is off the 4px
                  grid (⚠), and reports off-grid values page-wide in ⌕
     ◐ contrast   WCAG text contrast ratio + AA pass/fail
+    ⧉ dupid      the same id used more than once — a page-wide question
 
   The rule between the toggles is not decoration. Tools below it carry a green
   dot and feed ⌕ — which is why ⌕ sits with them. Tools above it only draw.
@@ -112,6 +113,8 @@ HOW TO USE
       pendingIndex: () => -1,      // optional, pin still being chosen
       annotate: (html, n, i) => html,   // optional, decorate other tools' numbers
       audit: (i) => [{ el, verdict, severity, rule, message, key }],  // optional
+      auditPage: (all) => [],  // optional, once per sweep with every element
+      rules: { 'my-rule': { help, why, docs } },   // optional, what a rule IS
     }
 
     A tool declares no type. Its hooks are what it is, and it may have any
@@ -125,6 +128,18 @@ HOW TO USE
       rule      a rule id, not a tool id; one tool may own several
       key       which findings collapse into one line. Without one they
                 collapse by rule + message.
+
+    audit(info) sees one element. auditPage(all) runs once at the end of a
+    sweep with every visible element's info, for the questions a single
+    element cannot answer — a duplicated id, a spacing scale nobody kept to,
+    two things that only conflict with each other. It is only gathered when
+    some tool implements the hook, so a page with no relational rule pays
+    nothing for one.
+
+    `rules` documents a rule as opposed to one instance of it. The message
+    says "2.76:1"; help/why/docs say what the rule is and where to read more,
+    and the report prints them under each finding so it can be pasted into a
+    ticket and still make sense.
 
   The panel button, persistence, badge composition and report inclusion are
   all derived from the registry automatically.
@@ -545,11 +560,16 @@ HOW TO USE
      * is. The panel renders the runs it is handed and never learns what
      * separates them — a third run would need no panel change at all.
      */
-    runs: () => [
-      { cls: '', note: '', tools: TOOLS.filter((t) => !t.audit) },
-      { cls: 'checks', note: ' · also runs in the page audit',
-        tools: TOOLS.filter((t) => t.audit) },
-    ].filter((r) => r.tools.length),
+    runs() {
+      // either hook contributes findings — a rule that can only answer a
+      // page-wide question is still one the audit runs
+      const checks = (t) => !!(t.audit || t.auditPage);
+      return [
+        { cls: '', note: '', tools: TOOLS.filter((t) => !checks(t)) },
+        { cls: 'checks', note: ' · also runs in the page audit',
+          tools: TOOLS.filter(checks) },
+      ].filter((r) => r.tools.length);
+    },
 
     /**
      * WHY THIS EXISTS: measure used to ask whether one specific NAMED tool was
@@ -710,6 +730,14 @@ HOW TO USE
       id: 'grid',
       icon: '▦',
       title: `Grid — flag values off the ${CONFIG.GRID}px grid`,
+
+      rules: {
+        'grid-off': {
+          help: `Sizes and spacing should be multiples of ${CONFIG.GRID}px.`,
+          why: 'One-off values are how a spacing scale erodes: each looks ' +
+               'harmless alone, and together they are why nothing lines up.',
+        },
+      },
       // 0 is never off the grid, or every padding:0 would light up
       _off: (n) => n !== 0 && n % CONFIG.GRID !== 0,
 
@@ -780,6 +808,19 @@ HOW TO USE
       id: 'contrast',
       icon: '◐',
       title: 'Contrast — WCAG text contrast ratio (AA)',
+
+      // What each rule IS, separate from what any one element measured. The
+      // instance message says 2.76:1; this says why 4.5 and what to do.
+      rules: {
+        'contrast-aa': {
+          help: 'Body text needs 4.5:1 against its background; 3:1 once it is ' +
+                '24px, or 18.66px and bold.',
+          why: 'Below that, text stops being readable in bright light, on a bad ' +
+               'screen, or to anyone with reduced contrast sensitivity — which ' +
+               'is most people eventually.',
+          docs: 'https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum',
+        },
+      },
 
       /* ---- colour, resolved rather than guessed ------------------------
          These live here rather than in UTILS because reading a colour
@@ -1017,6 +1058,64 @@ HOW TO USE
         if (!c) return [];
         if (c.unknown) return [`  contrast: not measured — ${this._why[c.unknown]}`];
         return [`  contrast: ${c.ratio.toFixed(2)}:1 vs required ${c.need} (${c.isLarge ? 'large' : 'normal'} text) → ${c.pass ? 'PASS' : 'FAIL'}`];
+      },
+    });
+
+  // ─── src/tools/40-dupid.js ─────────────────────────────────────────────
+  defineTool({
+    // visuals owned by this tool — appended to the stylesheet at boot
+    css: `
+    .dbgov-badge .dup { color: #ff8a65; font-weight: 700; }
+    `,
+      id: 'dupid',
+      icon: '⧉',
+      title: 'Duplicate ids — the same id used more than once',
+
+      rules: {
+        'dup-id': {
+          help: 'An id must be unique in a document.',
+          why: 'getElementById, label[for], aria-labelledby and every #anchor ' +
+               'resolve to the first match and silently ignore the rest, so the ' +
+               'bug shows up as a control that does nothing rather than an error.',
+          docs: 'https://developer.mozilla.org/docs/Web/HTML/Global_attributes/id',
+        },
+      },
+
+      /**
+       * PAGE hook. This is the shape of question audit(info) cannot ask: an
+       * element with a duplicated id looks perfectly correct on its own, and
+       * only the second one makes either of them wrong. Nothing about the
+       * element is the problem — the page is.
+       */
+      auditPage(all) {
+        const by = new Map();
+        for (const i of all) {
+          const id = i.el.id;
+          if (!id) continue;
+          (by.get(id) || by.set(id, []).get(id)).push(i.el);
+        }
+        const out = [];
+        for (const [id, els] of by) {
+          if (els.length < 2) continue;
+          out.push({
+            el: els[0],
+            verdict: 'fail',
+            // a broken label or anchor is a control that does nothing, and
+            // nothing on screen says so
+            severity: 'error',
+            rule: 'dup-id',
+            message: `id "${id}" is used ${els.length} times`,
+            // by id, not by element: the duplicates are one mistake
+            key: `dup-id|${id}`,
+          });
+        }
+        return out;
+      },
+
+      report({ el }) {
+        if (!el.id) return [];
+        const n = document.querySelectorAll(`[id="${CSS.escape ? CSS.escape(el.id) : el.id}"]`).length;
+        return n > 1 ? [`  ⧉ id "${el.id}" is used ${n} times on this page`] : [];
       },
     });
 
@@ -1646,8 +1745,10 @@ HOW TO USE
         L.push(`[#${p.id}] (${p.kind}) ${U.selectorOf(i.el)}`);
         for (const t of active) L.push(...(t.report?.call(t, i) || []));
         // same info, judged rather than described — rules only speak up when
-        // something is wrong, so this is usually empty
-        for (const t of active) found.push(...(t.audit?.call(t, i) || []));
+        // something is wrong, so this is usually empty. Stamped by the same
+        // helper the sweep uses, so a finding always knows its producer no
+        // matter which path made it.
+        found.push(...Sweep.collect(active, 'audit', i));
         L.push('');
       });
       for (const t of active) {
@@ -1672,6 +1773,16 @@ HOW TO USE
           const tag = g.verdict === 'review' ? 'review' : g.severity;
           L.push(`[${tag}] ${g.rule}${g.n > 1 ? ` ×${g.n}` : ''}: ${g.message}`);
           L.push(`    ${U.selectorOf(g.el)}`);
+          // What the rule IS, as opposed to what this instance measured. The
+          // message alone only helps someone who already knew the rule; this
+          // is what lets the report be pasted into a ticket and still make
+          // sense to whoever picks it up.
+          const doc = Tools.byId(g.tool)?.rules?.[g.rule];
+          if (doc) {
+            if (doc.help) L.push(`    → ${doc.help}`);
+            if (doc.why) L.push(`    → ${doc.why}`);
+            if (doc.docs) L.push(`    → ${doc.docs}`);
+          }
         }
         if (!groups.length) L.push('(none)');
       }
@@ -2011,14 +2122,39 @@ HOW TO USE
      * clean. You can always narrow a list of findings; you can never find
      * what was not checked.
      */
+    /**
+     * Call one hook across some tools and stamp the producer onto whatever
+     * comes back, so no rule has to name itself and no consumer has to guess.
+     * It is what lets draw() be handed only its own findings — and the report
+     * look up the rule's own documentation.
+     */
+    collect(tools, hook, arg) {
+      const out = [];
+      for (const t of tools) {
+        const f = t[hook]?.call(t, arg);
+        if (!f || !f.length) continue;
+        for (const one of f) one.tool = t.id;
+        out.push(...f);
+      }
+      return out;
+    },
+
     run() {
-      const rules = Tools.withHook('audit');   // not `armed` — see above
+      const perEl = Tools.withHook('audit');        // not `armed` — see above
+      const perPage = Tools.withHook('auditPage');
+      const all = [...new Set([...perEl, ...perPage])];
       // byTool is built here, once, rather than filtered per frame by the
       // renderer: a page can return thousands of findings and draw() runs at
       // 60fps.
-      const result = { findings: [], rules: rules.length, elements: 0, byTool: {} };
-      if (!rules.length || !document.body) return result;
-      for (const t of rules) result.byTool[t.id] = [];
+      const result = { findings: [], rules: all.length, elements: 0, byTool: {} };
+      if (!all.length || !document.body) return result;
+      for (const t of all) result.byTool[t.id] = [];
+
+      // Only gathered when a page-level rule actually exists. Holding every
+      // element's info costs real memory on a large page, and a page with no
+      // relational rule should not pay for one.
+      const seen = perPage.length ? [] : null;
+
       for (const el of document.body.querySelectorAll('*')) {
         // One getComputedStyle per element, reused as the gate AND handed to
         // the rules, so nobody reads it twice. It is the dominant cost of the
@@ -2027,16 +2163,19 @@ HOW TO USE
         if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') continue;
         result.elements++;
         const i = U.info(el, cs);
-        for (const t of rules) {
-          const f = t.audit?.call(t, i);
-          if (!f || !f.length) continue;
-          // The sweep stamps the producer, so no rule has to name itself and
-          // no consumer has to guess. It is what lets draw() be handed only
-          // its own findings.
-          for (const one of f) one.tool = t.id;
-          result.findings.push(...f);
-          result.byTool[t.id].push(...f);
+        if (seen) seen.push(i);
+        for (const f of Sweep.collect(perEl, 'audit', i)) {
+          result.findings.push(f);
+          result.byTool[f.tool].push(f);
         }
+      }
+
+      // Then the questions no single element can answer: a duplicate id, a
+      // spacing scale nobody kept to, two things that only conflict with each
+      // other. audit(info) is blind to all of them by construction.
+      for (const f of Sweep.collect(perPage, 'auditPage', seen || [])) {
+        result.findings.push(f);
+        result.byTool[f.tool].push(f);
       }
       return result;
     },

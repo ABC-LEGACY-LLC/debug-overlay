@@ -17,8 +17,10 @@
         L.push(`[#${p.id}] (${p.kind}) ${U.selectorOf(i.el)}`);
         for (const t of active) L.push(...(t.report?.call(t, i) || []));
         // same info, judged rather than described — rules only speak up when
-        // something is wrong, so this is usually empty
-        for (const t of active) found.push(...(t.audit?.call(t, i) || []));
+        // something is wrong, so this is usually empty. Stamped by the same
+        // helper the sweep uses, so a finding always knows its producer no
+        // matter which path made it.
+        found.push(...Sweep.collect(active, 'audit', i));
         L.push('');
       });
       for (const t of active) {
@@ -43,6 +45,16 @@
           const tag = g.verdict === 'review' ? 'review' : g.severity;
           L.push(`[${tag}] ${g.rule}${g.n > 1 ? ` ×${g.n}` : ''}: ${g.message}`);
           L.push(`    ${U.selectorOf(g.el)}`);
+          // What the rule IS, as opposed to what this instance measured. The
+          // message alone only helps someone who already knew the rule; this
+          // is what lets the report be pasted into a ticket and still make
+          // sense to whoever picks it up.
+          const doc = Tools.byId(g.tool)?.rules?.[g.rule];
+          if (doc) {
+            if (doc.help) L.push(`    → ${doc.help}`);
+            if (doc.why) L.push(`    → ${doc.why}`);
+            if (doc.docs) L.push(`    → ${doc.docs}`);
+          }
         }
         if (!groups.length) L.push('(none)');
       }

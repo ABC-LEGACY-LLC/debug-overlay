@@ -16,6 +16,19 @@
       icon: '◐',
       title: 'Contrast — WCAG text contrast ratio (AA)',
 
+      // What each rule IS, separate from what any one element measured. The
+      // instance message says 2.76:1; this says why 4.5 and what to do.
+      rules: {
+        'contrast-aa': {
+          help: 'Body text needs 4.5:1 against its background; 3:1 once it is ' +
+                '24px, or 18.66px and bold.',
+          why: 'Below that, text stops being readable in bright light, on a bad ' +
+               'screen, or to anyone with reduced contrast sensitivity — which ' +
+               'is most people eventually.',
+          docs: 'https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum',
+        },
+      },
+
       /* ---- colour, resolved rather than guessed ------------------------
          These live here rather than in UTILS because reading a colour
          honestly needs a canvas, and UTILS may not touch the DOM. Each of

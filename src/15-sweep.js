@@ -16,14 +16,39 @@
      * clean. You can always narrow a list of findings; you can never find
      * what was not checked.
      */
+    /**
+     * Call one hook across some tools and stamp the producer onto whatever
+     * comes back, so no rule has to name itself and no consumer has to guess.
+     * It is what lets draw() be handed only its own findings — and the report
+     * look up the rule's own documentation.
+     */
+    collect(tools, hook, arg) {
+      const out = [];
+      for (const t of tools) {
+        const f = t[hook]?.call(t, arg);
+        if (!f || !f.length) continue;
+        for (const one of f) one.tool = t.id;
+        out.push(...f);
+      }
+      return out;
+    },
+
     run() {
-      const rules = Tools.withHook('audit');   // not `armed` — see above
+      const perEl = Tools.withHook('audit');        // not `armed` — see above
+      const perPage = Tools.withHook('auditPage');
+      const all = [...new Set([...perEl, ...perPage])];
       // byTool is built here, once, rather than filtered per frame by the
       // renderer: a page can return thousands of findings and draw() runs at
       // 60fps.
-      const result = { findings: [], rules: rules.length, elements: 0, byTool: {} };
-      if (!rules.length || !document.body) return result;
-      for (const t of rules) result.byTool[t.id] = [];
+      const result = { findings: [], rules: all.length, elements: 0, byTool: {} };
+      if (!all.length || !document.body) return result;
+      for (const t of all) result.byTool[t.id] = [];
+
+      // Only gathered when a page-level rule actually exists. Holding every
+      // element's info costs real memory on a large page, and a page with no
+      // relational rule should not pay for one.
+      const seen = perPage.length ? [] : null;
+
       for (const el of document.body.querySelectorAll('*')) {
         // One getComputedStyle per element, reused as the gate AND handed to
         // the rules, so nobody reads it twice. It is the dominant cost of the
@@ -32,16 +57,19 @@
         if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') continue;
         result.elements++;
         const i = U.info(el, cs);
-        for (const t of rules) {
-          const f = t.audit?.call(t, i);
-          if (!f || !f.length) continue;
-          // The sweep stamps the producer, so no rule has to name itself and
-          // no consumer has to guess. It is what lets draw() be handed only
-          // its own findings.
-          for (const one of f) one.tool = t.id;
-          result.findings.push(...f);
-          result.byTool[t.id].push(...f);
+        if (seen) seen.push(i);
+        for (const f of Sweep.collect(perEl, 'audit', i)) {
+          result.findings.push(f);
+          result.byTool[f.tool].push(f);
         }
+      }
+
+      // Then the questions no single element can answer: a duplicate id, a
+      // spacing scale nobody kept to, two things that only conflict with each
+      // other. audit(info) is blind to all of them by construction.
+      for (const f of Sweep.collect(perPage, 'auditPage', seen || [])) {
+        result.findings.push(f);
+        result.byTool[f.tool].push(f);
       }
       return result;
     },

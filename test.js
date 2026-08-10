@@ -133,20 +133,20 @@ ok('boots powered off', !!status && status.textContent === 'OFF');
 
 const buttons = bar ? [...bar.querySelectorAll('button.tool')] : [];
 const ids = buttons.map((b) => b.dataset.tool).sort();
-ok('a button per registered tool', ids.length === 3, `got ${ids.length}: ${ids.join(', ')}`);
+ok('a button per registered tool', ids.length === 4, `got ${ids.length}: ${ids.join(', ')}`);
 ok('tool ids match the registry',
-  ids.join(',') === 'contrast,grid,measure', ids.join(','));
+  ids.join(',') === 'contrast,dupid,grid,measure', ids.join(','));
 // Two toggles that look identical and mean different things was the problem:
 // arming grid or contrast changes what ⌕ finds, arming measure does not.
 const checks = buttons.filter((b) => b.classList.contains('checks')).map((b) => b.dataset.tool).sort();
 ok('the tools that feed the audit are marked as such',
-  checks.join(',') === 'contrast,grid', checks.join(',') || 'none marked');
+  checks.join(',') === 'contrast,dupid,grid', checks.join(',') || 'none marked');
 ok('and they are separated from the ones that only draw',
   bar.querySelectorAll('button.tool + hr.sep, hr.sep + button.tool').length >= 2,
   'the runs are not divided by a rule');
 ok('⌕ sits with the run it sweeps',
-  bar.querySelector('[data-sweep]').previousElementSibling?.dataset.tool === 'contrast',
-  `after ${bar.querySelector('[data-sweep]').previousElementSibling?.tagName}`);
+  checks.includes(bar.querySelector('[data-sweep]').previousElementSibling?.dataset.tool),
+  `after ${bar.querySelector('[data-sweep]').previousElementSibling?.dataset.tool || 'nothing'}`);
 
 console.log('\nWIRING');
 // the hotkey is the one path that proves interactions → controller → panel
@@ -265,7 +265,7 @@ ok('reviews sort below anything measured',
 // A zero that means "nothing was checked" and a zero that means "nothing is
 // wrong" must not print the same line, so the scope travels with the count.
 ok('the report says what was checked',
-  /— whole page · 2 rules · \d+ elements/.test(swept),
+  /— whole page · 3 rules · \d+ elements/.test(swept),
   swept.slice(swept.indexOf('## findings')).split('\n')[0]);
 // Arming decides what is DRAWN. With the only rule disarmed the page still
 // has the same problems, and the audit still has to find them.
@@ -315,6 +315,40 @@ console.log('\nTWO ROLES');
   g.window.close();
 }
 
+console.log('\nPAGE RULES');
+// audit(info) is blind to this by construction: each of these elements is
+// perfectly correct on its own, and only the second one makes either wrong.
+{
+  const dup = new JSDOM('<!doctype html><html><body>' +
+    '<label for="email">Email</label><input id="email">' +
+    '<div id="email">a second one</div><span id="email">a third</span>' +
+    '<p id="unique">fine</p></body></html>',
+    { url: 'https://example.test/', pretendToBeVisual: true, runScripts: 'outside-only',
+      virtualConsole: new VirtualConsole() });
+  const wd = dup.window;
+  wd.HTMLElement.prototype.scrollIntoView = function () {};
+  let dcopy = null;
+  Object.defineProperty(wd.navigator, 'clipboard',
+    { value: { writeText: async (t) => { dcopy = t; } }, configurable: true });
+  wd.eval(source);
+  const bard = wd.document.getElementById('__dbgov-bar');
+  wd.dispatchEvent(new wd.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  bard.querySelector('[data-sweep]').dispatchEvent(new wd.MouseEvent('click', { bubbles: true }));
+  bard.querySelector('[data-copy]').dispatchEvent(new wd.MouseEvent('click', { bubbles: true }));
+  ok('a page-wide rule sees what no element could',
+    /\[error\] dup-id: id "email" is used 3 times/.test(dcopy || ''),
+    ((/dup-id[^\n]*/.exec(dcopy || '') || [])[0]) || 'no dup-id finding');
+  ok('a unique id is not a finding', !/"unique"/.test(dcopy || ''),
+    'every id was reported, not just the repeated one');
+  // the report has to make sense to whoever picks up the ticket, not only to
+  // the person who already knew the rule
+  ok('findings carry their rule documentation',
+    /→ An id must be unique in a document\./.test(dcopy || '') &&
+    /→ https:\/\/developer\.mozilla\.org/.test(dcopy || ''),
+    'the rule id is bare — no help, no link');
+  dup.window.close();
+}
+
 console.log('\nHONEST ZERO');
 // The sentence a clean page gets is the most-read line in the product, and it
 // used to claim "every rule is happy" on pages where no rule had run at all.
@@ -329,7 +363,7 @@ console.log('\nHONEST ZERO');
   wc.dispatchEvent(new wc.KeyboardEvent('keydown', { ...hot, bubbles: true }));
   barc.querySelector('[data-sweep]').dispatchEvent(new wc.MouseEvent('click', { bubbles: true }));
   const msg = (wc.document.querySelector('#__dbgov-list .empty') || {}).textContent || '';
-  ok('a clean page reports its scope, not a mood', /2 rules over \d+ elements/.test(msg), msg);
+  ok('a clean page reports its scope, not a mood', /3 rules over \d+ elements/.test(msg), msg);
   ok('and never claims every rule is happy', !/happy/.test(msg), msg);
   clean.window.close();
 }

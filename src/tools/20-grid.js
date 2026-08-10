@@ -6,6 +6,14 @@
       id: 'grid',
       icon: '▦',
       title: `Grid — flag values off the ${CONFIG.GRID}px grid`,
+
+      rules: {
+        'grid-off': {
+          help: `Sizes and spacing should be multiples of ${CONFIG.GRID}px.`,
+          why: 'One-off values are how a spacing scale erodes: each looks ' +
+               'harmless alone, and together they are why nothing lines up.',
+        },
+      },
       // 0 is never off the grid, or every padding:0 would light up
       _off: (n) => n !== 0 && n % CONFIG.GRID !== 0,
 

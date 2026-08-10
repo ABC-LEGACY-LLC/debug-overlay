@@ -56,11 +56,16 @@
      * is. The panel renders the runs it is handed and never learns what
      * separates them — a third run would need no panel change at all.
      */
-    runs: () => [
-      { cls: '', note: '', tools: TOOLS.filter((t) => !t.audit) },
-      { cls: 'checks', note: ' · also runs in the page audit',
-        tools: TOOLS.filter((t) => t.audit) },
-    ].filter((r) => r.tools.length),
+    runs() {
+      // either hook contributes findings — a rule that can only answer a
+      // page-wide question is still one the audit runs
+      const checks = (t) => !!(t.audit || t.auditPage);
+      return [
+        { cls: '', note: '', tools: TOOLS.filter((t) => !checks(t)) },
+        { cls: 'checks', note: ' · also runs in the page audit',
+          tools: TOOLS.filter(checks) },
+      ].filter((r) => r.tools.length);
+    },
 
     /**
      * WHY THIS EXISTS: measure used to ask whether one specific NAMED tool was

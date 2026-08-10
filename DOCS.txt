@@ -45,6 +45,7 @@ HOW TO USE
     ▦ grid       marks any number another tool prints that is off the 4px
                  grid (⚠), and reports off-grid values page-wide in ⌕
     ◐ contrast   WCAG text contrast ratio + AA pass/fail
+    ⧉ dupid      the same id used more than once — a page-wide question
 
   The rule between the toggles is not decoration. Tools below it carry a green
   dot and feed ⌕ — which is why ⌕ sits with them. Tools above it only draw.
@@ -98,6 +99,8 @@ HOW TO USE
       pendingIndex: () => -1,      // optional, pin still being chosen
       annotate: (html, n, i) => html,   // optional, decorate other tools' numbers
       audit: (i) => [{ el, verdict, severity, rule, message, key }],  // optional
+      auditPage: (all) => [],  // optional, once per sweep with every element
+      rules: { 'my-rule': { help, why, docs } },   // optional, what a rule IS
     }
 
     A tool declares no type. Its hooks are what it is, and it may have any
@@ -111,6 +114,18 @@ HOW TO USE
       rule      a rule id, not a tool id; one tool may own several
       key       which findings collapse into one line. Without one they
                 collapse by rule + message.
+
+    audit(info) sees one element. auditPage(all) runs once at the end of a
+    sweep with every visible element's info, for the questions a single
+    element cannot answer — a duplicated id, a spacing scale nobody kept to,
+    two things that only conflict with each other. It is only gathered when
+    some tool implements the hook, so a page with no relational rule pays
+    nothing for one.
+
+    `rules` documents a rule as opposed to one instance of it. The message
+    says "2.76:1"; help/why/docs say what the rule is and where to read more,
+    and the report prints them under each finding so it can be pasted into a
+    ticket and still make sense.
 
   The panel button, persistence, badge composition and report inclusion are
   all derived from the registry automatically.

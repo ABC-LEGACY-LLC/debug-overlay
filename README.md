@@ -130,6 +130,7 @@ src/
     10-measure.js     sizes, spacing, distances  ← copy this as a template
     20-grid.js        off-grid value warnings
     30-contrast.js    WCAG contrast ratio
+    40-dupid.js       duplicate ids — a whole-page question
   06-styles.js        core CSS (tools carry their own)
   07-dom.js           root + drawing layer
   08-panel.js         control panel: drag, snap, tuck, pin list
@@ -181,7 +182,12 @@ The ⌕ button audits the whole page. It runs every rule that exists, armed or
 not: arming decides what is drawn on screen, never what is checked.
 
 Available hooks, all optional: `badge`, `compact`, `report`, `reportTail`,
-`draw`, `listRows`, `pendingIndex`, `annotate`, `audit`, `css`.
+`draw`, `listRows`, `pendingIndex`, `annotate`, `audit`, `auditPage`, `css`.
+
+`audit(info)` judges one element; `auditPage(all)` runs once per sweep with
+every visible element, for questions no single element can answer. A tool's
+`rules` map documents each rule it owns — the report prints that under every
+finding, so a copied report explains itself.
 
 ## Rules the audit enforces
 

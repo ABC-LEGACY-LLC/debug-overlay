@@ -80,10 +80,16 @@ console.log('\nTOOL FILES');
    permanently red. */
 const ACCESSOR = /(?:Tools\.\w+|State\.tools\.has)\s*\(\s*'([a-z][\w-]*)'/g;
 const BY_FIELD = /\.id\s*===?\s*'([a-z][\w-]*)'/g;   // the other way back in
+/* Comments are stripped first. Without that, a file that merely EXPLAINS a
+   hook is reported as implementing it — 40-dupid.js says "audit(info) cannot
+   ask this" in its own doc comment and was listed as having an audit hook it
+   does not have. Only whole-line // comments go, so a URL inside a string
+   keeps its slashes. */
+const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 // \b would match U.mark(…) and this.pairs(); a hook is never called through a dot
-const calls = (s, h) => new RegExp(`(^|[^.\\w])${h}\\s*\\(`, 'm').test(s);
+const calls = (s, h) => new RegExp(`(^|[^.\\w])${h}\\s*\\(`, 'm').test(strip(s));
 const HOOKS = ['badge', 'compact', 'report', 'reportTail', 'draw', 'listRows',
-               'pendingIndex', 'annotate', 'audit'];
+               'pendingIndex', 'annotate', 'audit', 'auditPage'];
 
 for (const t of tools) {
   const bad = [];
@@ -121,7 +127,7 @@ const consumers = fs.readdirSync(SRC).filter((f) => f.endsWith('.js'))
   .map((f) => [f, read(f)]);
 for (const h of HOOKS) {
   const users = consumers.filter(([, s]) =>
-    new RegExp(`\\.${h}\\b|\\bt\\.${h}|withHook\\('${h}'`).test(s)).map(([f]) => f);
+    new RegExp(`\\.${h}\\b|\\bt\\.${h}|withHook\\('${h}'|'${h}'`).test(strip(s))).map(([f]) => f);
   if (!users.length) fail++;
   console.log(`  ${users.length ? '✓' : '✗'} ${h.padEnd(14)}${users.join(', ') || 'nothing calls this'}`);
 }
