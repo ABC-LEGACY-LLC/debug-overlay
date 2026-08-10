@@ -134,8 +134,13 @@
         const hi = Math.max(l1, l2), lo = Math.min(l1, l2);
         return (hi + 0.05) / (lo + 0.05);
       },
+      // Walked rather than spread: this is the first thing asked of every
+      // element in a page sweep, and [...childNodes] allocates an array for
+      // each one only to look at the first text node.
       _ownText(el) {
-        return [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim().length);
+        for (let n = el.firstChild; n; n = n.nextSibling)
+          if (n.nodeType === 3 && n.nodeValue.trim()) return true;
+        return false;
       },
 
       _measure({ el, cs }) {

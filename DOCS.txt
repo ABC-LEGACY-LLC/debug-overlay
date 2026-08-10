@@ -17,6 +17,11 @@ HOW TO USE
   Hold Alt ............ pass clicks through to the page (links keep working)
   Esc ................. clear pins (press again to power off)
   ≡ ................... compact / full badges
+  ⌕ ................... audit the WHOLE page — every active rule runs over every
+                        visible element, and the button shows how many distinct
+                        problems came back. Repeats collapse: a nav of 40
+                        identical links is one finding, not forty. The result
+                        rides along in the next report you copy.
   ⧉ ................... copy structured report → paste into Claude with a screenshot
   Count chip .......... click the pin count to open the pin list: every pin and
                         measured pair in one place, even ones scrolled off
@@ -58,6 +63,7 @@ HOW TO USE
    12. REPORT        structured text export, also composed from tools
    13. INTERACTIONS  page-level mouse & keyboard
    14. CONTROLLER    the only glue between modules
+   15. SWEEP         runs the rules over the whole page
 
   RULES that keep it from turning to mush:
     · UTILS is pure. It never reads State and never asks "is tool X on?" —

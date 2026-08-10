@@ -1,11 +1,12 @@
 
   /* ======================================================================
-    15. BOOT — wire the modules together and start
+    16. BOOT — wire the modules together and start
      ====================================================================== */
   Panel.onToggle = Controller.togglePower;
   Panel.onTool = Controller.toggleTool;
   Panel.onDetail = Controller.toggleDetail;
   Panel.onCopy = Report.copy;
+  Panel.onSweep = Controller.sweep;
   Panel.onClear = Controller.clearPins;
   Panel.onListOpen = () => Panel.setList(Controller.pinList());
   Panel.onRowActivate = Controller.revealRow;

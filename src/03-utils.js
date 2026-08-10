@@ -56,7 +56,19 @@
       const cls = [...el.classList].filter((c) => !c.startsWith('__dbgov'))[0];
       return el.tagName.toLowerCase() + (el.id ? '#' + el.id : cls ? '.' + cls : '');
     },
-    info: (el) => ({ el, r: el.getBoundingClientRect(), cs: getComputedStyle(el) }),
+    /**
+     * `r` is a getter: a rule that only reads colours never pays for a
+     * layout read, which over a whole page is thousands of them. `cs` can be
+     * handed in by a caller that has already read it.
+     */
+    info(el, cs) {
+      let r = null;
+      return {
+        el,
+        cs: cs || getComputedStyle(el),
+        get r() { return r || (r = el.getBoundingClientRect()); },
+      };
+    },
     gap(a, b) {
       const dx = Math.max(a.left - b.right, b.left - a.right, 0);
       const dy = Math.max(a.top - b.bottom, b.top - a.bottom, 0);

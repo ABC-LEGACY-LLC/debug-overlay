@@ -16,6 +16,7 @@
       <hr class="sep whenOn">
       <button class="cnt whenOn" data-c title="Pinned elements — click for the list">0</button>
       <button class="act whenOn" data-detail title="Compact / full badges">≡</button>
+      <button class="act whenOn" data-sweep title="Audit the whole page">⌕</button>
       <button class="act whenOn" data-copy title="Copy report">⧉</button>
       <button class="act whenOn" data-clear title="Clear pins">✕</button>`;
     root.append(el);
@@ -41,7 +42,7 @@
     const api = {
       el,
       onToggle: null, onTool: null, onDetail: null, onCopy: null, onClear: null,
-      onListOpen: null, onRowActivate: null, onRowRemove: null,
+      onListOpen: null, onRowActivate: null, onRowRemove: null, onSweep: null,
       setOn(v) {
         el.classList.toggle('on', v);
         el.querySelector('[data-st]').textContent = v ? 'ON' : 'OFF';
@@ -100,8 +101,8 @@
         });
         placeList();
       },
-      flash(msg) {
-        const b = el.querySelector('[data-copy]');
+      flash(msg, sel = '[data-copy]') {
+        const b = el.querySelector(sel);
         const old = b.textContent;
         b.textContent = msg;
         setTimeout(() => (b.textContent = old), 1200);
@@ -115,6 +116,7 @@
       b.addEventListener('click', () => api.onTool?.(b.dataset.tool)));
     el.querySelector('[data-c]').addEventListener('click', () => api.toggleList());
     el.querySelector('[data-detail]').addEventListener('click', () => api.onDetail?.());
+    el.querySelector('[data-sweep]').addEventListener('click', () => api.onSweep?.());
     el.querySelector('[data-copy]').addEventListener('click', () => api.onCopy?.());
     el.querySelector('[data-clear]').addEventListener('click', () => api.onClear?.());
 

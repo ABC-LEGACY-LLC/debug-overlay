@@ -73,6 +73,21 @@ That is also why the colour helpers live in the tool and not in `03-utils.js`
 — reading a colour honestly needs the DOM, and utils may not have it. Each of
 them only ever had one caller.
 
+## The sweep
+`15-sweep.js` runs every active `rule` over every visible element in one
+read-only pass. It stays tool-agnostic: it gates on `display`/`visibility`/
+`opacity`, reads `getComputedStyle` once per element and hands that same
+object to the rules, and asks nothing else about them.
+
+Two things carry the cost. `U.info`'s `r` is a getter, so a rule that only
+reads colours never triggers a layout read — over a page that is thousands of
+them. And `Sweep.group` collapses findings by `key` before anyone sees them:
+15 000 elements can yield 5 000 raw findings that are *one* problem repeated,
+and a list nobody can read is a list nobody uses. Measured: 5 000 → 1 line.
+
+`getComputedStyle` is ~77% of the pass, so before optimising anything else,
+check whether you are adding calls to it.
+
 ## The stylesheet (test.js enforces this)
 Every tool's `css:` is concatenated into one sheet, so malformed CSS in an
 early tool makes the parser drop everything after it — including other tools'

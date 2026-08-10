@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.10
+// @version      3.8.11
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -31,6 +31,11 @@ HOW TO USE
   Hold Alt ............ pass clicks through to the page (links keep working)
   Esc ................. clear pins (press again to power off)
   ≡ ................... compact / full badges
+  ⌕ ................... audit the WHOLE page — every active rule runs over every
+                        visible element, and the button shows how many distinct
+                        problems came back. Repeats collapse: a nav of 40
+                        identical links is one finding, not forty. The result
+                        rides along in the next report you copy.
   ⧉ ................... copy structured report → paste into Claude with a screenshot
   Count chip .......... click the pin count to open the pin list: every pin and
                         measured pair in one place, even ones scrolled off
@@ -72,6 +77,7 @@ HOW TO USE
    12. REPORT        structured text export, also composed from tools
    13. INTERACTIONS  page-level mouse & keyboard
    14. CONTROLLER    the only glue between modules
+   15. SWEEP         runs the rules over the whole page
 
   RULES that keep it from turning to mush:
     · UTILS is pure. It never reads State and never asks "is tool X on?" —
@@ -160,6 +166,9 @@ HOW TO USE
     removeTarget: null,  // pin object under the cursor in remove mode
     flashPins: null,     // pins briefly highlighted after "reveal" from the list
     pinSeq: 0,
+    // Last whole-page sweep, or null if none has been run. Cleared on power
+    // off: the DOM moves on, and a stale page audit is worse than no audit.
+    findings: null,
   };
 
   // ─── src/03-utils.js ───────────────────────────────────────────────────
@@ -221,7 +230,19 @@ HOW TO USE
       const cls = [...el.classList].filter((c) => !c.startsWith('__dbgov'))[0];
       return el.tagName.toLowerCase() + (el.id ? '#' + el.id : cls ? '.' + cls : '');
     },
-    info: (el) => ({ el, r: el.getBoundingClientRect(), cs: getComputedStyle(el) }),
+    /**
+     * `r` is a getter: a rule that only reads colours never pays for a
+     * layout read, which over a whole page is thousands of them. `cs` can be
+     * handed in by a caller that has already read it.
+     */
+    info(el, cs) {
+      let r = null;
+      return {
+        el,
+        cs: cs || getComputedStyle(el),
+        get r() { return r || (r = el.getBoundingClientRect()); },
+      };
+    },
     gap(a, b) {
       const dx = Math.max(a.left - b.right, b.left - a.right, 0);
       const dy = Math.max(a.top - b.bottom, b.top - a.bottom, 0);
@@ -785,8 +806,13 @@ HOW TO USE
         const hi = Math.max(l1, l2), lo = Math.min(l1, l2);
         return (hi + 0.05) / (lo + 0.05);
       },
+      // Walked rather than spread: this is the first thing asked of every
+      // element in a page sweep, and [...childNodes] allocates an array for
+      // each one only to look at the first text node.
       _ownText(el) {
-        return [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim().length);
+        for (let n = el.firstChild; n; n = n.nextSibling)
+          if (n.nodeType === 3 && n.nodeValue.trim()) return true;
+        return false;
       },
 
       _measure({ el, cs }) {
@@ -987,6 +1013,7 @@ HOW TO USE
       <hr class="sep whenOn">
       <button class="cnt whenOn" data-c title="Pinned elements — click for the list">0</button>
       <button class="act whenOn" data-detail title="Compact / full badges">≡</button>
+      <button class="act whenOn" data-sweep title="Audit the whole page">⌕</button>
       <button class="act whenOn" data-copy title="Copy report">⧉</button>
       <button class="act whenOn" data-clear title="Clear pins">✕</button>`;
     root.append(el);
@@ -1012,7 +1039,7 @@ HOW TO USE
     const api = {
       el,
       onToggle: null, onTool: null, onDetail: null, onCopy: null, onClear: null,
-      onListOpen: null, onRowActivate: null, onRowRemove: null,
+      onListOpen: null, onRowActivate: null, onRowRemove: null, onSweep: null,
       setOn(v) {
         el.classList.toggle('on', v);
         el.querySelector('[data-st]').textContent = v ? 'ON' : 'OFF';
@@ -1071,8 +1098,8 @@ HOW TO USE
         });
         placeList();
       },
-      flash(msg) {
-        const b = el.querySelector('[data-copy]');
+      flash(msg, sel = '[data-copy]') {
+        const b = el.querySelector(sel);
         const old = b.textContent;
         b.textContent = msg;
         setTimeout(() => (b.textContent = old), 1200);
@@ -1086,6 +1113,7 @@ HOW TO USE
       b.addEventListener('click', () => api.onTool?.(b.dataset.tool)));
     el.querySelector('[data-c]').addEventListener('click', () => api.toggleList());
     el.querySelector('[data-detail]').addEventListener('click', () => api.onDetail?.());
+    el.querySelector('[data-sweep]').addEventListener('click', () => api.onSweep?.());
     el.querySelector('[data-copy]').addEventListener('click', () => api.onCopy?.());
     el.querySelector('[data-clear]').addEventListener('click', () => api.onClear?.());
 
@@ -1405,33 +1433,21 @@ HOW TO USE
         const tail = t.reportTail?.call(t) || [];
         if (tail.length) L.push(...tail);
       }
+      // A sweep already covered every element, pinned ones included, so it
+      // replaces the per-pin collection rather than adding to it — counting
+      // both would report the same problem twice.
+      const list = State.findings || found;
       // Its own section: per-pin lines carry no attribution, so loose finding
       // lines up there would be indistinguishable from a tool's description.
-      const groups = Report.group(found);
+      const groups = Sweep.group(list);
       if (groups.length) {
-        L.push('', `## findings (${found.length})`);
+        L.push('', `## findings (${list.length})${State.findings ? ' — whole page' : ''}`);
         for (const g of groups) {
           L.push(`[${g.severity}] ${g.rule}${g.n > 1 ? ` ×${g.n}` : ''}: ${g.message}`);
           L.push(`    ${U.selectorOf(g.el)}`);
         }
       }
       return L.join('\n');
-    },
-    /**
-     * Collapse repeats, then rank worst-first. `key` says which findings are
-     * the same problem; only the rule that produced them knows, so it supplies
-     * it and this falls back to rule + message when it does not.
-     */
-    group(findings) {
-      const by = new Map();
-      findings.forEach((f, seq) => {
-        const k = f.key || `${f.rule}|${f.message}`;
-        const g = by.get(k);
-        if (g) { g.n++; return; }
-        by.set(k, { ...f, n: 1, seq });
-      });
-      const rank = (g) => CONFIG.SEVERITY[g.severity] ?? 0;
-      return [...by.values()].sort((a, b) => rank(b) - rank(a) || a.seq - b.seq);
     },
     async copy() {
       const txt = Report.text();
@@ -1568,10 +1584,25 @@ HOW TO USE
       // A selection the page already had would be extended by the first
       // shift-click instead of measured from, so start the session clean.
       if (v) { try { getSelection()?.removeAllRanges(); } catch {} }
+      if (!v) State.findings = null;   // the page moves on; a stale audit lies
       Panel.setOn(v);
       Render.schedule();
     },
     togglePower() { Controller.setPower(!State.enabled); },
+
+    /**
+     * Audit the whole page rather than the elements under the cursor. The
+     * result is kept so the report and any findings surface read the same
+     * pass — sweeping again per reader would give two different answers on a
+     * page that moved in between.
+     */
+    sweep() {
+      if (!State.enabled) return;
+      State.findings = Sweep.run();
+      // the grouped count, not the raw one: "3" is a page with three problems,
+      // "5000" is the same page with one of them on every row
+      Panel.flash(`${Sweep.group(State.findings).length}`, '[data-sweep]');
+    },
 
     toggleTool(id) {
       if (!Tools.byId(id)) return;
@@ -1679,15 +1710,69 @@ HOW TO USE
     },
   };
 
+  // ─── src/15-sweep.js ───────────────────────────────────────────────────
+  /* ======================================================================
+    15. SWEEP — run the rules over the whole page instead of one element
+     ====================================================================== */
+  const Sweep = {
+    /**
+     * One read-only pass. Rules only speak when something is wrong, so what
+     * comes back is a list of problems, not a list of elements.
+     *
+     * The overlay's root is appended to documentElement, so walking body's
+     * subtree already excludes it — no per-element containment check.
+     */
+    run() {
+      const rules = Tools.ofKind('rule');
+      if (!rules.length || !document.body) return [];
+      const out = [];
+      for (const el of document.body.querySelectorAll('*')) {
+        // One getComputedStyle per element, reused as the gate AND handed to
+        // the rules, so nobody reads it twice. It is the dominant cost of the
+        // pass — a rule that needs geometry pays for it lazily, on request.
+        const cs = getComputedStyle(el);
+        if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') continue;
+        const i = U.info(el, cs);
+        for (const t of rules) {
+          const f = t.audit?.call(t, i);
+          if (f && f.length) out.push(...f);
+        }
+      }
+      return out;
+    },
+
+    /**
+     * Collapse repeats, then rank worst-first. `key` says which findings are
+     * the same problem; only the rule that produced them knows, so it supplies
+     * it and this falls back to rule + message when it does not.
+     *
+     * This is not cosmetic. A page can hand back thousands of findings that
+     * are one problem repeated — a nav of identical links, a table of
+     * identical cells — and a list nobody can read is a list nobody uses.
+     */
+    group(findings) {
+      const by = new Map();
+      findings.forEach((f, seq) => {
+        const k = f.key || `${f.rule}|${f.message}`;
+        const g = by.get(k);
+        if (g) { g.n++; return; }
+        by.set(k, { ...f, n: 1, seq });
+      });
+      const rank = (g) => CONFIG.SEVERITY[g.severity] ?? 0;
+      return [...by.values()].sort((a, b) => rank(b) - rank(a) || a.seq - b.seq);
+    },
+  };
+
   // ─── src/99-boot.js ────────────────────────────────────────────────────
 
   /* ======================================================================
-    15. BOOT — wire the modules together and start
+    16. BOOT — wire the modules together and start
      ====================================================================== */
   Panel.onToggle = Controller.togglePower;
   Panel.onTool = Controller.toggleTool;
   Panel.onDetail = Controller.toggleDetail;
   Panel.onCopy = Report.copy;
+  Panel.onSweep = Controller.sweep;
   Panel.onClear = Controller.clearPins;
   Panel.onListOpen = () => Panel.setList(Controller.pinList());
   Panel.onRowActivate = Controller.revealRow;

@@ -139,6 +139,7 @@ src/
   12-report.js        structured text export
   13-interactions.js  page-level mouse and keyboard
   14-controller.js    the only glue between modules
+  15-sweep.js         runs every rule over every visible element
   99-boot.js          wiring + IIFE close
 ```
 

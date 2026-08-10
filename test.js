@@ -48,6 +48,7 @@ function makeDom() {
          <p id="e" style="background:rgb(240,240,240);color:rgb(200,200,200)">a chip on a dark page</p>
        </div>
        <p id="f" style="background-image:linear-gradient(red,blue);color:#777">on a gradient</p>
+       <p id="h" style="display:none;color:#bbb">unreadable, and nobody can see it</p>
      </body></html>`,
     { url: 'https://example.test/', pretendToBeVisual: true, runScripts: 'outside-only', virtualConsole: vc },
   );
@@ -215,6 +216,25 @@ ok('and that is a finding', /\[error\] contrast-aa/.test(chip),
 const grad = only('f');
 ok('a background image is unknown, not white', !/contrast: /.test(grad),
   'nothing can sample the pixel under the text, so there is no verdict to give');
+
+console.log('\nSWEEP');
+// The whole point is that this needs nothing pinned.
+window.document.querySelectorAll('#__dbgov-bar [data-clear]')
+  .forEach((b) => b.dispatchEvent(new window.MouseEvent('click', { bubbles: true })));
+bar.querySelector('[data-sweep]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+bar.querySelector('[data-copy]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+const swept = copied || '';
+ok('a sweep audits the page with nothing pinned',
+  /## findings \(2\) — whole page/.test(swept),
+  swept.slice(swept.indexOf('## findings')).split('\n')[0] || 'no findings section');
+ok('two different colour pairs stay two findings',
+  (swept.match(/\[error\] contrast-aa/g) || []).length === 2,
+  'they collapsed — key is not distinguishing them');
+// display:none is gated before any rule runs: invisible text is not a
+// contrast problem, and a rule would pay a full ancestor walk to find out.
+ok('a hidden element is skipped', !/#h/.test(swept), 'display:none was audited');
+ok('the pin blocks are gone but the audit remains', !/\[#1\]/.test(swept),
+  'a sweep does not need pins, and clearing them must not clear it');
 window.dispatchEvent(new window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
 
 console.log('\nCANVAS');

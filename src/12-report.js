@@ -25,33 +25,21 @@
         const tail = t.reportTail?.call(t) || [];
         if (tail.length) L.push(...tail);
       }
+      // A sweep already covered every element, pinned ones included, so it
+      // replaces the per-pin collection rather than adding to it — counting
+      // both would report the same problem twice.
+      const list = State.findings || found;
       // Its own section: per-pin lines carry no attribution, so loose finding
       // lines up there would be indistinguishable from a tool's description.
-      const groups = Report.group(found);
+      const groups = Sweep.group(list);
       if (groups.length) {
-        L.push('', `## findings (${found.length})`);
+        L.push('', `## findings (${list.length})${State.findings ? ' — whole page' : ''}`);
         for (const g of groups) {
           L.push(`[${g.severity}] ${g.rule}${g.n > 1 ? ` ×${g.n}` : ''}: ${g.message}`);
           L.push(`    ${U.selectorOf(g.el)}`);
         }
       }
       return L.join('\n');
-    },
-    /**
-     * Collapse repeats, then rank worst-first. `key` says which findings are
-     * the same problem; only the rule that produced them knows, so it supplies
-     * it and this falls back to rule + message when it does not.
-     */
-    group(findings) {
-      const by = new Map();
-      findings.forEach((f, seq) => {
-        const k = f.key || `${f.rule}|${f.message}`;
-        const g = by.get(k);
-        if (g) { g.n++; return; }
-        by.set(k, { ...f, n: 1, seq });
-      });
-      const rank = (g) => CONFIG.SEVERITY[g.severity] ?? 0;
-      return [...by.values()].sort((a, b) => rank(b) - rank(a) || a.seq - b.seq);
     },
     async copy() {
       const txt = Report.text();

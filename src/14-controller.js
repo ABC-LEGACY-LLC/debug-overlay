@@ -8,10 +8,25 @@
       // A selection the page already had would be extended by the first
       // shift-click instead of measured from, so start the session clean.
       if (v) { try { getSelection()?.removeAllRanges(); } catch {} }
+      if (!v) State.findings = null;   // the page moves on; a stale audit lies
       Panel.setOn(v);
       Render.schedule();
     },
     togglePower() { Controller.setPower(!State.enabled); },
+
+    /**
+     * Audit the whole page rather than the elements under the cursor. The
+     * result is kept so the report and any findings surface read the same
+     * pass — sweeping again per reader would give two different answers on a
+     * page that moved in between.
+     */
+    sweep() {
+      if (!State.enabled) return;
+      State.findings = Sweep.run();
+      // the grouped count, not the raw one: "3" is a page with three problems,
+      // "5000" is the same page with one of them on every row
+      Panel.flash(`${Sweep.group(State.findings).length}`, '[data-sweep]');
+    },
 
     toggleTool(id) {
       if (!Tools.byId(id)) return;

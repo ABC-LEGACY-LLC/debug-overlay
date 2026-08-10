@@ -11,4 +11,7 @@
     removeTarget: null,  // pin object under the cursor in remove mode
     flashPins: null,     // pins briefly highlighted after "reveal" from the list
     pinSeq: 0,
+    // Last whole-page sweep, or null if none has been run. Cleared on power
+    // off: the DOM moves on, and a stale page audit is worse than no audit.
+    findings: null,
   };
