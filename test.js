@@ -44,6 +44,10 @@ function makeDom() {
        <div style="background:oklch(0.275 0 0)">
          <p id="d" style="color:oklch(0.985 0 0)">near-white on dark, ~10.9:1</p>
        </div>
+       <div style="background:rgb(20,20,20)">
+         <p id="e" style="background:rgb(240,240,240);color:rgb(200,200,200)">a chip on a dark page</p>
+       </div>
+       <p id="f" style="background-image:linear-gradient(red,blue);color:#777">on a gradient</p>
      </body></html>`,
     { url: 'https://example.test/', pretendToBeVisual: true, runScripts: 'outside-only', virtualConsole: vc },
   );
@@ -188,6 +192,29 @@ ok('a passing element produces none', /## findings \(1\)/.test(copied || ''),
 ok('an unreadable colour space stays silent',
   /\[#3\]/.test(copied || '') && /## findings \(1\)/.test(copied || ''),
   'oklch was guessed at instead of skipped — that is the 1.00:1 false FAIL');
+
+console.log('\nBACKGROUND');
+// #e is light grey text on a light chip, and the chip sits on a dark page.
+// Reading the background from the PARENT scores it against the dark page and
+// calls 11:1 — the reader sees 1.4:1. An element paints its own background
+// behind its own text.
+const only = (id) => {
+  window.document.querySelectorAll('button.act[data-clear]')
+    .forEach((b) => b.dispatchEvent(new window.MouseEvent('click', { bubbles: true })));
+  pin(id);
+  bar.querySelector('[data-copy]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  return copied || '';
+};
+const chip = only('e');
+const chipRatio = parseFloat((/contrast: ([\d.]+):1/.exec(chip) || [])[1]);
+ok('an element is scored on its own background', chipRatio > 1 && chipRatio < 2,
+  `got ${chipRatio} — above 10 means it read the page behind the chip`);
+ok('and that is a finding', /\[error\] contrast-aa/.test(chip),
+  'unreadable text on a chip has to be reported');
+
+const grad = only('f');
+ok('a background image is unknown, not white', !/contrast: /.test(grad),
+  'nothing can sample the pixel under the text, so there is no verdict to give');
 window.dispatchEvent(new window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
 
 console.log('\nCANVAS');

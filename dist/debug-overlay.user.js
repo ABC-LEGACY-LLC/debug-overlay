@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.9
+// @version      3.8.10
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -719,21 +719,51 @@ HOW TO USE
         return out;
       },
 
-      /** The nearest opaque background, or null if one of them is unreadable. */
+      /** Composite `over` (with alpha) onto the opaque colour `base`. */
+      _over(over, base) {
+        const a = over.a == null ? 1 : over.a;
+        return {
+          r: over.r * a + base.r * (1 - a),
+          g: over.g * a + base.g * (1 - a),
+          b: over.b * a + base.b * (1 - a),
+          a: 1,
+        };
+      },
+
+      /**
+       * What the text is actually painted on, or null if any of it is
+       * unreadable.
+       *
+       * Starts at the element, not its parent: an element that sets its own
+       * background paints it behind its own text, so every button, chip and
+       * alert was previously scored against whatever was behind the card
+       * instead. Translucent layers are collected and composited rather than
+       * taken as if opaque — the first layer over 5% alpha used to be returned
+       * outright, which is a different colour from what a reader sees.
+       */
       _bg(el) {
+        const layers = [];               // nearest the viewer first
         let e = el;
         while (e && e.nodeType === 1) {
-          const raw = getComputedStyle(e).backgroundColor;
+          const cs = getComputedStyle(e);
+          // An image or gradient can be any colour at the pixel under the
+          // text, and nothing here can sample it. Unknown, not white.
+          if (cs.backgroundImage && cs.backgroundImage !== 'none') return null;
+          const raw = cs.backgroundColor;
           const c = this._colour(raw);
           // A colour we cannot read is not the same as no colour. Walking past
           // it lands on the white default below and turns "I don't know" into
           // a confident verdict against a background that was never there.
           if (!c) {
             if (raw && raw !== 'transparent') return null;
-          } else if (c.a > 0.05) return c;
+          } else if (c.a >= 0.999) {
+            return layers.reduceRight((base, l) => this._over(l, base), c);
+          } else if (c.a > 0) layers.push(c);
           e = e.parentElement;
         }
-        return { r: 255, g: 255, b: 255, a: 1 };
+        // nothing opaque anywhere: the canvas underneath a page is white
+        return layers.reduceRight((base, l) => this._over(l, base),
+                                  { r: 255, g: 255, b: 255, a: 1 });
       },
 
       _lum({ r, g, b }) {
@@ -763,7 +793,7 @@ HOW TO USE
         if (!this._ownText(el)) return null;
         const fg = this._colour(cs.color);
         if (!fg) return null;
-        const bg = this._bg(el.parentElement || el);
+        const bg = this._bg(el);
         if (!bg) return null;   // unreadable background — say nothing
         const ratio = this._ratio(fg, bg);
         const size = parseFloat(cs.fontSize);
