@@ -8,24 +8,32 @@
      *
      * The overlay's root is appended to documentElement, so walking body's
      * subtree already excludes it — no per-element containment check.
+     *
+     * EVERY tool that can judge runs, armed or not. Arming decides what is
+     * drawn on screen and nothing else. Tying the two together meant one
+     * control carried two meanings, and the failure was silent in the worst
+     * direction: with the only rule disarmed, a page full of problems audited
+     * clean. You can always narrow a list of findings; you can never find
+     * what was not checked.
      */
     run() {
-      const rules = Tools.ofKind('rule');
-      if (!rules.length || !document.body) return [];
-      const out = [];
+      const rules = TOOLS.filter((t) => t.audit);
+      const result = { findings: [], rules: rules.length, elements: 0 };
+      if (!rules.length || !document.body) return result;
       for (const el of document.body.querySelectorAll('*')) {
         // One getComputedStyle per element, reused as the gate AND handed to
         // the rules, so nobody reads it twice. It is the dominant cost of the
         // pass — a rule that needs geometry pays for it lazily, on request.
         const cs = getComputedStyle(el);
         if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') continue;
+        result.elements++;
         const i = U.info(el, cs);
         for (const t of rules) {
           const f = t.audit?.call(t, i);
-          if (f && f.length) out.push(...f);
+          if (f && f.length) result.findings.push(...f);
         }
       }
-      return out;
+      return result;
     },
 
     /**

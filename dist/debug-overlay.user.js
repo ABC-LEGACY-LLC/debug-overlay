@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.14
+// @version      3.8.15
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -166,9 +166,12 @@ HOW TO USE
     removeTarget: null,  // pin object under the cursor in remove mode
     flashPins: null,     // pins briefly highlighted after "reveal" from the list
     pinSeq: 0,
-    // Last whole-page sweep, or null if none has been run. Cleared on power
-    // off: the DOM moves on, and a stale page audit is worse than no audit.
-    findings: null,
+    // Last whole-page sweep: { findings, rules, elements }, or null if none
+    // has been run. It carries what RAN, not only what was found, because a
+    // zero that means "nothing was checked" and a zero that means "nothing is
+    // wrong" must not print the same sentence. Cleared on power off: the DOM
+    // moves on, and a stale page audit is worse than no audit.
+    sweep: null,
   };
 
   // ─── src/03-utils.js ───────────────────────────────────────────────────
@@ -1477,18 +1480,29 @@ HOW TO USE
       // A sweep already covered every element, pinned ones included, so it
       // replaces the per-pin collection rather than adding to it — counting
       // both would report the same problem twice.
-      const list = State.findings || found;
+      const list = State.sweep ? State.sweep.findings : found;
       // Its own section: per-pin lines carry no attribution, so loose finding
       // lines up there would be indistinguishable from a tool's description.
       const groups = Sweep.group(list);
-      if (groups.length) {
-        L.push('', `## findings (${list.length})${State.findings ? ' — whole page' : ''}`);
+      // A sweep that found nothing still prints its heading. "No findings"
+      // over a stated scope is a result; an absent section is indistinguishable
+      // from never having looked.
+      if (State.sweep || groups.length) {
+        L.push('', `## findings (${list.length})${Report.scope()}`);
         for (const g of groups) {
           L.push(`[${g.severity}] ${g.rule}${g.n > 1 ? ` ×${g.n}` : ''}: ${g.message}`);
           L.push(`    ${U.selectorOf(g.el)}`);
         }
+        if (!groups.length) L.push('(none)');
       }
       return L.join('\n');
+    },
+    /** What the findings above cover, so a zero among them can be read. */
+    scope() {
+      const s = State.sweep;
+      if (!s) return ' — pinned elements only';
+      return ` — whole page · ${s.rules} rule${s.rules === 1 ? '' : 's'}` +
+             ` · ${s.elements} elements`;
     },
     async copy() {
       const txt = Report.text();
@@ -1625,7 +1639,7 @@ HOW TO USE
       // A selection the page already had would be extended by the first
       // shift-click instead of measured from, so start the session clean.
       if (v) { try { getSelection()?.removeAllRanges(); } catch {} }
-      if (!v) State.findings = null;   // the page moves on; a stale audit lies
+      if (!v) State.sweep = null;   // the page moves on; a stale audit lies
       Panel.setOn(v);
       Render.schedule();
     },
@@ -1639,10 +1653,10 @@ HOW TO USE
      */
     sweep() {
       if (!State.enabled) return;
-      State.findings = Sweep.run();
+      State.sweep = Sweep.run();
       // the grouped count, not the raw one: "3" is a page with three problems,
       // "5000" is the same page with one of them on every row
-      Panel.flash(`${Sweep.group(State.findings).length}`, '[data-sweep]');
+      Panel.flash(`${Sweep.group(State.sweep.findings).length}`, '[data-sweep]');
       Panel.toggleList(true, 'findings');
     },
 
@@ -1652,7 +1666,7 @@ HOW TO USE
     },
     /** One row per distinct problem, worst first. No pin, so nothing to remove. */
     findingRows() {
-      return Sweep.group(State.findings || []).map((g) => ({
+      return Sweep.group(State.sweep ? State.sweep.findings : []).map((g) => ({
         tag: g.n > 1 ? `${g.severity} ×${g.n}` : g.severity,
         label: g.message,
         // the leaf, not the whole path: a row has to be scannable, and the
@@ -1662,11 +1676,18 @@ HOW TO USE
         el: g.el,
       }));
     },
+    /**
+     * Three different silences, and they must not share a sentence. Nobody has
+     * asked yet; nothing could ask, because no rule exists; or every rule ran
+     * and had nothing to say. Only the third is good news.
+     */
     emptyFor(view) {
-      return view === 'findings'
-        ? (State.findings ? 'Nothing to report — every rule is happy.'
-                          : 'Press ⌕ to audit the page.')
-        : 'No pins yet — click to inspect, Shift+click to measure.';
+      if (view !== 'findings') return 'No pins yet — click to inspect, Shift+click to measure.';
+      const s = State.sweep;
+      if (!s) return 'Press ⌕ to audit the page.';
+      if (!s.rules) return 'No rules are installed, so nothing was checked.';
+      return `No findings — ${s.rules} rule${s.rules === 1 ? '' : 's'} ` +
+             `over ${s.elements} elements.`;
     },
 
     toggleTool(id) {
@@ -1801,24 +1822,32 @@ HOW TO USE
      *
      * The overlay's root is appended to documentElement, so walking body's
      * subtree already excludes it — no per-element containment check.
+     *
+     * EVERY tool that can judge runs, armed or not. Arming decides what is
+     * drawn on screen and nothing else. Tying the two together meant one
+     * control carried two meanings, and the failure was silent in the worst
+     * direction: with the only rule disarmed, a page full of problems audited
+     * clean. You can always narrow a list of findings; you can never find
+     * what was not checked.
      */
     run() {
-      const rules = Tools.ofKind('rule');
-      if (!rules.length || !document.body) return [];
-      const out = [];
+      const rules = TOOLS.filter((t) => t.audit);
+      const result = { findings: [], rules: rules.length, elements: 0 };
+      if (!rules.length || !document.body) return result;
       for (const el of document.body.querySelectorAll('*')) {
         // One getComputedStyle per element, reused as the gate AND handed to
         // the rules, so nobody reads it twice. It is the dominant cost of the
         // pass — a rule that needs geometry pays for it lazily, on request.
         const cs = getComputedStyle(el);
         if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') continue;
+        result.elements++;
         const i = U.info(el, cs);
         for (const t of rules) {
           const f = t.audit?.call(t, i);
-          if (f && f.length) out.push(...f);
+          if (f && f.length) result.findings.push(...f);
         }
       }
-      return out;
+      return result;
     },
 
     /**

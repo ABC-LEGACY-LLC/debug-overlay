@@ -28,18 +28,29 @@
       // A sweep already covered every element, pinned ones included, so it
       // replaces the per-pin collection rather than adding to it — counting
       // both would report the same problem twice.
-      const list = State.findings || found;
+      const list = State.sweep ? State.sweep.findings : found;
       // Its own section: per-pin lines carry no attribution, so loose finding
       // lines up there would be indistinguishable from a tool's description.
       const groups = Sweep.group(list);
-      if (groups.length) {
-        L.push('', `## findings (${list.length})${State.findings ? ' — whole page' : ''}`);
+      // A sweep that found nothing still prints its heading. "No findings"
+      // over a stated scope is a result; an absent section is indistinguishable
+      // from never having looked.
+      if (State.sweep || groups.length) {
+        L.push('', `## findings (${list.length})${Report.scope()}`);
         for (const g of groups) {
           L.push(`[${g.severity}] ${g.rule}${g.n > 1 ? ` ×${g.n}` : ''}: ${g.message}`);
           L.push(`    ${U.selectorOf(g.el)}`);
         }
+        if (!groups.length) L.push('(none)');
       }
       return L.join('\n');
+    },
+    /** What the findings above cover, so a zero among them can be read. */
+    scope() {
+      const s = State.sweep;
+      if (!s) return ' — pinned elements only';
+      return ` — whole page · ${s.rules} rule${s.rules === 1 ? '' : 's'}` +
+             ` · ${s.elements} elements`;
     },
     async copy() {
       const txt = Report.text();

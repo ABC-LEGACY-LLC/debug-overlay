@@ -227,6 +227,19 @@ const swept = copied || '';
 ok('a sweep audits the page with nothing pinned',
   /## findings \(2\) — whole page/.test(swept),
   swept.slice(swept.indexOf('## findings')).split('\n')[0] || 'no findings section');
+// A zero that means "nothing was checked" and a zero that means "nothing is
+// wrong" must not print the same line, so the scope travels with the count.
+ok('the report says what was checked',
+  /— whole page · 1 rule · \d+ elements/.test(swept),
+  swept.slice(swept.indexOf('## findings')).split('\n')[0]);
+// Arming decides what is DRAWN. With the only rule disarmed the page still
+// has the same problems, and the audit still has to find them.
+bar.querySelector('[data-tool="contrast"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+bar.querySelector('[data-sweep]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+bar.querySelector('[data-copy]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+ok('a disarmed rule is still swept', /## findings \(2\)/.test(copied || ''),
+  'the sweep followed the toggle instead of the page');
+bar.querySelector('[data-tool="contrast"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 ok('two different colour pairs stay two findings',
   (swept.match(/\[error\] contrast-aa/g) || []).length === 2,
   'they collapsed — key is not distinguishing them');
@@ -235,6 +248,25 @@ ok('two different colour pairs stay two findings',
 ok('a hidden element is skipped', !/#h/.test(swept), 'display:none was audited');
 ok('the pin blocks are gone but the audit remains', !/\[#1\]/.test(swept),
   'a sweep does not need pins, and clearing them must not clear it');
+
+console.log('\nHONEST ZERO');
+// The sentence a clean page gets is the most-read line in the product, and it
+// used to claim "every rule is happy" on pages where no rule had run at all.
+{
+  const clean = new JSDOM('<!doctype html><html><body><p style="color:#000">readable</p></body></html>',
+    { url: 'https://example.test/', pretendToBeVisual: true, runScripts: 'outside-only',
+      virtualConsole: new VirtualConsole() });
+  const wc = clean.window;
+  wc.HTMLElement.prototype.scrollIntoView = function () {};
+  wc.eval(source);
+  const barc = wc.document.getElementById('__dbgov-bar');
+  wc.dispatchEvent(new wc.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  barc.querySelector('[data-sweep]').dispatchEvent(new wc.MouseEvent('click', { bubbles: true }));
+  const msg = (wc.document.querySelector('#__dbgov-list .empty') || {}).textContent || '';
+  ok('a clean page reports its scope, not a mood', /1 rule over \d+ elements/.test(msg), msg);
+  ok('and never claims every rule is happy', !/happy/.test(msg), msg);
+  clean.window.close();
+}
 
 console.log('\nFINDINGS LIST');
 window.HTMLElement.prototype.scrollIntoView = function () {};   // jsdom has none

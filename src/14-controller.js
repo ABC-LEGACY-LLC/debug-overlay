@@ -8,7 +8,7 @@
       // A selection the page already had would be extended by the first
       // shift-click instead of measured from, so start the session clean.
       if (v) { try { getSelection()?.removeAllRanges(); } catch {} }
-      if (!v) State.findings = null;   // the page moves on; a stale audit lies
+      if (!v) State.sweep = null;   // the page moves on; a stale audit lies
       Panel.setOn(v);
       Render.schedule();
     },
@@ -22,10 +22,10 @@
      */
     sweep() {
       if (!State.enabled) return;
-      State.findings = Sweep.run();
+      State.sweep = Sweep.run();
       // the grouped count, not the raw one: "3" is a page with three problems,
       // "5000" is the same page with one of them on every row
-      Panel.flash(`${Sweep.group(State.findings).length}`, '[data-sweep]');
+      Panel.flash(`${Sweep.group(State.sweep.findings).length}`, '[data-sweep]');
       Panel.toggleList(true, 'findings');
     },
 
@@ -35,7 +35,7 @@
     },
     /** One row per distinct problem, worst first. No pin, so nothing to remove. */
     findingRows() {
-      return Sweep.group(State.findings || []).map((g) => ({
+      return Sweep.group(State.sweep ? State.sweep.findings : []).map((g) => ({
         tag: g.n > 1 ? `${g.severity} ×${g.n}` : g.severity,
         label: g.message,
         // the leaf, not the whole path: a row has to be scannable, and the
@@ -45,11 +45,18 @@
         el: g.el,
       }));
     },
+    /**
+     * Three different silences, and they must not share a sentence. Nobody has
+     * asked yet; nothing could ask, because no rule exists; or every rule ran
+     * and had nothing to say. Only the third is good news.
+     */
     emptyFor(view) {
-      return view === 'findings'
-        ? (State.findings ? 'Nothing to report — every rule is happy.'
-                          : 'Press ⌕ to audit the page.')
-        : 'No pins yet — click to inspect, Shift+click to measure.';
+      if (view !== 'findings') return 'No pins yet — click to inspect, Shift+click to measure.';
+      const s = State.sweep;
+      if (!s) return 'Press ⌕ to audit the page.';
+      if (!s.rules) return 'No rules are installed, so nothing was checked.';
+      return `No findings — ${s.rules} rule${s.rules === 1 ? '' : 's'} ` +
+             `over ${s.elements} elements.`;
     },
 
     toggleTool(id) {
