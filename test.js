@@ -74,45 +74,56 @@ const root = window.document.getElementById('__dbgov-root');
 ok('root element appended', !!root);
 ok('root is hidden from a11y tree', root && root.getAttribute('aria-hidden') === 'true');
 
-const style = root && root.querySelector('style');
-ok('stylesheet injected', !!style && style.textContent.length > 0);
-ok('tool CSS reached the stylesheet',
-  !!style && style.textContent.includes('.dbgov-line'),
-  'measure tool css missing — the tools[].css concat in 07-dom.js broke');
-// the lens emits <span class="warn"> itself now, so its markup and the rule
-// that colours it have to ship from the same file
-ok('lens CSS reached the stylesheet',
-  !!style && style.textContent.includes('.dbgov-badge .warn'),
+const sheets = root ? [...root.querySelectorAll('style')] : [];
+const cssOf = (who) => (sheets.find((s) => (s.dataset.tool || 'core') === who) || {}).textContent || '';
+ok('stylesheet injected', sheets.length > 0 && sheets[0].textContent.length > 0);
+// One sheet per tool is the containment: a parser that gives up takes the
+// rest of ITS sheet with it and nothing else.
+ok('each tool ships its own sheet',
+  ['measure', 'grid', 'contrast'].every((id) => cssOf(id).length > 0),
+  sheets.map((s) => s.dataset.tool || 'core').join(', '));
+ok('tool CSS reached its sheet', cssOf('measure').includes('.dbgov-line'),
+  'measure tool css missing');
+// the lens emits <span class="warn"> itself, so its markup and the rule that
+// colours it have to ship from the same file
+ok('lens CSS reached its sheet', cssOf('grid').includes('.dbgov-badge .warn'),
   'grid lens css missing');
 
 console.log('\nSTYLESHEET');
-// Malformed CSS in one tool does not fail loudly. The parser gives up at the
-// break and silently drops every rule after it, including the CSS of tools
-// concatenated later — so a typo in the first tool can blank out the last.
-// These checks read the composed sheet, which is exactly what ships.
-const css = style ? style.textContent : '';
-const bare = css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/"[^"]*"|'[^']*'/g, '""');
-
-let depth = 0, parens = 0, topLevel = 0, stray = false;
-for (const ch of bare) {
-  if (ch === '(') parens++;
-  else if (ch === ')') parens--;
-  else if (parens > 0) continue;          // braces inside gradient()/url() are data
-  else if (ch === '{') { if (depth === 0) topLevel++; depth++; }
-  else if (ch === '}') { if (--depth < 0) { stray = true; depth = 0; } }
+// Malformed CSS never fails loudly: the parser drops the broken rule and
+// every rule after it in that sheet, and raises nothing. Each sheet is
+// checked on its own, and a failure names the file that has to fix it.
+function readCss(text) {
+  const bare = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/"[^"]*"|'[^']*'/g, '""');
+  let depth = 0, parens = 0, topLevel = 0, stray = false;
+  for (const ch of bare) {
+    if (ch === '(') parens++;
+    else if (ch === ')') parens--;
+    else if (parens > 0) continue;        // braces inside gradient()/url() are data
+    else if (ch === '{') { if (depth === 0) topLevel++; depth++; }
+    else if (ch === '}') { if (--depth < 0) { stray = true; depth = 0; } }
+  }
+  return { depth, parens, topLevel, stray };
 }
-ok('braces balance', depth === 0 && !stray, stray ? 'stray }' : `${depth} rule(s) left open`);
-ok('parens balance', parens === 0, `${parens > 0 ? parens + ' unclosed' : -parens + ' extra'}`);
+const broken = { braces: [], parens: [], dropped: [] };
+for (const s of sheets) {
+  const who = s.dataset.tool || 'core';
+  const m = readCss(s.textContent);
+  if (m.depth !== 0 || m.stray) broken.braces.push(who);
+  if (m.parens !== 0) broken.parens.push(who);
+  const kept = s.sheet ? s.sheet.cssRules.length : 0;
+  if (kept !== m.topLevel) broken.dropped.push(`${who}: wrote ${m.topLevel}, kept ${kept}`);
+}
+ok('braces balance in every sheet', !broken.braces.length, broken.braces.join(', '));
+ok('parens balance in every sheet', !broken.parens.length, broken.parens.join(', '));
+ok('no rule dropped by the parser', !broken.dropped.length, broken.dropped.join('; '));
 
-const sheet = style && style.sheet;
-const selectors = sheet ? [...sheet.cssRules].map((r) => r.selectorText).filter(Boolean) : [];
-ok('no rule dropped by the parser', !!sheet && sheet.cssRules.length === topLevel,
-  sheet && `wrote ${topLevel} rules, parser kept ${sheet.cssRules.length} — it stopped at "${selectors[selectors.length - 1]}"`);
-
-// the last tool in the registry is the one a mid-sheet break silently eats
+// the tool registered last is the one a shared sheet used to eat first
+const lastSheet = sheets[sheets.length - 1];
 ok('the last tool\'s CSS survives',
-  selectors.some((s) => s.includes('.dbgov-badge') && s.includes('.bad')),
-  'contrast tool css was dropped');
+  !!lastSheet.sheet && [...lastSheet.sheet.cssRules].some(
+    (r) => r.selectorText && r.selectorText.includes('.dbgov-badge')),
+  `${lastSheet.dataset.tool} sheet kept ${lastSheet.sheet ? lastSheet.sheet.cssRules.length : 0} rules`);
 
 console.log('\nPANEL');
 const bar = window.document.getElementById('__dbgov-bar');

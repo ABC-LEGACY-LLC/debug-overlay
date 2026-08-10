@@ -105,12 +105,17 @@ and a list nobody can read is a list nobody uses. Measured: 5 000 → 1 line.
 check whether you are adding calls to it.
 
 ## The stylesheet (test.js enforces this)
-Every tool's `css:` is concatenated into one sheet, so malformed CSS in an
-early tool makes the parser drop everything after it — including other tools'
-rules — without raising anything. That shipped once: an unclosed `(` cost the
-grid and contrast tools their styling entirely. `test.js` now checks braces
-and parens balance, that the parsed rule count matches what was written, and
-that the last tool's CSS survives. Keep those checks.
+A CSS parser raises nothing when it gives up. It drops the broken rule and
+every rule after it **in that sheet**, silently. Everything used to be
+concatenated into one sheet, so an unclosed `(` in grid cost grid *and*
+contrast their styling entirely — that shipped once. Measured again while
+splitting them: one broken paren in grid took contrast's 8 rules with it.
+
+`07-dom.js` now emits one `<style data-tool="…">` per tool plus one for the
+core, so the blast radius is the author's own file. `test.js` checks every
+sheet separately — braces and parens balance, and the parsed rule count
+matching what was written — and names the tool that broke. Keep those checks,
+and keep the sheets separate.
 
 ## Versioning
 `build.js` bumps `@version` automatically. Tampermonkey only updates when the
