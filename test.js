@@ -125,6 +125,17 @@ const ids = buttons.map((b) => b.dataset.tool).sort();
 ok('a button per registered tool', ids.length === 3, `got ${ids.length}: ${ids.join(', ')}`);
 ok('tool ids match the registry',
   ids.join(',') === 'contrast,grid,measure', ids.join(','));
+// Two toggles that look identical and mean different things was the problem:
+// arming grid or contrast changes what ⌕ finds, arming measure does not.
+const checks = buttons.filter((b) => b.classList.contains('checks')).map((b) => b.dataset.tool).sort();
+ok('the tools that feed the audit are marked as such',
+  checks.join(',') === 'contrast,grid', checks.join(',') || 'none marked');
+ok('and they are separated from the ones that only draw',
+  bar.querySelectorAll('button.tool + hr.sep, hr.sep + button.tool').length >= 2,
+  'the runs are not divided by a rule');
+ok('⌕ sits with the run it sweeps',
+  bar.querySelector('[data-sweep]').previousElementSibling?.dataset.tool === 'contrast',
+  `after ${bar.querySelector('[data-sweep]').previousElementSibling?.tagName}`);
 
 console.log('\nWIRING');
 // the hotkey is the one path that proves interactions → controller → panel

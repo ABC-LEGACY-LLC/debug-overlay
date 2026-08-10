@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.18
+// @version      3.8.19
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -59,6 +59,11 @@ HOW TO USE
     ▦ grid       marks any number another tool prints that is off the 4px
                  grid (⚠), and reports off-grid values page-wide in ⌕
     ◐ contrast   WCAG text contrast ratio + AA pass/fail
+
+  The rule between the toggles is not decoration. Tools below it carry a green
+  dot and feed ⌕ — which is why ⌕ sits with them. Tools above it only draw.
+  Arming decides what you SEE; ⌕ checks every rule either way, so a toggle you
+  forgot can never quietly shorten an audit.
 
   Active tools are remembered per site.
 
@@ -529,6 +534,22 @@ HOW TO USE
      */
     withHook: (h, armed) =>
       TOOLS.filter((t) => t[h] && (!armed || State.tools.has(t.id))),
+
+    /**
+     * The tools, split into runs for the panel to draw with a rule between
+     * them. Two toggles that look identical and mean different things is the
+     * problem here: arming one changes what the page audit finds and arming
+     * the other does not, and nothing said so.
+     *
+     * The split lives here because this is the file that knows what a hook
+     * is. The panel renders the runs it is handed and never learns what
+     * separates them — a third run would need no panel change at all.
+     */
+    runs: () => [
+      { cls: '', note: '', tools: TOOLS.filter((t) => !t.audit) },
+      { cls: 'checks', note: ' · also runs in the page audit',
+        tools: TOOLS.filter((t) => t.audit) },
+    ].filter((r) => r.tools.length),
 
     /**
      * WHY THIS EXISTS: measure used to ask whether one specific NAMED tool was
@@ -1119,6 +1140,13 @@ HOW TO USE
       background: #2c2c31; color: #fff; font-size: 15px; }
     #__dbgov-bar button.tool:hover, #__dbgov-bar button.act:hover { background: #3a3a40; }
     #__dbgov-bar button.tool.armed { background: #58c4ff; color: #0d1b24; }
+    /* A tool in the run that feeds ⌕ carries a dot. Armed or not, it is still
+       swept — the dot says "this contributes findings", the fill says "this
+       is drawn". They are different questions and used to look the same. */
+    #__dbgov-bar button.tool.checks { position: relative; }
+    #__dbgov-bar button.tool.checks::after {
+      content: ''; position: absolute; right: 2px; bottom: 2px;
+      width: 4px; height: 4px; border-radius: 50%; background: #b5e853; }
     #__dbgov-bar button.act.armed { background: #b5e853; color: #1a1a1a; }
 
     #__dbgov-bar.tucked { opacity: .4; }
@@ -1146,19 +1174,25 @@ HOW TO USE
   const Panel = (() => {
     const el = document.createElement('div');
     el.id = '__dbgov-bar';
-    // tool buttons are generated from the registry — never hardcoded
-    const toolButtons = TOOLS.map((t) =>
-      `<button class="tool whenOn" data-tool="${t.id}" title="${t.title}">${t.icon}</button>`).join('');
+    // Tool buttons come from the registry — never hardcoded — and so does the
+    // grouping. This file draws the runs it is handed, in order, with a rule
+    // between them; what puts a tool in one run rather than another is not
+    // its business.
+    const toolRuns = Tools.runs().map((run) => run.tools.map((t) =>
+      `<button class="tool whenOn ${run.cls}" data-tool="${t.id}"` +
+      ` title="${t.title}${run.note}">${t.icon}</button>`).join(''))
+      .join('<hr class="sep whenOn">');
     el.innerHTML = `
       <span class="grip" title="Drag to move — snaps to the nearest edge">⋮⋮</span>
       <button class="pwr" title="Power (Alt+Shift+D)">⏻</button>
       <span class="st" data-st>OFF</span>
       <hr class="sep whenOn">
-      ${toolButtons}
+      ${toolRuns}
+      <!-- next to the run it acts on, so proximity says what it sweeps -->
+      <button class="act whenOn" data-sweep data-view="findings" title="Audit the whole page">⌕</button>
       <hr class="sep whenOn">
       <button class="cnt whenOn" data-c data-view="pins" title="Pinned elements — click for the list">0</button>
       <button class="act whenOn" data-detail title="Compact / full badges">≡</button>
-      <button class="act whenOn" data-sweep data-view="findings" title="Audit the whole page">⌕</button>
       <button class="act whenOn" data-copy title="Copy report">⧉</button>
       <button class="act whenOn" data-clear title="Clear pins">✕</button>`;
     root.append(el);

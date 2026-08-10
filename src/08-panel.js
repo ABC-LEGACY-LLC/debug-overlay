@@ -4,19 +4,25 @@
   const Panel = (() => {
     const el = document.createElement('div');
     el.id = '__dbgov-bar';
-    // tool buttons are generated from the registry — never hardcoded
-    const toolButtons = TOOLS.map((t) =>
-      `<button class="tool whenOn" data-tool="${t.id}" title="${t.title}">${t.icon}</button>`).join('');
+    // Tool buttons come from the registry — never hardcoded — and so does the
+    // grouping. This file draws the runs it is handed, in order, with a rule
+    // between them; what puts a tool in one run rather than another is not
+    // its business.
+    const toolRuns = Tools.runs().map((run) => run.tools.map((t) =>
+      `<button class="tool whenOn ${run.cls}" data-tool="${t.id}"` +
+      ` title="${t.title}${run.note}">${t.icon}</button>`).join(''))
+      .join('<hr class="sep whenOn">');
     el.innerHTML = `
       <span class="grip" title="Drag to move — snaps to the nearest edge">⋮⋮</span>
       <button class="pwr" title="Power (Alt+Shift+D)">⏻</button>
       <span class="st" data-st>OFF</span>
       <hr class="sep whenOn">
-      ${toolButtons}
+      ${toolRuns}
+      <!-- next to the run it acts on, so proximity says what it sweeps -->
+      <button class="act whenOn" data-sweep data-view="findings" title="Audit the whole page">⌕</button>
       <hr class="sep whenOn">
       <button class="cnt whenOn" data-c data-view="pins" title="Pinned elements — click for the list">0</button>
       <button class="act whenOn" data-detail title="Compact / full badges">≡</button>
-      <button class="act whenOn" data-sweep data-view="findings" title="Audit the whole page">⌕</button>
       <button class="act whenOn" data-copy title="Copy report">⧉</button>
       <button class="act whenOn" data-clear title="Clear pins">✕</button>`;
     root.append(el);

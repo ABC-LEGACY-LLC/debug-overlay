@@ -46,6 +46,11 @@ HOW TO USE
                  grid (⚠), and reports off-grid values page-wide in ⌕
     ◐ contrast   WCAG text contrast ratio + AA pass/fail
 
+  The rule between the toggles is not decoration. Tools below it carry a green
+  dot and feed ⌕ — which is why ⌕ sits with them. Tools above it only draw.
+  Arming decides what you SEE; ⌕ checks every rule either way, so a toggle you
+  forgot can never quietly shorten an audit.
+
   Active tools are remembered per site.
 
   ARCHITECTURE — each numbered section is independent; edit one to change

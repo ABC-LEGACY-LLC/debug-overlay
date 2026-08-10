@@ -47,6 +47,22 @@
       TOOLS.filter((t) => t[h] && (!armed || State.tools.has(t.id))),
 
     /**
+     * The tools, split into runs for the panel to draw with a rule between
+     * them. Two toggles that look identical and mean different things is the
+     * problem here: arming one changes what the page audit finds and arming
+     * the other does not, and nothing said so.
+     *
+     * The split lives here because this is the file that knows what a hook
+     * is. The panel renders the runs it is handed and never learns what
+     * separates them — a third run would need no panel change at all.
+     */
+    runs: () => [
+      { cls: '', note: '', tools: TOOLS.filter((t) => !t.audit) },
+      { cls: 'checks', note: ' · also runs in the page audit',
+        tools: TOOLS.filter((t) => t.audit) },
+    ].filter((r) => r.tools.length),
+
+    /**
      * WHY THIS EXISTS: measure used to ask whether one specific NAMED tool was
      * switched on before it printed a padding, which made this file's claim
      * that tools are independent a lie. It asks this instead — "how does a

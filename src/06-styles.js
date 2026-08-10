@@ -117,6 +117,13 @@
       background: #2c2c31; color: #fff; font-size: 15px; }
     #__dbgov-bar button.tool:hover, #__dbgov-bar button.act:hover { background: #3a3a40; }
     #__dbgov-bar button.tool.armed { background: #58c4ff; color: #0d1b24; }
+    /* A tool in the run that feeds ⌕ carries a dot. Armed or not, it is still
+       swept — the dot says "this contributes findings", the fill says "this
+       is drawn". They are different questions and used to look the same. */
+    #__dbgov-bar button.tool.checks { position: relative; }
+    #__dbgov-bar button.tool.checks::after {
+      content: ''; position: absolute; right: 2px; bottom: 2px;
+      width: 4px; height: 4px; border-radius: 50%; background: #b5e853; }
     #__dbgov-bar button.act.armed { background: #b5e853; color: #1a1a1a; }
 
     #__dbgov-bar.tucked { opacity: .4; }
