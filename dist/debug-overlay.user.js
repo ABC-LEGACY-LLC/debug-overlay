@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.13
+// @version      3.8.14
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -177,6 +177,15 @@ HOW TO USE
      ====================================================================== */
   const U = {
     px: (v) => Math.round(parseFloat(v) || 0),
+
+    /**
+     * Anything the PAGE controls has to come through here before it is
+     * interpolated into badge markup, because badges reach the DOM through
+     * innerHTML. An element's id is page-authored text, and a hostile — or
+     * merely careless — one closed the span and opened a tag of its own.
+     */
+    esc: (s) => String(s).replace(/[&<>"']/g,
+      (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])),
     // `dec` is a decorator, (n) => html, handed in by the caller. UTILS never
     // reads State, and never learns what decorating a number means.
     mark: (n, dec) => (dec ? dec(n) : `${n}`),
@@ -553,10 +562,11 @@ HOW TO USE
         const m = U.four(cs, 'margin', dec);  if (m) bits.push(`<span class="sp">m ${m.join(' ')}</span>`);
         if (cs.display.includes('flex') || cs.display.includes('grid')) {
           const g = U.px(cs.columnGap) || U.px(cs.gap);
-          bits.push(`<span class="sp">${cs.display}${g ? ' gap ' + U.mark(g, dec) : ''}</span>`);
+          bits.push(`<span class="sp">${U.esc(cs.display)}${g ? ' gap ' + U.mark(g, dec) : ''}</span>`);
         }
         bits.push(`<span class="fnt">${U.px(cs.fontSize)}/${U.px(cs.lineHeight) || '–'} ${cs.fontWeight}</span>`);
-        bits.push(`<span class="tag">${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}</span>`);
+        // the id is page-authored text on its way to innerHTML — never raw
+        bits.push(`<span class="tag">${el.tagName.toLowerCase()}${el.id ? '#' + U.esc(el.id) : ''}</span>`);
         return bits.join(' · ');
       },
       compact(i) {

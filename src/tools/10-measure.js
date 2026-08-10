@@ -41,10 +41,11 @@
         const m = U.four(cs, 'margin', dec);  if (m) bits.push(`<span class="sp">m ${m.join(' ')}</span>`);
         if (cs.display.includes('flex') || cs.display.includes('grid')) {
           const g = U.px(cs.columnGap) || U.px(cs.gap);
-          bits.push(`<span class="sp">${cs.display}${g ? ' gap ' + U.mark(g, dec) : ''}</span>`);
+          bits.push(`<span class="sp">${U.esc(cs.display)}${g ? ' gap ' + U.mark(g, dec) : ''}</span>`);
         }
         bits.push(`<span class="fnt">${U.px(cs.fontSize)}/${U.px(cs.lineHeight) || '–'} ${cs.fontWeight}</span>`);
-        bits.push(`<span class="tag">${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}</span>`);
+        // the id is page-authored text on its way to innerHTML — never raw
+        bits.push(`<span class="tag">${el.tagName.toLowerCase()}${el.id ? '#' + U.esc(el.id) : ''}</span>`);
         return bits.join(' · ');
       },
       compact(i) {

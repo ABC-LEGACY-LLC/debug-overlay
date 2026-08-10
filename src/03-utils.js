@@ -3,6 +3,15 @@
      ====================================================================== */
   const U = {
     px: (v) => Math.round(parseFloat(v) || 0),
+
+    /**
+     * Anything the PAGE controls has to come through here before it is
+     * interpolated into badge markup, because badges reach the DOM through
+     * innerHTML. An element's id is page-authored text, and a hostile — or
+     * merely careless — one closed the span and opened a tag of its own.
+     */
+    esc: (s) => String(s).replace(/[&<>"']/g,
+      (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])),
     // `dec` is a decorator, (n) => html, handed in by the caller. UTILS never
     // reads State, and never learns what decorating a number means.
     mark: (n, dec) => (dec ? dec(n) : `${n}`),

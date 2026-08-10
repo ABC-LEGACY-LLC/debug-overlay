@@ -320,5 +320,37 @@ ok('second evaluation is a no-op',
 
 dom.window.close();
 
-console.log(`\n${failed ? '✗' : '✓'} ${failed} failure(s)\n`);
-process.exit(failed ? 1 : 0);
+// ---- the one section that needs a painted frame -----------------------------
+// A badge only exists after the renderer runs, which is an animation frame
+// away. Everything above is synchronous; this is not, so it goes last and
+// takes the summary with it. Asserting on a badge before the frame lands
+// passes for the wrong reason: no badge, no injected tag either.
+console.log('\nESCAPING');
+const dom3 = makeDom();
+const w3 = dom3.window;
+const evil = w3.document.createElement('div');
+evil.id = '"><img src=x onerror="void 0">';   // page-authored, hostile
+evil.textContent = 'hostile id';
+w3.document.body.append(evil);
+w3.eval(source);
+const bar3 = w3.document.getElementById('__dbgov-bar');
+w3.dispatchEvent(new w3.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+bar3.querySelector('[data-detail]').dispatchEvent(new w3.MouseEvent('click', { bubbles: true }));
+w3.document.elementFromPoint = () => evil;
+evil.dispatchEvent(new w3.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
+
+setTimeout(() => {
+  const badge = w3.document.querySelector('#__dbgov-root .dbgov-badge');
+  ok('the badge rendered at all', !!badge,
+    'without it the next two assertions prove nothing');
+  ok('a hostile id builds no markup',
+    w3.document.querySelectorAll('#__dbgov-root img').length === 0,
+    'the overlay rendered a tag the page authored');
+  ok('and the id is still shown, as text',
+    !!badge && badge.textContent.includes('<img'),
+    badge ? JSON.stringify(badge.textContent.slice(-30)) : 'no badge');
+  dom3.window.close();
+
+  console.log(`\n${failed ? '✗' : '✓'} ${failed} failure(s)\n`);
+  process.exit(failed ? 1 : 0);
+}, 80);
