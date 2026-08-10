@@ -21,7 +21,7 @@
 
     /* pin list popover — opened from the count chip, closed for screenshots */
     #__dbgov-list { position: fixed; display: none; pointer-events: auto;
-      min-width: 250px; max-width: 380px; max-height: 60vh; overflow-y: auto;
+      min-width: 250px; max-width: 460px; max-height: 60vh; overflow-y: auto;
       background: rgba(18,18,20,.97); border-radius: 12px; padding: 6px;
       box-shadow: 0 6px 24px rgba(0,0,0,.6); color: #fff; font-size: 12px; }
     #__dbgov-list.open { display: block; }
@@ -38,11 +38,11 @@
     #__dbgov-list .row[data-accent="error"] .tag { color: #ff6b6b; }
     #__dbgov-list .row[data-accent="warn"]  .tag { color: #ffd54f; }
     #__dbgov-list .row[data-accent="info"]  .tag { color: #9ad0ff; }
-    /* the message carries the finding; the selector is where to look for it,
-       so give the message the room and let the selector ellipsise first */
-    #__dbgov-list .row[data-accent] .det { flex: 2 1 auto; color: #e6e6ea;
-      font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    #__dbgov-list .row[data-accent] .lbl { color: #8f8f96; direction: rtl; text-align: left; }
+    /* The verdict reads first and the selector says where to look, so a
+       finding puts its message in .lbl — which already takes the room and
+       ellipsises — and the element in .det. No direction tricks: rtl reorders
+       the neutral characters in a CSS selector and prints '#id' backwards. */
+    #__dbgov-list .row[data-accent] .det { color: #8f8f96; font-weight: 400; }
     #__dbgov-list .rm { flex: none; width: 20px; height: 20px; border: 0; cursor: pointer;
       border-radius: 50%; background: #2c2c31; color: #ff8a8a; font-size: 11px;
       display: flex; align-items: center; justify-content: center; }

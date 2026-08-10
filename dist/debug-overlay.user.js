@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.12
+// @version      3.8.13
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -891,7 +891,7 @@ HOW TO USE
 
     /* pin list popover — opened from the count chip, closed for screenshots */
     #__dbgov-list { position: fixed; display: none; pointer-events: auto;
-      min-width: 250px; max-width: 380px; max-height: 60vh; overflow-y: auto;
+      min-width: 250px; max-width: 460px; max-height: 60vh; overflow-y: auto;
       background: rgba(18,18,20,.97); border-radius: 12px; padding: 6px;
       box-shadow: 0 6px 24px rgba(0,0,0,.6); color: #fff; font-size: 12px; }
     #__dbgov-list.open { display: block; }
@@ -908,11 +908,11 @@ HOW TO USE
     #__dbgov-list .row[data-accent="error"] .tag { color: #ff6b6b; }
     #__dbgov-list .row[data-accent="warn"]  .tag { color: #ffd54f; }
     #__dbgov-list .row[data-accent="info"]  .tag { color: #9ad0ff; }
-    /* the message carries the finding; the selector is where to look for it,
-       so give the message the room and let the selector ellipsise first */
-    #__dbgov-list .row[data-accent] .det { flex: 2 1 auto; color: #e6e6ea;
-      font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    #__dbgov-list .row[data-accent] .lbl { color: #8f8f96; direction: rtl; text-align: left; }
+    /* The verdict reads first and the selector says where to look, so a
+       finding puts its message in .lbl — which already takes the room and
+       ellipsises — and the element in .det. No direction tricks: rtl reorders
+       the neutral characters in a CSS selector and prints '#id' backwards. */
+    #__dbgov-list .row[data-accent] .det { color: #8f8f96; font-weight: 400; }
     #__dbgov-list .rm { flex: none; width: 20px; height: 20px; border: 0; cursor: pointer;
       border-radius: 50%; background: #2c2c31; color: #ff8a8a; font-size: 11px;
       display: flex; align-items: center; justify-content: center; }
@@ -1644,8 +1644,10 @@ HOW TO USE
     findingRows() {
       return Sweep.group(State.findings || []).map((g) => ({
         tag: g.n > 1 ? `${g.severity} ×${g.n}` : g.severity,
-        label: U.selectorOf(g.el),
-        detail: g.message,
+        label: g.message,
+        // the leaf, not the whole path: a row has to be scannable, and the
+        // full ancestor chain is in the copied report where there is room
+        detail: U.selectorOf(g.el).split(' > ').pop(),
         accent: g.severity,
         el: g.el,
       }));

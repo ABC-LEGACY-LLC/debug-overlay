@@ -37,8 +37,10 @@
     findingRows() {
       return Sweep.group(State.findings || []).map((g) => ({
         tag: g.n > 1 ? `${g.severity} ×${g.n}` : g.severity,
-        label: U.selectorOf(g.el),
-        detail: g.message,
+        label: g.message,
+        // the leaf, not the whole path: a row has to be scannable, and the
+        // full ancestor chain is in the copied report where there is room
+        detail: U.selectorOf(g.el).split(' > ').pop(),
         accent: g.severity,
         el: g.el,
       }));
