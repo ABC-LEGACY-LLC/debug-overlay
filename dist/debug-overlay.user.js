@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.4
+// @version      3.8.5
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -48,7 +48,8 @@ HOW TO USE
   independent toggle you can mix freely:
 
     📐 measure   sizes, radius, padding/margin, gap, font, pin distances
-    ▦ grid       flags any value that is off the 4px grid (⚠)
+    ▦ grid       a lens: marks any number another tool prints that is off
+                 the 4px grid (⚠)
     ◐ contrast   WCAG text contrast ratio + AA pass/fail
 
   Active tools are remembered per site.
@@ -74,7 +75,9 @@ HOW TO USE
 
   RULES that keep it from turning to mush:
     · UTILS is pure. It never reads State and never asks "is tool X on?" —
-      callers pass flags in (see U.mark(n, flag)).
+      callers hand in a decorator (see U.mark(n, dec)).
+    · No tool names another tool. A "lens" (grid) decorates the numbers other
+      tools print, reached through Tools.annotator() — never by id.
     · Tool-specific behaviour lives in that tool, never in RENDERER. If the
       renderer needs to know something, the tool exposes a hook and the
       renderer asks every active tool (see pendingIndex).
@@ -85,13 +88,15 @@ HOW TO USE
   ADDING A NEW DEBUG TOOL — one object in section 5, nothing else:
 
     {
-      id: 'zindex', icon: '⧉', title: 'Stacking — z-index & position',
+      id: 'zindex', kind: 'instrument',   // instrument | rule | lens
+      icon: '⧉', title: 'Stacking — z-index & position',
       badge:   (i) => `<span class="sp">z ${i.cs.zIndex}</span>`,  // optional
       compact: (i) => null,                                       // optional
       report:  (i) => [`  z-index: ${i.cs.zIndex}`],              // optional
       draw:    (ctx) => {},                                       // optional
       reportTail: () => [],        // optional, summary lines after all pins
       pendingIndex: () => -1,      // optional, pin still being chosen
+      // kind: 'lens' only —  annotate: (html, n, i) => html
     }
 
   The panel button, persistence, badge composition and report inclusion are
@@ -155,17 +160,17 @@ HOW TO USE
      ====================================================================== */
   const U = {
     px: (v) => Math.round(parseFloat(v) || 0),
-    offGrid: (n) => n !== 0 && n % CONFIG.GRID !== 0,
-    // `flag` is passed in by the caller — UTILS never reads State itself
-    mark: (n, flag) => (flag && U.offGrid(n) ? `<span class="warn">${n}⚠</span>` : `${n}`),
+    // `dec` is a decorator, (n) => html, handed in by the caller. UTILS never
+    // reads State, and never learns what decorating a number means.
+    mark: (n, dec) => (dec ? dec(n) : `${n}`),
 
-    four(cs, prop, flag) {
+    four(cs, prop, dec) {
       const t = U.px(cs[prop + 'Top']), r = U.px(cs[prop + 'Right']),
             b = U.px(cs[prop + 'Bottom']), l = U.px(cs[prop + 'Left']);
       if (!t && !r && !b && !l) return null;
       if (t === b && r === l)
-        return t === r ? [U.mark(t, flag)] : [U.mark(t, flag), U.mark(r, flag)];
-      return [U.mark(t, flag), U.mark(r, flag), U.mark(b, flag), U.mark(l, flag)];
+        return t === r ? [U.mark(t, dec)] : [U.mark(t, dec), U.mark(r, dec)];
+      return [U.mark(t, dec), U.mark(r, dec), U.mark(b, dec), U.mark(l, dec)];
     },
     fourPlain(cs, prop) {
       return {
@@ -458,11 +463,28 @@ HOW TO USE
   // ─── src/05-registry.js ────────────────────────────────────────────────
   /* ======================================================================
      5. TOOLS — ⭐ the plugin registry
-        Each tool is fully independent. Hooks (all optional):
-          badge(info)   → HTML string for the full badge
-          compact(info) → HTML string for the compact badge
-          report(info)  → array of report lines
-          draw(ctx)     → custom drawing; ctx = { layer, Place, State, U }
+
+        No tool ever names another tool. When one needs something another
+        provides it asks the registry a question with no id in it.
+
+        Every tool declares what it IS. The kind decides which of the two
+        exclusive hooks it owns, and audit.js checks the declaration against
+        the hooks the file actually implements:
+          'instrument'  describes the element under the cursor
+          'rule'        judges an element → audit(info)
+          'lens'        decorates the numbers other tools print → annotate()
+
+        Hooks, all optional, all invoked as hook.call(tool, …):
+          badge(info)    → HTML string for the full badge
+          compact(info)  → HTML string for the compact badge
+          report(info)   → array of report lines
+          reportTail()   → array of summary lines, after every pin block
+          draw(ctx)      → custom drawing; ctx = { layer, Place, State, U }
+          listRows()     → panel list rows { tag, label, detail, pins }
+          pendingIndex() → index into State.pins of a pin still being chosen
+          annotate(html, n, info) → 'lens': wrap one number's html
+          audit(info)    → 'rule': [{ el, severity, rule, message, key }]
+          css            → stylesheet text, read from EVERY registered tool
      ====================================================================== */
   const TOOLS = [];
   /** Register a debug tool. One call per file in src/tools/. */
@@ -472,7 +494,25 @@ HOW TO USE
     all: TOOLS,
     byId: (id) => TOOLS.find((t) => t.id === id),
     active: () => TOOLS.filter((t) => State.tools.has(t.id)),
-    isActive: (id) => State.tools.has(id),
+    ofKind: (kind) => TOOLS.filter((t) => t.kind === kind && State.tools.has(t.id)),
+
+    /**
+     * WHY THIS EXISTS: measure used to ask whether one specific NAMED tool was
+     * switched on before it printed a padding, which made this file's claim
+     * that tools are independent a lie. It asks this instead — "how does a
+     * number want decorating here?" — and neither side learns the other's id,
+     * because the only thing that knows both of them is the registry.
+     *
+     * Returns null when no lens is on, which is what keeps undecorated output
+     * byte-for-byte what it was. Lenses fold in registry order (= filename
+     * order), each one wrapping the previous one's html.
+     */
+    annotator(info) {
+      const lenses = Tools.ofKind('lens');
+      if (!lenses.length) return null;
+      return (n) => lenses.reduce(
+        (html, t) => t.annotate?.call(t, html, n, info) || html, `${n}`);
+    },
   };
 
   // ─── src/tools/10-measure.js ───────────────────────────────────────────
@@ -505,28 +545,33 @@ HOW TO USE
     .dbgov-dist.vert { border-left: 2px solid #b5e853; }
     `,
       id: 'measure',
+      kind: 'instrument',
       icon: '📐',
       title: 'Measure — size, radius, spacing, font, pin distances',
       // this tool owns the geometry read-out and the pin distance lines
-      badge({ el, r, cs }) {
-        const G = Tools.isActive('grid');   // ⚠ marks belong to the grid tool
+      badge(i) {
+        const { el, r, cs } = i;
+        // whatever decoration applies here — never "is <some named tool> on"
+        const dec = Tools.annotator(i);
         const bits = [`<span class="sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`];
         const rad = U.radius(cs); if (rad) bits.push(`<span class="rad">r ${rad}</span>`);
-        const p = U.four(cs, 'padding', G); if (p) bits.push(`<span class="sp">p ${p.join(' ')}</span>`);
-        const m = U.four(cs, 'margin', G);  if (m) bits.push(`<span class="sp">m ${m.join(' ')}</span>`);
+        const p = U.four(cs, 'padding', dec); if (p) bits.push(`<span class="sp">p ${p.join(' ')}</span>`);
+        const m = U.four(cs, 'margin', dec);  if (m) bits.push(`<span class="sp">m ${m.join(' ')}</span>`);
         if (cs.display.includes('flex') || cs.display.includes('grid')) {
           const g = U.px(cs.columnGap) || U.px(cs.gap);
-          bits.push(`<span class="sp">${cs.display}${g ? ' gap ' + U.mark(g, G) : ''}</span>`);
+          bits.push(`<span class="sp">${cs.display}${g ? ' gap ' + U.mark(g, dec) : ''}</span>`);
         }
         bits.push(`<span class="fnt">${U.px(cs.fontSize)}/${U.px(cs.lineHeight) || '–'} ${cs.fontWeight}</span>`);
         bits.push(`<span class="tag">${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}</span>`);
         return bits.join(' · ');
       },
-      compact({ r, cs }) {
-        const G = Tools.isActive('grid');
+      compact(i) {
+        const { r, cs } = i;
+        const dec = Tools.annotator(i);
         const bits = [`<span class="sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`];
         const rad = U.radius(cs); if (rad) bits.push(`<span class="rad">r ${rad}</span>`);
-        const p = U.four(cs, 'padding', G); if (p) bits.push(`<span class="sp">p ${p.join(' ')}</span>`);
+        // deliberately padding only — the compact badge never marked m or gap
+        const p = U.four(cs, 'padding', dec); if (p) bits.push(`<span class="sp">p ${p.join(' ')}</span>`);
         return bits.join(' · ');
       },
       report({ r, cs }) {
@@ -608,14 +653,22 @@ HOW TO USE
     .dbgov-badge .warn{ color: #ffd54f; }
     `,
       id: 'grid',
+      kind: 'lens',
       icon: '▦',
       title: `Grid — flag values off the ${CONFIG.GRID}px grid`,
-      // The ⚠ marks inside measure's badge come from U.mark(), which checks
-      // whether this tool is active. Here we only add the report summary.
+      // 0 is never off the grid, or every padding:0 would light up
+      _off: (n) => n !== 0 && n % CONFIG.GRID !== 0,
+
+      // LENS hook: every number another tool prints comes through here first.
+      // `html` is what earlier lenses made of it, so we wrap rather than
+      // replace, and the ⚠ markup now sits next to the .warn rule for it.
+      annotate(html, n) {
+        return this._off(n) ? `<span class="warn">${html}⚠</span>` : html;
+      },
       report({ r, cs }) {
         const pad = U.fourPlain(cs, 'padding'), mar = U.fourPlain(cs, 'margin');
         const bad = [];
-        const check = (n, v) => { if (U.offGrid(v)) bad.push(`${n}:${v}`); };
+        const check = (n, v) => { if (this._off(v)) bad.push(`${n}:${v}`); };
         check('w', Math.round(r.width)); check('h', Math.round(r.height));
         ['t', 'r', 'b', 'l'].forEach((k) => { check('pad-' + k, pad[k]); check('mar-' + k, mar[k]); });
         return bad.length ? [`  ⚠ off ${CONFIG.GRID}px grid: ${bad.join(', ')}`] : [];
@@ -630,6 +683,7 @@ HOW TO USE
     .dbgov-badge .bad { color: #ff6b6b; font-weight: 700; }
     `,
       id: 'contrast',
+      kind: 'rule',
       icon: '◐',
       title: 'Contrast — WCAG text contrast ratio (AA)',
       _measure({ el, cs }) {

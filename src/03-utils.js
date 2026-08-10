@@ -3,17 +3,17 @@
      ====================================================================== */
   const U = {
     px: (v) => Math.round(parseFloat(v) || 0),
-    offGrid: (n) => n !== 0 && n % CONFIG.GRID !== 0,
-    // `flag` is passed in by the caller — UTILS never reads State itself
-    mark: (n, flag) => (flag && U.offGrid(n) ? `<span class="warn">${n}⚠</span>` : `${n}`),
+    // `dec` is a decorator, (n) => html, handed in by the caller. UTILS never
+    // reads State, and never learns what decorating a number means.
+    mark: (n, dec) => (dec ? dec(n) : `${n}`),
 
-    four(cs, prop, flag) {
+    four(cs, prop, dec) {
       const t = U.px(cs[prop + 'Top']), r = U.px(cs[prop + 'Right']),
             b = U.px(cs[prop + 'Bottom']), l = U.px(cs[prop + 'Left']);
       if (!t && !r && !b && !l) return null;
       if (t === b && r === l)
-        return t === r ? [U.mark(t, flag)] : [U.mark(t, flag), U.mark(r, flag)];
-      return [U.mark(t, flag), U.mark(r, flag), U.mark(b, flag), U.mark(l, flag)];
+        return t === r ? [U.mark(t, dec)] : [U.mark(t, dec), U.mark(r, dec)];
+      return [U.mark(t, dec), U.mark(r, dec), U.mark(b, dec), U.mark(l, dec)];
     },
     fourPlain(cs, prop) {
       return {

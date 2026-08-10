@@ -34,7 +34,8 @@ HOW TO USE
   independent toggle you can mix freely:
 
     📐 measure   sizes, radius, padding/margin, gap, font, pin distances
-    ▦ grid       flags any value that is off the 4px grid (⚠)
+    ▦ grid       a lens: marks any number another tool prints that is off
+                 the 4px grid (⚠)
     ◐ contrast   WCAG text contrast ratio + AA pass/fail
 
   Active tools are remembered per site.
@@ -60,7 +61,9 @@ HOW TO USE
 
   RULES that keep it from turning to mush:
     · UTILS is pure. It never reads State and never asks "is tool X on?" —
-      callers pass flags in (see U.mark(n, flag)).
+      callers hand in a decorator (see U.mark(n, dec)).
+    · No tool names another tool. A "lens" (grid) decorates the numbers other
+      tools print, reached through Tools.annotator() — never by id.
     · Tool-specific behaviour lives in that tool, never in RENDERER. If the
       renderer needs to know something, the tool exposes a hook and the
       renderer asks every active tool (see pendingIndex).
@@ -71,13 +74,15 @@ HOW TO USE
   ADDING A NEW DEBUG TOOL — one object in section 5, nothing else:
 
     {
-      id: 'zindex', icon: '⧉', title: 'Stacking — z-index & position',
+      id: 'zindex', kind: 'instrument',   // instrument | rule | lens
+      icon: '⧉', title: 'Stacking — z-index & position',
       badge:   (i) => `<span class="sp">z ${i.cs.zIndex}</span>`,  // optional
       compact: (i) => null,                                       // optional
       report:  (i) => [`  z-index: ${i.cs.zIndex}`],              // optional
       draw:    (ctx) => {},                                       // optional
       reportTail: () => [],        // optional, summary lines after all pins
       pendingIndex: () => -1,      // optional, pin still being chosen
+      // kind: 'lens' only —  annotate: (html, n, i) => html
     }
 
   The panel button, persistence, badge composition and report inclusion are

@@ -27,28 +27,33 @@
     .dbgov-dist.vert { border-left: 2px solid #b5e853; }
     `,
       id: 'measure',
+      kind: 'instrument',
       icon: '📐',
       title: 'Measure — size, radius, spacing, font, pin distances',
       // this tool owns the geometry read-out and the pin distance lines
-      badge({ el, r, cs }) {
-        const G = Tools.isActive('grid');   // ⚠ marks belong to the grid tool
+      badge(i) {
+        const { el, r, cs } = i;
+        // whatever decoration applies here — never "is <some named tool> on"
+        const dec = Tools.annotator(i);
         const bits = [`<span class="sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`];
         const rad = U.radius(cs); if (rad) bits.push(`<span class="rad">r ${rad}</span>`);
-        const p = U.four(cs, 'padding', G); if (p) bits.push(`<span class="sp">p ${p.join(' ')}</span>`);
-        const m = U.four(cs, 'margin', G);  if (m) bits.push(`<span class="sp">m ${m.join(' ')}</span>`);
+        const p = U.four(cs, 'padding', dec); if (p) bits.push(`<span class="sp">p ${p.join(' ')}</span>`);
+        const m = U.four(cs, 'margin', dec);  if (m) bits.push(`<span class="sp">m ${m.join(' ')}</span>`);
         if (cs.display.includes('flex') || cs.display.includes('grid')) {
           const g = U.px(cs.columnGap) || U.px(cs.gap);
-          bits.push(`<span class="sp">${cs.display}${g ? ' gap ' + U.mark(g, G) : ''}</span>`);
+          bits.push(`<span class="sp">${cs.display}${g ? ' gap ' + U.mark(g, dec) : ''}</span>`);
         }
         bits.push(`<span class="fnt">${U.px(cs.fontSize)}/${U.px(cs.lineHeight) || '–'} ${cs.fontWeight}</span>`);
         bits.push(`<span class="tag">${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}</span>`);
         return bits.join(' · ');
       },
-      compact({ r, cs }) {
-        const G = Tools.isActive('grid');
+      compact(i) {
+        const { r, cs } = i;
+        const dec = Tools.annotator(i);
         const bits = [`<span class="sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`];
         const rad = U.radius(cs); if (rad) bits.push(`<span class="rad">r ${rad}</span>`);
-        const p = U.four(cs, 'padding', G); if (p) bits.push(`<span class="sp">p ${p.join(' ')}</span>`);
+        // deliberately padding only — the compact badge never marked m or gap
+        const p = U.four(cs, 'padding', dec); if (p) bits.push(`<span class="sp">p ${p.join(' ')}</span>`);
         return bits.join(' · ');
       },
       report({ r, cs }) {

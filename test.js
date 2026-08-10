@@ -70,6 +70,11 @@ ok('stylesheet injected', !!style && style.textContent.length > 0);
 ok('tool CSS reached the stylesheet',
   !!style && style.textContent.includes('.dbgov-line'),
   'measure tool css missing — the tools[].css concat in 07-dom.js broke');
+// the lens emits <span class="warn"> itself now, so its markup and the rule
+// that colours it have to ship from the same file
+ok('lens CSS reached the stylesheet',
+  !!style && style.textContent.includes('.dbgov-badge .warn'),
+  'grid lens css missing');
 
 console.log('\nSTYLESHEET');
 // Malformed CSS in one tool does not fail loudly. The parser gives up at the

@@ -5,6 +5,7 @@
     .dbgov-badge .bad { color: #ff6b6b; font-weight: 700; }
     `,
       id: 'contrast',
+      kind: 'rule',
       icon: '◐',
       title: 'Contrast — WCAG text contrast ratio (AA)',
       _measure({ el, cs }) {
