@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.8
+// @version      3.8.9
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -231,66 +231,10 @@ HOW TO USE
     overlap: (a, b) =>
       Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) *
       Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t)),
-
-    // --- colour helpers (used by the contrast tool)
-
-    /**
-     * rgb()/rgba() only — null for anything else, which the caller must read
-     * as "unknown", never as a colour.
-     *
-     * getComputedStyle serialises legacy colours as rgb(), but a page authored
-     * in a modern colour space gets its oklch()/lab()/color() back untouched.
-     * Scraping the first three numbers out of those read oklch(0.985 0 0) —
-     * near white — as r:0.985, near black, and reported 1.00:1 FAIL for text
-     * that is actually 10.9:1 and fine. A rule that goes quiet is recoverable;
-     * one that is confidently wrong teaches you to distrust all of them.
-     */
-    parseColor(str) {
-      const s = String(str);
-      if (!/^rgba?\(/.test(s)) return null;
-      const m = s.match(/[\d.]+/g);
-      if (!m || m.length < 3) return null;
-      return { r: +m[0], g: +m[1], b: +m[2], a: m[3] !== undefined ? +m[3] : 1 };
-    },
-    /** The nearest opaque background, or null if one of them is unreadable. */
-    effectiveBg(el) {
-      let e = el;
-      while (e && e.nodeType === 1) {
-        const raw = getComputedStyle(e).backgroundColor;
-        const c = U.parseColor(raw);
-        // A colour we cannot read is not the same as no colour. Walking past
-        // it lands on the white default below and turns "I don't know" into a
-        // confident verdict against a background that was never there.
-        if (!c) {
-          if (raw && raw !== 'transparent') return null;
-        } else if (c.a > 0.05) return c;
-        e = e.parentElement;
-      }
-      return { r: 255, g: 255, b: 255, a: 1 };
-    },
-    luminance({ r, g, b }) {
-      const f = (v) => {
-        v /= 255;
-        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-      };
-      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
-    },
-    contrastRatio(fg, bg) {
-      // flatten a translucent foreground onto the background first
-      const a = fg.a == null ? 1 : fg.a;
-      const mixed = {
-        r: fg.r * a + bg.r * (1 - a),
-        g: fg.g * a + bg.g * (1 - a),
-        b: fg.b * a + bg.b * (1 - a),
-      };
-      const l1 = U.luminance(mixed), l2 = U.luminance(bg);
-      const hi = Math.max(l1, l2), lo = Math.min(l1, l2);
-      return (hi + 0.05) / (lo + 0.05);
-    },
-    hasOwnText(el) {
-      return [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim().length);
-    },
   };
+  // Colour and contrast helpers used to live here. Every one of them had a
+  // single caller, and reading a colour properly needs a canvas — which this
+  // file may not create. They moved into the tool that owns the subject.
 
   // ─── src/04-measure.js ─────────────────────────────────────────────────
   /* ======================================================================
@@ -715,13 +659,113 @@ HOW TO USE
       kind: 'rule',
       icon: '◐',
       title: 'Contrast — WCAG text contrast ratio (AA)',
+
+      /* ---- colour, resolved rather than guessed ------------------------
+         These live here rather than in UTILS because reading a colour
+         honestly needs a canvas, and UTILS may not touch the DOM. Each of
+         them only ever had this one caller anyway. */
+
+      _cache: new Map(),      // 20-50 distinct colours per page, 1000s of nodes
+      _ctx: undefined,        // undefined = not tried yet, null = no canvas
+
+      /** A 1×1 scratch context, or null where canvas is unavailable. */
+      _paint() {
+        if (this._ctx !== undefined) return this._ctx;
+        try {
+          const c = document.createElement('canvas');
+          c.width = c.height = 1;
+          this._ctx = c.getContext('2d', { willReadFrequently: true }) || null;
+        } catch { this._ctx = null; }
+        return this._ctx;
+      },
+
+      /**
+       * Any CSS colour → sRGB, by asking the browser to paint one pixel of it.
+       * That covers oklch(), lab(), color(display-p3 …) and whatever ships
+       * next, without this file knowing the maths for any of them.
+       *
+       * Guessing is what made this necessary: scraping the numbers out of
+       * oklch(0.985 0 0) read near-white as near-black and reported 1.00:1
+       * for text measuring 10.9:1. Anything still unreadable returns null,
+       * and null must stay "unknown" all the way up.
+       */
+      _colour(str) {
+        const s = String(str || '');
+        if (!s) return null;
+        if (this._cache.has(s)) return this._cache.get(s);
+
+        let out = null;
+        const m = /^rgba?\(/.test(s) && s.match(/[\d.]+/g);
+        if (m && m.length >= 3) {
+          // the common case, and exact — no need to rasterise it
+          out = { r: +m[0], g: +m[1], b: +m[2], a: m[3] !== undefined ? +m[3] : 1 };
+        } else {
+          const ctx = this._paint();
+          // Two probes: a rejected colour leaves fillStyle on whichever probe
+          // was there, so the readbacks differ. An accepted one lands on the
+          // same value both times — including when it really is black.
+          if (ctx) {
+            ctx.fillStyle = '#000'; ctx.fillStyle = s; const a = ctx.fillStyle;
+            ctx.fillStyle = '#fff'; ctx.fillStyle = s; const b = ctx.fillStyle;
+            if (a === b) {
+              ctx.clearRect(0, 0, 1, 1);
+              ctx.fillRect(0, 0, 1, 1);
+              const d = ctx.getImageData(0, 0, 1, 1).data;
+              out = { r: d[0], g: d[1], b: d[2], a: d[3] / 255 };
+            }
+          }
+        }
+        this._cache.set(s, out);
+        return out;
+      },
+
+      /** The nearest opaque background, or null if one of them is unreadable. */
+      _bg(el) {
+        let e = el;
+        while (e && e.nodeType === 1) {
+          const raw = getComputedStyle(e).backgroundColor;
+          const c = this._colour(raw);
+          // A colour we cannot read is not the same as no colour. Walking past
+          // it lands on the white default below and turns "I don't know" into
+          // a confident verdict against a background that was never there.
+          if (!c) {
+            if (raw && raw !== 'transparent') return null;
+          } else if (c.a > 0.05) return c;
+          e = e.parentElement;
+        }
+        return { r: 255, g: 255, b: 255, a: 1 };
+      },
+
+      _lum({ r, g, b }) {
+        const f = (v) => {
+          v /= 255;
+          return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+        };
+        return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+      },
+      _ratio(fg, bg) {
+        // flatten a translucent foreground onto the background first
+        const a = fg.a == null ? 1 : fg.a;
+        const mixed = {
+          r: fg.r * a + bg.r * (1 - a),
+          g: fg.g * a + bg.g * (1 - a),
+          b: fg.b * a + bg.b * (1 - a),
+        };
+        const l1 = this._lum(mixed), l2 = this._lum(bg);
+        const hi = Math.max(l1, l2), lo = Math.min(l1, l2);
+        return (hi + 0.05) / (lo + 0.05);
+      },
+      _ownText(el) {
+        return [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim().length);
+      },
+
       _measure({ el, cs }) {
-        if (!U.hasOwnText(el)) return null;
-        const fg = U.parseColor(cs.color);
+        if (!this._ownText(el)) return null;
+        const fg = this._colour(cs.color);
         if (!fg) return null;
-        const bg = U.effectiveBg(el.parentElement || el);
+        const bg = this._bg(el.parentElement || el);
         if (!bg) return null;   // unreadable background — say nothing
-        const ratio = U.contrastRatio(fg, bg);
+        const ratio = this._ratio(fg, bg);
         const size = parseFloat(cs.fontSize);
         const bold = parseInt(cs.fontWeight, 10) >= 700;
         const isLarge = size >= CONFIG.CONTRAST.largePx ||

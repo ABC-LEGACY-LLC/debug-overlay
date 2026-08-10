@@ -66,63 +66,7 @@
     overlap: (a, b) =>
       Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) *
       Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t)),
-
-    // --- colour helpers (used by the contrast tool)
-
-    /**
-     * rgb()/rgba() only — null for anything else, which the caller must read
-     * as "unknown", never as a colour.
-     *
-     * getComputedStyle serialises legacy colours as rgb(), but a page authored
-     * in a modern colour space gets its oklch()/lab()/color() back untouched.
-     * Scraping the first three numbers out of those read oklch(0.985 0 0) —
-     * near white — as r:0.985, near black, and reported 1.00:1 FAIL for text
-     * that is actually 10.9:1 and fine. A rule that goes quiet is recoverable;
-     * one that is confidently wrong teaches you to distrust all of them.
-     */
-    parseColor(str) {
-      const s = String(str);
-      if (!/^rgba?\(/.test(s)) return null;
-      const m = s.match(/[\d.]+/g);
-      if (!m || m.length < 3) return null;
-      return { r: +m[0], g: +m[1], b: +m[2], a: m[3] !== undefined ? +m[3] : 1 };
-    },
-    /** The nearest opaque background, or null if one of them is unreadable. */
-    effectiveBg(el) {
-      let e = el;
-      while (e && e.nodeType === 1) {
-        const raw = getComputedStyle(e).backgroundColor;
-        const c = U.parseColor(raw);
-        // A colour we cannot read is not the same as no colour. Walking past
-        // it lands on the white default below and turns "I don't know" into a
-        // confident verdict against a background that was never there.
-        if (!c) {
-          if (raw && raw !== 'transparent') return null;
-        } else if (c.a > 0.05) return c;
-        e = e.parentElement;
-      }
-      return { r: 255, g: 255, b: 255, a: 1 };
-    },
-    luminance({ r, g, b }) {
-      const f = (v) => {
-        v /= 255;
-        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-      };
-      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
-    },
-    contrastRatio(fg, bg) {
-      // flatten a translucent foreground onto the background first
-      const a = fg.a == null ? 1 : fg.a;
-      const mixed = {
-        r: fg.r * a + bg.r * (1 - a),
-        g: fg.g * a + bg.g * (1 - a),
-        b: fg.b * a + bg.b * (1 - a),
-      };
-      const l1 = U.luminance(mixed), l2 = U.luminance(bg);
-      const hi = Math.max(l1, l2), lo = Math.min(l1, l2);
-      return (hi + 0.05) / (lo + 0.05);
-    },
-    hasOwnText(el) {
-      return [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim().length);
-    },
   };
+  // Colour and contrast helpers used to live here. Every one of them had a
+  // single caller, and reading a colour properly needs a canvas — which this
+  // file may not create. They moved into the tool that owns the subject.

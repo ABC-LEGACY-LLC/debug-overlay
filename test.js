@@ -190,6 +190,58 @@ ok('an unreadable colour space stays silent',
   'oklch was guessed at instead of skipped — that is the 1.00:1 false FAIL');
 window.dispatchEvent(new window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
 
+console.log('\nCANVAS');
+// jsdom has no canvas, so the section above only proves the fallback stays
+// quiet. This proves the other half: given a context, the same oklch that
+// used to read as 1.00:1 FAIL is measured correctly instead.
+{
+  const dom2 = makeDom();
+  const w2 = dom2.window;
+  const PAINT = {                       // what a browser would rasterise these to
+    'oklch(0.985 0 0)': [250, 250, 250, 255],
+    'oklch(0.275 0 0)': [58, 58, 58, 255],
+  };
+  const realCreate = w2.document.createElement.bind(w2.document);
+  w2.document.createElement = (tag) => {
+    if (String(tag).toLowerCase() !== 'canvas') return realCreate(tag);
+    let fill = '#000000';
+    const ctx = {
+      // a real context keeps its previous value when handed a colour it does
+      // not understand — that is what the two-probe check detects
+      get fillStyle() { return fill; },
+      set fillStyle(v) {
+        if (PAINT[v]) fill = v;
+        else if (/^#[0-9a-f]{3,8}$/i.test(v)) fill = v.length === 4
+          ? `#${v[1]}${v[1]}${v[2]}${v[2]}${v[3]}${v[3]}` : v.toLowerCase();
+      },
+      clearRect() {}, fillRect() {},
+      getImageData: () => ({ data: PAINT[fill] || [0, 0, 0, 255] }),
+    };
+    return { width: 0, height: 0, getContext: () => ctx };
+  };
+
+  let copied2 = null;
+  Object.defineProperty(w2.navigator, 'clipboard',
+    { value: { writeText: async (t) => { copied2 = t; } }, configurable: true });
+  w2.eval(source);
+  const bar2 = w2.document.getElementById('__dbgov-bar');
+  w2.dispatchEvent(new w2.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  bar2.querySelector('[data-tool="contrast"]').dispatchEvent(
+    new w2.MouseEvent('click', { bubbles: true }));
+  w2.document.elementFromPoint = () => w2.document.getElementById('d');
+  w2.document.getElementById('d').dispatchEvent(
+    new w2.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
+  bar2.querySelector('[data-copy]').dispatchEvent(new w2.MouseEvent('click', { bubbles: true }));
+
+  const ratio = parseFloat((/contrast: ([\d.]+):1/.exec(copied2 || '') || [])[1]);
+  ok('a painted colour gets a verdict', ratio > 0, 'no contrast line at all');
+  ok('oklch resolves to the real ratio', ratio > 10 && ratio < 12,
+    `got ${ratio} — 1.00 is the old misreading, 10.9 is the truth`);
+  ok('and so produces no finding', !/## findings/.test(copied2 || ''),
+    'near-white on dark passes AA — a finding here means it was misread');
+  dom2.window.close();
+}
+
 console.log('\nGUARD');
 // running twice must not build a second panel — Tampermonkey can inject again
 // on soft navigations, and two overlays fighting over the same keys is worse

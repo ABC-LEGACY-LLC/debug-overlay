@@ -57,13 +57,21 @@ tab: the bundle skips frames, so an embedded editor preview shows nothing.
   `audit` ⇒ rule — so the field cannot quietly become a lie.
 
 ## A rule that cannot measure says nothing
-Silence is a valid answer and the only safe one. `U.parseColor` returns null
-for any colour it does not actually understand, and `U.effectiveBg` returns
-null rather than falling through to its white default when it meets one — so
-contrast skips the element instead of scoring it against a background that
-was never there. Scraping numbers out of `oklch(0.985 0 0)` read near-white
-as near-black and shipped `1.00:1 FAIL` for text that is fine. A quiet rule
-is recoverable; a confidently wrong one teaches you to distrust all of them.
+Silence is a valid answer and the only safe one. Scraping numbers out of
+`oklch(0.985 0 0)` read near-white as near-black and shipped `1.00:1 FAIL`
+for text that measures 10.9:1. A quiet rule is recoverable; a confidently
+wrong one teaches you to distrust all of them.
+
+So contrast resolves a colour by painting one pixel of it on a 1×1 canvas and
+reading the bytes back — the browser knows every colour space, this file does
+not have to. `_colour()` returns null for anything still unreadable, `_bg()`
+returns null rather than falling through to its white default when it meets
+one, and `_measure()` treats either as "say nothing". Results are memoised by
+string: a page has tens of colours and thousands of nodes.
+
+That is also why the colour helpers live in the tool and not in `03-utils.js`
+— reading a colour honestly needs the DOM, and utils may not have it. Each of
+them only ever had one caller.
 
 ## The stylesheet (test.js enforces this)
 Every tool's `css:` is concatenated into one sheet, so malformed CSS in an
