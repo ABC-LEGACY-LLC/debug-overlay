@@ -366,14 +366,11 @@ ok('second evaluation is a no-op',
   window.document.querySelectorAll('#__dbgov-bar').length === 1,
   `${window.document.querySelectorAll('#__dbgov-bar').length} panels`);
 
-dom.window.close();
-
-// ---- the one section that needs a painted frame -----------------------------
-// A badge only exists after the renderer runs, which is an animation frame
-// away. Everything above is synchronous; this is not, so it goes last and
-// takes the summary with it. Asserting on a badge before the frame lands
-// passes for the wrong reason: no badge, no injected tag either.
-console.log('\nESCAPING');
+// ---- the sections that need a painted frame ---------------------------------
+// Marks and badges only exist after the renderer runs, which is an animation
+// frame away. Everything above is synchronous; these are not, so they go last
+// and take the summary with them. Asserting before the frame lands passes for
+// the wrong reason: no badge, no injected tag either.
 const dom3 = makeDom();
 const w3 = dom3.window;
 const evil = w3.document.createElement('div');
@@ -387,7 +384,25 @@ bar3.querySelector('[data-detail]').dispatchEvent(new w3.MouseEvent('click', { b
 w3.document.elementFromPoint = () => evil;
 evil.dispatchEvent(new w3.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
 
+// re-sweep the first page so its marks are on screen for the frame below
+window.dispatchEvent(new window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+bar.querySelector('[data-sweep]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+
 setTimeout(() => {
+  console.log('\nMARKS');
+  // A findings list says what is wrong; a mark says where. The renderer hands
+  // each armed tool its own findings and nobody else's, so the layer stays
+  // attributable and there is nothing to undo.
+  const marks = () => window.document.querySelectorAll('#__dbgov-root .dbgov-flag');
+  ok('findings are marked on the page', marks().length > 0,
+    'the sweep produced findings that appear nowhere on screen');
+  ok('a review is not painted as a failure',
+    [...marks()].some((m) => m.classList.contains('review')) &&
+    [...marks()].some((m) => m.classList.contains('error')),
+    [...marks()].map((m) => m.className.replace('dbgov-box dbgov-flag ', '')).join(' / '));
+  dom.window.close();
+
+  console.log('\nESCAPING');
   const badge = w3.document.querySelector('#__dbgov-root .dbgov-badge');
   ok('the badge rendered at all', !!badge,
     'without it the next two assertions prove nothing');

@@ -18,8 +18,12 @@
      */
     run() {
       const rules = TOOLS.filter((t) => t.audit);
-      const result = { findings: [], rules: rules.length, elements: 0 };
+      // byTool is built here, once, rather than filtered per frame by the
+      // renderer: a page can return thousands of findings and draw() runs at
+      // 60fps.
+      const result = { findings: [], rules: rules.length, elements: 0, byTool: {} };
       if (!rules.length || !document.body) return result;
+      for (const t of rules) result.byTool[t.id] = [];
       for (const el of document.body.querySelectorAll('*')) {
         // One getComputedStyle per element, reused as the gate AND handed to
         // the rules, so nobody reads it twice. It is the dominant cost of the
@@ -30,7 +34,13 @@
         const i = U.info(el, cs);
         for (const t of rules) {
           const f = t.audit?.call(t, i);
-          if (f && f.length) result.findings.push(...f);
+          if (!f || !f.length) continue;
+          // The sweep stamps the producer, so no rule has to name itself and
+          // no consumer has to guess. It is what lets draw() be handed only
+          // its own findings.
+          for (const one of f) one.tool = t.id;
+          result.findings.push(...f);
+          result.byTool[t.id].push(...f);
         }
       }
       return result;

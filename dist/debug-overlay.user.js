@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.16
+// @version      3.8.17
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -35,7 +35,10 @@ HOW TO USE
                         visible element, and the button shows how many distinct
                         problems came back. Repeats collapse: a nav of 40
                         identical links is one finding, not forty. The result
-                        rides along in the next report you copy.
+                        rides along in the next report you copy, and every
+                        finding is outlined on the page by the tool that found
+                        it — dashed for a failure, dotted for a review. Turn a
+                        tool off and its outlines go; its findings stay.
   ⧉ ................... copy structured report → paste into Claude with a screenshot
   Count chip .......... click the pin count to open the pin list: every pin and
                         measured pair in one place, even ones scrolled off
@@ -153,6 +156,10 @@ HOW TO USE
     // Findings vocabulary, shared by every 'rule' tool. The number is only a
     // rank, so a list of findings reads worst-first.
     SEVERITY: { error: 3, warn: 2, info: 1 },
+    // Marks drawn per tool per frame. A page can return thousands of findings
+    // and this runs at 60fps, so it is a ceiling on cost, not on truth — the
+    // list and the report still carry every one of them.
+    MARK_LIMIT: 200,
   };
 
   // ─── src/02-state.js ───────────────────────────────────────────────────
@@ -692,6 +699,13 @@ HOW TO USE
     .dbgov-badge .ok  { color: #b5e853; }
     .dbgov-badge .bad { color: #ff6b6b; font-weight: 700; }
     .dbgov-badge .unk { color: #8ab4f8; font-style: italic; }
+    /* where the findings actually are. dashed, never filled: a mark points at
+       a problem, it must not hide the thing it is pointing at */
+    .dbgov-flag { outline-offset: 1px; }
+    .dbgov-flag.error  { outline: 2px dashed #ff6b6b; }
+    .dbgov-flag.warn   { outline: 2px dashed #ffd54f; }
+    .dbgov-flag.info   { outline: 2px dashed #9ad0ff; }
+    .dbgov-flag.review { outline: 2px dotted #8ab4f8; }
     `,
       id: 'contrast',
       kind: 'rule',
@@ -895,6 +909,25 @@ HOW TO USE
           // problem. Only the rule knows what "the same problem" means.
           key: `contrast-aa|${this._rgb(c.fg)}|${this._rgb(c.bg)}|${c.isLarge}`,
         }];
+      },
+      // Findings become places on the page, not just rows in a list. `found`
+      // is this tool's own, handed over by the renderer; the layer is cleared
+      // every frame, so there is nothing to undo and nothing of anyone else's
+      // to step on.
+      draw({ layer, Place, found }) {
+        for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
+          if (!document.contains(f.el)) continue;   // the page moved on
+          // No size gate: the sweep already dropped display:none and
+          // visibility:hidden, and a degenerate box draws a degenerate
+          // outline — invisible, and cheaper than the branch that skips it.
+          const r = f.el.getBoundingClientRect();
+          const box = document.createElement('div');
+          // review is not failure, and must not be painted as though it were
+          box.className = 'dbgov-box dbgov-flag ' +
+                          (f.verdict === 'review' ? 'review' : f.severity);
+          Place.put(box, r.left, r.top, r.width, r.height);
+          layer.append(box);
+        }
       },
       badge(i) {
         const c = this._measure(i);
@@ -1450,8 +1483,15 @@ HOW TO USE
       }
 
       // 2) let each active tool draw its own layer (lines, guides, ...)
-      const ctx = { layer, Place, State, U };
-      for (const t of Tools.active()) t.draw?.call(t, ctx);
+      // `found` is that tool's own findings from the last sweep and nobody
+      // else's — the sweep stamped them, so the renderer hands them over
+      // without learning what any of them mean. Only ARMED tools draw: a
+      // sweep is what gets checked, arming is what gets shown.
+      const ctx = { layer, Place, State, U, found: [] };
+      for (const t of Tools.active()) {
+        ctx.found = (State.sweep && State.sweep.byTool[t.id]) || [];
+        t.draw?.call(t, ctx);
+      }
 
       // 3) pin badges — compact unless detail mode or that pin is hovered
       pinInfo.forEach(({ p, i }) => {
@@ -1702,6 +1742,7 @@ HOW TO USE
       // "5000" is the same page with one of them on every row
       Panel.flash(`${Sweep.group(State.sweep.findings).length}`, '[data-sweep]');
       Panel.toggleList(true, 'findings');
+      Render.schedule();   // the marks are new; nothing else would ask for them
     },
 
     /** Rows for whichever view the panel is showing. */
@@ -1876,8 +1917,12 @@ HOW TO USE
      */
     run() {
       const rules = TOOLS.filter((t) => t.audit);
-      const result = { findings: [], rules: rules.length, elements: 0 };
+      // byTool is built here, once, rather than filtered per frame by the
+      // renderer: a page can return thousands of findings and draw() runs at
+      // 60fps.
+      const result = { findings: [], rules: rules.length, elements: 0, byTool: {} };
       if (!rules.length || !document.body) return result;
+      for (const t of rules) result.byTool[t.id] = [];
       for (const el of document.body.querySelectorAll('*')) {
         // One getComputedStyle per element, reused as the gate AND handed to
         // the rules, so nobody reads it twice. It is the dominant cost of the
@@ -1888,7 +1933,13 @@ HOW TO USE
         const i = U.info(el, cs);
         for (const t of rules) {
           const f = t.audit?.call(t, i);
-          if (f && f.length) result.findings.push(...f);
+          if (!f || !f.length) continue;
+          // The sweep stamps the producer, so no rule has to name itself and
+          // no consumer has to guess. It is what lets draw() be handed only
+          // its own findings.
+          for (const one of f) one.tool = t.id;
+          result.findings.push(...f);
+          result.byTool[t.id].push(...f);
         }
       }
       return result;

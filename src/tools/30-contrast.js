@@ -4,6 +4,13 @@
     .dbgov-badge .ok  { color: #b5e853; }
     .dbgov-badge .bad { color: #ff6b6b; font-weight: 700; }
     .dbgov-badge .unk { color: #8ab4f8; font-style: italic; }
+    /* where the findings actually are. dashed, never filled: a mark points at
+       a problem, it must not hide the thing it is pointing at */
+    .dbgov-flag { outline-offset: 1px; }
+    .dbgov-flag.error  { outline: 2px dashed #ff6b6b; }
+    .dbgov-flag.warn   { outline: 2px dashed #ffd54f; }
+    .dbgov-flag.info   { outline: 2px dashed #9ad0ff; }
+    .dbgov-flag.review { outline: 2px dotted #8ab4f8; }
     `,
       id: 'contrast',
       kind: 'rule',
@@ -207,6 +214,25 @@
           // problem. Only the rule knows what "the same problem" means.
           key: `contrast-aa|${this._rgb(c.fg)}|${this._rgb(c.bg)}|${c.isLarge}`,
         }];
+      },
+      // Findings become places on the page, not just rows in a list. `found`
+      // is this tool's own, handed over by the renderer; the layer is cleared
+      // every frame, so there is nothing to undo and nothing of anyone else's
+      // to step on.
+      draw({ layer, Place, found }) {
+        for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
+          if (!document.contains(f.el)) continue;   // the page moved on
+          // No size gate: the sweep already dropped display:none and
+          // visibility:hidden, and a degenerate box draws a degenerate
+          // outline — invisible, and cheaper than the branch that skips it.
+          const r = f.el.getBoundingClientRect();
+          const box = document.createElement('div');
+          // review is not failure, and must not be painted as though it were
+          box.className = 'dbgov-box dbgov-flag ' +
+                          (f.verdict === 'review' ? 'review' : f.severity);
+          Place.put(box, r.left, r.top, r.width, r.height);
+          layer.append(box);
+        }
       },
       badge(i) {
         const c = this._measure(i);

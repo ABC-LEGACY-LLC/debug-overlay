@@ -27,6 +27,7 @@
       // "5000" is the same page with one of them on every row
       Panel.flash(`${Sweep.group(State.sweep.findings).length}`, '[data-sweep]');
       Panel.toggleList(true, 'findings');
+      Render.schedule();   // the marks are new; nothing else would ask for them
     },
 
     /** Rows for whichever view the panel is showing. */

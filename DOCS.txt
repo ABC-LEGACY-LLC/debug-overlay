@@ -21,7 +21,10 @@ HOW TO USE
                         visible element, and the button shows how many distinct
                         problems came back. Repeats collapse: a nav of 40
                         identical links is one finding, not forty. The result
-                        rides along in the next report you copy.
+                        rides along in the next report you copy, and every
+                        finding is outlined on the page by the tool that found
+                        it — dashed for a failure, dotted for a review. Turn a
+                        tool off and its outlines go; its findings stay.
   ⧉ ................... copy structured report → paste into Claude with a screenshot
   Count chip .......... click the pin count to open the pin list: every pin and
                         measured pair in one place, even ones scrolled off

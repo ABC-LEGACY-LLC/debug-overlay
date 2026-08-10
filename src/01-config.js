@@ -25,4 +25,8 @@
     // Findings vocabulary, shared by every 'rule' tool. The number is only a
     // rank, so a list of findings reads worst-first.
     SEVERITY: { error: 3, warn: 2, info: 1 },
+    // Marks drawn per tool per frame. A page can return thousands of findings
+    // and this runs at 60fps, so it is a ceiling on cost, not on truth — the
+    // list and the report still carry every one of them.
+    MARK_LIMIT: 200,
   };

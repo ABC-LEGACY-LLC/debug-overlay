@@ -64,8 +64,15 @@
       }
 
       // 2) let each active tool draw its own layer (lines, guides, ...)
-      const ctx = { layer, Place, State, U };
-      for (const t of Tools.active()) t.draw?.call(t, ctx);
+      // `found` is that tool's own findings from the last sweep and nobody
+      // else's — the sweep stamped them, so the renderer hands them over
+      // without learning what any of them mean. Only ARMED tools draw: a
+      // sweep is what gets checked, arming is what gets shown.
+      const ctx = { layer, Place, State, U, found: [] };
+      for (const t of Tools.active()) {
+        ctx.found = (State.sweep && State.sweep.byTool[t.id]) || [];
+        t.draw?.call(t, ctx);
+      }
 
       // 3) pin badges — compact unless detail mode or that pin is hovered
       pinInfo.forEach(({ p, i }) => {
