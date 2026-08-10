@@ -38,6 +38,9 @@
     #__dbgov-list .row[data-accent="error"] .tag { color: #ff6b6b; }
     #__dbgov-list .row[data-accent="warn"]  .tag { color: #ffd54f; }
     #__dbgov-list .row[data-accent="info"]  .tag { color: #9ad0ff; }
+    /* not a verdict — something the tool could not measure and you have to
+       look at yourself; italic so it never reads as a failure */
+    #__dbgov-list .row[data-accent="review"] .tag { color: #8ab4f8; font-style: italic; }
     /* The verdict reads first and the selector says where to look, so a
        finding puts its message in .lbl — which already takes the room and
        ellipsises — and the element in .det. No direction tricks: rtl reorders

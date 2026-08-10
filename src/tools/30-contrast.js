@@ -3,6 +3,7 @@
     css: `
     .dbgov-badge .ok  { color: #b5e853; }
     .dbgov-badge .bad { color: #ff6b6b; font-weight: 700; }
+    .dbgov-badge .unk { color: #8ab4f8; font-style: italic; }
     `,
       id: 'contrast',
       kind: 'rule',
@@ -80,8 +81,8 @@
       },
 
       /**
-       * What the text is actually painted on, or null if any of it is
-       * unreadable.
+       * What the text is actually painted on, or `{ unknown }` naming what
+       * stopped it — the caller turns that into a finding rather than silence.
        *
        * Starts at the element, not its parent: an element that sets its own
        * background paints it behind its own text, so every button, chip and
@@ -97,14 +98,15 @@
           const cs = getComputedStyle(e);
           // An image or gradient can be any colour at the pixel under the
           // text, and nothing here can sample it. Unknown, not white.
-          if (cs.backgroundImage && cs.backgroundImage !== 'none') return null;
+          if (cs.backgroundImage && cs.backgroundImage !== 'none') return { unknown: 'bg-image' };
           const raw = cs.backgroundColor;
           const c = this._colour(raw);
           // A colour we cannot read is not the same as no colour. Walking past
           // it lands on the white default below and turns "I don't know" into
           // a confident verdict against a background that was never there.
           if (!c) {
-            if (raw && raw !== 'transparent') return null;
+            if (raw && raw !== 'transparent')
+              return { unknown: this._paint() ? 'bg-colour' : 'no-canvas' };
           } else if (c.a >= 0.999) {
             return layers.reduceRight((base, l) => this._over(l, base), c);
           } else if (c.a > 0) layers.push(c);
@@ -143,12 +145,25 @@
         return false;
       },
 
+      // Why a measurement could not be made. These reach the user, so they say
+      // what happened rather than naming the branch that produced them.
+      _why: {
+        'fg-colour': 'the text colour is in a colour space this cannot read',
+        'bg-colour': 'the background colour is in a colour space this cannot read',
+        'bg-image': 'it sits on an image or gradient, so the pixel under the text is unknown',
+        'no-canvas': 'no canvas is available to resolve colours',
+      },
+
       _measure({ el, cs }) {
+        // NOT APPLICABLE is not the same as NOT KNOWN. An element with no text
+        // of its own has no contrast to have — reporting that as "review"
+        // would put every container on the page in the list and bury the real
+        // ones. Only the three below are things we tried to measure and failed.
         if (!this._ownText(el)) return null;
         const fg = this._colour(cs.color);
-        if (!fg) return null;
+        if (!fg) return { unknown: this._paint() ? 'fg-colour' : 'no-canvas' };
         const bg = this._bg(el);
-        if (!bg) return null;   // unreadable background — say nothing
+        if (bg.unknown) return bg;
         const ratio = this._ratio(fg, bg);
         const size = parseFloat(cs.fontSize);
         const bold = parseInt(cs.fontWeight, 10) >= 700;
@@ -164,9 +179,25 @@
       // problems, which is what lets the same hook run over a whole page.
       audit(i) {
         const c = this._measure(i);
-        if (!c || c.pass) return [];
+        if (!c) return [];              // no text of its own — nothing to judge
+        if (c.unknown) return [{
+          el: i.el,
+          // Not a failure: a failure is a fact, this is an absence of one. It
+          // used to be folded into the same empty array as "passed", so a page
+          // of gradient-backed text audited clean. Whatever else this tool
+          // gets wrong, it must not report a verdict it never reached.
+          verdict: 'review',
+          severity: 'info',
+          rule: 'contrast-aa',
+          message: `not measured — ${this._why[c.unknown]}`,
+          // one row per reason, page-wide: 200 elements over one gradient are
+          // one thing to go and look at, not 200
+          key: `contrast-aa|review|${c.unknown}`,
+        }];
+        if (c.pass) return [];
         return [{
           el: i.el,
+          verdict: 'fail',
           // below the large-text floor nobody can read it; above it, a near
           // miss that a size or weight change might fix
           severity: c.ratio < CONFIG.CONTRAST.large ? 'error' : 'warn',
@@ -180,17 +211,21 @@
       badge(i) {
         const c = this._measure(i);
         if (!c) return null;
+        // say so on hover too — silence here is what taught the eye to trust
+        // a page the tool had not actually checked
+        if (c.unknown) return `<span class="unk">contrast ?</span>`;
         const cls = c.pass ? 'ok' : 'bad';
         return `<span class="${cls}">${c.ratio.toFixed(2)}:1 ${c.pass ? 'AA✓' : 'AA✗'}</span>`;
       },
       compact(i) {
         const c = this._measure(i);
-        if (!c || c.pass) return null;   // stay quiet unless it actually fails
+        if (!c || c.unknown || c.pass) return null;   // quiet unless it fails
         return `<span class="bad">${c.ratio.toFixed(1)}:1 ✗</span>`;
       },
       report(i) {
         const c = this._measure(i);
         if (!c) return [];
+        if (c.unknown) return [`  contrast: not measured — ${this._why[c.unknown]}`];
         return [`  contrast: ${c.ratio.toFixed(2)}:1 vs required ${c.need} (${c.isLarge ? 'large' : 'normal'} text) → ${c.pass ? 'PASS' : 'FAIL'}`];
       },
     });

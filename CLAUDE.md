@@ -56,11 +56,22 @@ tab: the bundle skips frames, so an embedded editor preview shows nothing.
   checks it against the hooks the file implements — `annotate` ⇒ lens,
   `audit` ⇒ rule — so the field cannot quietly become a lie.
 
-## A rule that cannot measure says nothing
-Silence is a valid answer and the only safe one. Scraping numbers out of
-`oklch(0.985 0 0)` read near-white as near-black and shipped `1.00:1 FAIL`
-for text that measures 10.9:1. A quiet rule is recoverable; a confidently
-wrong one teaches you to distrust all of them.
+## A rule has three answers, not two
+Pass, fail, and **`verdict: 'review'`** — I tried and could not tell. The third
+is not a nicety: silence was the first fix and it turned out to be its own
+lie. Scraping numbers out of `oklch(0.985 0 0)` read near-white as near-black
+and shipped `1.00:1 FAIL`; going quiet instead stopped the wrong answer but
+folded every unmeasurable element in with the passes, so a page of
+gradient-backed text audited clean.
+
+Distinguish *not applicable* from *not known*. An element with no text has no
+contrast to have — that is silence, correctly. A colour space we cannot read,
+a gradient behind the text, a missing canvas: those are reviews, and each
+carries a reason the reader can act on. Get this wrong in the other direction
+and every container on the page becomes a review row.
+
+Reviews group by reason and sort below anything measured, so two hundred
+elements over one gradient are one line, under the things you can act on.
 
 So contrast resolves a colour by painting one pixel of it on a 1×1 canvas and
 reading the bytes back — the browser knows every colour space, this file does

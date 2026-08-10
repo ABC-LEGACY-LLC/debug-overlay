@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.15
+// @version      3.8.16
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -103,9 +103,12 @@ HOW TO USE
       reportTail: () => [],        // optional, summary lines after all pins
       pendingIndex: () => -1,      // optional, pin still being chosen
       // kind: 'lens' only —  annotate: (html, n, i) => html
-      // kind: 'rule' only —  audit: (i) => [{ el, severity, rule, message, key }]
+      // kind: 'rule' only —  audit: (i) => [{ el, verdict, severity, rule, message, key }]
     }
 
+    verdict ∈ fail | review. A rule has three answers, not two: it passed (say
+    nothing), it failed, or it could not be measured — and the last one has to
+    be said out loud, with a reason, or an unreadable page reports clean.
     severity ∈ error | warn | info (CONFIG.SEVERITY). `rule` is a rule id, not
     a tool id — one tool may own several. `key` decides which findings collapse
     into one line; without one they collapse by rule + message.
@@ -688,6 +691,7 @@ HOW TO USE
     css: `
     .dbgov-badge .ok  { color: #b5e853; }
     .dbgov-badge .bad { color: #ff6b6b; font-weight: 700; }
+    .dbgov-badge .unk { color: #8ab4f8; font-style: italic; }
     `,
       id: 'contrast',
       kind: 'rule',
@@ -765,8 +769,8 @@ HOW TO USE
       },
 
       /**
-       * What the text is actually painted on, or null if any of it is
-       * unreadable.
+       * What the text is actually painted on, or `{ unknown }` naming what
+       * stopped it — the caller turns that into a finding rather than silence.
        *
        * Starts at the element, not its parent: an element that sets its own
        * background paints it behind its own text, so every button, chip and
@@ -782,14 +786,15 @@ HOW TO USE
           const cs = getComputedStyle(e);
           // An image or gradient can be any colour at the pixel under the
           // text, and nothing here can sample it. Unknown, not white.
-          if (cs.backgroundImage && cs.backgroundImage !== 'none') return null;
+          if (cs.backgroundImage && cs.backgroundImage !== 'none') return { unknown: 'bg-image' };
           const raw = cs.backgroundColor;
           const c = this._colour(raw);
           // A colour we cannot read is not the same as no colour. Walking past
           // it lands on the white default below and turns "I don't know" into
           // a confident verdict against a background that was never there.
           if (!c) {
-            if (raw && raw !== 'transparent') return null;
+            if (raw && raw !== 'transparent')
+              return { unknown: this._paint() ? 'bg-colour' : 'no-canvas' };
           } else if (c.a >= 0.999) {
             return layers.reduceRight((base, l) => this._over(l, base), c);
           } else if (c.a > 0) layers.push(c);
@@ -828,12 +833,25 @@ HOW TO USE
         return false;
       },
 
+      // Why a measurement could not be made. These reach the user, so they say
+      // what happened rather than naming the branch that produced them.
+      _why: {
+        'fg-colour': 'the text colour is in a colour space this cannot read',
+        'bg-colour': 'the background colour is in a colour space this cannot read',
+        'bg-image': 'it sits on an image or gradient, so the pixel under the text is unknown',
+        'no-canvas': 'no canvas is available to resolve colours',
+      },
+
       _measure({ el, cs }) {
+        // NOT APPLICABLE is not the same as NOT KNOWN. An element with no text
+        // of its own has no contrast to have — reporting that as "review"
+        // would put every container on the page in the list and bury the real
+        // ones. Only the three below are things we tried to measure and failed.
         if (!this._ownText(el)) return null;
         const fg = this._colour(cs.color);
-        if (!fg) return null;
+        if (!fg) return { unknown: this._paint() ? 'fg-colour' : 'no-canvas' };
         const bg = this._bg(el);
-        if (!bg) return null;   // unreadable background — say nothing
+        if (bg.unknown) return bg;
         const ratio = this._ratio(fg, bg);
         const size = parseFloat(cs.fontSize);
         const bold = parseInt(cs.fontWeight, 10) >= 700;
@@ -849,9 +867,25 @@ HOW TO USE
       // problems, which is what lets the same hook run over a whole page.
       audit(i) {
         const c = this._measure(i);
-        if (!c || c.pass) return [];
+        if (!c) return [];              // no text of its own — nothing to judge
+        if (c.unknown) return [{
+          el: i.el,
+          // Not a failure: a failure is a fact, this is an absence of one. It
+          // used to be folded into the same empty array as "passed", so a page
+          // of gradient-backed text audited clean. Whatever else this tool
+          // gets wrong, it must not report a verdict it never reached.
+          verdict: 'review',
+          severity: 'info',
+          rule: 'contrast-aa',
+          message: `not measured — ${this._why[c.unknown]}`,
+          // one row per reason, page-wide: 200 elements over one gradient are
+          // one thing to go and look at, not 200
+          key: `contrast-aa|review|${c.unknown}`,
+        }];
+        if (c.pass) return [];
         return [{
           el: i.el,
+          verdict: 'fail',
           // below the large-text floor nobody can read it; above it, a near
           // miss that a size or weight change might fix
           severity: c.ratio < CONFIG.CONTRAST.large ? 'error' : 'warn',
@@ -865,17 +899,21 @@ HOW TO USE
       badge(i) {
         const c = this._measure(i);
         if (!c) return null;
+        // say so on hover too — silence here is what taught the eye to trust
+        // a page the tool had not actually checked
+        if (c.unknown) return `<span class="unk">contrast ?</span>`;
         const cls = c.pass ? 'ok' : 'bad';
         return `<span class="${cls}">${c.ratio.toFixed(2)}:1 ${c.pass ? 'AA✓' : 'AA✗'}</span>`;
       },
       compact(i) {
         const c = this._measure(i);
-        if (!c || c.pass) return null;   // stay quiet unless it actually fails
+        if (!c || c.unknown || c.pass) return null;   // quiet unless it fails
         return `<span class="bad">${c.ratio.toFixed(1)}:1 ✗</span>`;
       },
       report(i) {
         const c = this._measure(i);
         if (!c) return [];
+        if (c.unknown) return [`  contrast: not measured — ${this._why[c.unknown]}`];
         return [`  contrast: ${c.ratio.toFixed(2)}:1 vs required ${c.need} (${c.isLarge ? 'large' : 'normal'} text) → ${c.pass ? 'PASS' : 'FAIL'}`];
       },
     });
@@ -921,6 +959,9 @@ HOW TO USE
     #__dbgov-list .row[data-accent="error"] .tag { color: #ff6b6b; }
     #__dbgov-list .row[data-accent="warn"]  .tag { color: #ffd54f; }
     #__dbgov-list .row[data-accent="info"]  .tag { color: #9ad0ff; }
+    /* not a verdict — something the tool could not measure and you have to
+       look at yourself; italic so it never reads as a failure */
+    #__dbgov-list .row[data-accent="review"] .tag { color: #8ab4f8; font-style: italic; }
     /* The verdict reads first and the selector says where to look, so a
        finding puts its message in .lbl — which already takes the room and
        ellipsises — and the element in .det. No direction tricks: rtl reorders
@@ -1490,7 +1531,10 @@ HOW TO USE
       if (State.sweep || groups.length) {
         L.push('', `## findings (${list.length})${Report.scope()}`);
         for (const g of groups) {
-          L.push(`[${g.severity}] ${g.rule}${g.n > 1 ? ` ×${g.n}` : ''}: ${g.message}`);
+          // 'review' outranks the severity in the label: what matters first is
+          // whether this is a verdict or the absence of one
+          const tag = g.verdict === 'review' ? 'review' : g.severity;
+          L.push(`[${tag}] ${g.rule}${g.n > 1 ? ` ×${g.n}` : ''}: ${g.message}`);
           L.push(`    ${U.selectorOf(g.el)}`);
         }
         if (!groups.length) L.push('(none)');
@@ -1667,12 +1711,12 @@ HOW TO USE
     /** One row per distinct problem, worst first. No pin, so nothing to remove. */
     findingRows() {
       return Sweep.group(State.sweep ? State.sweep.findings : []).map((g) => ({
-        tag: g.n > 1 ? `${g.severity} ×${g.n}` : g.severity,
+        tag: (g.verdict === 'review' ? 'review' : g.severity) + (g.n > 1 ? ` ×${g.n}` : ''),
         label: g.message,
         // the leaf, not the whole path: a row has to be scannable, and the
         // full ancestor chain is in the copied report where there is room
         detail: U.selectorOf(g.el).split(' > ').pop(),
-        accent: g.severity,
+        accent: g.verdict === 'review' ? 'review' : g.severity,
         el: g.el,
       }));
     },
@@ -1867,8 +1911,13 @@ HOW TO USE
         if (g) { g.n++; return; }
         by.set(k, { ...f, n: 1, seq });
       });
+      // Anything measured outranks anything merely to be looked at, whatever
+      // its severity: a finding you can act on beats one you have to go and
+      // check by eye. Within each, worst first, then discovery order.
+      const said = (g) => (g.verdict === 'review' ? 0 : 1);
       const rank = (g) => CONFIG.SEVERITY[g.severity] ?? 0;
-      return [...by.values()].sort((a, b) => rank(b) - rank(a) || a.seq - b.seq);
+      return [...by.values()].sort((a, b) =>
+        said(b) - said(a) || rank(b) - rank(a) || a.seq - b.seq);
     },
   };
 

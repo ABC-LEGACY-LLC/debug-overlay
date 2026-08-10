@@ -185,14 +185,18 @@ ok('the report is built and copied', typeof copied === 'string', String(copied).
 ok('a failing element produces a finding',
   /## findings/.test(copied || '') && /\[error\] contrast-aa/.test(copied || ''),
   'audit() hook produced nothing');
-ok('a passing element produces none', /## findings \(1\)/.test(copied || ''),
-  'a rule must only speak when something is wrong');
-// Scraping numbers out of oklch(0.985 0 0) reads near-white as near-black and
-// reports 1.00:1 against a background it also misread. Three pins, still one
-// finding: the unreadable one has to produce nothing at all.
-ok('an unreadable colour space stays silent',
-  /\[#3\]/.test(copied || '') && /## findings \(1\)/.test(copied || ''),
-  'oklch was guessed at instead of skipped — that is the 1.00:1 false FAIL');
+ok('a passing element produces none',
+  ((copied || '').match(/\[error\]|\[warn\]/g) || []).length === 1,
+  'the readable element was reported as a problem too');
+// Three pins: one fails, one passes, one cannot be measured at all. The last
+// used to be folded into the same empty array as the pass, so a page the tool
+// could not read came back clean. It is a third answer and it says so.
+ok('what cannot be measured is put up for review, not passed',
+  /\[review\] contrast-aa/.test(copied || ''),
+  'the unmeasurable element was silently counted as fine');
+ok('and the review says what stopped it',
+  /not measured — no canvas is available/.test(copied || ''),
+  ((/not measured[^\n]*/.exec(copied || '') || [])[0]) || 'no reason given');
 
 console.log('\nBACKGROUND');
 // #e is light grey text on a light chip, and the chip sits on a dark page.
@@ -214,8 +218,9 @@ ok('and that is a finding', /\[error\] contrast-aa/.test(chip),
   'unreadable text on a chip has to be reported');
 
 const grad = only('f');
-ok('a background image is unknown, not white', !/contrast: /.test(grad),
-  'nothing can sample the pixel under the text, so there is no verdict to give');
+ok('a background image is unknown, not white',
+  /contrast: not measured — it sits on an image or gradient/.test(grad),
+  'reading through a gradient to the white default is the confident wrong answer');
 
 console.log('\nSWEEP');
 // The whole point is that this needs nothing pinned.
@@ -225,8 +230,16 @@ bar.querySelector('[data-sweep]').dispatchEvent(new window.MouseEvent('click', {
 bar.querySelector('[data-copy]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 const swept = copied || '';
 ok('a sweep audits the page with nothing pinned',
-  /## findings \(2\) — whole page/.test(swept),
+  /## findings \(4\) — whole page/.test(swept),
   swept.slice(swept.indexOf('## findings')).split('\n')[0] || 'no findings section');
+// two it measured and two it could not, and the two kinds do not blur
+ok('measured and unmeasurable are separate counts',
+  (swept.match(/\[error\]|\[warn\]/g) || []).length === 2 &&
+  (swept.match(/\[review\]/g) || []).length === 2,
+  swept.slice(swept.indexOf('## findings')));
+ok('reviews sort below anything measured',
+  swept.indexOf('[review]') > swept.lastIndexOf('[error]'),
+  'a thing to go and look at outranked a thing you can act on');
 // A zero that means "nothing was checked" and a zero that means "nothing is
 // wrong" must not print the same line, so the scope travels with the count.
 ok('the report says what was checked',
@@ -237,7 +250,7 @@ ok('the report says what was checked',
 bar.querySelector('[data-tool="contrast"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 bar.querySelector('[data-sweep]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 bar.querySelector('[data-copy]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-ok('a disarmed rule is still swept', /## findings \(2\)/.test(copied || ''),
+ok('a disarmed rule is still swept', /## findings \(4\)/.test(copied || ''),
   'the sweep followed the toggle instead of the page');
 bar.querySelector('[data-tool="contrast"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 ok('two different colour pairs stay two findings',
@@ -273,8 +286,11 @@ window.HTMLElement.prototype.scrollIntoView = function () {};   // jsdom has non
 const listEl = window.document.getElementById('__dbgov-list');
 ok('the sweep opens its own view', listEl.classList.contains('open'));
 const rows = () => [...listEl.querySelectorAll('.row')];
-ok('one row per distinct problem', rows().length === 2, `${rows().length} rows`);
+ok('one row per distinct problem', rows().length === 4, `${rows().length} rows`);
 ok('worst first', (rows()[0]?.querySelector('.tag') || {}).textContent === 'error');
+ok('reviews are marked as such, and come last',
+  rows().slice(-2).every((r) => r.dataset.accent === 'review'),
+  rows().map((r) => r.dataset.accent).join(', '));
 ok('a finding has no remove button', !listEl.querySelector('.rm'),
   'there is no pin behind a finding for a ✕ to drop');
 // A finding is a place on the page. Clicking one should take you there and

@@ -38,7 +38,10 @@
       if (State.sweep || groups.length) {
         L.push('', `## findings (${list.length})${Report.scope()}`);
         for (const g of groups) {
-          L.push(`[${g.severity}] ${g.rule}${g.n > 1 ? ` ×${g.n}` : ''}: ${g.message}`);
+          // 'review' outranks the severity in the label: what matters first is
+          // whether this is a verdict or the absence of one
+          const tag = g.verdict === 'review' ? 'review' : g.severity;
+          L.push(`[${tag}] ${g.rule}${g.n > 1 ? ` ×${g.n}` : ''}: ${g.message}`);
           L.push(`    ${U.selectorOf(g.el)}`);
         }
         if (!groups.length) L.push('(none)');

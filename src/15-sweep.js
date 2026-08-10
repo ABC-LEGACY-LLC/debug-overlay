@@ -53,7 +53,12 @@
         if (g) { g.n++; return; }
         by.set(k, { ...f, n: 1, seq });
       });
+      // Anything measured outranks anything merely to be looked at, whatever
+      // its severity: a finding you can act on beats one you have to go and
+      // check by eye. Within each, worst first, then discovery order.
+      const said = (g) => (g.verdict === 'review' ? 0 : 1);
       const rank = (g) => CONFIG.SEVERITY[g.severity] ?? 0;
-      return [...by.values()].sort((a, b) => rank(b) - rank(a) || a.seq - b.seq);
+      return [...by.values()].sort((a, b) =>
+        said(b) - said(a) || rank(b) - rank(a) || a.seq - b.seq);
     },
   };

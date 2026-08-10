@@ -173,9 +173,14 @@ Every tool declares a `kind`: `instrument` (describes an element), `rule`
 The audit checks the declaration against the hooks the file implements, so the
 field cannot quietly become a lie.
 
-A `rule`'s `audit(info)` returns `{ el, severity, rule, message, key }` and
-says nothing when the element is fine. Findings are grouped by `key` and
-ranked worst-first, so a nav of 40 identical links is one line, not forty.
+A `rule`'s `audit(info)` returns `{ el, verdict, severity, rule, message, key }`
+and says nothing when the element is fine. `verdict` is `fail` or `review` —
+a rule that could not measure something has to say so, or an unreadable page
+reports clean. Findings are grouped by `key` and ranked worst-first, reviews
+last, so a nav of 40 identical links is one line, not forty.
+
+The ⌕ button audits the whole page. It runs every rule that exists, armed or
+not: arming decides what is drawn on screen, never what is checked.
 
 Available hooks, all optional: `badge`, `compact`, `report`, `reportTail`,
 `draw`, `listRows`, `pendingIndex`, `annotate`, `audit`, `css`.

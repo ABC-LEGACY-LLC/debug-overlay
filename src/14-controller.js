@@ -36,12 +36,12 @@
     /** One row per distinct problem, worst first. No pin, so nothing to remove. */
     findingRows() {
       return Sweep.group(State.sweep ? State.sweep.findings : []).map((g) => ({
-        tag: g.n > 1 ? `${g.severity} ×${g.n}` : g.severity,
+        tag: (g.verdict === 'review' ? 'review' : g.severity) + (g.n > 1 ? ` ×${g.n}` : ''),
         label: g.message,
         // the leaf, not the whole path: a row has to be scannable, and the
         // full ancestor chain is in the copied report where there is room
         detail: U.selectorOf(g.el).split(' > ').pop(),
-        accent: g.severity,
+        accent: g.verdict === 'review' ? 'review' : g.severity,
         el: g.el,
       }));
     },
