@@ -83,7 +83,12 @@ HOW TO USE
       reportTail: () => [],        // optional, summary lines after all pins
       pendingIndex: () => -1,      // optional, pin still being chosen
       // kind: 'lens' only —  annotate: (html, n, i) => html
+      // kind: 'rule' only —  audit: (i) => [{ el, severity, rule, message, key }]
     }
+
+    severity ∈ error | warn | info (CONFIG.SEVERITY). `rule` is a rule id, not
+    a tool id — one tool may own several. `key` decides which findings collapse
+    into one line; without one they collapse by rule + message.
 
   The panel button, persistence, badge composition and report inclusion are
   all derived from the registry automatically.

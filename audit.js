@@ -94,6 +94,9 @@ for (const t of tools) {
   if (t.kind === 'lens' && !calls(t.s, 'annotate')) bad.push("kind 'lens' but no annotate() hook");
   if (calls(t.s, 'annotate') && t.kind !== 'lens') bad.push("annotate() hook but kind is not 'lens'");
   if (calls(t.s, 'audit') && t.kind !== 'rule') bad.push("audit() hook but kind is not 'rule'");
+  // now that the report calls it, a rule without one is a tool the report
+  // silently skips
+  if (t.kind === 'rule' && !calls(t.s, 'audit')) bad.push("kind 'rule' but no audit() hook");
   t.s.split('\n').forEach((line, n) => {
     for (const m of line.matchAll(ACCESSOR))
       if (m[1] !== t.id) bad.push(`line ${n + 1}: names another tool — ${m[0].trim()})`);

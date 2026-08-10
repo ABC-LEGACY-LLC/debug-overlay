@@ -40,6 +40,7 @@ function makeDom() {
     `<!doctype html><html><body>
        <div id="a" style="width:100px;height:40px;padding:8px">alpha</div>
        <div id="b" style="width:60px;height:20px;margin:12px">beta</div>
+       <p id="c" style="color:#bbb">faint text nobody can read</p>
      </body></html>`,
     { url: 'https://example.test/', pretendToBeVisual: true, runScripts: 'outside-only', virtualConsole: vc },
   );
@@ -152,6 +153,31 @@ ok('right-click is left alone', !down(target, { button: 2 }).defaultPrevented,
   'swallowing it would take the context menu too');
 ok('the panel keeps its own clicks',
   !down(bar.querySelector('button.pwr')).defaultPrevented);
+window.dispatchEvent(new window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+
+console.log('\nREPORT');
+// The report is the only place a rule's audit() hook is observable from
+// outside the IIFE: stub the clipboard and read what it was handed.
+let copied = null;
+Object.defineProperty(window.navigator, 'clipboard',
+  { value: { writeText: async (t) => { copied = t; } }, configurable: true });
+window.dispatchEvent(new window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+bar.querySelector('[data-tool="contrast"]').dispatchEvent(
+  new window.MouseEvent('click', { bubbles: true }));
+const pin = (id) => {
+  window.document.elementFromPoint = () => window.document.getElementById(id);
+  window.document.getElementById(id).dispatchEvent(
+    new window.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
+};
+pin('c');            // 1.92:1 — fails AA
+pin('a');            // black on white — passes
+bar.querySelector('[data-copy]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+ok('the report is built and copied', typeof copied === 'string', String(copied).slice(0, 40));
+ok('a failing element produces a finding',
+  /## findings/.test(copied || '') && /\[error\] contrast-aa/.test(copied || ''),
+  'audit() hook produced nothing');
+ok('a passing element produces none', /## findings \(1\)/.test(copied || ''),
+  'a rule must only speak when something is wrong');
 window.dispatchEvent(new window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
 
 console.log('\nGUARD');

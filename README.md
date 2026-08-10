@@ -152,6 +152,7 @@ Create `src/tools/40-yourtool.js`:
 ```js
 defineTool({
   id: 'zindex',
+  kind: 'instrument',
   icon: '⧉',
   title: 'Stacking — z-index & position',
   css: `
@@ -166,8 +167,17 @@ defineTool({
 Then `node build.js`. The panel button, persistence, badge composition and
 report inclusion all follow from the registry — no other file changes.
 
+Every tool declares a `kind`: `instrument` (describes an element), `rule`
+(judges it → findings), or `lens` (decorates the numbers other tools print).
+The audit checks the declaration against the hooks the file implements, so the
+field cannot quietly become a lie.
+
+A `rule`'s `audit(info)` returns `{ el, severity, rule, message, key }` and
+says nothing when the element is fine. Findings are grouped by `key` and
+ranked worst-first, so a nav of 40 identical links is one line, not forty.
+
 Available hooks, all optional: `badge`, `compact`, `report`, `reportTail`,
-`draw`, `listRows`, `pendingIndex`, `css`.
+`draw`, `listRows`, `pendingIndex`, `annotate`, `audit`, `css`.
 
 ## Rules the audit enforces
 

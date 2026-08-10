@@ -22,4 +22,7 @@
     HOTKEY: { alt: true, shift: true, ctrl: false, code: 'KeyD' },
     REMOVE_KEY: 'KeyX',       // hold to reveal ✕ on pins and click one to remove
     CONTRAST: { normal: 4.5, large: 3.0, largePx: 24, largeBoldPx: 18.66 },
+    // Findings vocabulary, shared by every 'rule' tool. The number is only a
+    // rank, so a list of findings reads worst-first.
+    SEVERITY: { error: 3, warn: 2, info: 1 },
   };

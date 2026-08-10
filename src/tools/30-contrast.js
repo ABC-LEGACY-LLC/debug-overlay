@@ -19,7 +19,27 @@
         const isLarge = size >= CONFIG.CONTRAST.largePx ||
                         (bold && size >= CONFIG.CONTRAST.largeBoldPx);
         const need = isLarge ? CONFIG.CONTRAST.large : CONFIG.CONTRAST.normal;
-        return { ratio, need, pass: ratio >= need, isLarge };
+        return { ratio, need, pass: ratio >= need, isLarge, fg, bg };
+      },
+      _rgb: (c) => `${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)}`,
+
+      // RULE hook: the verdict badge() shows, as data instead of prose. A
+      // passing element produces nothing — a findings list is a list of
+      // problems, which is what lets the same hook run over a whole page.
+      audit(i) {
+        const c = this._measure(i);
+        if (!c || c.pass) return [];
+        return [{
+          el: i.el,
+          // below the large-text floor nobody can read it; above it, a near
+          // miss that a size or weight change might fix
+          severity: c.ratio < CONFIG.CONTRAST.large ? 'error' : 'warn',
+          rule: 'contrast-aa',
+          message: `${c.ratio.toFixed(2)}:1 — AA needs ${c.need} for ${c.isLarge ? 'large' : 'normal'} text`,
+          // one line per colour pair, not per element: a 40-link nav is ONE
+          // problem. Only the rule knows what "the same problem" means.
+          key: `contrast-aa|${this._rgb(c.fg)}|${this._rgb(c.bg)}|${c.isLarge}`,
+        }];
       },
       badge(i) {
         const c = this._measure(i);
