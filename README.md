@@ -49,7 +49,7 @@ API. `build.js --watch` runs alongside it, and the page reloads itself when a
 rebuild lands, so saving a file in `src/` is the entire loop.
 
 The page carries something for each tool on purpose: padding and gaps off the
-4px grid, a paragraph that fails AA contrast, and boxes worth measuring
+the spacing grid, a paragraph that fails AA contrast, and boxes worth measuring
 between.
 
 Open it in a **real browser tab**. The bundle skips frames by design

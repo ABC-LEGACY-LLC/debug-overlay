@@ -42,10 +42,11 @@ HOW TO USE
   independent toggle you can mix freely:
 
     📐 measure   sizes, radius, padding/margin, gap, font, pin distances
-    ▦ grid       marks any number another tool prints that is off the 4px
-                 grid (⚠). In ⌕ it judges AUTHORED spacing only — padding,
-                 margin, gap — never width or height, which layout produces
-                 rather than anyone choosing.
+    ▦ grid       marks any number another tool prints that is off the
+                 spacing step (⚠ — CONFIG.GRID, 2px). In ⌕ it judges AUTHORED
+                 spacing only — padding, margin, gap — never width or height,
+                 which layout produces rather than anyone choosing, and
+                 nothing above CONFIG.GRID_MAX, where margin:auto lands.
     ◐ contrast   WCAG text contrast ratio + AA pass/fail
     ⧉ dupid      the same id used more than once — a page-wide question
 
@@ -125,9 +126,9 @@ HOW TO USE
     nothing for one.
 
     `rules` documents a rule as opposed to one instance of it. The message
-    says "2.76:1"; help/why/docs say what the rule is and where to read more,
-    and the report prints them under each finding so it can be pasted into a
-    ticket and still make sense.
+    says "2.76:1"; help/why/docs say what the rule is and where to read more.
+    The report gathers them into a "## rules" section at the end — once per
+    rule, not once per finding, which made a real report unreadable.
 
   The panel button, persistence, badge composition and report inclusion are
   all derived from the registry automatically.

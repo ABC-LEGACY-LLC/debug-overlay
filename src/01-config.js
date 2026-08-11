@@ -3,7 +3,13 @@
      ====================================================================== */
   const CONFIG = {
     Z: 2147483647,
-    GRID: 4,                  // px grid the "grid" tool checks against
+    // The step the "grid" tool checks against. 2, not 4, because that is what
+    // the scale in front of us actually is: Tailwind's default spacing has
+    // half-steps (0.5 = 2px, 1.5 = 6px, 2.5 = 10px) and a real page used them
+    // 2,681 times. A rule has to check the scale a project HAS; making the
+    // project match the rule is the wrong way round. Set it to 4 or 8 for a
+    // project that keeps to whole steps.
+    GRID: 2,
     // Above this, a margin or padding is layout arithmetic rather than a
     // spacing token. getComputedStyle resolves `margin: auto` to the pixels it
     // worked out — 1127px on a real page — and nothing distinguishes that from

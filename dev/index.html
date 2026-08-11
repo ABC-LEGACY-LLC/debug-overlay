@@ -12,11 +12,11 @@
   section { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
   h2 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: .08em; color: #6b6b76; }
 
-  /* deliberately off the 4px grid — the grid tool should flag these */
+  /* deliberately off the grid — the grid tool should flag these */
   .offgrid { display: flex; gap: 13px; }
   .offgrid div { padding: 7px 11px; background: #eef1f6; border-radius: 6px; }
 
-  /* clean 4px multiples — the grid tool should stay quiet here */
+  /* on the grid — the grid tool should stay quiet here */
   .ongrid { display: flex; gap: 16px; }
   .ongrid div { padding: 8px 12px; background: #eef6ee; border-radius: 8px; }
 
@@ -54,7 +54,7 @@
 
 <main>
   <section>
-    <h2>Off the 4px grid — grid tool should mark these</h2>
+    <h2>Off the grid — grid tool should mark these</h2>
     <div class="offgrid"><div>gap 13</div><div>padding 7/11</div><div>third</div></div>
   </section>
 

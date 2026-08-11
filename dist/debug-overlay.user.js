@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.23
+// @version      3.8.24
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -56,10 +56,11 @@ HOW TO USE
   independent toggle you can mix freely:
 
     📐 measure   sizes, radius, padding/margin, gap, font, pin distances
-    ▦ grid       marks any number another tool prints that is off the 4px
-                 grid (⚠). In ⌕ it judges AUTHORED spacing only — padding,
-                 margin, gap — never width or height, which layout produces
-                 rather than anyone choosing.
+    ▦ grid       marks any number another tool prints that is off the
+                 spacing step (⚠ — CONFIG.GRID, 2px). In ⌕ it judges AUTHORED
+                 spacing only — padding, margin, gap — never width or height,
+                 which layout produces rather than anyone choosing, and
+                 nothing above CONFIG.GRID_MAX, where margin:auto lands.
     ◐ contrast   WCAG text contrast ratio + AA pass/fail
     ⧉ dupid      the same id used more than once — a page-wide question
 
@@ -139,9 +140,9 @@ HOW TO USE
     nothing for one.
 
     `rules` documents a rule as opposed to one instance of it. The message
-    says "2.76:1"; help/why/docs say what the rule is and where to read more,
-    and the report prints them under each finding so it can be pasted into a
-    ticket and still make sense.
+    says "2.76:1"; help/why/docs say what the rule is and where to read more.
+    The report gathers them into a "## rules" section at the end — once per
+    rule, not once per finding, which made a real report unreadable.
 
   The panel button, persistence, badge composition and report inclusion are
   all derived from the registry automatically.
@@ -161,7 +162,13 @@ HOW TO USE
      ====================================================================== */
   const CONFIG = {
     Z: 2147483647,
-    GRID: 4,                  // px grid the "grid" tool checks against
+    // The step the "grid" tool checks against. 2, not 4, because that is what
+    // the scale in front of us actually is: Tailwind's default spacing has
+    // half-steps (0.5 = 2px, 1.5 = 6px, 2.5 = 10px) and a real page used them
+    // 2,681 times. A rule has to check the scale a project HAS; making the
+    // project match the rule is the wrong way round. Set it to 4 or 8 for a
+    // project that keeps to whole steps.
+    GRID: 2,
     // Above this, a margin or padding is layout arithmetic rather than a
     // spacing token. getComputedStyle resolves `margin: auto` to the pixels it
     // worked out — 1127px on a real page — and nothing distinguishes that from

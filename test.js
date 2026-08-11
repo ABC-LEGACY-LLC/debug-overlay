@@ -295,7 +295,7 @@ console.log('\nTWO ROLES');
     '<div style="padding:7px"><p style="color:#000">c</p></div>' +
     // what ml-auto arrives as, and a real token just under the ceiling
     '<div style="margin-left:1127px">layout worked this out</div>' +
-    '<div style="padding:94px">somebody typed this</div></body></html>',
+    '<div style="padding:95px">somebody typed this</div></body></html>',
     { url: 'https://example.test/', pretendToBeVisual: true, runScripts: 'outside-only',
       virtualConsole: new VirtualConsole() });
   const wg = g.window;
@@ -322,12 +322,12 @@ console.log('\nTWO ROLES');
   ok('layout arithmetic is not a spacing decision',
     !/1127px/.test(gcopy || ''), 'an auto margin was reported as off-grid');
   ok('and a real token just under the ceiling survives',
-    /94px is off the 4px grid/.test(gcopy || ''),
+    /95px is off the 2px grid/.test(gcopy || ''),
     'the ceiling is swallowing values somebody actually typed');
   // keyed by value: 7px used twice is one decision, not two mistakes. Two
   // divs at 7px and one at 11px = 8 raw findings, 2 lines.
   ok('off-grid values group by value, not by element',
-    /grid-off ×8: 7px is off the 4px grid/.test(gcopy || ''),
+    /grid-off ×8: 7px is off the 2px grid/.test(gcopy || ''),
     ((/\[info\][^\n]*/.exec(gcopy || '') || [])[0]) || 'no grid finding');
   g.window.close();
 }
