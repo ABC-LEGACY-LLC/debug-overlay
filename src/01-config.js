@@ -4,6 +4,11 @@
   const CONFIG = {
     Z: 2147483647,
     GRID: 4,                  // px grid the "grid" tool checks against
+    // Above this, a margin or padding is layout arithmetic rather than a
+    // spacing token. getComputedStyle resolves `margin: auto` to the pixels it
+    // worked out — 1127px on a real page — and nothing distinguishes that from
+    // a value somebody typed. Nobody types 1127px; nobody types past this.
+    GRID_MAX: 96,
     PEEK: 10,                 // px of panel visible when tucked
     TUCK_DELAY: 2200,         // ms idle before the panel tucks away
     EDGE_MARGIN: 8,

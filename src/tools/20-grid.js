@@ -67,7 +67,11 @@
         // a decision anyone made, and sweeping them buried the findings that
         // were. Padding, margin and gap are typed by a person; those are the
         // spacing scale.
-        return this._scan(i, false).map(([n, v]) => ({
+        return this._scan(i, false)
+          // and drop what layout worked out rather than what anyone chose:
+          // ml-auto arrives here as margin-left: 1127px
+          .filter(([, v]) => v <= CONFIG.GRID_MAX)
+          .map(([n, v]) => ({
           el: i.el,
           verdict: 'fail',
           // a spacing system is a convention, not a rule anyone can be hurt

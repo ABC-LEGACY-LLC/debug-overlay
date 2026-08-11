@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.22
+// @version      3.8.23
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -162,6 +162,11 @@ HOW TO USE
   const CONFIG = {
     Z: 2147483647,
     GRID: 4,                  // px grid the "grid" tool checks against
+    // Above this, a margin or padding is layout arithmetic rather than a
+    // spacing token. getComputedStyle resolves `margin: auto` to the pixels it
+    // worked out — 1127px on a real page — and nothing distinguishes that from
+    // a value somebody typed. Nobody types 1127px; nobody types past this.
+    GRID_MAX: 96,
     PEEK: 10,                 // px of panel visible when tucked
     TUCK_DELAY: 2200,         // ms idle before the panel tucks away
     EDGE_MARGIN: 8,
@@ -793,7 +798,11 @@ HOW TO USE
         // a decision anyone made, and sweeping them buried the findings that
         // were. Padding, margin and gap are typed by a person; those are the
         // spacing scale.
-        return this._scan(i, false).map(([n, v]) => ({
+        return this._scan(i, false)
+          // and drop what layout worked out rather than what anyone chose:
+          // ml-auto arrives here as margin-left: 1127px
+          .filter(([, v]) => v <= CONFIG.GRID_MAX)
+          .map(([n, v]) => ({
           el: i.el,
           verdict: 'fail',
           // a spacing system is a convention, not a rule anyone can be hurt

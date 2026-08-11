@@ -292,7 +292,10 @@ console.log('\nTWO ROLES');
   const g = new JSDOM('<!doctype html><html><body>' +
     '<div style="padding:7px"><p style="color:#000">a</p></div>' +
     '<div style="padding:11px"><p style="color:#000">b</p></div>' +
-    '<div style="padding:7px"><p style="color:#000">c</p></div></body></html>',
+    '<div style="padding:7px"><p style="color:#000">c</p></div>' +
+    // what ml-auto arrives as, and a real token just under the ceiling
+    '<div style="margin-left:1127px">layout worked this out</div>' +
+    '<div style="padding:94px">somebody typed this</div></body></html>',
     { url: 'https://example.test/', pretendToBeVisual: true, runScripts: 'outside-only',
       virtualConsole: new VirtualConsole() });
   const wg = g.window;
@@ -313,6 +316,14 @@ console.log('\nTWO ROLES');
     !/\d+px is off[\s\S]*?\n {4}span/.test(gcopy || '') &&
     /gap|7px|11px/.test(gcopy || ''),
     ((/\[info\][^\n]*/.exec(gcopy || '') || [])[0]) || 'nothing');
+  // getComputedStyle resolves margin:auto to the pixels it worked out, and
+  // nothing distinguishes that from a typed value — except that nobody types
+  // 1127px. Above the ceiling is layout arithmetic.
+  ok('layout arithmetic is not a spacing decision',
+    !/1127px/.test(gcopy || ''), 'an auto margin was reported as off-grid');
+  ok('and a real token just under the ceiling survives',
+    /94px is off the 4px grid/.test(gcopy || ''),
+    'the ceiling is swallowing values somebody actually typed');
   // keyed by value: 7px used twice is one decision, not two mistakes. Two
   // divs at 7px and one at 11px = 8 raw findings, 2 lines.
   ok('off-grid values group by value, not by element',
