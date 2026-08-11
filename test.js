@@ -339,7 +339,9 @@ console.log('\nPAGE RULES');
   const dup = new JSDOM('<!doctype html><html><body>' +
     '<label for="email">Email</label><input id="email">' +
     '<div id="email">a second one</div><span id="email">a third</span>' +
-    '<p id="unique">fine</p></body></html>',
+    '<p id="unique">fine</p>' +
+    // what React and base-ui emit: a new one on every render
+    '<div id="base-ui-:r1t9:"><p style="color:#999">faint</p></div></body></html>',
     { url: 'https://example.test/', pretendToBeVisual: true, runScripts: 'outside-only',
       virtualConsole: new VirtualConsole() });
   const wd = dup.window;
@@ -368,6 +370,13 @@ console.log('\nPAGE RULES');
   ok('and documents each one once',
     ((dcopy || '').match(/An id must be unique/g) || []).length === 1,
     `${((dcopy || '').match(/An id must be unique/g) || []).length} copies`);
+  // A generated id is the worst address in the document: it changes on the
+  // next render, so a finding that names one cannot be found twice.
+  ok('a generated id is not used as an address',
+    !/^ {4}#base-ui/m.test(dcopy || ''),
+    ((/^ {4}#base-ui.*/m.exec(dcopy || '') || [])[0]) || '');
+  ok('and an id a person chose still is', /^ {4}#email$/m.test(dcopy || ''),
+    'the best address there is was thrown away with the generated ones');
   dup.window.close();
 }
 

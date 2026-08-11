@@ -36,9 +36,17 @@
       if (!c.some(Boolean)) return null;
       return c.every((v) => v === c[0]) ? `${c[0]}` : c.join('/');
     },
+    /**
+     * An id a person chose is the best address there is. A generated one is
+     * the worst: React and base-ui emit things like `base-ui-:r1t9:`, which
+     * changes on the next render, so a report that says #base-ui-:r1t9: names
+     * an element nobody can find twice. A bare CSS identifier is the test —
+     * a colon is not legal in one unescaped, so nobody typed it.
+     */
+    stableId: (id) => /^[A-Za-z][\w-]*$/.test(id),
     selectorOf(el) {
       const part = (e) => {
-        if (e.id) return '#' + e.id;
+        if (e.id && U.stableId(e.id)) return '#' + e.id;
         let s = e.tagName.toLowerCase();
         const cls = [...e.classList].filter((c) => !c.startsWith('__dbgov')).slice(0, 2);
         if (cls.length) s += '.' + cls.join('.');
@@ -53,7 +61,9 @@
       let e = el;
       while (e && e.tagName && chain.length < 3) {
         chain.unshift(part(e));
-        if (e.id) break;
+        // only a real id ends the walk — a generated one anchors nothing, so
+        // keep climbing for ancestors that actually locate the element
+        if (e.id && U.stableId(e.id)) break;
         e = e.parentElement;
       }
       return chain.join(' > ');
