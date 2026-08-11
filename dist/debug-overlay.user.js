@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.21
+// @version      3.8.22
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -57,7 +57,9 @@ HOW TO USE
 
     📐 measure   sizes, radius, padding/margin, gap, font, pin distances
     ▦ grid       marks any number another tool prints that is off the 4px
-                 grid (⚠), and reports off-grid values page-wide in ⌕
+                 grid (⚠). In ⌕ it judges AUTHORED spacing only — padding,
+                 margin, gap — never width or height, which layout produces
+                 rather than anyone choosing.
     ◐ contrast   WCAG text contrast ratio + AA pass/fail
     ⧉ dupid      the same id used more than once — a page-wide question
 
@@ -747,17 +749,25 @@ HOW TO USE
       annotate(html, n) {
         return this._off(n) ? `<span class="warn">${html}⚠</span>` : html;
       },
-      /** Every off-grid number on one element, as [name, value] pairs. */
-      _scan({ r, cs }) {
+      /**
+       * Off-grid numbers on one element, as [name, value] pairs. `boxes`
+       * adds width and height — true when you pointed at this element and
+       * asked, false when a sweep is judging the page (see audit).
+       */
+      _scan({ r, cs }, boxes) {
         const pad = U.fourPlain(cs, 'padding'), mar = U.fourPlain(cs, 'margin');
         const out = [];
         const check = (n, v) => { if (this._off(v)) out.push([n, v]); };
-        check('w', Math.round(r.width)); check('h', Math.round(r.height));
+        if (boxes) { check('w', Math.round(r.width)); check('h', Math.round(r.height)); }
         ['t', 'r', 'b', 'l'].forEach((k) => { check('pad-' + k, pad[k]); check('mar-' + k, mar[k]); });
+        // the shorthand as well as the longhands: a browser resolves `gap`
+        // into both, and jsdom leaves it on the shorthand
+        const gap = U.px(cs.rowGap) || U.px(cs.columnGap) || U.px(cs.gap);
+        if (gap) check('gap', gap);
         return out;
       },
       report(i) {
-        const bad = this._scan(i);
+        const bad = this._scan(i, true);
         return bad.length
           ? [`  ⚠ off ${CONFIG.GRID}px grid: ${bad.map(([n, v]) => `${n}:${v}`).join(', ')}`]
           : [];
@@ -774,7 +784,16 @@ HOW TO USE
        * belongs in a sweep and not only on a badge.
        */
       audit(i) {
-        return this._scan(i).map(([n, v]) => ({
+        // An <svg> path has a bounding box and no authored anything. Judging
+        // those turned one real signal into 2,215 findings about icon
+        // geometry on a real page.
+        if (!(i.el instanceof HTMLElement)) return [];
+        // Width and height are the OUTPUT of layout — a text span is as wide
+        // as its text, a scroll container as tall as its content. Neither is
+        // a decision anyone made, and sweeping them buried the findings that
+        // were. Padding, margin and gap are typed by a person; those are the
+        // spacing scale.
+        return this._scan(i, false).map(([n, v]) => ({
           el: i.el,
           verdict: 'fail',
           // a spacing system is a convention, not a rule anyone can be hurt
@@ -1773,18 +1792,26 @@ HOW TO USE
           const tag = g.verdict === 'review' ? 'review' : g.severity;
           L.push(`[${tag}] ${g.rule}${g.n > 1 ? ` ×${g.n}` : ''}: ${g.message}`);
           L.push(`    ${U.selectorOf(g.el)}`);
-          // What the rule IS, as opposed to what this instance measured. The
-          // message alone only helps someone who already knew the rule; this
-          // is what lets the report be pasted into a ticket and still make
-          // sense to whoever picks it up.
-          const doc = Tools.byId(g.tool)?.rules?.[g.rule];
-          if (doc) {
-            if (doc.help) L.push(`    → ${doc.help}`);
-            if (doc.why) L.push(`    → ${doc.why}`);
-            if (doc.docs) L.push(`    → ${doc.docs}`);
-          }
         }
         if (!groups.length) L.push('(none)');
+
+        // What each rule IS, as opposed to what any one finding measured —
+        // once, at the end. Printed under every finding it made a real report
+        // unreadable: ninety findings carrying the same three lines.
+        const docs = new Map();
+        for (const g of groups) {
+          const d = Tools.byId(g.tool)?.rules?.[g.rule];
+          if (d && !docs.has(g.rule)) docs.set(g.rule, d);
+        }
+        if (docs.size) {
+          L.push('', '## rules');
+          for (const [id, d] of docs) {
+            L.push(id);
+            if (d.help) L.push(`  ${d.help}`);
+            if (d.why) L.push(`  ${d.why}`);
+            if (d.docs) L.push(`  ${d.docs}`);
+          }
+        }
       }
       return L.join('\n');
     },

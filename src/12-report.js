@@ -45,18 +45,26 @@
           const tag = g.verdict === 'review' ? 'review' : g.severity;
           L.push(`[${tag}] ${g.rule}${g.n > 1 ? ` ×${g.n}` : ''}: ${g.message}`);
           L.push(`    ${U.selectorOf(g.el)}`);
-          // What the rule IS, as opposed to what this instance measured. The
-          // message alone only helps someone who already knew the rule; this
-          // is what lets the report be pasted into a ticket and still make
-          // sense to whoever picks it up.
-          const doc = Tools.byId(g.tool)?.rules?.[g.rule];
-          if (doc) {
-            if (doc.help) L.push(`    → ${doc.help}`);
-            if (doc.why) L.push(`    → ${doc.why}`);
-            if (doc.docs) L.push(`    → ${doc.docs}`);
-          }
         }
         if (!groups.length) L.push('(none)');
+
+        // What each rule IS, as opposed to what any one finding measured —
+        // once, at the end. Printed under every finding it made a real report
+        // unreadable: ninety findings carrying the same three lines.
+        const docs = new Map();
+        for (const g of groups) {
+          const d = Tools.byId(g.tool)?.rules?.[g.rule];
+          if (d && !docs.has(g.rule)) docs.set(g.rule, d);
+        }
+        if (docs.size) {
+          L.push('', '## rules');
+          for (const [id, d] of docs) {
+            L.push(id);
+            if (d.help) L.push(`  ${d.help}`);
+            if (d.why) L.push(`  ${d.why}`);
+            if (d.docs) L.push(`  ${d.docs}`);
+          }
+        }
       }
       return L.join('\n');
     },

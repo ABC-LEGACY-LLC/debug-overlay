@@ -23,17 +23,25 @@
       annotate(html, n) {
         return this._off(n) ? `<span class="warn">${html}⚠</span>` : html;
       },
-      /** Every off-grid number on one element, as [name, value] pairs. */
-      _scan({ r, cs }) {
+      /**
+       * Off-grid numbers on one element, as [name, value] pairs. `boxes`
+       * adds width and height — true when you pointed at this element and
+       * asked, false when a sweep is judging the page (see audit).
+       */
+      _scan({ r, cs }, boxes) {
         const pad = U.fourPlain(cs, 'padding'), mar = U.fourPlain(cs, 'margin');
         const out = [];
         const check = (n, v) => { if (this._off(v)) out.push([n, v]); };
-        check('w', Math.round(r.width)); check('h', Math.round(r.height));
+        if (boxes) { check('w', Math.round(r.width)); check('h', Math.round(r.height)); }
         ['t', 'r', 'b', 'l'].forEach((k) => { check('pad-' + k, pad[k]); check('mar-' + k, mar[k]); });
+        // the shorthand as well as the longhands: a browser resolves `gap`
+        // into both, and jsdom leaves it on the shorthand
+        const gap = U.px(cs.rowGap) || U.px(cs.columnGap) || U.px(cs.gap);
+        if (gap) check('gap', gap);
         return out;
       },
       report(i) {
-        const bad = this._scan(i);
+        const bad = this._scan(i, true);
         return bad.length
           ? [`  ⚠ off ${CONFIG.GRID}px grid: ${bad.map(([n, v]) => `${n}:${v}`).join(', ')}`]
           : [];
@@ -50,7 +58,16 @@
        * belongs in a sweep and not only on a badge.
        */
       audit(i) {
-        return this._scan(i).map(([n, v]) => ({
+        // An <svg> path has a bounding box and no authored anything. Judging
+        // those turned one real signal into 2,215 findings about icon
+        // geometry on a real page.
+        if (!(i.el instanceof HTMLElement)) return [];
+        // Width and height are the OUTPUT of layout — a text span is as wide
+        // as its text, a scroll container as tall as its content. Neither is
+        // a decision anyone made, and sweeping them buried the findings that
+        // were. Padding, margin and gap are typed by a person; those are the
+        // spacing scale.
+        return this._scan(i, false).map(([n, v]) => ({
           el: i.el,
           verdict: 'fail',
           // a spacing system is a convention, not a rule anyone can be hurt

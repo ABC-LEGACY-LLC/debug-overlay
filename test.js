@@ -307,6 +307,12 @@ console.log('\nTWO ROLES');
   barg.querySelector('[data-copy]').dispatchEvent(new wg.MouseEvent('click', { bubbles: true }));
   ok('a lens can also be a rule', /grid-off/.test(gcopy || ''),
     'grid produced no findings, so the sweep still cannot see it');
+  // width and height are what layout PRODUCED; padding, margin and gap are
+  // what somebody typed. Sweeping the first buried the second on a real page.
+  ok('the audit judges authored spacing, not computed size',
+    !/\d+px is off[\s\S]*?\n {4}span/.test(gcopy || '') &&
+    /gap|7px|11px/.test(gcopy || ''),
+    ((/\[info\][^\n]*/.exec(gcopy || '') || [])[0]) || 'nothing');
   // keyed by value: 7px used twice is one decision, not two mistakes. Two
   // divs at 7px and one at 11px = 8 raw findings, 2 lines.
   ok('off-grid values group by value, not by element',
@@ -342,10 +348,15 @@ console.log('\nPAGE RULES');
     'every id was reported, not just the repeated one');
   // the report has to make sense to whoever picks up the ticket, not only to
   // the person who already knew the rule
-  ok('findings carry their rule documentation',
-    /→ An id must be unique in a document\./.test(dcopy || '') &&
-    /→ https:\/\/developer\.mozilla\.org/.test(dcopy || ''),
+  // once, in its own section — under every finding it made a real report
+  // unreadable, ninety of them carrying the same three lines
+  ok('the report documents its rules',
+    /## rules[\s\S]*An id must be unique in a document\./.test(dcopy || '') &&
+    /https:\/\/developer\.mozilla\.org/.test(dcopy || ''),
     'the rule id is bare — no help, no link');
+  ok('and documents each one once',
+    ((dcopy || '').match(/An id must be unique/g) || []).length === 1,
+    `${((dcopy || '').match(/An id must be unique/g) || []).length} copies`);
   dup.window.close();
 }
 

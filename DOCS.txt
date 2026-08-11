@@ -43,7 +43,9 @@ HOW TO USE
 
     📐 measure   sizes, radius, padding/margin, gap, font, pin distances
     ▦ grid       marks any number another tool prints that is off the 4px
-                 grid (⚠), and reports off-grid values page-wide in ⌕
+                 grid (⚠). In ⌕ it judges AUTHORED spacing only — padding,
+                 margin, gap — never width or height, which layout produces
+                 rather than anyone choosing.
     ◐ contrast   WCAG text contrast ratio + AA pass/fail
     ⧉ dupid      the same id used more than once — a page-wide question
 
