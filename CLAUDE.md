@@ -90,6 +90,29 @@ label.
 `audit.js` fails a tool with no `icon` or `title` — the panel paints both
 straight into the bar, and a button reading `undefined` is not a control.
 
+## We run in a sandbox now, so never ask a window who it is
+The header grants `GM_getValue`/`GM_setValue`, because `localStorage` is scoped
+to one origin and `@match` is every site — so everything the user chose was
+chosen again on the next domain. `Store` (in `02-state.js`) is the only way to
+persist anything; it falls back to `localStorage` where the API is absent (dev
+page, tests) and adopts existing `localStorage` values on first run, so an
+upgrade never resets somebody. Do not call `localStorage` directly again.
+
+Asking for any GM API moves the script into the manager's sandbox, where
+`window` is a wrapper around the page's. Two consequences, both already handled
+in `00-banner.js` and both silent if reintroduced:
+
+- **Never compare window identities.** `window.top !== window.self` can be true
+  in the *top* frame under a sandbox — the overlay would vanish everywhere and
+  report nothing. The frame check reads `window.frameElement`, which is null at
+  top level in every context, and `@noframes` handles cross-origin frames.
+- **Ask the document, not a flag.** A soft-navigation re-injection can arrive
+  in a fresh sandbox with the same page, so the single-instance guard looks for
+  an existing `#__dbgov-root` before it trusts `window.__DBG_OVERLAY__`.
+
+Anything else that assumed page context is now suspect. `unsafeWindow` reaches
+the real page window if something ever genuinely needs it — nothing does yet.
+
 ## The version has to be visible
 `@grant none` means no `GM_info`, so `src/01-config.js` carries a `__VERSION__`
 placeholder that `build.js` substitutes into the bundle, and the panel shows it

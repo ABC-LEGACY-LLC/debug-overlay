@@ -1,11 +1,13 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.27
+// @version      3.8.28
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
-// @grant        none
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @noframes
 // @run-at       document-idle
 // @updateURL    https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/debug-overlay.meta.js
 // @downloadURL  https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/debug-overlay.user.js
@@ -80,14 +82,17 @@ HOW TO USE
   Arming decides what you SEE; ⌕ checks every rule either way, so a toggle you
   forgot can never quietly shorten an audit.
 
-  Active tools are remembered per site.
+  Active tools, panel position and everything under ⚙ are remembered for the
+  SCRIPT, not for the site — set them once and every other site already agrees,
+  and Tampermonkey's own sync carries them to a new machine.
 
   ARCHITECTURE — each numbered section is independent; edit one to change
   one behaviour. Sections appear in dependency order: nothing is used before
   it is defined.
 
     1. CONFIG        every tunable number/key
-    2. STATE         single source of truth, plain data only
+    2. STATE         single source of truth, plain data only — with STORE,
+                     which is the part of it that outlives the page
     3. UTILS         pure functions — no DOM writes, no State reads
     4. MEASURE       dimension-line geometry & drawing (tool-agnostic)
     5. TOOLS         ⭐ the plugin registry — add a debug mode here
@@ -177,7 +182,25 @@ HOW TO USE
 (function () {
   'use strict';
 
-  if (window.top !== window.self) return; // skip iframes
+  /**
+   * NOT `window.top !== window.self`. With @grant the manager runs this in a
+   * sandbox where `window` is a wrapper, and that comparison can be true in
+   * the TOP frame — which would disable the overlay everywhere, silently, on
+   * every site. frameElement is null at top level in every context, so this
+   * cannot misfire in the one direction that matters. @noframes is what keeps
+   * us out of cross-origin frames, where frameElement reads null anyway.
+   */
+  let framed = false;
+  try { framed = !!window.frameElement; } catch { framed = true; }
+  if (framed) return;
+
+  /**
+   * Ask the DOCUMENT first. A re-injection on soft navigation can arrive in a
+   * fresh sandbox — a new `window`, the same page — and a window flag alone
+   * would have missed that and built a second panel fighting the first for the
+   * same hotkey. The flag stays as the cheap path and as what the tests read.
+   */
+  if (document.getElementById('__dbgov-root')) return;
   if (window.__DBG_OVERLAY__) return;
   window.__DBG_OVERLAY__ = true;
 
@@ -196,7 +219,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: '3.8.27',
+    VERSION: '3.8.28',
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -247,7 +270,57 @@ HOW TO USE
 
   // ─── src/02-state.js ───────────────────────────────────────────────────
   /* ======================================================================
-     2. STATE
+     2. STATE — what is known now, and what is kept between visits
+
+        STORE is here rather than in a section of its own because it is the
+        same concern: State is what the overlay knows, Store is the part of
+        that which outlives the page.
+
+        WHY IT EXISTS: localStorage is scoped to one origin, and this script
+        matches every site. So arming a tool or choosing a grid step on one
+        domain taught the overlay nothing about the next one — every new site
+        started from the defaults again, which is a setup step handed back to
+        the user on every domain they visit. GM_getValue is per SCRIPT, and it
+        rides Tampermonkey's own sync to a new machine.
+
+        Both backends store the same JSON strings, so what is already in
+        localStorage is readable as-is and gets adopted on first run.
+     ====================================================================== */
+  const Store = {
+    /**
+     * The manager only defines these when the header asks for them, and the
+     * dev page, the tests and any manager without them have to keep working —
+     * so every path falls back rather than losing what it was asked to keep.
+     * `typeof` on an undeclared name is the only safe way to ask.
+     */
+    _gm: typeof GM_getValue === 'function' && typeof GM_setValue === 'function',
+
+    /** The stored string for `key`, or null. Never throws. */
+    get(key) {
+      try {
+        if (!Store._gm) return localStorage.getItem(key);
+        const v = GM_getValue(key);
+        if (v !== undefined && v !== null) return String(v);
+        // First run after the grant landed. Adopt whatever this origin already
+        // had, so nobody's tools and settings reset on the day it shipped —
+        // and write it through, so the next origin inherits it too.
+        const old = localStorage.getItem(key);
+        if (old !== null) { GM_setValue(key, old); return old; }
+        return null;
+      } catch { return null; }
+    },
+
+    /** Persist `value` (a string). Storage being unavailable is not an error. */
+    set(key, value) {
+      try {
+        if (Store._gm) GM_setValue(key, value);
+        else localStorage.setItem(key, value);
+      } catch {}
+    },
+  };
+
+  /* ======================================================================
+     2b. STATE
      ====================================================================== */
   const State = {
     enabled: false,      // master power
@@ -1640,11 +1713,11 @@ HOW TO USE
       if (side === 'top') y = CONFIG.EDGE_MARGIN;
       if (side === 'bottom') y = innerHeight - r.height - CONFIG.EDGE_MARGIN;
       const p = applyPos(x, y);
-      try { localStorage.setItem(CONFIG.POS_KEY, JSON.stringify({ x: p.x, y: p.y, side })); } catch {}
+      Store.set(CONFIG.POS_KEY, JSON.stringify({ x: p.x, y: p.y, side }));
     }
     (function restore() {
       try {
-        const s = JSON.parse(localStorage.getItem(CONFIG.POS_KEY) || 'null');
+        const s = JSON.parse(Store.get(CONFIG.POS_KEY) || 'null');
         if (s) { side = s.side || 'right'; applyPos(s.x, s.y); return; }
       } catch {}
       applyPos(innerWidth - 60, innerHeight / 2 - 110);
@@ -2189,9 +2262,7 @@ HOW TO USE
       const v = row.values[choice];   // the list the panel was shown, not the raw one
       if (v === undefined) return;
       (State.settings[row.tool.id] ||= {})[row.opt.key] = v;
-      try {
-        localStorage.setItem(CONFIG.SETTINGS_KEY, JSON.stringify(State.settings));
-      } catch {}
+      Store.set(CONFIG.SETTINGS_KEY, JSON.stringify(State.settings));
       // The last sweep was judged under the OLD setting. Leaving it up would
       // keep findings on screen that the rule would no longer make, with
       // nothing saying why — the same lie as a stale audit after the page
@@ -2208,7 +2279,7 @@ HOW TO USE
      */
     loadSettings() {
       let saved = {};
-      try { saved = JSON.parse(localStorage.getItem(CONFIG.SETTINGS_KEY) || '{}') || {}; } catch {}
+      try { saved = JSON.parse(Store.get(CONFIG.SETTINGS_KEY) || '{}') || {}; } catch {}
       const out = {};
       for (const t of Tools.withHook('options')) {
         out[t.id] = {};
@@ -2250,14 +2321,14 @@ HOW TO USE
       if (!Tools.byId(id)) return;
       State.tools.has(id) ? State.tools.delete(id) : State.tools.add(id);
       Panel.setTool(id, State.tools.has(id));
-      try { localStorage.setItem(CONFIG.TOOLS_KEY, JSON.stringify([...State.tools])); } catch {}
+      Store.set(CONFIG.TOOLS_KEY, JSON.stringify([...State.tools]));
       Render.schedule();
       Controller.refreshList();
     },
     loadTools() {
       let ids = CONFIG.DEFAULT_TOOLS;
       try {
-        const saved = JSON.parse(localStorage.getItem(CONFIG.TOOLS_KEY) || 'null');
+        const saved = JSON.parse(Store.get(CONFIG.TOOLS_KEY) || 'null');
         if (Array.isArray(saved)) ids = saved;
       } catch {}
       State.tools = new Set(ids.filter((id) => Tools.byId(id)));

@@ -112,15 +112,35 @@ Two things to expect:
 - Chrome requires **Developer mode** (`chrome://extensions`) for Tampermonkey
   to run userscripts at all under Manifest V3.
 
-### What does *not* sync
+### What syncs
 
-Panel position, which tools are active, and any tool settings chosen under ⚙
-live in `localStorage` — which is **per site**, so each new domain starts from
-the defaults in `src/01-config.js` again. To carry them across sites, switch
-`localStorage` in `src/08-panel.js` and `src/14-controller.js` to `GM_setValue`
-/ `GM_getValue` and add the matching `@grant` lines in `build.js`. That is a
-deliberate open question, not an oversight: `@grant none` is what keeps the
-script running in page context with no privileged API surface.
+Panel position, which tools are armed, and everything chosen under ⚙ are kept
+with `GM_setValue`, which is scoped to the **script** rather than to one
+origin. Choose an 8px grid on one site and every other site already knows. They
+ride Tampermonkey's own sync to a new machine too, so a fresh laptop needs the
+sign-in and nothing else.
+
+This is why the header carries `@grant GM_getValue` / `@grant GM_setValue`
+instead of `@grant none`. `localStorage` is scoped to one origin, and with
+`@match *://*/*` that meant every new domain started from the defaults again —
+a setup step handed back to the user on each site they visited.
+
+The grant is not free. Asking for any GM API moves the script from page context
+into the manager's **sandbox**, where `window` is a wrapper rather than the
+page's own object. Two things in `src/00-banner.js` exist because of it:
+
+- the frame check reads `window.frameElement` rather than comparing
+  `window.top` to `window.self` — that comparison can be true in the *top*
+  frame under a sandbox, which would disable the overlay everywhere, silently.
+  `@noframes` covers the cross-origin frames the script cannot recognise.
+- the single-instance guard asks the **document** for an existing root, not
+  just a flag on `window`. A re-injection on soft navigation can arrive with a
+  fresh sandbox and the same page.
+
+`Store` in `src/02-state.js` falls back to `localStorage` wherever the GM API
+is absent — the dev page, the tests, a manager that does not implement it — and
+adopts anything already in `localStorage` on first run, so upgrading does not
+reset what you had.
 
 ---
 

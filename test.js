@@ -589,6 +589,94 @@ console.log('\nSETTINGS');
   d4.window.close(); d5.window.close(); d6.window.close();
 }
 
+console.log('\nSTORAGE');
+/**
+ * localStorage is scoped to one origin and this script matches every site, so
+ * everything the user chose had to be chosen again on the next domain. The
+ * grant buys storage that is per SCRIPT — at the price of running in the
+ * manager's sandbox, which is what the guard assertions below are about.
+ */
+{
+  const meta = fs.readFileSync(path.join(ROOT, 'dist', cfg.metaFile), 'utf8');
+  ok('the header asks for the storage API',
+    /@grant\s+GM_getValue/.test(meta) && /@grant\s+GM_setValue/.test(meta),
+    'without the grant the API is not defined and nothing syncs');
+  ok('and leaves frames to the manager', /@noframes/m.test(meta),
+    'a sandboxed script cannot reliably recognise a cross-origin frame itself');
+
+  const page = `<!doctype html><html><body><div id="p">x</div></body></html>`;
+  const opts = { url: 'https://example.test/', pretendToBeVisual: true,
+                 runScripts: 'outside-only', virtualConsole: new VirtualConsole() };
+  const withGm = (dom) => {
+    const store = new Map();
+    dom.window.GM_getValue = (k) => (store.has(k) ? store.get(k) : undefined);
+    dom.window.GM_setValue = (k, v) => { store.set(k, v); };
+    return store;
+  };
+  const armedIn = (w) => [...w.document.querySelectorAll('#__dbgov-bar button.tool.armed')]
+    .map((b) => b.dataset.tool).sort().join(',');
+
+  // ---- writes go to the script store, not the origin ----------------------
+  const d7 = new JSDOM(page, opts);
+  const gm7 = withGm(d7);
+  d7.window.eval(source);
+  const bar7 = d7.window.document.getElementById('__dbgov-bar');
+  d7.window.dispatchEvent(new d7.window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  bar7.querySelector('[data-tool="contrast"]')
+    .dispatchEvent(new d7.window.MouseEvent('click', { bubbles: true }));
+  ok('a choice is written where every site can read it',
+    gm7.get('__dbgov_tools') === '["measure","grid","contrast"]',
+    JSON.stringify(gm7.get('__dbgov_tools')));
+  ok('and not into this one origin',
+    d7.window.localStorage.getItem('__dbgov_tools') === null,
+    'writing both leaves two answers to the same question');
+
+  // ---- a soft navigation may re-inject into a FRESH sandbox ---------------
+  // Same document, new window: the flag the old guard relied on is gone, and
+  // two overlays on one page fight over the same hotkey.
+  delete d7.window.__DBG_OVERLAY__;
+  d7.window.eval(source);
+  ok('a fresh sandbox on the same page builds no second panel',
+    d7.window.document.querySelectorAll('#__dbgov-bar').length === 1,
+    `${d7.window.document.querySelectorAll('#__dbgov-bar').length} panels`);
+
+  // ---- nobody loses what they already had ---------------------------------
+  const d8 = new JSDOM(page, opts);
+  const gm8 = withGm(d8);
+  d8.window.localStorage.setItem('__dbgov_tools', '["contrast"]');
+  d8.window.eval(source);
+  ok('what an origin already had is adopted, not discarded',
+    gm8.get('__dbgov_tools') === '["contrast"]',
+    'shipping the grant would have reset every existing user');
+  ok('and it is actually in force', armedIn(d8.window) === 'contrast',
+    armedIn(d8.window) || '(nothing armed)');
+
+  // ---- and it still works where the API does not exist --------------------
+  // the dev page, the tests, and any manager without GM_* — falling back is
+  // what keeps those from silently forgetting everything
+  const d9 = new JSDOM(page, opts);
+  d9.window.eval(source);
+  const bar9 = d9.window.document.getElementById('__dbgov-bar');
+  d9.window.dispatchEvent(new d9.window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  bar9.querySelector('[data-tool="contrast"]')
+    .dispatchEvent(new d9.window.MouseEvent('click', { bubbles: true }));
+  ok('with no GM API it falls back to the origin',
+    d9.window.localStorage.getItem('__dbgov_tools') === '["measure","grid","contrast"]',
+    JSON.stringify(d9.window.localStorage.getItem('__dbgov_tools')));
+
+  // ---- the frame check, exercised directly --------------------------------
+  // frameElement is the identity-free half of this; @noframes is the other.
+  const d10 = new JSDOM(page, opts);
+  Object.defineProperty(d10.window, 'frameElement',
+    { value: d10.window.document.createElement('iframe'), configurable: true });
+  d10.window.eval(source);
+  ok('a framed document gets no overlay',
+    !d10.window.document.getElementById('__dbgov-bar'),
+    'the overlay started inside a frame');
+
+  [d7, d8, d9, d10].forEach((d) => d.window.close());
+}
+
 // ---- the sections that need a painted frame ---------------------------------
 // Marks and badges only exist after the renderer runs, which is an animation
 // frame away. Everything above is synchronous; these are not, so they go last

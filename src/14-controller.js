@@ -70,9 +70,7 @@
       const v = row.values[choice];   // the list the panel was shown, not the raw one
       if (v === undefined) return;
       (State.settings[row.tool.id] ||= {})[row.opt.key] = v;
-      try {
-        localStorage.setItem(CONFIG.SETTINGS_KEY, JSON.stringify(State.settings));
-      } catch {}
+      Store.set(CONFIG.SETTINGS_KEY, JSON.stringify(State.settings));
       // The last sweep was judged under the OLD setting. Leaving it up would
       // keep findings on screen that the rule would no longer make, with
       // nothing saying why — the same lie as a stale audit after the page
@@ -89,7 +87,7 @@
      */
     loadSettings() {
       let saved = {};
-      try { saved = JSON.parse(localStorage.getItem(CONFIG.SETTINGS_KEY) || '{}') || {}; } catch {}
+      try { saved = JSON.parse(Store.get(CONFIG.SETTINGS_KEY) || '{}') || {}; } catch {}
       const out = {};
       for (const t of Tools.withHook('options')) {
         out[t.id] = {};
@@ -131,14 +129,14 @@
       if (!Tools.byId(id)) return;
       State.tools.has(id) ? State.tools.delete(id) : State.tools.add(id);
       Panel.setTool(id, State.tools.has(id));
-      try { localStorage.setItem(CONFIG.TOOLS_KEY, JSON.stringify([...State.tools])); } catch {}
+      Store.set(CONFIG.TOOLS_KEY, JSON.stringify([...State.tools]));
       Render.schedule();
       Controller.refreshList();
     },
     loadTools() {
       let ids = CONFIG.DEFAULT_TOOLS;
       try {
-        const saved = JSON.parse(localStorage.getItem(CONFIG.TOOLS_KEY) || 'null');
+        const saved = JSON.parse(Store.get(CONFIG.TOOLS_KEY) || 'null');
         if (Array.isArray(saved)) ids = saved;
       } catch {}
       State.tools = new Set(ids.filter((id) => Tools.byId(id)));

@@ -66,14 +66,17 @@ HOW TO USE
   Arming decides what you SEE; ⌕ checks every rule either way, so a toggle you
   forgot can never quietly shorten an audit.
 
-  Active tools are remembered per site.
+  Active tools, panel position and everything under ⚙ are remembered for the
+  SCRIPT, not for the site — set them once and every other site already agrees,
+  and Tampermonkey's own sync carries them to a new machine.
 
   ARCHITECTURE — each numbered section is independent; edit one to change
   one behaviour. Sections appear in dependency order: nothing is used before
   it is defined.
 
     1. CONFIG        every tunable number/key
-    2. STATE         single source of truth, plain data only
+    2. STATE         single source of truth, plain data only — with STORE,
+                     which is the part of it that outlives the page
     3. UTILS         pure functions — no DOM writes, no State reads
     4. MEASURE       dimension-line geometry & drawing (tool-agnostic)
     5. TOOLS         ⭐ the plugin registry — add a debug mode here

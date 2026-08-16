@@ -10,9 +10,12 @@
  * bumped, committed and pushed. This serves dist/ straight off the disk
  * instead, so the round trip is a file save.
  *
- * The page loads the built bundle with a plain <script> tag. That works
- * because the userscript grants nothing and touches no GM_* API — it is an
- * ordinary IIFE, so a normal page can host it unchanged.
+ * The page loads the built bundle with a plain <script> tag. The script does
+ * ask for GM_getValue / GM_setValue, but never assumes them: Store in
+ * 02-state.js falls back to localStorage when they are undefined, which is
+ * exactly the case here. So a normal page still hosts the bundle unchanged —
+ * with settings kept per origin instead of per script, which for one dev page
+ * is the same thing.
  */
 'use strict';
 const http = require('http');

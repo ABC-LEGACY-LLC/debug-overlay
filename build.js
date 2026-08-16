@@ -53,7 +53,13 @@ function metaBlock(version) {
     ['description', cfg.description],
     ['author', cfg.author],
     ...cfg.match.map((m) => ['match', m]),
-    ['grant', 'none'],
+    // Asking for anything moves the script into the manager's sandbox — that
+    // is the cost of GM_getValue, and it is what buys storage that is not
+    // scoped to one origin. Nothing here may assume page context.
+    ...(cfg.grant?.length ? cfg.grant : ['none']).map((g) => ['grant', g]),
+    // The manager keeps us out of frames, including cross-origin ones the
+    // script cannot recognise from the inside.
+    ...(cfg.noframes ? [['noframes', '']] : []),
     ['run-at', 'document-idle'],
     // these two are what make every machine self-update after a git push
     ['updateURL', `${cfg.rawBase}/${cfg.metaFile}`],
@@ -61,7 +67,9 @@ function metaBlock(version) {
   ];
   const pad = Math.max(...rows.map(([k]) => k.length)) + 2;
   return ['// ==UserScript==',
-    ...rows.map(([k, v]) => `// @${k.padEnd(pad)}${v}`),
+    // trimEnd: @noframes is a flag with no value, and a line of trailing
+    // padding is not what a metadata block should look like
+    ...rows.map(([k, v]) => `// @${k.padEnd(pad)}${v}`.trimEnd()),
     '// ==/UserScript=='].join('\n');
 }
 

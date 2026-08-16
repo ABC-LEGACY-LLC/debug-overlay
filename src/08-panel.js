@@ -194,11 +194,11 @@
       if (side === 'top') y = CONFIG.EDGE_MARGIN;
       if (side === 'bottom') y = innerHeight - r.height - CONFIG.EDGE_MARGIN;
       const p = applyPos(x, y);
-      try { localStorage.setItem(CONFIG.POS_KEY, JSON.stringify({ x: p.x, y: p.y, side })); } catch {}
+      Store.set(CONFIG.POS_KEY, JSON.stringify({ x: p.x, y: p.y, side }));
     }
     (function restore() {
       try {
-        const s = JSON.parse(localStorage.getItem(CONFIG.POS_KEY) || 'null');
+        const s = JSON.parse(Store.get(CONFIG.POS_KEY) || 'null');
         if (s) { side = s.side || 'right'; applyPos(s.x, s.y); return; }
       } catch {}
       applyPos(innerWidth - 60, innerHeight / 2 - 110);

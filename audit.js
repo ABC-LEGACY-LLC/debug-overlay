@@ -47,6 +47,11 @@ const RULES = [
   ['03-utils.js', /document\.createElement/, 'UTILS must not build DOM'],
   ['03-utils.js', /class="/, 'UTILS must not own markup — the tool that styles it does'],
   ['04-measure.js', /\bTools\.|\bPanel\./, 'MEASURE is tool-agnostic geometry'],
+  // Persistence goes through Store, which is per-script; localStorage is per
+  // origin, and with @match *://*/* that silently means "per site" — the bug
+  // this project just spent a release fixing.
+  ['08-panel.js', /localStorage/, 'STORE owns persistence — localStorage is per-origin'],
+  ['14-controller.js', /localStorage/, 'STORE owns persistence — localStorage is per-origin'],
   ['08-panel.js', /\bState\./, 'PANEL fires callbacks; CONTROLLER owns state'],
   ['08-panel.js', /\bpairs?\b|measurePins/, 'PANEL must not know what a pair is'],
   ['11-renderer.js', /MEASURE_MODE/, 'RENDERER must ask tools via hooks'],
