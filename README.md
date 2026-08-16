@@ -63,19 +63,24 @@ cannot burn version numbers that Tampermonkey would then skip past.
 
 ## Setup
 
-The repo side is done: `AlonurKomilov/debug-overlay-abc` is public (public
+The repo side is done: `ABC-LEGACY-LLC/debug-overlay` is public (public
 matters — Tampermonkey fetches the raw URL without credentials) and
 `userscript.json` already points at it:
 
 ```json
-"rawBase": "https://raw.githubusercontent.com/AlonurKomilov/debug-overlay-abc/main/dist"
+"rawBase": "https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist"
 ```
 
 **Install once per machine** — open this URL in the browser:
 
 ```
-https://raw.githubusercontent.com/AlonurKomilov/debug-overlay-abc/main/dist/debug-overlay.user.js
+https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/debug-overlay.user.js
 ```
+
+The repo was once `AlonurKomilov/debug-overlay-abc`, and GitHub still redirects
+that name here. Do not use it: the redirect dies the moment anyone creates a
+repo at the old address, and a dead `@updateURL` fails the way this project
+fails worst — silently, with the overlay simply never changing.
 
 Tampermonkey offers to install it. Done — that machine now self-updates.
 
