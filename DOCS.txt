@@ -25,6 +25,12 @@ HOW TO USE
                         finding is outlined on the page by the tool that found
                         it — dashed for a failure, dotted for a review. Turn a
                         tool off and its outlines go; its findings stay.
+  ⚙ ................... tool settings — every option any tool declares, in one
+                        list. Changing one takes effect immediately and is
+                        remembered per site; it also drops the last ⌕ result,
+                        because those findings were judged under the old
+                        setting and nothing on screen would say so. Press ⌕
+                        again to re-audit.
   ⧉ ................... copy structured report → paste into Claude with a screenshot
   Count chip .......... click the pin count to open the pin list: every pin and
                         measured pair in one place, even ones scrolled off
@@ -43,12 +49,17 @@ HOW TO USE
 
     📐 measure   sizes, radius, padding/margin, gap, font, pin distances
     ▦ grid       marks any number another tool prints that is off the
-                 spacing step (⚠ — CONFIG.GRID, 2px). In ⌕ it judges AUTHORED
-                 spacing only — padding, margin, gap — never width or height,
-                 which layout produces rather than anyone choosing, and
-                 nothing above CONFIG.GRID_MAX, where margin:auto lands.
-    ◐ contrast   WCAG text contrast ratio + AA pass/fail
+                 spacing step (⚠ — 2px by default, change it under ⚙). In ⌕ it
+                 judges AUTHORED spacing only — padding, margin, gap — never
+                 width or height, which layout produces rather than anyone
+                 choosing, and nothing above CONFIG.GRID_MAX, where
+                 margin:auto lands.
+    ◐ contrast   WCAG text contrast ratio, against AA or AAA (⚙)
     ⧉ dupid      the same id used more than once — a page-wide question
+
+  A tool's own settings live under ⚙, never in a menu of its own — the panel
+  is the only surface, so a tool added later is controllable the moment it
+  appears without anything being installed or configured again.
 
   The rule between the toggles is not decoration. Tools below it carry a green
   dot and feed ⌕ — which is why ⌕ sits with them. Tools above it only draw.
@@ -103,8 +114,22 @@ HOW TO USE
       annotate: (html, n, i) => html,   // optional, decorate other tools' numbers
       audit: (i) => [{ el, verdict, severity, rule, message, key }],  // optional
       auditPage: (all) => [],  // optional, once per sweep with every element
+      options: () => [{ key: 'depth', label: 'Stack depth',   // optional
+                        def: CONFIG.DEPTH, values: [1, 2, 3], suffix: '' }],
       rules: { 'my-rule': { help, why, docs } },   // optional, what a rule IS
     }
+
+    options() is how a tool becomes adjustable without a rebuild. Each entry
+    gets a row under ⚙; `def` is the shipped default and belongs in CONFIG, so
+    that file still answers "what does a fresh install do" while the panel
+    answers "what is this one doing now". Read the live value back with
+    Tools.setting(this, 'depth') — `this`, never an id, like every other
+    question the registry answers. Do not cache it: the user can change it
+    between two frames.
+
+    Whatever a tool puts in `title`, `icon` or an option `label` is the only
+    thing a user ever sees of it, and audit.js now fails a tool that omits the
+    first two — a panel button reading "undefined" is not a control surface.
 
     A tool declares no type. Its hooks are what it is, and it may have any
     combination of them — grid decorates other tools' numbers AND audits.

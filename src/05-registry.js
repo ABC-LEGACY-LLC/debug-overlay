@@ -21,6 +21,7 @@
           pendingIndex() → index into State.pins of a pin still being chosen
           annotate(html, n, info) → 'lens': wrap one number's html
           audit(info)    → 'rule': [{ el, severity, rule, message, key }]
+          options()      → [{ key, label, values, def }] the panel can change
           css            → stylesheet text, read from EVERY registered tool
      ====================================================================== */
   const TOOLS = [];
@@ -66,6 +67,18 @@
           tools: TOOLS.filter(checks) },
       ].filter((r) => r.tools.length);
     },
+
+    /**
+     * What one of a tool's own options is currently set to.
+     *
+     * A tool asks with `this`, never with an id, so this stays as id-free as
+     * every other question the registry answers. CONTROLLER has already
+     * resolved defaults into State.settings by the time anything calls this —
+     * deliberately, because the callers are hot: grid asks per number, and
+     * re-deriving the answer from options() there would run the hook thousands
+     * of times per sweep to be told the same thing.
+     */
+    setting: (t, key) => State.settings[t.id]?.[key],
 
     /**
      * WHY THIS EXISTS: measure used to ask whether one specific NAMED tool was

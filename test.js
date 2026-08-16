@@ -484,6 +484,111 @@ ok('second evaluation is a no-op',
   window.document.querySelectorAll('#__dbgov-bar').length === 1,
   `${window.document.querySelectorAll('#__dbgov-bar').length} panels`);
 
+console.log('\nSETTINGS');
+/**
+ * The panel is meant to be the only place a tool is controlled. That is only
+ * true if moving a picker changes what the RULE DOES — a control surface that
+ * merely remembers what you picked is a preferences screen wired to nothing.
+ * 12px is on a 2px grid and off an 8px one, so the same element has to change
+ * verdict when nothing about it changed but the setting.
+ */
+{
+  const page = `<!doctype html><html><body>
+     <div id="p" style="padding:12px">twelve</div></body></html>`;
+  const opts = { url: 'https://example.test/', pretendToBeVisual: true,
+                 runScripts: 'outside-only', virtualConsole: new VirtualConsole() };
+  const d4 = new JSDOM(page, opts);
+  const w4 = d4.window;
+  w4.eval(source);
+  const bar4 = w4.document.getElementById('__dbgov-bar');
+  const list4 = w4.document.getElementById('__dbgov-list');
+  const hit = (sel) => bar4.querySelector(sel)
+    .dispatchEvent(new w4.MouseEvent('click', { bubbles: true }));
+  const rowsOf = () => [...list4.querySelectorAll('.row')];
+  const labelled = (t) => rowsOf().find((r) => r.querySelector('.lbl').textContent === t);
+  const messages = () => rowsOf().map((r) => r.querySelector('.lbl').textContent).join(' | ');
+
+  // built by build.js, so the assertion is against the bundle, not the source
+  ok('the version placeholder is substituted', !source.includes(['__VER', 'SION__'].join('')),
+    'it shipped unreplaced — the overlay cannot say which version it is');
+  ok('and the panel states the version', bar4.querySelector('.pwr').title.includes(`v${cfg.version}`),
+    bar4.querySelector('.pwr').title);
+
+  w4.dispatchEvent(new w4.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  hit('[data-settings]');
+  ok('⚙ opens a view of its own', list4.classList.contains('open') && rowsOf().length > 0,
+    `${rowsOf().length} rows`);
+  ok('every setting is a control, not a read-out',
+    rowsOf().length > 0 && rowsOf().every((r) => r.querySelector('select.opt')),
+    rowsOf().map((r) => r.querySelector('.lbl').textContent).join(', '));
+  const step = labelled('Grid step');
+  ok('a tool contributes its own options', !!step, messages());
+  ok('and the picker shows what is actually in force',
+    !!step && step.querySelector('select').selectedOptions[0].textContent === '2px',
+    step ? step.querySelector('select').selectedOptions[0].textContent : 'no row');
+
+  hit('[data-sweep]');
+  ok('12px is on the 2px grid to begin with', !/off the 2px grid/.test(messages()), messages());
+
+  // The only opener for the findings view is the sweep button, which would
+  // re-audit and hide exactly what this is checking. The report states its own
+  // scope, so ask there instead.
+  let copied4 = null;
+  Object.defineProperty(w4.navigator, 'clipboard',
+    { value: { writeText: async (t) => { copied4 = t; } }, configurable: true });
+  hit('[data-copy]');
+  ok('a live sweep reports its scope', /— whole page/.test(copied4 || ''),
+    'without this the next assertion passes for the wrong reason');
+
+  hit('[data-settings]');
+  const sel4 = labelled('Grid step').querySelector('select');
+  sel4.selectedIndex = [...sel4.options].findIndex((o) => o.textContent === '8px');
+  sel4.dispatchEvent(new w4.Event('change'));
+
+  hit('[data-copy]');
+  ok('changing a setting drops the sweep it invalidated',
+    !/— whole page/.test(copied4 || ''),
+    'findings judged under the old setting outlived it');
+
+  hit('[data-sweep]');
+  ok('the rule now judges by the new setting', /off the 8px grid/.test(messages()), messages());
+
+  const saved = w4.localStorage.getItem('__dbgov_settings');
+  ok('the choice is persisted', !!saved && /"step":8/.test(saved), String(saved));
+
+  // "install once and never set anything up again" is only true if the choice
+  // outlives the page it was made on
+  const d5 = new JSDOM(page, opts);
+  d5.window.localStorage.setItem('__dbgov_settings', saved);
+  d5.window.eval(source);
+  const bar5 = d5.window.document.getElementById('__dbgov-bar');
+  d5.window.dispatchEvent(new d5.window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  bar5.querySelector('[data-settings]')
+    .dispatchEvent(new d5.window.MouseEvent('click', { bubbles: true }));
+  const back = [...d5.window.document.querySelectorAll('#__dbgov-list .row')]
+    .find((r) => r.querySelector('.lbl').textContent === 'Grid step');
+  ok('and it is restored on the next load',
+    !!back && back.querySelector('select').selectedOptions[0].textContent === '8px',
+    back ? back.querySelector('select').selectedOptions[0].textContent : 'no row');
+
+  // A value the tool no longer offers must not silently read as choice 0 —
+  // the picker would then disagree with the rule it claims to drive.
+  const d6 = new JSDOM(page, opts);
+  d6.window.localStorage.setItem('__dbgov_settings', '{"grid":{"step":37}}');
+  d6.window.eval(source);
+  const bar6 = d6.window.document.getElementById('__dbgov-bar');
+  d6.window.dispatchEvent(new d6.window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  bar6.querySelector('[data-settings]')
+    .dispatchEvent(new d6.window.MouseEvent('click', { bubbles: true }));
+  const stale = [...d6.window.document.querySelectorAll('#__dbgov-list .row')]
+    .find((r) => r.querySelector('.lbl').textContent === 'Grid step');
+  ok('a value the tool dropped falls back to its default',
+    !!stale && stale.querySelector('select').selectedOptions[0].textContent === '2px',
+    stale ? stale.querySelector('select').selectedOptions[0].textContent : 'no row');
+
+  d4.window.close(); d5.window.close(); d6.window.close();
+}
+
 // ---- the sections that need a painted frame ---------------------------------
 // Marks and badges only exist after the renderer runs, which is an animation
 // frame away. Everything above is synchronous; these are not, so they go last

@@ -12,7 +12,11 @@
     Panel.setList(Controller.rows(view), Controller.emptyFor(view));
   Panel.onRowActivate = Controller.revealRow;
   Panel.onRowRemove = Controller.removeRow;
+  Panel.onRowChange = Controller.changeSetting;
 
+  // before loadTools: a tool's options decide what its rules do, and arming
+  // one immediately schedules a render that asks
+  Controller.loadSettings();
   Controller.loadTools();
   Interactions.install(Controller);
   Controller.setPower(false);

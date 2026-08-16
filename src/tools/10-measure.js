@@ -69,14 +69,25 @@
       // only Shift-clicked pins take part in measuring
       measurePins: () => State.pins.filter((p) => p.kind === CONFIG.PIN_KIND.SHIFT),
 
+      /**
+       * 'pairs' — every measurement takes two clicks and the next starts a
+       * fresh one, so a pin is never silently reused. 'chain' measures each
+       * new pin to the previous one. Which you want depends on what you are
+       * doing, and it used to take a rebuild to change your mind.
+       */
+      options() {
+        return [{ key: 'mode', label: 'Measure pins in', def: CONFIG.MEASURE_MODE,
+                  values: ['pairs', 'chain'] }];
+      },
+
       // the single place pairing is decided — draw() and reportTail() share it
       pairs() {
         const mp = this.measurePins();
-        const step = CONFIG.MEASURE_MODE === 'pairs' ? 2 : 1;
+        const mode = Tools.setting(this, 'mode');
+        const step = mode === 'pairs' ? 2 : 1;
         const out = [];
         for (let k = 0; k + 1 < mp.length; k += step) out.push([mp[k], mp[k + 1]]);
-        const pending = (CONFIG.MEASURE_MODE === 'pairs' && mp.length % 2)
-          ? mp[mp.length - 1] : null;
+        const pending = (mode === 'pairs' && mp.length % 2) ? mp[mp.length - 1] : null;
         return { pairs: out, pending };
       },
 

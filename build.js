@@ -21,6 +21,8 @@ const ROOT = __dirname;
 const SRC = path.join(ROOT, 'src');
 const DIST = path.join(ROOT, 'dist');
 const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'userscript.json'), 'utf8'));
+/** Placeholder in src/01-config.js, replaced with the real version at bundle time. */
+const VERSION_TOKEN = '__VERSION__';
 
 /** src files, in dependency order. Tools are auto-discovered. */
 function sources() {
@@ -73,7 +75,16 @@ function build(kind) {
   }).join('\n');
 
   const docs = fs.readFileSync(path.join(ROOT, 'DOCS.txt'), 'utf8').trim();
-  const out = `${metaBlock(version)}\n\n/*\n${docs}\n*/\n\n${body}`;
+  // The overlay has to be able to say which version it is. @grant none means
+  // no GM_info, so the number is substituted in here — where it is already
+  // known — rather than hand-copied into a source file that would then drift.
+  if (!body.includes(VERSION_TOKEN)) {
+    console.error(`✗ ${VERSION_TOKEN} not found in src/ — nothing would tell the ` +
+                  `overlay its version, and a stale install would look current`);
+    process.exit(1);
+  }
+  const stamped = body.replace(VERSION_TOKEN, version);
+  const out = `${metaBlock(version)}\n\n/*\n${docs}\n*/\n\n${stamped}`;
 
   fs.mkdirSync(DIST, { recursive: true });
   const distPath = path.join(DIST, cfg.distFile);

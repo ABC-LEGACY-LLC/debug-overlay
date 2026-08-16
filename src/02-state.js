@@ -5,6 +5,11 @@
     enabled: false,      // master power
     detail: false,       // compact vs full badges
     tools: new Set(),    // active tool ids — filled by CONTROLLER on boot
+    // { toolId: { key: value } } for every option any tool declares. Filled
+    // once on boot from the tools' own defaults, then overlaid with whatever
+    // was saved, so the hot path is a lookup and never a hook call: grid asks
+    // for its step once per number on a page with thousands of them.
+    settings: {},
     pins: [],            // [{ el, id, kind }] — kind ∈ CONFIG.PIN_KIND
     hoverEl: null,
     removeMode: false,   // true while the remove key is held

@@ -14,12 +14,14 @@
       .join('<hr class="sep whenOn">');
     el.innerHTML = `
       <span class="grip" title="Drag to move — snaps to the nearest edge">⋮⋮</span>
-      <button class="pwr" title="Power (Alt+Shift+D)">⏻</button>
+      <button class="pwr" title="Power (Alt+Shift+D) · v${CONFIG.VERSION}">⏻</button>
       <span class="st" data-st>OFF</span>
       <hr class="sep whenOn">
       ${toolRuns}
       <!-- next to the run it acts on, so proximity says what it sweeps -->
       <button class="act whenOn" data-sweep data-view="findings" title="Audit the whole page">⌕</button>
+      <!-- with the tools it configures, not with the panel's own actions -->
+      <button class="act whenOn" data-settings data-view="settings" title="Tool settings">⚙</button>
       <hr class="sep whenOn">
       <button class="cnt whenOn" data-c data-view="pins" title="Pinned elements — click for the list">0</button>
       <button class="act whenOn" data-detail title="Compact / full badges">≡</button>
@@ -50,6 +52,7 @@
       el,
       onToggle: null, onTool: null, onDetail: null, onCopy: null, onClear: null,
       onListOpen: null, onRowActivate: null, onRowRemove: null, onSweep: null,
+      onRowChange: null,
       setOn(v) {
         el.classList.toggle('on', v);
         el.querySelector('[data-st]').textContent = v ? 'ON' : 'OFF';
@@ -87,6 +90,12 @@
        * rows: [{ tag, label, detail, removable }] — built by CONTROLLER, which
        * is also where the empty-state wording comes from, because only it
        * knows what this view is a list of.
+       *
+       * A row may carry `choices` (strings) and `selected` (an index) instead
+       * of a detail, and then it renders as a picker. Strings and an index are
+       * deliberately all it gets: the panel cannot learn what the setting is,
+       * what type its value has, or which tool owns it, and so cannot start
+       * deciding any of that.
        */
       setList(rows, empty = '') {
         listEl.textContent = '';
@@ -107,13 +116,29 @@
           const lbl = document.createElement('span');
           lbl.className = 'lbl';
           lbl.textContent = row.label;           // textContent: page text is never HTML here
-          const det = document.createElement('span');
-          det.className = 'det';
-          det.textContent = row.detail || '';
           // carried, not interpreted — the stylesheet decides what it means
           if (row.accent) r.dataset.accent = row.accent;
           r.addEventListener('click', () => api.onRowActivate?.(i));
-          r.append(tag, lbl, det);
+          if (row.choices) {
+            const sel = document.createElement('select');
+            sel.className = 'opt';
+            row.choices.forEach((c, k) => {
+              const o = document.createElement('option');
+              o.value = String(k);
+              o.textContent = c;                 // a tool's own label, still not HTML
+              sel.append(o);
+            });
+            sel.selectedIndex = row.selected || 0;
+            // the row beneath opens things; a picker must not also fire that
+            sel.addEventListener('click', (e) => e.stopPropagation());
+            sel.addEventListener('change', () => api.onRowChange?.(i, sel.selectedIndex));
+            r.append(tag, lbl, sel);
+          } else {
+            const det = document.createElement('span');
+            det.className = 'det';
+            det.textContent = row.detail || '';
+            r.append(tag, lbl, det);
+          }
           // Only rows that own something can drop it. A finding is a fact
           // about the page; there is nothing there for a ✕ to remove.
           if (row.removable) {
@@ -142,6 +167,7 @@
     el.querySelectorAll('[data-tool]').forEach((b) =>
       b.addEventListener('click', () => api.onTool?.(b.dataset.tool)));
     el.querySelector('[data-c]').addEventListener('click', () => api.toggleList(undefined, 'pins'));
+    el.querySelector('[data-settings]').addEventListener('click', () => api.toggleList(undefined, 'settings'));
     el.querySelector('[data-detail]').addEventListener('click', () => api.onDetail?.());
     el.querySelector('[data-sweep]').addEventListener('click', () => api.onSweep?.());
     el.querySelector('[data-copy]').addEventListener('click', () => api.onCopy?.());

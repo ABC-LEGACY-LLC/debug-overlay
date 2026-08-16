@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.26
+// @version      3.8.27
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -39,6 +39,12 @@ HOW TO USE
                         finding is outlined on the page by the tool that found
                         it — dashed for a failure, dotted for a review. Turn a
                         tool off and its outlines go; its findings stay.
+  ⚙ ................... tool settings — every option any tool declares, in one
+                        list. Changing one takes effect immediately and is
+                        remembered per site; it also drops the last ⌕ result,
+                        because those findings were judged under the old
+                        setting and nothing on screen would say so. Press ⌕
+                        again to re-audit.
   ⧉ ................... copy structured report → paste into Claude with a screenshot
   Count chip .......... click the pin count to open the pin list: every pin and
                         measured pair in one place, even ones scrolled off
@@ -57,12 +63,17 @@ HOW TO USE
 
     📐 measure   sizes, radius, padding/margin, gap, font, pin distances
     ▦ grid       marks any number another tool prints that is off the
-                 spacing step (⚠ — CONFIG.GRID, 2px). In ⌕ it judges AUTHORED
-                 spacing only — padding, margin, gap — never width or height,
-                 which layout produces rather than anyone choosing, and
-                 nothing above CONFIG.GRID_MAX, where margin:auto lands.
-    ◐ contrast   WCAG text contrast ratio + AA pass/fail
+                 spacing step (⚠ — 2px by default, change it under ⚙). In ⌕ it
+                 judges AUTHORED spacing only — padding, margin, gap — never
+                 width or height, which layout produces rather than anyone
+                 choosing, and nothing above CONFIG.GRID_MAX, where
+                 margin:auto lands.
+    ◐ contrast   WCAG text contrast ratio, against AA or AAA (⚙)
     ⧉ dupid      the same id used more than once — a page-wide question
+
+  A tool's own settings live under ⚙, never in a menu of its own — the panel
+  is the only surface, so a tool added later is controllable the moment it
+  appears without anything being installed or configured again.
 
   The rule between the toggles is not decoration. Tools below it carry a green
   dot and feed ⌕ — which is why ⌕ sits with them. Tools above it only draw.
@@ -117,8 +128,22 @@ HOW TO USE
       annotate: (html, n, i) => html,   // optional, decorate other tools' numbers
       audit: (i) => [{ el, verdict, severity, rule, message, key }],  // optional
       auditPage: (all) => [],  // optional, once per sweep with every element
+      options: () => [{ key: 'depth', label: 'Stack depth',   // optional
+                        def: CONFIG.DEPTH, values: [1, 2, 3], suffix: '' }],
       rules: { 'my-rule': { help, why, docs } },   // optional, what a rule IS
     }
+
+    options() is how a tool becomes adjustable without a rebuild. Each entry
+    gets a row under ⚙; `def` is the shipped default and belongs in CONFIG, so
+    that file still answers "what does a fresh install do" while the panel
+    answers "what is this one doing now". Read the live value back with
+    Tools.setting(this, 'depth') — `this`, never an id, like every other
+    question the registry answers. Do not cache it: the user can change it
+    between two frames.
+
+    Whatever a tool puts in `title`, `icon` or an option `label` is the only
+    thing a user ever sees of it, and audit.js now fails a tool that omits the
+    first two — a panel button reading "undefined" is not a control surface.
 
     A tool declares no type. Its hooks are what it is, and it may have any
     combination of them — grid decorates other tools' numbers AND audits.
@@ -160,7 +185,18 @@ HOW TO USE
   /* ======================================================================
      1. CONFIG
      ====================================================================== */
+  /**
+   * Anything a tool exposes through its options() hook takes its DEFAULT from
+   * here and its current value from the panel. So this file still answers "what
+   * does a fresh install do", and the ⚙ view answers "what is this one doing
+   * now" — without a second copy of the number living anywhere.
+   */
   const CONFIG = {
+    // Substituted by build.js at bundle time. A userscript with @grant none
+    // cannot read GM_info, and an overlay that cannot say which version it is
+    // makes a stale install look exactly like a current one — which is the
+    // failure this project has already had once, from the other end.
+    VERSION: '3.8.27',
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -180,6 +216,7 @@ HOW TO USE
     BADGE_MARGIN: 6,
     POS_KEY: '__dbgov_pos',
     TOOLS_KEY: '__dbgov_tools',
+    SETTINGS_KEY: '__dbgov_settings',
     DEFAULT_TOOLS: ['measure', 'grid'],
     // 'pairs' = every measurement takes two clicks (from → to) and the next
     //           click starts a fresh pair, so a pin is never reused silently.
@@ -191,7 +228,14 @@ HOW TO USE
     LANE_SEP: 16,             // px between parallel dimension lines
     HOTKEY: { alt: true, shift: true, ctrl: false, code: 'KeyD' },
     REMOVE_KEY: 'KeyX',       // hold to reveal ✕ on pins and click one to remove
-    CONTRAST: { normal: 4.5, large: 3.0, largePx: 24, largeBoldPx: 18.66 },
+    // `level` is the default the panel starts on; `levels` is what it offers.
+    // The two thresholds move together — a rule that checked AAA for body text
+    // and AA for headings would be neither.
+    CONTRAST: {
+      largePx: 24, largeBoldPx: 18.66,
+      level: 'AA',
+      levels: { AA: { normal: 4.5, large: 3.0 }, AAA: { normal: 7.0, large: 4.5 } },
+    },
     // Findings vocabulary, shared by every 'rule' tool. The number is only a
     // rank, so a list of findings reads worst-first.
     SEVERITY: { error: 3, warn: 2, info: 1 },
@@ -209,6 +253,11 @@ HOW TO USE
     enabled: false,      // master power
     detail: false,       // compact vs full badges
     tools: new Set(),    // active tool ids — filled by CONTROLLER on boot
+    // { toolId: { key: value } } for every option any tool declares. Filled
+    // once on boot from the tools' own defaults, then overlaid with whatever
+    // was saved, so the hot path is a lookup and never a hook call: grid asks
+    // for its step once per number on a page with thousands of them.
+    settings: {},
     pins: [],            // [{ el, id, kind }] — kind ∈ CONFIG.PIN_KIND
     hoverEl: null,
     removeMode: false,   // true while the remove key is held
@@ -549,6 +598,7 @@ HOW TO USE
           pendingIndex() → index into State.pins of a pin still being chosen
           annotate(html, n, info) → 'lens': wrap one number's html
           audit(info)    → 'rule': [{ el, severity, rule, message, key }]
+          options()      → [{ key, label, values, def }] the panel can change
           css            → stylesheet text, read from EVERY registered tool
      ====================================================================== */
   const TOOLS = [];
@@ -594,6 +644,18 @@ HOW TO USE
           tools: TOOLS.filter(checks) },
       ].filter((r) => r.tools.length);
     },
+
+    /**
+     * What one of a tool's own options is currently set to.
+     *
+     * A tool asks with `this`, never with an id, so this stays as id-free as
+     * every other question the registry answers. CONTROLLER has already
+     * resolved defaults into State.settings by the time anything calls this —
+     * deliberately, because the callers are hot: grid asks per number, and
+     * re-deriving the answer from options() there would run the hook thousands
+     * of times per sweep to be told the same thing.
+     */
+    setting: (t, key) => State.settings[t.id]?.[key],
 
     /**
      * WHY THIS EXISTS: measure used to ask whether one specific NAMED tool was
@@ -686,14 +748,25 @@ HOW TO USE
       // only Shift-clicked pins take part in measuring
       measurePins: () => State.pins.filter((p) => p.kind === CONFIG.PIN_KIND.SHIFT),
 
+      /**
+       * 'pairs' — every measurement takes two clicks and the next starts a
+       * fresh one, so a pin is never silently reused. 'chain' measures each
+       * new pin to the previous one. Which you want depends on what you are
+       * doing, and it used to take a rebuild to change your mind.
+       */
+      options() {
+        return [{ key: 'mode', label: 'Measure pins in', def: CONFIG.MEASURE_MODE,
+                  values: ['pairs', 'chain'] }];
+      },
+
       // the single place pairing is decided — draw() and reportTail() share it
       pairs() {
         const mp = this.measurePins();
-        const step = CONFIG.MEASURE_MODE === 'pairs' ? 2 : 1;
+        const mode = Tools.setting(this, 'mode');
+        const step = mode === 'pairs' ? 2 : 1;
         const out = [];
         for (let k = 0; k + 1 < mp.length; k += step) out.push([mp[k], mp[k + 1]]);
-        const pending = (CONFIG.MEASURE_MODE === 'pairs' && mp.length % 2)
-          ? mp[mp.length - 1] : null;
+        const pending = (mode === 'pairs' && mp.length % 2) ? mp[mp.length - 1] : null;
         return { pairs: out, pending };
       },
 
@@ -753,17 +826,35 @@ HOW TO USE
     `,
       id: 'grid',
       icon: '▦',
-      title: `Grid — flag values off the ${CONFIG.GRID}px grid`,
+      // No number in the title: the step is the user's now, and a title baked
+      // at boot would still be claiming 2px long after they picked 8.
+      title: 'Grid — flag values off the spacing grid',
 
       rules: {
         'grid-off': {
-          help: `Sizes and spacing should be multiples of ${CONFIG.GRID}px.`,
+          help: 'Spacing should be a multiple of the grid step — change which ' +
+                'step this checks in the panel under ⚙.',
           why: 'One-off values are how a spacing scale erodes: each looks ' +
                'harmless alone, and together they are why nothing lines up.',
         },
       },
+
+      /**
+       * The step is a property of the PROJECT, not of this rule: Tailwind's
+       * half-steps make 2 right here and 8 right elsewhere, and being wrong
+       * either way buries the findings that matter under the ones that do not.
+       * CONFIG.GRID is the default; this is how it stops needing a rebuild.
+       */
+      options() {
+        return [{ key: 'step', label: 'Grid step', def: CONFIG.GRID,
+                  values: [1, 2, 4, 8], suffix: 'px' }];
+      },
+      // a method, not an arrow: it needs `this` to ask for its own setting.
       // 0 is never off the grid, or every padding:0 would light up
-      _off: (n) => n !== 0 && n % CONFIG.GRID !== 0,
+      _off(n) {
+        const step = Tools.setting(this, 'step');
+        return n !== 0 && n % step !== 0;
+      },
 
       // LENS hook: every number another tool prints comes through here first.
       // `html` is what earlier lenses made of it, so we wrap rather than
@@ -791,7 +882,8 @@ HOW TO USE
       report(i) {
         const bad = this._scan(i, true);
         return bad.length
-          ? [`  ⚠ off ${CONFIG.GRID}px grid: ${bad.map(([n, v]) => `${n}:${v}`).join(', ')}`]
+          ? [`  ⚠ off ${Tools.setting(this, 'step')}px grid: ` +
+             `${bad.map(([n, v]) => `${n}:${v}`).join(', ')}`]
           : [];
       },
 
@@ -829,7 +921,7 @@ HOW TO USE
           // the VALUE, not the side it appeared on: these group by value, and
           // "pad-t ×24" would read as 24 top paddings when it is one number
           // used in twenty-four places. The sides are in the per-pin report.
-          message: `${v}px is off the ${CONFIG.GRID}px grid`,
+          message: `${v}px is off the ${Tools.setting(this, 'step')}px grid`,
           key: `grid-off|${v}`,
         }));
       },
@@ -852,14 +944,27 @@ HOW TO USE
     `,
       id: 'contrast',
       icon: '◐',
-      title: 'Contrast — WCAG text contrast ratio (AA)',
+      // the level is the user's choice now, so it cannot be stated here
+      title: 'Contrast — WCAG text contrast ratio',
+
+      /**
+       * AA is the level nearly everyone is held to; AAA is what accessibility
+       * commitments and public-sector procurement actually ask for. Both
+       * thresholds move together — a check that wanted AAA of body text and AA
+       * of headings would be reporting against no standard at all.
+       */
+      options() {
+        return [{ key: 'level', label: 'WCAG level', def: CONFIG.CONTRAST.level,
+                  values: Object.keys(CONFIG.CONTRAST.levels) }];
+      },
 
       // What each rule IS, separate from what any one element measured. The
-      // instance message says 2.76:1; this says why 4.5 and what to do.
+      // instance message says 2.76:1; this says why, and what to do.
       rules: {
         'contrast-aa': {
-          help: 'Body text needs 4.5:1 against its background; 3:1 once it is ' +
-                '24px, or 18.66px and bold.',
+          help: 'Body text needs 4.5:1 against its background, or 7:1 at AAA; ' +
+                '3:1 once it is 24px or 18.66px bold, or 4.5:1 at AAA. Which ' +
+                'level this checks is in the panel under ⚙.',
           why: 'Below that, text stops being readable in bright light, on a bad ' +
                'screen, or to anyone with reduced contrast sensitivity — which ' +
                'is most people eventually.',
@@ -1026,8 +1131,13 @@ HOW TO USE
         const bold = parseInt(cs.fontWeight, 10) >= 700;
         const isLarge = size >= CONFIG.CONTRAST.largePx ||
                         (bold && size >= CONFIG.CONTRAST.largeBoldPx);
-        const need = isLarge ? CONFIG.CONTRAST.large : CONFIG.CONTRAST.normal;
-        return { ratio, need, pass: ratio >= need, isLarge, fg, bg };
+        // carried out with the verdict, not read again by each caller: the
+        // badge, the report and the finding must all name the same level they
+        // were actually judged against
+        const level = Tools.setting(this, 'level');
+        const want = CONFIG.CONTRAST.levels[level];
+        const need = isLarge ? want.large : want.normal;
+        return { ratio, need, pass: ratio >= need, isLarge, fg, bg, level, want };
       },
       _rgb: (c) => `${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)}`,
 
@@ -1057,9 +1167,10 @@ HOW TO USE
           verdict: 'fail',
           // below the large-text floor nobody can read it; above it, a near
           // miss that a size or weight change might fix
-          severity: c.ratio < CONFIG.CONTRAST.large ? 'error' : 'warn',
+          severity: c.ratio < c.want.large ? 'error' : 'warn',
           rule: 'contrast-aa',
-          message: `${c.ratio.toFixed(2)}:1 — AA needs ${c.need} for ${c.isLarge ? 'large' : 'normal'} text`,
+          message: `${c.ratio.toFixed(2)}:1 — ${c.level} needs ${c.need} for ` +
+                   `${c.isLarge ? 'large' : 'normal'} text`,
           // one line per colour pair, not per element: a 40-link nav is ONE
           // problem. Only the rule knows what "the same problem" means.
           key: `contrast-aa|${this._rgb(c.fg)}|${this._rgb(c.bg)}|${c.isLarge}`,
@@ -1091,7 +1202,7 @@ HOW TO USE
         // a page the tool had not actually checked
         if (c.unknown) return `<span class="unk">contrast ?</span>`;
         const cls = c.pass ? 'ok' : 'bad';
-        return `<span class="${cls}">${c.ratio.toFixed(2)}:1 ${c.pass ? 'AA✓' : 'AA✗'}</span>`;
+        return `<span class="${cls}">${c.ratio.toFixed(2)}:1 ${c.level}${c.pass ? '✓' : '✗'}</span>`;
       },
       compact(i) {
         const c = this._measure(i);
@@ -1213,6 +1324,13 @@ HOW TO USE
        ellipsises — and the element in .det. No direction tricks: rtl reorders
        the neutral characters in a CSS selector and prints '#id' backwards. */
     #__dbgov-list .row[data-accent] .det { color: #8f8f96; font-weight: 400; }
+    /* A settings row's picker. font: inherit because a bare <select> takes the
+       PAGE's font on some sites and the row stops lining up; the overlay must
+       look the same wherever it is injected. */
+    #__dbgov-list .opt { flex: none; cursor: pointer; font: inherit;
+      background: #2c2c31; color: #b5e853; font-weight: 700; border: 0;
+      border-radius: 6px; padding: 3px 6px; }
+    #__dbgov-list .opt:hover { background: #3a3a41; }
     #__dbgov-list .rm { flex: none; width: 20px; height: 20px; border: 0; cursor: pointer;
       border-radius: 50%; background: #2c2c31; color: #ff8a8a; font-size: 11px;
       display: flex; align-items: center; justify-content: center; }
@@ -1342,12 +1460,14 @@ HOW TO USE
       .join('<hr class="sep whenOn">');
     el.innerHTML = `
       <span class="grip" title="Drag to move — snaps to the nearest edge">⋮⋮</span>
-      <button class="pwr" title="Power (Alt+Shift+D)">⏻</button>
+      <button class="pwr" title="Power (Alt+Shift+D) · v${CONFIG.VERSION}">⏻</button>
       <span class="st" data-st>OFF</span>
       <hr class="sep whenOn">
       ${toolRuns}
       <!-- next to the run it acts on, so proximity says what it sweeps -->
       <button class="act whenOn" data-sweep data-view="findings" title="Audit the whole page">⌕</button>
+      <!-- with the tools it configures, not with the panel's own actions -->
+      <button class="act whenOn" data-settings data-view="settings" title="Tool settings">⚙</button>
       <hr class="sep whenOn">
       <button class="cnt whenOn" data-c data-view="pins" title="Pinned elements — click for the list">0</button>
       <button class="act whenOn" data-detail title="Compact / full badges">≡</button>
@@ -1378,6 +1498,7 @@ HOW TO USE
       el,
       onToggle: null, onTool: null, onDetail: null, onCopy: null, onClear: null,
       onListOpen: null, onRowActivate: null, onRowRemove: null, onSweep: null,
+      onRowChange: null,
       setOn(v) {
         el.classList.toggle('on', v);
         el.querySelector('[data-st]').textContent = v ? 'ON' : 'OFF';
@@ -1415,6 +1536,12 @@ HOW TO USE
        * rows: [{ tag, label, detail, removable }] — built by CONTROLLER, which
        * is also where the empty-state wording comes from, because only it
        * knows what this view is a list of.
+       *
+       * A row may carry `choices` (strings) and `selected` (an index) instead
+       * of a detail, and then it renders as a picker. Strings and an index are
+       * deliberately all it gets: the panel cannot learn what the setting is,
+       * what type its value has, or which tool owns it, and so cannot start
+       * deciding any of that.
        */
       setList(rows, empty = '') {
         listEl.textContent = '';
@@ -1435,13 +1562,29 @@ HOW TO USE
           const lbl = document.createElement('span');
           lbl.className = 'lbl';
           lbl.textContent = row.label;           // textContent: page text is never HTML here
-          const det = document.createElement('span');
-          det.className = 'det';
-          det.textContent = row.detail || '';
           // carried, not interpreted — the stylesheet decides what it means
           if (row.accent) r.dataset.accent = row.accent;
           r.addEventListener('click', () => api.onRowActivate?.(i));
-          r.append(tag, lbl, det);
+          if (row.choices) {
+            const sel = document.createElement('select');
+            sel.className = 'opt';
+            row.choices.forEach((c, k) => {
+              const o = document.createElement('option');
+              o.value = String(k);
+              o.textContent = c;                 // a tool's own label, still not HTML
+              sel.append(o);
+            });
+            sel.selectedIndex = row.selected || 0;
+            // the row beneath opens things; a picker must not also fire that
+            sel.addEventListener('click', (e) => e.stopPropagation());
+            sel.addEventListener('change', () => api.onRowChange?.(i, sel.selectedIndex));
+            r.append(tag, lbl, sel);
+          } else {
+            const det = document.createElement('span');
+            det.className = 'det';
+            det.textContent = row.detail || '';
+            r.append(tag, lbl, det);
+          }
           // Only rows that own something can drop it. A finding is a fact
           // about the page; there is nothing there for a ✕ to remove.
           if (row.removable) {
@@ -1470,6 +1613,7 @@ HOW TO USE
     el.querySelectorAll('[data-tool]').forEach((b) =>
       b.addEventListener('click', () => api.onTool?.(b.dataset.tool)));
     el.querySelector('[data-c]').addEventListener('click', () => api.toggleList(undefined, 'pins'));
+    el.querySelector('[data-settings]').addEventListener('click', () => api.toggleList(undefined, 'settings'));
     el.querySelector('[data-detail]').addEventListener('click', () => api.onDetail?.());
     el.querySelector('[data-sweep]').addEventListener('click', () => api.onSweep?.());
     el.querySelector('[data-copy]').addEventListener('click', () => api.onCopy?.());
@@ -2007,7 +2151,73 @@ HOW TO USE
 
     /** Rows for whichever view the panel is showing. */
     rows(view) {
+      if (view === 'settings') return Controller.settingRows();
       return view === 'findings' ? Controller.findingRows() : Controller.pinList();
+    },
+
+    /**
+     * One row per option per tool, in registry order. Nothing here knows what
+     * any option MEANS — the tool named it, gave it its choices and supplied
+     * the default; this turns that into rows and turns a chosen index back
+     * into the tool's own value.
+     */
+    settingRows() {
+      const rows = [];
+      for (const t of Tools.withHook('options')) {
+        for (const o of t.options.call(t)) {
+          const cur = Tools.setting(t, o.key);
+          // A default the tool does not list among its own choices would show
+          // as choice 0 while the rule went on using something else — a picker
+          // quietly disagreeing with the thing it claims to control. Carry the
+          // live value as a choice instead, so what is in force is always on
+          // screen and always selectable.
+          const values = o.values.includes(cur) ? o.values : [cur, ...o.values];
+          rows.push({
+            tag: t.icon,
+            label: o.label,
+            choices: values.map((v) => `${v}${o.suffix || ''}`),
+            selected: values.indexOf(cur),
+            tool: t, opt: o, values,
+          });
+        }
+      }
+      return rows;
+    },
+    changeSetting(i, choice) {
+      const row = Controller.settingRows()[i];
+      if (!row) return;
+      const v = row.values[choice];   // the list the panel was shown, not the raw one
+      if (v === undefined) return;
+      (State.settings[row.tool.id] ||= {})[row.opt.key] = v;
+      try {
+        localStorage.setItem(CONFIG.SETTINGS_KEY, JSON.stringify(State.settings));
+      } catch {}
+      // The last sweep was judged under the OLD setting. Leaving it up would
+      // keep findings on screen that the rule would no longer make, with
+      // nothing saying why — the same lie as a stale audit after the page
+      // moves on, and it costs one click to run again.
+      State.sweep = null;
+      Render.schedule();
+      Controller.refreshList();
+    },
+    /**
+     * Every option's default comes from the tool, and the saved value only
+     * overrides it if the tool still offers it. Resolved once, here, so that
+     * Tools.setting() stays a lookup: grid asks for its step once per number
+     * on a page that has thousands of them.
+     */
+    loadSettings() {
+      let saved = {};
+      try { saved = JSON.parse(localStorage.getItem(CONFIG.SETTINGS_KEY) || '{}') || {}; } catch {}
+      const out = {};
+      for (const t of Tools.withHook('options')) {
+        out[t.id] = {};
+        for (const o of t.options.call(t)) {
+          const was = saved[t.id]?.[o.key];
+          out[t.id][o.key] = o.values.includes(was) ? was : o.def;
+        }
+      }
+      State.settings = out;
     },
     /** One row per distinct problem, worst first. No pin, so nothing to remove. */
     findingRows() {
@@ -2027,6 +2237,7 @@ HOW TO USE
      * and had nothing to say. Only the third is good news.
      */
     emptyFor(view) {
+      if (view === 'settings') return 'No tool has anything to configure.';
       if (view !== 'findings') return 'No pins yet — click to inspect, Shift+click to measure.';
       const s = State.sweep;
       if (!s) return 'Press ⌕ to audit the page.';
@@ -2275,7 +2486,11 @@ HOW TO USE
     Panel.setList(Controller.rows(view), Controller.emptyFor(view));
   Panel.onRowActivate = Controller.revealRow;
   Panel.onRowRemove = Controller.removeRow;
+  Panel.onRowChange = Controller.changeSetting;
 
+  // before loadTools: a tool's options decide what its rules do, and arming
+  // one immediately schedules a render that asks
+  Controller.loadSettings();
   Controller.loadTools();
   Interactions.install(Controller);
   Controller.setPower(false);

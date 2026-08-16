@@ -46,6 +46,13 @@
        ellipsises — and the element in .det. No direction tricks: rtl reorders
        the neutral characters in a CSS selector and prints '#id' backwards. */
     #__dbgov-list .row[data-accent] .det { color: #8f8f96; font-weight: 400; }
+    /* A settings row's picker. font: inherit because a bare <select> takes the
+       PAGE's font on some sites and the row stops lining up; the overlay must
+       look the same wherever it is injected. */
+    #__dbgov-list .opt { flex: none; cursor: pointer; font: inherit;
+      background: #2c2c31; color: #b5e853; font-weight: 700; border: 0;
+      border-radius: 6px; padding: 3px 6px; }
+    #__dbgov-list .opt:hover { background: #3a3a41; }
     #__dbgov-list .rm { flex: none; width: 20px; height: 20px; border: 0; cursor: pointer;
       border-radius: 50%; background: #2c2c31; color: #ff8a8a; font-size: 11px;
       display: flex; align-items: center; justify-content: center; }

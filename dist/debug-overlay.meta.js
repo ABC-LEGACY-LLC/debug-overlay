@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.26
+// @version      3.8.27
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*

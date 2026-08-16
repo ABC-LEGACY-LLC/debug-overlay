@@ -14,14 +14,27 @@
     `,
       id: 'contrast',
       icon: '◐',
-      title: 'Contrast — WCAG text contrast ratio (AA)',
+      // the level is the user's choice now, so it cannot be stated here
+      title: 'Contrast — WCAG text contrast ratio',
+
+      /**
+       * AA is the level nearly everyone is held to; AAA is what accessibility
+       * commitments and public-sector procurement actually ask for. Both
+       * thresholds move together — a check that wanted AAA of body text and AA
+       * of headings would be reporting against no standard at all.
+       */
+      options() {
+        return [{ key: 'level', label: 'WCAG level', def: CONFIG.CONTRAST.level,
+                  values: Object.keys(CONFIG.CONTRAST.levels) }];
+      },
 
       // What each rule IS, separate from what any one element measured. The
-      // instance message says 2.76:1; this says why 4.5 and what to do.
+      // instance message says 2.76:1; this says why, and what to do.
       rules: {
         'contrast-aa': {
-          help: 'Body text needs 4.5:1 against its background; 3:1 once it is ' +
-                '24px, or 18.66px and bold.',
+          help: 'Body text needs 4.5:1 against its background, or 7:1 at AAA; ' +
+                '3:1 once it is 24px or 18.66px bold, or 4.5:1 at AAA. Which ' +
+                'level this checks is in the panel under ⚙.',
           why: 'Below that, text stops being readable in bright light, on a bad ' +
                'screen, or to anyone with reduced contrast sensitivity — which ' +
                'is most people eventually.',
@@ -188,8 +201,13 @@
         const bold = parseInt(cs.fontWeight, 10) >= 700;
         const isLarge = size >= CONFIG.CONTRAST.largePx ||
                         (bold && size >= CONFIG.CONTRAST.largeBoldPx);
-        const need = isLarge ? CONFIG.CONTRAST.large : CONFIG.CONTRAST.normal;
-        return { ratio, need, pass: ratio >= need, isLarge, fg, bg };
+        // carried out with the verdict, not read again by each caller: the
+        // badge, the report and the finding must all name the same level they
+        // were actually judged against
+        const level = Tools.setting(this, 'level');
+        const want = CONFIG.CONTRAST.levels[level];
+        const need = isLarge ? want.large : want.normal;
+        return { ratio, need, pass: ratio >= need, isLarge, fg, bg, level, want };
       },
       _rgb: (c) => `${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)}`,
 
@@ -219,9 +237,10 @@
           verdict: 'fail',
           // below the large-text floor nobody can read it; above it, a near
           // miss that a size or weight change might fix
-          severity: c.ratio < CONFIG.CONTRAST.large ? 'error' : 'warn',
+          severity: c.ratio < c.want.large ? 'error' : 'warn',
           rule: 'contrast-aa',
-          message: `${c.ratio.toFixed(2)}:1 — AA needs ${c.need} for ${c.isLarge ? 'large' : 'normal'} text`,
+          message: `${c.ratio.toFixed(2)}:1 — ${c.level} needs ${c.need} for ` +
+                   `${c.isLarge ? 'large' : 'normal'} text`,
           // one line per colour pair, not per element: a 40-link nav is ONE
           // problem. Only the rule knows what "the same problem" means.
           key: `contrast-aa|${this._rgb(c.fg)}|${this._rgb(c.bg)}|${c.isLarge}`,
@@ -253,7 +272,7 @@
         // a page the tool had not actually checked
         if (c.unknown) return `<span class="unk">contrast ?</span>`;
         const cls = c.pass ? 'ok' : 'bad';
-        return `<span class="${cls}">${c.ratio.toFixed(2)}:1 ${c.pass ? 'AA✓' : 'AA✗'}</span>`;
+        return `<span class="${cls}">${c.ratio.toFixed(2)}:1 ${c.level}${c.pass ? '✓' : '✗'}</span>`;
       },
       compact(i) {
         const c = this._measure(i);

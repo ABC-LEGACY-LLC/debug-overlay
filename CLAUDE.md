@@ -36,7 +36,10 @@ tab: the bundle skips frames, so an embedded editor preview shows nothing.
 - A new debug capability is a NEW FILE in `src/tools/`, never an edit to the
   renderer, panel or controller. If you feel the urge to edit those to add a
   tool, the tool needs a new hook instead — add the hook generically.
-- Tunable numbers go in `src/01-config.js`. Never inline a magic number.
+- Tunable numbers go in `src/01-config.js`. Never inline a magic number. If it
+  is a number a *user* would want different on their project — a grid step, a
+  threshold — CONFIG holds the default and the tool exposes it via `options()`
+  so nobody needs a rebuild to change their mind.
 - Tool-specific CSS goes in that tool's `css:` field, not `src/06-styles.js`.
 
 ## Boundaries (audit.js enforces these)
@@ -60,6 +63,41 @@ tab: the bundle skips frames, so an embedded editor preview shows nothing.
 - Every name in `HOOKS` must be consumed by some file. A hook nothing calls
   is a contract nobody honours: a tool could implement it, pass the audit,
   and never run.
+
+## The panel is the only control surface
+One install link, and everything after it is handled by the update chain — so
+anything a user can change has to be reachable from the panel. A tool that
+needs a rebuild to configure has moved a setup step back onto them.
+
+`options()` is that hook: `[{ key, label, values, def, suffix }]`, one row each
+under ⚙, read back with `Tools.setting(this, 'key')`. Three things it must keep
+doing, each of which was a real way to get it wrong:
+
+- **Defaults resolve once, at boot** (`Controller.loadSettings`), so
+  `Tools.setting` stays a lookup. Grid asks per number on pages with thousands.
+- **A saved value only survives if the tool still offers it**, and a live value
+  the tool does not list is carried into the picker as its own choice. Falling
+  back to choice 0 leaves the picker showing one thing while the rule uses
+  another — a control lying about what it controls.
+- **Changing a setting clears `State.sweep`.** Those findings were judged under
+  the old value, and a stale audit is the same lie here as after the page moves.
+
+Nothing may state a setting's value where it will not be re-read: grid's title
+said "2px" and contrast's said "(AA)", and both would have gone on saying it
+after the user chose otherwise. Put the live value in the message, not the
+label.
+
+`audit.js` fails a tool with no `icon` or `title` — the panel paints both
+straight into the bar, and a button reading `undefined` is not a control.
+
+## The version has to be visible
+`@grant none` means no `GM_info`, so `src/01-config.js` carries a `__VERSION__`
+placeholder that `build.js` substitutes into the bundle, and the panel shows it
+in the ⏻ tooltip. The build **fails** if the placeholder is missing. Do not
+hand-write a version into `src/` — that is a second copy, and it will drift
+from `userscript.json`. This exists because a stale install and a current one
+otherwise look identical, which is the same failure as a dead `@updateURL`
+seen from the other end.
 
 ## A rule has three answers, not two
 Pass, fail, and **`verdict: 'review'`** — I tried and could not tell. The third

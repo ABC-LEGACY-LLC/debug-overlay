@@ -30,6 +30,10 @@ const tools = toolFiles.map((f) => {
   return {
     f, s,
     id: (s.match(/id: '([a-z][a-z0-9-]*)'/) || [])[1],
+    // Quote-agnostic: grid's title is a template literal. Only presence is
+    // checked — the value is the author's business, having one is not.
+    icon: /\bicon:\s*(['"`])(.+?)\1/.test(s),
+    title: /\btitle:\s*(['"`])(.+?)\1/.test(s),
     kind: (s.match(/kind: '(instrument|rule|lens)'/) || [])[1],
     defs: (s.match(/defineTool\(/g) || []).length,
     lines: s.split('\n').length,
@@ -89,13 +93,18 @@ const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm,
 // \b would match U.mark(…) and this.pairs(); a hook is never called through a dot
 const calls = (s, h) => new RegExp(`(^|[^.\\w])${h}\\s*\\(`, 'm').test(strip(s));
 const HOOKS = ['badge', 'compact', 'report', 'reportTail', 'draw', 'listRows',
-               'pendingIndex', 'annotate', 'audit', 'auditPage'];
+               'pendingIndex', 'annotate', 'audit', 'auditPage', 'options'];
 
 for (const t of tools) {
   const bad = [];
   if (t.defs !== 1) bad.push(`${t.defs} defineTool() calls, expected 1`);
   if (!t.id) bad.push('no id');
   else if (ids.indexOf(t.id) !== ids.lastIndexOf(t.id)) bad.push(`duplicate id '${t.id}'`);
+  // The panel paints both of these straight into the bar. Nothing else checked
+  // them, so a tool that forgot one shipped a button labelled `undefined` — and
+  // the panel is the one surface where every tool has to be legible.
+  if (!t.icon) bad.push('no icon — the panel button would read "undefined"');
+  if (!t.title) bad.push('no title — the button tooltip would read "undefined"');
   // The four kind rules that used to live here are gone. A `kind` label could
   // only repeat what the hooks already said — this file proved it by checking
   // the label by grepping for the hook — and one label per tool made roles

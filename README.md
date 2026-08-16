@@ -114,10 +114,13 @@ Two things to expect:
 
 ### What does *not* sync
 
-Panel position and which tools are active live in `localStorage`, per browser
-profile and per site. To sync those too, switch `localStorage` in
-`src/08-panel.js` and `src/14-controller.js` to `GM_setValue` / `GM_getValue`
-and add the matching `@grant` lines in `build.js`.
+Panel position, which tools are active, and any tool settings chosen under ⚙
+live in `localStorage` — which is **per site**, so each new domain starts from
+the defaults in `src/01-config.js` again. To carry them across sites, switch
+`localStorage` in `src/08-panel.js` and `src/14-controller.js` to `GM_setValue`
+/ `GM_getValue` and add the matching `@grant` lines in `build.js`. That is a
+deliberate open question, not an oversight: `@grant none` is what keeps the
+script running in page context with no privileged API surface.
 
 ---
 
@@ -187,7 +190,24 @@ The ⌕ button audits the whole page. It runs every rule that exists, armed or
 not: arming decides what is drawn on screen, never what is checked.
 
 Available hooks, all optional: `badge`, `compact`, `report`, `reportTail`,
-`draw`, `listRows`, `pendingIndex`, `annotate`, `audit`, `auditPage`, `css`.
+`draw`, `listRows`, `pendingIndex`, `annotate`, `audit`, `auditPage`,
+`options`, `css`.
+
+`options()` makes a tool adjustable without a rebuild — one row each under the
+panel's ⚙, read back with `Tools.setting(this, 'key')`:
+
+```js
+options() {
+  return [{ key: 'step', label: 'Grid step', def: CONFIG.GRID,
+            values: [1, 2, 4, 8], suffix: 'px' }];
+}
+```
+
+`def` belongs in `CONFIG`, so that file still says what a fresh install does
+while the panel says what this one is doing now. Never state the value in a
+`title` or a rule's `help` — those are built once and would go on claiming the
+old number. Changing an option clears the last sweep, because those findings
+were judged under the previous value.
 
 `audit(info)` judges one element; `auditPage(all)` runs once per sweep with
 every visible element, for questions no single element can answer. A tool's

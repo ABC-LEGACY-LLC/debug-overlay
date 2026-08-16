@@ -5,17 +5,35 @@
     `,
       id: 'grid',
       icon: '▦',
-      title: `Grid — flag values off the ${CONFIG.GRID}px grid`,
+      // No number in the title: the step is the user's now, and a title baked
+      // at boot would still be claiming 2px long after they picked 8.
+      title: 'Grid — flag values off the spacing grid',
 
       rules: {
         'grid-off': {
-          help: `Sizes and spacing should be multiples of ${CONFIG.GRID}px.`,
+          help: 'Spacing should be a multiple of the grid step — change which ' +
+                'step this checks in the panel under ⚙.',
           why: 'One-off values are how a spacing scale erodes: each looks ' +
                'harmless alone, and together they are why nothing lines up.',
         },
       },
+
+      /**
+       * The step is a property of the PROJECT, not of this rule: Tailwind's
+       * half-steps make 2 right here and 8 right elsewhere, and being wrong
+       * either way buries the findings that matter under the ones that do not.
+       * CONFIG.GRID is the default; this is how it stops needing a rebuild.
+       */
+      options() {
+        return [{ key: 'step', label: 'Grid step', def: CONFIG.GRID,
+                  values: [1, 2, 4, 8], suffix: 'px' }];
+      },
+      // a method, not an arrow: it needs `this` to ask for its own setting.
       // 0 is never off the grid, or every padding:0 would light up
-      _off: (n) => n !== 0 && n % CONFIG.GRID !== 0,
+      _off(n) {
+        const step = Tools.setting(this, 'step');
+        return n !== 0 && n % step !== 0;
+      },
 
       // LENS hook: every number another tool prints comes through here first.
       // `html` is what earlier lenses made of it, so we wrap rather than
@@ -43,7 +61,8 @@
       report(i) {
         const bad = this._scan(i, true);
         return bad.length
-          ? [`  ⚠ off ${CONFIG.GRID}px grid: ${bad.map(([n, v]) => `${n}:${v}`).join(', ')}`]
+          ? [`  ⚠ off ${Tools.setting(this, 'step')}px grid: ` +
+             `${bad.map(([n, v]) => `${n}:${v}`).join(', ')}`]
           : [];
       },
 
@@ -81,7 +100,7 @@
           // the VALUE, not the side it appeared on: these group by value, and
           // "pad-t ×24" would read as 24 top paddings when it is one number
           // used in twenty-four places. The sides are in the per-pin report.
-          message: `${v}px is off the ${CONFIG.GRID}px grid`,
+          message: `${v}px is off the ${Tools.setting(this, 'step')}px grid`,
           key: `grid-off|${v}`,
         }));
       },
