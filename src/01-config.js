@@ -33,7 +33,11 @@
     POS_KEY: '__dbgov_pos',
     TOOLS_KEY: '__dbgov_tools',
     SETTINGS_KEY: '__dbgov_settings',
-    DEFAULT_TOOLS: ['measure', 'grid'],
+    // No DEFAULT_TOOLS list here any more. It named tool ids in a core file,
+    // so shipping a tool that should start armed meant editing this — the one
+    // place "a new tool is one new file" was not literally true. A tool says
+    // `startsOn: true` about itself instead, and nothing central has to know
+    // the name of anything.
     // 'pairs' = every measurement takes two clicks (from → to) and the next
     //           click starts a fresh pair, so a pin is never reused silently.
     // 'chain' = old behaviour: each pin measures to the previous one.
@@ -41,6 +45,7 @@
     // A pin's "kind" names which tool consumes it. Defined once here so the
     // input layer, controller and renderer never hardcode a tool's id.
     PIN_KIND: { PLAIN: 'note', SHIFT: 'measure' },
+    PICK_FLASH: 700,          // ms an element stays outlined after being picked
     LANE_SEP: 16,             // px between parallel dimension lines
     HOTKEY: { alt: true, shift: true, ctrl: false, code: 'KeyD' },
     REMOVE_KEY: 'KeyX',       // hold to reveal ✕ on pins and click one to remove

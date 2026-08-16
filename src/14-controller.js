@@ -32,45 +32,30 @@
 
     /** Rows for whichever view the panel is showing. */
     rows(view) {
-      if (view === 'settings') return Controller.settingRows();
+      if (view === 'settings') return Settings.rows();
       return view === 'findings' ? Controller.findingRows() : Controller.pinList();
     },
 
     /**
-     * One row per option per tool, in registry order. Nothing here knows what
-     * any option MEANS — the tool named it, gave it its choices and supplied
-     * the default; this turns that into rows and turns a chosen index back
-     * into the tool's own value.
+     * A row changed. Which row depends on the view showing, so this asks for
+     * that view's rows — indexing settings by a number that came from the pin
+     * list would write the wrong setting entirely.
      */
-    settingRows() {
-      const rows = [];
-      for (const t of Tools.withHook('options')) {
-        for (const o of t.options.call(t)) {
-          const cur = Tools.setting(t, o.key);
-          // A default the tool does not list among its own choices would show
-          // as choice 0 while the rule went on using something else — a picker
-          // quietly disagreeing with the thing it claims to control. Carry the
-          // live value as a choice instead, so what is in force is always on
-          // screen and always selectable.
-          const values = o.values.includes(cur) ? o.values : [cur, ...o.values];
-          rows.push({
-            tag: t.icon,
-            label: o.label,
-            choices: values.map((v) => `${v}${o.suffix || ''}`),
-            selected: values.indexOf(cur),
-            tool: t, opt: o, values,
-          });
-        }
-      }
-      return rows;
-    },
-    changeSetting(i, choice) {
-      const row = Controller.settingRows()[i];
+    changeRow(i, raw) {
+      const row = Controller.rows(Panel.view())[i];
       if (!row) return;
-      const v = row.values[choice];   // the list the panel was shown, not the raw one
-      if (v === undefined) return;
-      (State.settings[row.tool.id] ||= {})[row.opt.key] = v;
-      Store.set(CONFIG.SETTINGS_KEY, JSON.stringify(State.settings));
+      // a tool's own row carries its own handler; a settings row carries the
+      // option it was built from
+      if (row.onChange) {
+        row.onChange(raw);
+        Render.schedule();
+        Controller.refreshList();
+        return;
+      }
+      if (!row.opt) return;
+      const v = Settings.fromControl(row, raw);
+      if (v === null) { Controller.refreshList(); return; }   // put the field back
+      Settings.apply(row, v);
       // The last sweep was judged under the OLD setting. Leaving it up would
       // keep findings on screen that the rule would no longer make, with
       // nothing saying why — the same lie as a stale audit after the page
@@ -78,25 +63,6 @@
       State.sweep = null;
       Render.schedule();
       Controller.refreshList();
-    },
-    /**
-     * Every option's default comes from the tool, and the saved value only
-     * overrides it if the tool still offers it. Resolved once, here, so that
-     * Tools.setting() stays a lookup: grid asks for its step once per number
-     * on a page that has thousands of them.
-     */
-    loadSettings() {
-      let saved = {};
-      try { saved = JSON.parse(Store.get(CONFIG.SETTINGS_KEY) || '{}') || {}; } catch {}
-      const out = {};
-      for (const t of Tools.withHook('options')) {
-        out[t.id] = {};
-        for (const o of t.options.call(t)) {
-          const was = saved[t.id]?.[o.key];
-          out[t.id][o.key] = o.values.includes(was) ? was : o.def;
-        }
-      }
-      State.settings = out;
     },
     /** One row per distinct problem, worst first. No pin, so nothing to remove. */
     findingRows() {
@@ -133,8 +99,13 @@
       Render.schedule();
       Controller.refreshList();
     },
+    /**
+     * Which tools are armed. A saved set wins; failing that, each tool decides
+     * for itself with `startsOn`. Ids only ever come from the registry or from
+     * something the registry already vouched for, so no core file spells one.
+     */
     loadTools() {
-      let ids = CONFIG.DEFAULT_TOOLS;
+      let ids = TOOLS.filter((t) => t.startsOn).map((t) => t.id);
       try {
         const saved = JSON.parse(Store.get(CONFIG.TOOLS_KEY) || 'null');
         if (Array.isArray(saved)) ids = saved;

@@ -29,6 +29,7 @@
       id: 'measure',
       icon: '📐',
       title: 'Measure — size, radius, spacing, font, pin distances',
+      startsOn: true,      // the read-out is what the overlay is FOR
       // this tool owns the geometry read-out and the pin distance lines
       badge(i) {
         const { el, r, cs } = i;

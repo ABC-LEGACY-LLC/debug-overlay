@@ -29,24 +29,14 @@
       <button class="act whenOn" data-clear title="Clear pins">✕</button>`;
     root.append(el);
 
-    // ---- pin list popover (opened from the count chip) ------------------
-    const listEl = document.createElement('div');
-    listEl.id = '__dbgov-list';
-    root.append(listEl);
-    let listOpen = false;
-    let listView = null;   // opaque name of whichever view is showing
-
-    function placeList() {
-      const r = el.getBoundingClientRect();
-      const w = listEl.offsetWidth, h = listEl.offsetHeight;
-      let x, y;
-      if (side === 'left')       { x = r.right + 10; y = r.top; }
-      else if (side === 'right') { x = r.left - w - 10; y = r.top; }
-      else if (side === 'top')   { x = r.left - w / 2 + r.width / 2; y = r.bottom + 10; }
-      else                       { x = r.left - w / 2 + r.width / 2; y = r.top - h - 10; }
-      listEl.style.left = Math.max(6, Math.min(x, innerWidth - w - 6)) + 'px';
-      listEl.style.top = Math.max(6, Math.min(y, innerHeight - h - 6)) + 'px';
-    }
+    // The popover is LIST's; this says where it hangs and lights up whichever
+    // button opened it. Nothing else about it is the bar's business.
+    List.attach({
+      el,
+      side: () => side,
+      mark: (view) => el.querySelectorAll('[data-view]').forEach(
+        (b) => b.classList.toggle('armed', !!view && b.dataset.view === view)),
+    });
 
     const api = {
       el,
@@ -70,89 +60,14 @@
       },
       setCount(n) { el.querySelector('[data-c]').textContent = String(n); },
 
-      isListOpen: () => listOpen,
-      /**
-       * One popover, several views. `view` is an opaque name off the button
-       * that opened it — the panel carries it and hands it back, and never
-       * learns what any of them mean.
-       */
-      view: () => listView,
-      toggleList(v, view = 'pins') {
-        const same = listOpen && listView === view;
-        listOpen = v === undefined ? !same : !!v;
-        listView = listOpen ? view : null;
-        listEl.classList.toggle('open', listOpen);
-        el.querySelectorAll('[data-view]').forEach((b) =>
-          b.classList.toggle('armed', listOpen && b.dataset.view === listView));
-        if (listOpen) { api.onListOpen?.(listView); placeList(); }
-      },
-      /**
-       * rows: [{ tag, label, detail, removable }] — built by CONTROLLER, which
-       * is also where the empty-state wording comes from, because only it
-       * knows what this view is a list of.
-       *
-       * A row may carry `choices` (strings) and `selected` (an index) instead
-       * of a detail, and then it renders as a picker. Strings and an index are
-       * deliberately all it gets: the panel cannot learn what the setting is,
-       * what type its value has, or which tool owns it, and so cannot start
-       * deciding any of that.
-       */
-      setList(rows, empty = '') {
-        listEl.textContent = '';
-        if (!rows.length) {
-          const e = document.createElement('div');
-          e.className = 'empty';
-          e.textContent = empty;
-          listEl.append(e);
-          placeList();
-          return;
-        }
-        rows.forEach((row, i) => {
-          const r = document.createElement('div');
-          r.className = 'row';
-          const tag = document.createElement('span');
-          tag.className = 'tag';
-          tag.textContent = row.tag;
-          const lbl = document.createElement('span');
-          lbl.className = 'lbl';
-          lbl.textContent = row.label;           // textContent: page text is never HTML here
-          // carried, not interpreted — the stylesheet decides what it means
-          if (row.accent) r.dataset.accent = row.accent;
-          r.addEventListener('click', () => api.onRowActivate?.(i));
-          if (row.choices) {
-            const sel = document.createElement('select');
-            sel.className = 'opt';
-            row.choices.forEach((c, k) => {
-              const o = document.createElement('option');
-              o.value = String(k);
-              o.textContent = c;                 // a tool's own label, still not HTML
-              sel.append(o);
-            });
-            sel.selectedIndex = row.selected || 0;
-            // the row beneath opens things; a picker must not also fire that
-            sel.addEventListener('click', (e) => e.stopPropagation());
-            sel.addEventListener('change', () => api.onRowChange?.(i, sel.selectedIndex));
-            r.append(tag, lbl, sel);
-          } else {
-            const det = document.createElement('span');
-            det.className = 'det';
-            det.textContent = row.detail || '';
-            r.append(tag, lbl, det);
-          }
-          // Only rows that own something can drop it. A finding is a fact
-          // about the page; there is nothing there for a ✕ to remove.
-          if (row.removable) {
-            const rm = document.createElement('button');
-            rm.className = 'rm';
-            rm.textContent = '✕';
-            rm.title = 'Remove';
-            rm.addEventListener('click', (e) => { e.stopPropagation(); api.onRowRemove?.(i); });
-            r.append(rm);
-          }
-          listEl.append(r);
-        });
-        placeList();
-      },
+      // The popover's own surface, forwarded so CONTROLLER and BOOT still have
+      // one thing to talk to. What it renders is LIST's business, not this
+      // file's — that is the whole point of the split.
+      isListOpen: List.isOpen,
+      view: List.view,
+      toggleList: List.toggle,
+      setList: List.set,
+
       flash(msg, sel = '[data-copy]') {
         const b = el.querySelector(sel);
         const old = b.textContent;
@@ -162,6 +77,13 @@
       rect: () => el.getBoundingClientRect(),
       isOn: () => el.classList.contains('on'),
     };
+
+    // LIST's events arrive as the panel's own, so BOOT still wires one object
+    // and nothing outside had to learn that the popover moved house.
+    List.onOpen = (v) => api.onListOpen?.(v);
+    List.onRowActivate = (i) => api.onRowActivate?.(i);
+    List.onRowRemove = (i) => api.onRowRemove?.(i);
+    List.onRowChange = (i, raw) => api.onRowChange?.(i, raw);
 
     el.querySelector('.pwr').addEventListener('click', () => api.onToggle?.());
     el.querySelectorAll('[data-tool]').forEach((b) =>
@@ -220,7 +142,7 @@
     }
     function scheduleTuck() {
       clearTimeout(tuckTimer);
-      if (api.isOn() || listOpen) { untuck(); return; }
+      if (api.isOn() || List.isOpen()) { untuck(); return; }
       tuckTimer = setTimeout(() => {
         if (!api.isOn() && !el.matches(':hover')) tuck();
       }, CONFIG.TUCK_DELAY);
@@ -242,7 +164,7 @@
       if (!drag) return;
       el.classList.add('dragging');
       applyPos(e.clientX - drag.dx, e.clientY - drag.dy);
-      if (listOpen) placeList();
+      if (List.isOpen()) List.place();
     });
     const endDrag = () => {
       if (!drag) return;
@@ -250,11 +172,11 @@
       el.classList.remove('dragging');
       snap();
       scheduleTuck();
-      if (listOpen) placeList();
+      if (List.isOpen()) List.place();
     };
     el.addEventListener('pointerup', endDrag);
     el.addEventListener('pointercancel', endDrag);
-    addEventListener('resize', () => { snap(); if (listOpen) placeList(); });
+    addEventListener('resize', () => { snap(); if (List.isOpen()) List.place(); });
 
     return api;
   })();

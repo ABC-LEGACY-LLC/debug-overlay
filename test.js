@@ -26,6 +26,23 @@ if (!fs.existsSync(bundlePath)) {
 }
 const source = fs.readFileSync(bundlePath, 'utf8');
 
+/**
+ * The tools as they exist on disk. Derived, never listed: a test that names
+ * the four tools it expects fails the day a fifth lands, which trains everyone
+ * to edit the expectation instead of reading it — and the next real regression
+ * gets edited away with it.
+ */
+const noComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const TOOLS_ON_DISK = fs.readdirSync(path.join(ROOT, 'src', 'tools'))
+  .filter((f) => f.endsWith('.js')).sort()
+  .map((f) => noComments(fs.readFileSync(path.join(ROOT, 'src', 'tools', f), 'utf8')))
+  .map((s) => ({
+    id: (s.match(/id: '([a-z][a-z0-9-]*)'/) || [])[1],
+    // the same test the panel groups by: either hook contributes findings
+    judges: /(^|[^.\w])(audit|auditPage)\s*\(/m.test(s),
+  }));
+const idsOnDisk = TOOLS_ON_DISK.map((t) => t.id).sort();
+
 let failed = 0;
 function ok(name, cond, detail) {
   if (cond) { console.log(`  ✓ ${name}`); return; }
@@ -120,10 +137,10 @@ ok('no rule dropped by the parser', !broken.dropped.length, broken.dropped.join(
 
 // the tool registered last is the one a shared sheet used to eat first
 const lastSheet = sheets[sheets.length - 1];
-ok('the last tool\'s CSS survives',
-  !!lastSheet.sheet && [...lastSheet.sheet.cssRules].some(
-    (r) => r.selectorText && r.selectorText.includes('.dbgov-badge')),
-  `${lastSheet.dataset.tool} sheet kept ${lastSheet.sheet ? lastSheet.sheet.cssRules.length : 0} rules`);
+const lastWrote = readCss(lastSheet.textContent).topLevel;
+const lastKept = lastSheet.sheet ? lastSheet.sheet.cssRules.length : 0;
+ok('the last tool\'s CSS survives', lastWrote > 0 && lastKept === lastWrote,
+  `${lastSheet.dataset.tool} wrote ${lastWrote}, kept ${lastKept}`);
 
 console.log('\nPANEL');
 const bar = window.document.getElementById('__dbgov-bar');
@@ -133,14 +150,17 @@ ok('boots powered off', !!status && status.textContent === 'OFF');
 
 const buttons = bar ? [...bar.querySelectorAll('button.tool')] : [];
 const ids = buttons.map((b) => b.dataset.tool).sort();
-ok('a button per registered tool', ids.length === 4, `got ${ids.length}: ${ids.join(', ')}`);
+ok('a button per registered tool', ids.length === idsOnDisk.length,
+  `got ${ids.length}: ${ids.join(', ')} — src/tools has ${idsOnDisk.length}`);
 ok('tool ids match the registry',
-  ids.join(',') === 'contrast,dupid,grid,measure', ids.join(','));
+  ids.join(',') === idsOnDisk.join(','), `${ids.join(',')} vs ${idsOnDisk.join(',')}`);
 // Two toggles that look identical and mean different things was the problem:
 // arming grid or contrast changes what ⌕ finds, arming measure does not.
 const checks = buttons.filter((b) => b.classList.contains('checks')).map((b) => b.dataset.tool).sort();
+const judgesOnDisk = TOOLS_ON_DISK.filter((t) => t.judges).map((t) => t.id).sort();
 ok('the tools that feed the audit are marked as such',
-  checks.join(',') === 'contrast,dupid,grid', checks.join(',') || 'none marked');
+  checks.join(',') === judgesOnDisk.join(','),
+  `${checks.join(',') || 'none marked'} vs ${judgesOnDisk.join(',')}`);
 ok('and they are separated from the ones that only draw',
   bar.querySelectorAll('button.tool + hr.sep, hr.sep + button.tool').length >= 2,
   'the runs are not divided by a rule');
@@ -519,8 +539,15 @@ console.log('\nSETTINGS');
   ok('⚙ opens a view of its own', list4.classList.contains('open') && rowsOf().length > 0,
     `${rowsOf().length} rows`);
   ok('every setting is a control, not a read-out',
-    rowsOf().length > 0 && rowsOf().every((r) => r.querySelector('select.opt')),
-    rowsOf().map((r) => r.querySelector('.lbl').textContent).join(', '));
+    rowsOf().length > 0 && rowsOf().every((r) => r.querySelector('.opt')),
+    rowsOf().filter((r) => !r.querySelector('.opt'))
+      .map((r) => r.querySelector('.lbl').textContent).join(', ') || 'none missing');
+  // a list cannot express a threshold you type or a thing that is simply on
+  ok('a choice, a number and a toggle all render',
+    !!labelled('Grid step').querySelector('select.opt') &&
+    labelled('Ignore above').querySelector('input.opt').type === 'number' &&
+    labelled('Judge width & height').querySelector('input.opt').type === 'checkbox',
+    rowsOf().map((r) => (r.querySelector('.opt') || {}).tagName).join(', '));
   const step = labelled('Grid step');
   ok('a tool contributes its own options', !!step, messages());
   ok('and the picker shows what is actually in force',
@@ -553,8 +580,34 @@ console.log('\nSETTINGS');
   hit('[data-sweep]');
   ok('the rule now judges by the new setting', /off the 8px grid/.test(messages()), messages());
 
+  // ---- a typed number is not a choice, and can arrive broken ---------------
+  hit('[data-settings]');
+  const numOf = () => labelled('Ignore above').querySelector('input.opt');
+  const setNum = (v) => {
+    const n = numOf();
+    n.value = v;
+    n.dispatchEvent(new w4.Event('change'));
+  };
+  setNum('120');
+  ok('a typed number is taken', numOf().value === '120', numOf().value);
+  setNum('99999');
+  ok('and clamped to what the option allows rather than dropped',
+    numOf().value === '2000', `${numOf().value} — a typed 5000 should land on the ceiling`);
+  setNum('');
+  ok('an empty field changes nothing', numOf().value === '2000', numOf().value);
+  setNum('abc');
+  ok('and neither does a non-number', numOf().value === '2000', numOf().value);
+
+  const tick = () => labelled('Judge width & height').querySelector('input.opt');
+  ok('a toggle starts off', tick().checked === false, 'width and height are layout output');
+  tick().checked = true;
+  tick().dispatchEvent(new w4.Event('change'));
+  ok('and can be turned on', tick().checked === true, 'the toggle did not stick');
+
   const saved = w4.localStorage.getItem('__dbgov_settings');
   ok('the choice is persisted', !!saved && /"step":8/.test(saved), String(saved));
+  ok('and so are the typed and toggled ones',
+    /"max":2000/.test(saved) && /"boxes":true/.test(saved), String(saved));
 
   // "install once and never set anything up again" is only true if the choice
   // outlives the page it was made on
@@ -675,6 +728,62 @@ console.log('\nSTORAGE');
     'the overlay started inside a frame');
 
   [d7, d8, d9, d10].forEach((d) => d.window.close());
+}
+
+console.log('\nINPUT');
+/**
+ * Every other hook describes the page or draws over it. This is the one that
+ * ACTS on it, so the thing to prove is the handover: an armed tool gets the
+ * click, and the pin that would otherwise follow does not also happen.
+ */
+{
+  const d11 = new JSDOM(
+    `<!doctype html><html><body><div id="q" class="card">hello</div></body></html>`,
+    { url: 'https://example.test/', pretendToBeVisual: true,
+      runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
+  const w = d11.window;
+  let picked = null;
+  Object.defineProperty(w.navigator, 'clipboard',
+    { value: { writeText: async (t) => { picked = t; } }, configurable: true });
+  w.eval(source);
+  const bar11 = w.document.getElementById('__dbgov-bar');
+  const list11 = w.document.getElementById('__dbgov-list');
+  const el = w.document.getElementById('q');
+  w.document.elementFromPoint = () => el;
+  w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+
+  const chip = () => bar11.querySelector('[data-c]')
+    .dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  // the count chip is painted a frame later; the list is rebuilt synchronously
+  const pins = () => { chip(); const n = list11.querySelectorAll('.row').length; chip(); return n; };
+  const clickEl = (opt) => el.dispatchEvent(
+    new w.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5, ...opt }));
+
+  clickEl({ ctrlKey: true });
+  ok('a tool that is off intercepts nothing', picked === null && pins() === 1,
+    `copied ${JSON.stringify(picked)}, ${pins()} pins — arming is what turns it on`);
+
+  bar11.querySelector('[data-clear]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  bar11.querySelector('[data-tool="pick"]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  clickEl({ ctrlKey: true });
+  ok('an armed tool receives the click', picked === '#q', JSON.stringify(picked));
+  ok('and consuming it means no pin lands underneath', pins() === 0,
+    `${pins()} pins — the overlay did two things for one click`);
+
+  clickEl({});
+  ok('an unclaimed click still pins', pins() === 1, `${pins()} pins`);
+
+  // the option changes what the same click does, through the same ⚙ view
+  bar11.querySelector('[data-settings]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  const what = [...list11.querySelectorAll('.row')]
+    .find((r) => r.querySelector('.lbl').textContent === 'Ctrl+click copies')
+    .querySelector('select');
+  what.selectedIndex = [...what.options].findIndex((o) => o.textContent === 'text');
+  what.dispatchEvent(new w.Event('change'));
+  clickEl({ ctrlKey: true });
+  ok('and its own setting changes what it copies', picked === 'hello', JSON.stringify(picked));
+
+  d11.window.close();
 }
 
 // ---- the sections that need a painted frame ---------------------------------

@@ -14,6 +14,25 @@
       return State.enabled && !e.altKey && !root.contains(e.target);
     },
 
+    /**
+     * Offer an event to the armed tools before the overlay's own default.
+     *
+     * WHY: every hook until now was read-or-render — a tool could describe the
+     * page and judge it, but nothing could act on it, so anything that changes
+     * what you clicked had nowhere to live. This is the one place input enters,
+     * so it is the one place that can hand it on, and it does so by hook: no
+     * tool is named here and none ever will be.
+     *
+     * The first tool to say it consumed the event ends it. Two tools acting on
+     * one click is a page doing two things nobody asked for, and a pin landing
+     * underneath an edit is the same bug wearing the overlay's own clothes.
+     */
+    claimed(type, ev, el) {
+      for (const t of Tools.withHook('intercept', true))
+        if (t.intercept.call(t, { type, ev, el })) return true;
+      return false;
+    },
+
     // in remove mode only pins are targetable — pick the innermost one
     pinAt(x, y) {
       let best = null, bestArea = Infinity;
@@ -96,6 +115,7 @@
         }
         const el = document.elementFromPoint(e.clientX, e.clientY);
         if (!el || root.contains(el)) return;
+        if (Interactions.claimed('click', e, el)) return;
         ctl.togglePin(el, e.shiftKey ? CONFIG.PIN_KIND.SHIFT : CONFIG.PIN_KIND.PLAIN);
       }, true);
 

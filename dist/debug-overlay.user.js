@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.28
+// @version      3.8.29
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -71,7 +71,10 @@ HOW TO USE
                  choosing, and nothing above CONFIG.GRID_MAX, where
                  margin:auto lands.
     ◐ contrast   WCAG text contrast ratio, against AA or AAA (⚙)
-    ⧉ dupid      the same id used more than once — a page-wide question
+    ⌗ dupid      the same id used more than once — a page-wide question
+    ⌖ pick       Ctrl+click (⌘+click) copies what you clicked — its selector,
+                 or its text (⚙). Off by default: it takes a click over, and
+                 that should be something you asked for.
 
   A tool's own settings live under ⚙, never in a menu of its own — the panel
   is the only surface, so a tool added later is controllable the moment it
@@ -98,13 +101,16 @@ HOW TO USE
     5. TOOLS         ⭐ the plugin registry — add a debug mode here
     6. STYLES        all CSS in one template string
     7. DOM           root & drawing layer
-    8. PANEL         control panel: UI, drag, snap, auto-tuck
+   7a. CONTROLS      one widget from a description of it
+   7b. LIST          the popover the panel opens
+    8. PANEL         the bar: buttons, drag, snap, auto-tuck
     9. PLACEMENT     collision-free badge positioning
    10. BADGES        composes badge HTML from the ACTIVE tools
    11. RENDERER      draws one frame from STATE
    12. REPORT        structured text export, also composed from tools
    13. INTERACTIONS  page-level mouse & keyboard
    14. CONTROLLER    the only glue between modules
+  14a. SETTINGS      the ⚙ view, and what a tool's options mean
    15. SWEEP         runs the rules over the whole page
 
   RULES that keep it from turning to mush:
@@ -124,6 +130,7 @@ HOW TO USE
     {
       id: 'zindex',
       icon: '⧉', title: 'Stacking — z-index & position',
+      startsOn: false,             // optional, armed on a fresh install?
       badge:   (i) => `<span class="sp">z ${i.cs.zIndex}</span>`,  // optional
       compact: (i) => null,                                       // optional
       report:  (i) => [`  z-index: ${i.cs.zIndex}`],              // optional
@@ -135,6 +142,7 @@ HOW TO USE
       auditPage: (all) => [],  // optional, once per sweep with every element
       options: () => [{ key: 'depth', label: 'Stack depth',   // optional
                         def: CONFIG.DEPTH, values: [1, 2, 3], suffix: '' }],
+      intercept: ({ type, ev, el }) => false,   // optional, act on a click
       rules: { 'my-rule': { help, why, docs } },   // optional, what a rule IS
     }
 
@@ -144,7 +152,17 @@ HOW TO USE
     answers "what is this one doing now". Read the live value back with
     Tools.setting(this, 'depth') — `this`, never an id, like every other
     question the registry answers. Do not cache it: the user can change it
-    between two frames.
+    between two frames. Three kinds of option:
+
+      values: [1, 2, 3]                     a picker
+      type: 'number', min, max, step        a threshold you type
+      type: 'toggle'                        on or off
+
+    intercept() is the only hook that ACTS on the page rather than describing
+    it. Armed tools are offered each click before it becomes a pin; return true
+    to say it was yours, and no pin lands underneath. Return false and nothing
+    changed. Claim narrowly — a modifier, a shape of element — because a tool
+    that swallows every click has taken the overlay away from everything else.
 
     Whatever a tool puts in `title`, `icon` or an option `label` is the only
     thing a user ever sees of it, and audit.js now fails a tool that omits the
@@ -219,7 +237,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: '3.8.28',
+    VERSION: '3.8.29',
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -240,7 +258,11 @@ HOW TO USE
     POS_KEY: '__dbgov_pos',
     TOOLS_KEY: '__dbgov_tools',
     SETTINGS_KEY: '__dbgov_settings',
-    DEFAULT_TOOLS: ['measure', 'grid'],
+    // No DEFAULT_TOOLS list here any more. It named tool ids in a core file,
+    // so shipping a tool that should start armed meant editing this — the one
+    // place "a new tool is one new file" was not literally true. A tool says
+    // `startsOn: true` about itself instead, and nothing central has to know
+    // the name of anything.
     // 'pairs' = every measurement takes two clicks (from → to) and the next
     //           click starts a fresh pair, so a pin is never reused silently.
     // 'chain' = old behaviour: each pin measures to the previous one.
@@ -248,6 +270,7 @@ HOW TO USE
     // A pin's "kind" names which tool consumes it. Defined once here so the
     // input layer, controller and renderer never hardcode a tool's id.
     PIN_KIND: { PLAIN: 'note', SHIFT: 'measure' },
+    PICK_FLASH: 700,          // ms an element stays outlined after being picked
     LANE_SEP: 16,             // px between parallel dimension lines
     HOTKEY: { alt: true, shift: true, ctrl: false, code: 'KeyD' },
     REMOVE_KEY: 'KeyX',       // hold to reveal ✕ on pins and click one to remove
@@ -781,6 +804,7 @@ HOW TO USE
       id: 'measure',
       icon: '📐',
       title: 'Measure — size, radius, spacing, font, pin distances',
+      startsOn: true,      // the read-out is what the overlay is FOR
       // this tool owns the geometry read-out and the pin distance lines
       badge(i) {
         const { el, r, cs } = i;
@@ -902,6 +926,7 @@ HOW TO USE
       // No number in the title: the step is the user's now, and a title baked
       // at boot would still be claiming 2px long after they picked 8.
       title: 'Grid — flag values off the spacing grid',
+      startsOn: true,      // the ⚠ on a badge is what makes the read-out useful
 
       rules: {
         'grid-off': {
@@ -919,8 +944,22 @@ HOW TO USE
        * CONFIG.GRID is the default; this is how it stops needing a rebuild.
        */
       options() {
-        return [{ key: 'step', label: 'Grid step', def: CONFIG.GRID,
-                  values: [1, 2, 4, 8], suffix: 'px' }];
+        return [
+          { key: 'step', label: 'Grid step', def: CONFIG.GRID,
+            values: [1, 2, 4, 8], suffix: 'px' },
+          // Where a spacing token stops and layout arithmetic begins. It is a
+          // judgement about a project, not a constant: margin:auto resolved to
+          // 1127px on a real page, and the cut-off that keeps that out is the
+          // same one that could hide a real 120px gap.
+          { key: 'max', label: 'Ignore above', def: CONFIG.GRID_MAX,
+            type: 'number', min: 8, max: 2000, step: 8, suffix: 'px' },
+          // OFF, and it has to stay the default: width and height are what
+          // layout produced, not what anyone typed, and judging them turned one
+          // real signal into 2,215 findings about icon geometry. Available
+          // because on a page of fixed-size components it is the right question.
+          { key: 'boxes', label: 'Judge width & height', def: false,
+            type: 'toggle' },
+        ];
       },
       // a method, not an arrow: it needs `this` to ask for its own setting.
       // 0 is never off the grid, or every padding:0 would light up
@@ -980,10 +1019,10 @@ HOW TO USE
         // a decision anyone made, and sweeping them buried the findings that
         // were. Padding, margin and gap are typed by a person; those are the
         // spacing scale.
-        return this._scan(i, false)
+        return this._scan(i, Tools.setting(this, 'boxes'))
           // and drop what layout worked out rather than what anyone chose:
           // ml-auto arrives here as margin-left: 1127px
-          .filter(([, v]) => v <= CONFIG.GRID_MAX)
+          .filter(([, v]) => v <= Tools.setting(this, 'max'))
           .map(([n, v]) => ({
           el: i.el,
           verdict: 'fail',
@@ -1297,7 +1336,9 @@ HOW TO USE
     .dbgov-badge .dup { color: #ff8a65; font-weight: 700; }
     `,
       id: 'dupid',
-      icon: '⧉',
+      // not ⧉ — the copy button already uses that glyph, and two identical
+      // icons in one bar is a bar you have to read twice
+      icon: '⌗',
       title: 'Duplicate ids — the same id used more than once',
 
       rules: {
@@ -1345,6 +1386,71 @@ HOW TO USE
         if (!el.id) return [];
         const n = document.querySelectorAll(`[id="${CSS.escape ? CSS.escape(el.id) : el.id}"]`).length;
         return n > 1 ? [`  ⧉ id "${el.id}" is used ${n} times on this page`] : [];
+      },
+    });
+
+  // ─── src/tools/50-pick.js ──────────────────────────────────────────────
+  defineTool({
+    // visuals owned by this tool — appended to the stylesheet at boot
+    css: `
+    .dbgov-picked { outline: 2px solid #b5e853; outline-offset: 1px;
+      background: rgba(181,232,83,.12); }
+    `,
+      id: 'pick',
+      icon: '⌖',
+      title: 'Pick — Ctrl+click (⌘+click) copies what you clicked',
+      // OFF by default: it takes over a click, and a tool that changes what
+      // clicking does should be something you asked for.
+
+      /**
+       * What Ctrl+click puts on the clipboard. A selector is the address you
+       * paste into a chat or a test; the text is what you paste into a bug
+       * report or a translation file. Both are things you would otherwise
+       * select by hand and get wrong at the edges.
+       */
+      options() {
+        return [{ key: 'what', label: 'Ctrl+click copies', def: 'selector',
+                  values: ['selector', 'text'] }];
+      },
+
+      /**
+       * INPUT hook — the only one that acts on the page rather than describing
+       * it. Returning true means this click was ours: the pin that would
+       * normally follow does not happen, because landing a pin under an action
+       * is the overlay doing two things for one click.
+       *
+       * Meta as well as Ctrl: Ctrl+click is the context menu on macOS, so the
+       * modifier that means "modified click" there is ⌘.
+       */
+      intercept({ type, ev, el }) {
+        if (type !== 'click' || !(ev.ctrlKey || ev.metaKey)) return false;
+        const txt = Tools.setting(this, 'what') === 'text'
+          ? (el.textContent || '').trim()
+          : U.selectorOf(el);
+        if (!txt) return false;     // nothing to copy is not a click we took
+        Report.toClipboard(txt);
+        this._hit = el;
+        // The clipboard is invisible. Without this the only difference between
+        // a copy that worked and one that silently did not is what turns up
+        // when you paste, which is too late to notice.
+        clearTimeout(this._timer);
+        this._timer = setTimeout(() => { this._hit = null; Render.schedule(); },
+                                 CONFIG.PICK_FLASH);
+        Render.schedule();
+        return true;
+      },
+
+      draw({ layer, Place }) {
+        if (!this._hit || !document.contains(this._hit)) return;
+        const r = this._hit.getBoundingClientRect();
+        const box = document.createElement('div');
+        box.className = 'dbgov-box dbgov-picked';
+        Place.put(box, r.left, r.top, r.width, r.height);
+        layer.append(box);
+      },
+
+      report({ el }) {
+        return [`  selector: ${U.selectorOf(el)}`];
       },
     });
 
@@ -1404,6 +1510,12 @@ HOW TO USE
       background: #2c2c31; color: #b5e853; font-weight: 700; border: 0;
       border-radius: 6px; padding: 3px 6px; }
     #__dbgov-list .opt:hover { background: #3a3a41; }
+    #__dbgov-list .num { flex: none; display: flex; align-items: center; gap: 4px; }
+    #__dbgov-list .num .opt { width: 68px; text-align: right; }
+    #__dbgov-list .unit { color: #8f8f96; font-weight: 400; }
+    /* accent-color rather than a hand-built switch: the native control already
+       knows focus, keyboard and the platform's own hit target */
+    #__dbgov-list .tick { width: 15px; height: 15px; padding: 0; accent-color: #b5e853; }
     #__dbgov-list .rm { flex: none; width: 20px; height: 20px; border: 0; cursor: pointer;
       border-radius: 50%; background: #2c2c31; color: #ff8a8a; font-size: 11px;
       display: flex; align-items: center; justify-content: center; }
@@ -1516,6 +1628,198 @@ HOW TO USE
   root.append(layer);
   document.documentElement.append(root);
 
+  // ─── src/07a-controls.js ───────────────────────────────────────────────
+  /* ======================================================================
+    7a. CONTROLS — one widget, from a description of it
+
+        Split out of PANEL because it never needed anything PANEL owns: no
+        element, no state, no callbacks of its own. Everything it makes is
+        determined by its argument, which also makes it the one piece of the
+        panel that can be reasoned about without reading the rest of it.
+
+        `kind` is the entire vocabulary here. This file never learns which
+        setting it is drawing, what the value means, or who owns it — it
+        reports what the widget produced and the row's author decides what
+        that was.
+     ====================================================================== */
+  const Controls = {
+    /**
+     * An unknown kind renders an empty span rather than guessing. A row asking
+     * for something this cannot draw should be visibly missing, not silently
+     * approximated by whichever branch happened to fall through.
+     */
+    build(c, onChange) {
+      const fn = Controls[c.kind];
+      return fn ? fn(c, onChange) : document.createElement('span');
+    },
+
+    choice(c, onChange) {
+      const sel = document.createElement('select');
+      sel.className = 'opt';
+      c.choices.forEach((label, k) => {
+        const o = document.createElement('option');
+        o.value = String(k);
+        o.textContent = label;               // a tool's own label, still not HTML
+        sel.append(o);
+      });
+      sel.selectedIndex = c.selected || 0;
+      sel.addEventListener('click', (e) => e.stopPropagation());
+      sel.addEventListener('change', () => onChange(sel.selectedIndex));
+      return sel;
+    },
+
+    number(c, onChange) {
+      const wrap = document.createElement('span');
+      wrap.className = 'num';
+      const inp = document.createElement('input');
+      inp.type = 'number';
+      inp.className = 'opt';
+      inp.value = c.value;
+      if (c.min !== undefined) inp.min = String(c.min);
+      if (c.max !== undefined) inp.max = String(c.max);
+      if (c.step !== undefined) inp.step = String(c.step);
+      inp.addEventListener('click', (e) => e.stopPropagation());
+      // 'change', not 'input': every keystroke of "120" would otherwise be a
+      // separate value — 1, then 12 — each one re-running the rule behind it
+      inp.addEventListener('change', () => onChange(inp.value));
+      wrap.append(inp);
+      if (c.suffix) {
+        const u = document.createElement('span');
+        u.className = 'unit';
+        u.textContent = c.suffix;
+        wrap.append(u);
+      }
+      return wrap;
+    },
+
+    toggle(c, onChange) {
+      const inp = document.createElement('input');
+      inp.type = 'checkbox';
+      inp.className = 'opt tick';
+      inp.checked = !!c.on;
+      inp.addEventListener('click', (e) => e.stopPropagation());
+      inp.addEventListener('change', () => onChange(inp.checked));
+      return inp;
+    },
+  };
+
+  // ─── src/07b-list.js ───────────────────────────────────────────────────
+  /* ======================================================================
+    7b. LIST — the popover the panel opens
+
+        Split out of PANEL, which was doing two jobs: a bar of buttons that
+        drags and snaps, and a list that renders rows. They share only an
+        anchor — the popover has to know where the bar is and which edge it
+        sits against — so that is all this is given, as a small object PANEL
+        hands over.
+
+        Defined BEFORE the panel so nothing here is in scope before it exists;
+        the panel attaches to it on the way up.
+     ====================================================================== */
+  const List = (() => {
+    const el = document.createElement('div');
+    el.id = '__dbgov-list';
+    root.append(el);
+    let open = false;
+    let view = null;      // opaque name of whichever view is showing
+    let anchor = null;    // { el, side(), mark(view) } — supplied by PANEL
+
+    function place() {
+      if (!anchor) return;
+      const r = anchor.el.getBoundingClientRect();
+      const w = el.offsetWidth, h = el.offsetHeight;
+      const side = anchor.side();
+      let x, y;
+      if (side === 'left')       { x = r.right + 10; y = r.top; }
+      else if (side === 'right') { x = r.left - w - 10; y = r.top; }
+      else if (side === 'top')   { x = r.left - w / 2 + r.width / 2; y = r.bottom + 10; }
+      else                       { x = r.left - w / 2 + r.width / 2; y = r.top - h - 10; }
+      el.style.left = Math.max(6, Math.min(x, innerWidth - w - 6)) + 'px';
+      el.style.top = Math.max(6, Math.min(y, innerHeight - h - 6)) + 'px';
+    }
+
+    const api = {
+      onOpen: null, onRowActivate: null, onRowRemove: null, onRowChange: null,
+
+      /** PANEL says where it is and how to light up the button that opened us. */
+      attach(a) { anchor = a; },
+
+      isOpen: () => open,
+      /**
+       * One popover, several views. `view` is an opaque name off the button
+       * that opened it — this carries it and hands it back, and never learns
+       * what any of them mean.
+       */
+      view: () => view,
+      place,
+
+      toggle(v, name = 'pins') {
+        const same = open && view === name;
+        open = v === undefined ? !same : !!v;
+        view = open ? name : null;
+        el.classList.toggle('open', open);
+        anchor?.mark(view);
+        if (open) { api.onOpen?.(view); place(); }
+      },
+
+      /**
+       * rows: [{ tag, label, detail, removable }] — built by CONTROLLER, which
+       * is also where the empty-state wording comes from, because only it
+       * knows what this view is a list of.
+       *
+       * A row may carry a `control` description instead of a detail. This
+       * draws it and hands back whatever the widget produced — an index, a
+       * string, a boolean. It cannot learn what the setting is or what type
+       * its value has, and so cannot start deciding any of that.
+       */
+      set(rows, empty = '') {
+        el.textContent = '';
+        if (!rows.length) {
+          const e = document.createElement('div');
+          e.className = 'empty';
+          e.textContent = empty;
+          el.append(e);
+          place();
+          return;
+        }
+        rows.forEach((row, i) => {
+          const r = document.createElement('div');
+          r.className = 'row';
+          const tag = document.createElement('span');
+          tag.className = 'tag';
+          tag.textContent = row.tag;
+          const lbl = document.createElement('span');
+          lbl.className = 'lbl';
+          lbl.textContent = row.label;         // textContent: page text is never HTML here
+          // carried, not interpreted — the stylesheet decides what it means
+          if (row.accent) r.dataset.accent = row.accent;
+          r.addEventListener('click', () => api.onRowActivate?.(i));
+          if (row.control) {
+            r.append(tag, lbl, Controls.build(row.control, (raw) => api.onRowChange?.(i, raw)));
+          } else {
+            const det = document.createElement('span');
+            det.className = 'det';
+            det.textContent = row.detail || '';
+            r.append(tag, lbl, det);
+          }
+          // Only rows that own something can drop it. A finding is a fact
+          // about the page; there is nothing there for a ✕ to remove.
+          if (row.removable) {
+            const rm = document.createElement('button');
+            rm.className = 'rm';
+            rm.textContent = '✕';
+            rm.title = 'Remove';
+            rm.addEventListener('click', (e) => { e.stopPropagation(); api.onRowRemove?.(i); });
+            r.append(rm);
+          }
+          el.append(r);
+        });
+        place();
+      },
+    };
+    return api;
+  })();
+
   // ─── src/08-panel.js ───────────────────────────────────────────────────
   /* ======================================================================
      8. PANEL — self-contained; talks out only via callbacks
@@ -1548,24 +1852,14 @@ HOW TO USE
       <button class="act whenOn" data-clear title="Clear pins">✕</button>`;
     root.append(el);
 
-    // ---- pin list popover (opened from the count chip) ------------------
-    const listEl = document.createElement('div');
-    listEl.id = '__dbgov-list';
-    root.append(listEl);
-    let listOpen = false;
-    let listView = null;   // opaque name of whichever view is showing
-
-    function placeList() {
-      const r = el.getBoundingClientRect();
-      const w = listEl.offsetWidth, h = listEl.offsetHeight;
-      let x, y;
-      if (side === 'left')       { x = r.right + 10; y = r.top; }
-      else if (side === 'right') { x = r.left - w - 10; y = r.top; }
-      else if (side === 'top')   { x = r.left - w / 2 + r.width / 2; y = r.bottom + 10; }
-      else                       { x = r.left - w / 2 + r.width / 2; y = r.top - h - 10; }
-      listEl.style.left = Math.max(6, Math.min(x, innerWidth - w - 6)) + 'px';
-      listEl.style.top = Math.max(6, Math.min(y, innerHeight - h - 6)) + 'px';
-    }
+    // The popover is LIST's; this says where it hangs and lights up whichever
+    // button opened it. Nothing else about it is the bar's business.
+    List.attach({
+      el,
+      side: () => side,
+      mark: (view) => el.querySelectorAll('[data-view]').forEach(
+        (b) => b.classList.toggle('armed', !!view && b.dataset.view === view)),
+    });
 
     const api = {
       el,
@@ -1589,89 +1883,14 @@ HOW TO USE
       },
       setCount(n) { el.querySelector('[data-c]').textContent = String(n); },
 
-      isListOpen: () => listOpen,
-      /**
-       * One popover, several views. `view` is an opaque name off the button
-       * that opened it — the panel carries it and hands it back, and never
-       * learns what any of them mean.
-       */
-      view: () => listView,
-      toggleList(v, view = 'pins') {
-        const same = listOpen && listView === view;
-        listOpen = v === undefined ? !same : !!v;
-        listView = listOpen ? view : null;
-        listEl.classList.toggle('open', listOpen);
-        el.querySelectorAll('[data-view]').forEach((b) =>
-          b.classList.toggle('armed', listOpen && b.dataset.view === listView));
-        if (listOpen) { api.onListOpen?.(listView); placeList(); }
-      },
-      /**
-       * rows: [{ tag, label, detail, removable }] — built by CONTROLLER, which
-       * is also where the empty-state wording comes from, because only it
-       * knows what this view is a list of.
-       *
-       * A row may carry `choices` (strings) and `selected` (an index) instead
-       * of a detail, and then it renders as a picker. Strings and an index are
-       * deliberately all it gets: the panel cannot learn what the setting is,
-       * what type its value has, or which tool owns it, and so cannot start
-       * deciding any of that.
-       */
-      setList(rows, empty = '') {
-        listEl.textContent = '';
-        if (!rows.length) {
-          const e = document.createElement('div');
-          e.className = 'empty';
-          e.textContent = empty;
-          listEl.append(e);
-          placeList();
-          return;
-        }
-        rows.forEach((row, i) => {
-          const r = document.createElement('div');
-          r.className = 'row';
-          const tag = document.createElement('span');
-          tag.className = 'tag';
-          tag.textContent = row.tag;
-          const lbl = document.createElement('span');
-          lbl.className = 'lbl';
-          lbl.textContent = row.label;           // textContent: page text is never HTML here
-          // carried, not interpreted — the stylesheet decides what it means
-          if (row.accent) r.dataset.accent = row.accent;
-          r.addEventListener('click', () => api.onRowActivate?.(i));
-          if (row.choices) {
-            const sel = document.createElement('select');
-            sel.className = 'opt';
-            row.choices.forEach((c, k) => {
-              const o = document.createElement('option');
-              o.value = String(k);
-              o.textContent = c;                 // a tool's own label, still not HTML
-              sel.append(o);
-            });
-            sel.selectedIndex = row.selected || 0;
-            // the row beneath opens things; a picker must not also fire that
-            sel.addEventListener('click', (e) => e.stopPropagation());
-            sel.addEventListener('change', () => api.onRowChange?.(i, sel.selectedIndex));
-            r.append(tag, lbl, sel);
-          } else {
-            const det = document.createElement('span');
-            det.className = 'det';
-            det.textContent = row.detail || '';
-            r.append(tag, lbl, det);
-          }
-          // Only rows that own something can drop it. A finding is a fact
-          // about the page; there is nothing there for a ✕ to remove.
-          if (row.removable) {
-            const rm = document.createElement('button');
-            rm.className = 'rm';
-            rm.textContent = '✕';
-            rm.title = 'Remove';
-            rm.addEventListener('click', (e) => { e.stopPropagation(); api.onRowRemove?.(i); });
-            r.append(rm);
-          }
-          listEl.append(r);
-        });
-        placeList();
-      },
+      // The popover's own surface, forwarded so CONTROLLER and BOOT still have
+      // one thing to talk to. What it renders is LIST's business, not this
+      // file's — that is the whole point of the split.
+      isListOpen: List.isOpen,
+      view: List.view,
+      toggleList: List.toggle,
+      setList: List.set,
+
       flash(msg, sel = '[data-copy]') {
         const b = el.querySelector(sel);
         const old = b.textContent;
@@ -1681,6 +1900,13 @@ HOW TO USE
       rect: () => el.getBoundingClientRect(),
       isOn: () => el.classList.contains('on'),
     };
+
+    // LIST's events arrive as the panel's own, so BOOT still wires one object
+    // and nothing outside had to learn that the popover moved house.
+    List.onOpen = (v) => api.onListOpen?.(v);
+    List.onRowActivate = (i) => api.onRowActivate?.(i);
+    List.onRowRemove = (i) => api.onRowRemove?.(i);
+    List.onRowChange = (i, raw) => api.onRowChange?.(i, raw);
 
     el.querySelector('.pwr').addEventListener('click', () => api.onToggle?.());
     el.querySelectorAll('[data-tool]').forEach((b) =>
@@ -1739,7 +1965,7 @@ HOW TO USE
     }
     function scheduleTuck() {
       clearTimeout(tuckTimer);
-      if (api.isOn() || listOpen) { untuck(); return; }
+      if (api.isOn() || List.isOpen()) { untuck(); return; }
       tuckTimer = setTimeout(() => {
         if (!api.isOn() && !el.matches(':hover')) tuck();
       }, CONFIG.TUCK_DELAY);
@@ -1761,7 +1987,7 @@ HOW TO USE
       if (!drag) return;
       el.classList.add('dragging');
       applyPos(e.clientX - drag.dx, e.clientY - drag.dy);
-      if (listOpen) placeList();
+      if (List.isOpen()) List.place();
     });
     const endDrag = () => {
       if (!drag) return;
@@ -1769,11 +1995,11 @@ HOW TO USE
       el.classList.remove('dragging');
       snap();
       scheduleTuck();
-      if (listOpen) placeList();
+      if (List.isOpen()) List.place();
     };
     el.addEventListener('pointerup', endDrag);
     el.addEventListener('pointercancel', endDrag);
-    addEventListener('resize', () => { snap(); if (listOpen) placeList(); });
+    addEventListener('resize', () => { snap(); if (List.isOpen()) List.place(); });
 
     return api;
   })();
@@ -2065,20 +2291,28 @@ HOW TO USE
       return ` — whole page · ${s.rules} rule${s.rules === 1 ? '' : 's'}` +
              ` · ${s.elements} elements`;
     },
-    async copy() {
-      const txt = Report.text();
+    /**
+     * Put text on the clipboard. Separate from copy() because it is not only
+     * the report that ever wants this — a tool that picks something off the
+     * page needs the same two-step, and a second copy of the fallback is a
+     * second thing to get wrong.
+     */
+    async toClipboard(txt) {
       try {
         await navigator.clipboard.writeText(txt);
-        Panel.flash('✓');
       } catch {
+        // no clipboard permission, or an insecure origin
         const t = document.createElement('textarea');
         t.value = txt;
         document.body.append(t);
         t.select();
         document.execCommand('copy');
         t.remove();
-        Panel.flash('✓');
       }
+    },
+    async copy() {
+      await Report.toClipboard(Report.text());
+      Panel.flash('✓');
     },
   };
 
@@ -2097,6 +2331,25 @@ HOW TO USE
     // and the panel handles its own clicks.
     ours(e) {
       return State.enabled && !e.altKey && !root.contains(e.target);
+    },
+
+    /**
+     * Offer an event to the armed tools before the overlay's own default.
+     *
+     * WHY: every hook until now was read-or-render — a tool could describe the
+     * page and judge it, but nothing could act on it, so anything that changes
+     * what you clicked had nowhere to live. This is the one place input enters,
+     * so it is the one place that can hand it on, and it does so by hook: no
+     * tool is named here and none ever will be.
+     *
+     * The first tool to say it consumed the event ends it. Two tools acting on
+     * one click is a page doing two things nobody asked for, and a pin landing
+     * underneath an edit is the same bug wearing the overlay's own clothes.
+     */
+    claimed(type, ev, el) {
+      for (const t of Tools.withHook('intercept', true))
+        if (t.intercept.call(t, { type, ev, el })) return true;
+      return false;
     },
 
     // in remove mode only pins are targetable — pick the innermost one
@@ -2181,6 +2434,7 @@ HOW TO USE
         }
         const el = document.elementFromPoint(e.clientX, e.clientY);
         if (!el || root.contains(el)) return;
+        if (Interactions.claimed('click', e, el)) return;
         ctl.togglePin(el, e.shiftKey ? CONFIG.PIN_KIND.SHIFT : CONFIG.PIN_KIND.PLAIN);
       }, true);
 
@@ -2224,45 +2478,30 @@ HOW TO USE
 
     /** Rows for whichever view the panel is showing. */
     rows(view) {
-      if (view === 'settings') return Controller.settingRows();
+      if (view === 'settings') return Settings.rows();
       return view === 'findings' ? Controller.findingRows() : Controller.pinList();
     },
 
     /**
-     * One row per option per tool, in registry order. Nothing here knows what
-     * any option MEANS — the tool named it, gave it its choices and supplied
-     * the default; this turns that into rows and turns a chosen index back
-     * into the tool's own value.
+     * A row changed. Which row depends on the view showing, so this asks for
+     * that view's rows — indexing settings by a number that came from the pin
+     * list would write the wrong setting entirely.
      */
-    settingRows() {
-      const rows = [];
-      for (const t of Tools.withHook('options')) {
-        for (const o of t.options.call(t)) {
-          const cur = Tools.setting(t, o.key);
-          // A default the tool does not list among its own choices would show
-          // as choice 0 while the rule went on using something else — a picker
-          // quietly disagreeing with the thing it claims to control. Carry the
-          // live value as a choice instead, so what is in force is always on
-          // screen and always selectable.
-          const values = o.values.includes(cur) ? o.values : [cur, ...o.values];
-          rows.push({
-            tag: t.icon,
-            label: o.label,
-            choices: values.map((v) => `${v}${o.suffix || ''}`),
-            selected: values.indexOf(cur),
-            tool: t, opt: o, values,
-          });
-        }
-      }
-      return rows;
-    },
-    changeSetting(i, choice) {
-      const row = Controller.settingRows()[i];
+    changeRow(i, raw) {
+      const row = Controller.rows(Panel.view())[i];
       if (!row) return;
-      const v = row.values[choice];   // the list the panel was shown, not the raw one
-      if (v === undefined) return;
-      (State.settings[row.tool.id] ||= {})[row.opt.key] = v;
-      Store.set(CONFIG.SETTINGS_KEY, JSON.stringify(State.settings));
+      // a tool's own row carries its own handler; a settings row carries the
+      // option it was built from
+      if (row.onChange) {
+        row.onChange(raw);
+        Render.schedule();
+        Controller.refreshList();
+        return;
+      }
+      if (!row.opt) return;
+      const v = Settings.fromControl(row, raw);
+      if (v === null) { Controller.refreshList(); return; }   // put the field back
+      Settings.apply(row, v);
       // The last sweep was judged under the OLD setting. Leaving it up would
       // keep findings on screen that the rule would no longer make, with
       // nothing saying why — the same lie as a stale audit after the page
@@ -2270,25 +2509,6 @@ HOW TO USE
       State.sweep = null;
       Render.schedule();
       Controller.refreshList();
-    },
-    /**
-     * Every option's default comes from the tool, and the saved value only
-     * overrides it if the tool still offers it. Resolved once, here, so that
-     * Tools.setting() stays a lookup: grid asks for its step once per number
-     * on a page that has thousands of them.
-     */
-    loadSettings() {
-      let saved = {};
-      try { saved = JSON.parse(Store.get(CONFIG.SETTINGS_KEY) || '{}') || {}; } catch {}
-      const out = {};
-      for (const t of Tools.withHook('options')) {
-        out[t.id] = {};
-        for (const o of t.options.call(t)) {
-          const was = saved[t.id]?.[o.key];
-          out[t.id][o.key] = o.values.includes(was) ? was : o.def;
-        }
-      }
-      State.settings = out;
     },
     /** One row per distinct problem, worst first. No pin, so nothing to remove. */
     findingRows() {
@@ -2325,8 +2545,13 @@ HOW TO USE
       Render.schedule();
       Controller.refreshList();
     },
+    /**
+     * Which tools are armed. A saved set wins; failing that, each tool decides
+     * for itself with `startsOn`. Ids only ever come from the registry or from
+     * something the registry already vouched for, so no core file spells one.
+     */
     loadTools() {
-      let ids = CONFIG.DEFAULT_TOOLS;
+      let ids = TOOLS.filter((t) => t.startsOn).map((t) => t.id);
       try {
         const saved = JSON.parse(Store.get(CONFIG.TOOLS_KEY) || 'null');
         if (Array.isArray(saved)) ids = saved;
@@ -2435,6 +2660,116 @@ HOW TO USE
       State.detail = !State.detail;
       Panel.setDetail(State.detail);
       Render.schedule();
+    },
+  };
+
+  // ─── src/14a-settings.js ───────────────────────────────────────────────
+  /* ======================================================================
+    14a. SETTINGS — the ⚙ view, and what a tool's options mean
+
+        Split out of CONTROLLER, which had grown two jobs: wiring the modules
+        together, and being the whole of the settings system. This is the
+        second one. CONTROLLER still owns the dispatch — which view is showing,
+        which row changed — because that is glue and glue is its job.
+
+        Nothing here knows what any option MEANS. The tool named it, gave it
+        its choices and supplied the default; this turns that into rows, and
+        turns whatever the panel's widget produced back into the tool's own
+        value.
+     ====================================================================== */
+  const Settings = {
+    /** One row per option per tool, in registry order. */
+    rows() {
+      const rows = [];
+      for (const t of Tools.withHook('options')) {
+        for (const o of t.options.call(t)) {
+          rows.push({
+            tag: t.icon,
+            label: o.label,
+            control: Settings.controlFor(o, Tools.setting(t, o.key)),
+            tool: t, opt: o,
+          });
+        }
+      }
+      return rows;
+    },
+
+    /**
+     * How one option wants drawing. An option with `values` is a choice; the
+     * two typed kinds are for the settings a list cannot express — a threshold
+     * somebody has to type, a thing that is simply on or off.
+     */
+    controlFor(o, cur) {
+      if (o.type === 'number') {
+        return { kind: 'number', value: String(cur), suffix: o.suffix || '',
+                 min: o.min, max: o.max, step: o.step };
+      }
+      if (o.type === 'toggle') return { kind: 'toggle', on: !!cur };
+      // A default the tool does not list among its own choices would show as
+      // choice 0 while the rule went on using something else — a picker
+      // quietly disagreeing with the thing it claims to control. Carry the
+      // live value as a choice instead, so what is in force is always on
+      // screen and always selectable.
+      const values = o.values.includes(cur) ? o.values : [cur, ...o.values];
+      return { kind: 'choice', values,
+               choices: values.map((v) => `${v}${o.suffix || ''}`),
+               selected: values.indexOf(cur) };
+    },
+
+    /** Is `v` something this option could actually be set to? */
+    valid(o, v) {
+      if (v === undefined || v === null) return false;
+      if (o.type === 'number') {
+        return typeof v === 'number' && Number.isFinite(v) &&
+               v >= (o.min ?? -Infinity) && v <= (o.max ?? Infinity);
+      }
+      if (o.type === 'toggle') return typeof v === 'boolean';
+      return o.values.includes(v);
+    },
+
+    /**
+     * Whatever the panel's widget produced, turned back into the option's own
+     * value. Returns null for anything that is not a legal setting — a number
+     * field accepts empty and "e", and neither may reach a rule.
+     */
+    fromControl(row, raw) {
+      const o = row.opt;
+      if (o.type === 'number') {
+        const n = Number(raw);
+        if (raw === '' || !Number.isFinite(n)) return null;
+        // clamp rather than reject: the input's own min/max are advisory, and
+        // a typed 5000 should land on the ceiling, not silently do nothing
+        return Math.min(o.max ?? Infinity, Math.max(o.min ?? -Infinity, n));
+      }
+      if (o.type === 'toggle') return !!raw;
+      const v = row.control.values[raw];
+      return v === undefined ? null : v;
+    },
+
+    /** Write one option through, and persist the lot. */
+    apply(row, v) {
+      (State.settings[row.tool.id] ||= {})[row.opt.key] = v;
+      Store.set(CONFIG.SETTINGS_KEY, JSON.stringify(State.settings));
+    },
+
+    /**
+     * Every option's default comes from the tool, and a saved value only
+     * overrides it if the tool still offers it. Resolved once, here, so that
+     * Tools.setting() stays a lookup: grid asks for its step once per number
+     * on a page that has thousands of them.
+     */
+    load() {
+      let saved = {};
+      try { saved = JSON.parse(Store.get(CONFIG.SETTINGS_KEY) || '{}') || {}; } catch {}
+      const out = {};
+      for (const t of Tools.withHook('options')) {
+        out[t.id] = {};
+        for (const o of t.options.call(t)) {
+          const was = saved[t.id]?.[o.key];
+          out[t.id][o.key] = Settings.valid(o, was) ? was : o.def;
+        }
+      }
+      State.settings = out;
     },
   };
 
@@ -2557,11 +2892,11 @@ HOW TO USE
     Panel.setList(Controller.rows(view), Controller.emptyFor(view));
   Panel.onRowActivate = Controller.revealRow;
   Panel.onRowRemove = Controller.removeRow;
-  Panel.onRowChange = Controller.changeSetting;
+  Panel.onRowChange = Controller.changeRow;
 
   // before loadTools: a tool's options decide what its rules do, and arming
   // one immediately schedules a render that asks
-  Controller.loadSettings();
+  Settings.load();
   Controller.loadTools();
   Interactions.install(Controller);
   Controller.setPower(false);

@@ -211,7 +211,17 @@ not: arming decides what is drawn on screen, never what is checked.
 
 Available hooks, all optional: `badge`, `compact`, `report`, `reportTail`,
 `draw`, `listRows`, `pendingIndex`, `annotate`, `audit`, `auditPage`,
-`options`, `css`.
+`options`, `intercept`, `css`.
+
+`startsOn: true` arms the tool on a fresh install. It is a field on the tool
+rather than a list in `CONFIG`, so shipping a tool never means editing a core
+file to name it.
+
+`intercept({ type, ev, el })` is the only hook that **acts** on the page rather
+than describing it. Armed tools are offered each click before it becomes a pin;
+returning true means the click was yours and no pin lands underneath. Claim
+narrowly — `50-pick.js` takes only Ctrl/⌘+clicks — because a tool that swallows
+every click has taken the overlay away from everything else.
 
 `options()` makes a tool adjustable without a rebuild — one row each under the
 panel's ⚙, read back with `Tools.setting(this, 'key')`:
@@ -228,6 +238,14 @@ while the panel says what this one is doing now. Never state the value in a
 `title` or a rule's `help` — those are built once and would go on claiming the
 old number. Changing an option clears the last sweep, because those findings
 were judged under the previous value.
+
+Three kinds of option, so a setting is not forced into a list it does not fit:
+
+| declared | control |
+|---|---|
+| `values: [1, 2, 4, 8]` | a picker |
+| `type: 'number', min, max, step` | a threshold you type |
+| `type: 'toggle'` | on or off |
 
 `audit(info)` judges one element; `auditPage(all)` runs once per sweep with
 every visible element, for questions no single element can answer. A tool's

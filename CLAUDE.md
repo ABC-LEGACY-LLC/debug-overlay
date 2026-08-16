@@ -8,20 +8,24 @@ smoke test. Do not consider a change done until all three pass.
 
 Edit `src/`. Never edit `dist/` — the next build overwrites it.
 
-## Shipping a change (this is where it goes wrong)
-`npm run check` builds with `--same`, so it does **not** bump the version.
-A green check does not mean a push will reach anybody. The full sequence:
-
+## Shipping a change
 ```bash
-npm run check     # verify — no bump
-node build.js     # bump + rebuild dist/  ← skipping this is the whole bug
+npm run ship      # verify, bump, rebuild — refuses if the version did not move
 git add -A && git commit -m "…" && git push
+npm run shipped   # did it actually reach the URL Tampermonkey reads?
 ```
 
-Push without `node build.js` and the version Tampermonkey sees is the one it
-already has, so it decides there is nothing to fetch. The push succeeds, the
-overlay never changes, and nothing reports an error. If a change appears not
-to reach the browser, check `@version` in `dist/debug-overlay.meta.js` first.
+`npm run check` builds with `--same`, so it does **not** bump. A green check
+does not mean a push will reach anybody: Tampermonkey only fetches on a HIGHER
+`@version`, so pushing an un-bumped build succeeds, changes nothing, and
+reports no error anywhere. That is why `ship` exists — it makes forgetting the
+bump impossible, and `shipped` asks the update URL what the world can actually
+see, which is the only answer that counts. `npm run shipped` names this exact
+state ("v3.8.28 is live AND is the version sitting on your changes") and exits
+non-zero.
+
+`check` is still the right thing to run while working. `ship` is for when you
+mean it.
 
 ## Looking at a change before shipping it
 `npm run dev` serves `dev/index.html` with the built bundle and rebuilds on
@@ -36,6 +40,16 @@ tab: the bundle skips frames, so an embedded editor preview shows nothing.
 - A new debug capability is a NEW FILE in `src/tools/`, never an edit to the
   renderer, panel or controller. If you feel the urge to edit those to add a
   tool, the tool needs a new hook instead — add the hook generically.
+- Sections split when they grow two jobs, and the split keeps the caller's
+  surface identical: `07a-controls.js` and `07b-list.js` came out of the panel,
+  `14a-settings.js` out of the controller, and `Panel.setList` / `Panel.view`
+  still exist because nothing outside should have to learn that. Files sort
+  into build order by name, so `07a` lands after `07-dom.js` and before
+  `08-panel.js` — check the ordering before naming a new one.
+- `tools/30-contrast.js` is over the 220-line advisory and staying there. The
+  only way to shrink it is to move the colour helpers into a core file, and
+  they live in the tool deliberately (see below). A line count is not worth
+  trading a boundary for.
 - Tunable numbers go in `src/01-config.js`. Never inline a magic number. If it
   is a number a *user* would want different on their project — a grid step, a
   threshold — CONFIG holds the default and the tool exposes it via `options()`
@@ -89,6 +103,27 @@ label.
 
 `audit.js` fails a tool with no `icon` or `title` — the panel paints both
 straight into the bar, and a button reading `undefined` is not a control.
+
+Options come in three kinds — `values:` for a picker, `type: 'number'` with
+`min`/`max`/`step`, `type: 'toggle'` — so a setting is never forced into a list
+it does not fit. A number field accepts `""` and `"e"`; `Settings.fromControl`
+returns null for those and the row is redrawn from the value still in force,
+because a rule must never be handed NaN.
+
+`startsOn: true` on the tool replaced `CONFIG.DEFAULT_TOOLS`. That list named
+tool ids in a core file, which made "a new tool is one new file" not quite
+true; now nothing central knows the name of anything.
+
+## The one hook that writes
+`intercept({ type, ev, el })` is offered to armed tools before a click becomes
+a pin — `13-interactions.js` is where input enters, so it is the only place
+that can hand it on, and it does so by hook with no tool named. Return true and
+the click was yours; the pin does not also happen, because the overlay doing
+two things for one click is its own bug.
+
+Claim narrowly. `50-pick.js` takes only Ctrl/⌘+clicks; a tool that swallows
+every click has taken the overlay away from everything else. Meta as well as
+Ctrl, because Ctrl+click is the context menu on macOS.
 
 ## We run in a sandbox now, so never ask a window who it is
 The header grants `GM_getValue`/`GM_setValue`, because `localStorage` is scoped

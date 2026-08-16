@@ -4,6 +4,8 @@
   "description": "Debug Overlay — a screenshot-friendly UI inspector shipped as a Tampermonkey userscript. The shipped version number lives in userscript.json, not here — build.js owns it.",
   "scripts": {
     "check": "node build.js --same && node audit.js && node test.js",
+    "ship": "node ship.js",
+    "shipped": "node ship.js --status",
     "dev": "node dev/serve.js",
     "build": "node build.js",
     "watch": "node build.js --watch",

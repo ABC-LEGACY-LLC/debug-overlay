@@ -53,6 +53,12 @@
       background: #2c2c31; color: #b5e853; font-weight: 700; border: 0;
       border-radius: 6px; padding: 3px 6px; }
     #__dbgov-list .opt:hover { background: #3a3a41; }
+    #__dbgov-list .num { flex: none; display: flex; align-items: center; gap: 4px; }
+    #__dbgov-list .num .opt { width: 68px; text-align: right; }
+    #__dbgov-list .unit { color: #8f8f96; font-weight: 400; }
+    /* accent-color rather than a hand-built switch: the native control already
+       knows focus, keyboard and the platform's own hit target */
+    #__dbgov-list .tick { width: 15px; height: 15px; padding: 0; accent-color: #b5e853; }
     #__dbgov-list .rm { flex: none; width: 20px; height: 20px; border: 0; cursor: pointer;
       border-radius: 50%; background: #2c2c31; color: #ff8a8a; font-size: 11px;
       display: flex; align-items: center; justify-content: center; }

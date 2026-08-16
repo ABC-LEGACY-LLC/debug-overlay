@@ -8,6 +8,7 @@
       // No number in the title: the step is the user's now, and a title baked
       // at boot would still be claiming 2px long after they picked 8.
       title: 'Grid — flag values off the spacing grid',
+      startsOn: true,      // the ⚠ on a badge is what makes the read-out useful
 
       rules: {
         'grid-off': {
@@ -25,8 +26,22 @@
        * CONFIG.GRID is the default; this is how it stops needing a rebuild.
        */
       options() {
-        return [{ key: 'step', label: 'Grid step', def: CONFIG.GRID,
-                  values: [1, 2, 4, 8], suffix: 'px' }];
+        return [
+          { key: 'step', label: 'Grid step', def: CONFIG.GRID,
+            values: [1, 2, 4, 8], suffix: 'px' },
+          // Where a spacing token stops and layout arithmetic begins. It is a
+          // judgement about a project, not a constant: margin:auto resolved to
+          // 1127px on a real page, and the cut-off that keeps that out is the
+          // same one that could hide a real 120px gap.
+          { key: 'max', label: 'Ignore above', def: CONFIG.GRID_MAX,
+            type: 'number', min: 8, max: 2000, step: 8, suffix: 'px' },
+          // OFF, and it has to stay the default: width and height are what
+          // layout produced, not what anyone typed, and judging them turned one
+          // real signal into 2,215 findings about icon geometry. Available
+          // because on a page of fixed-size components it is the right question.
+          { key: 'boxes', label: 'Judge width & height', def: false,
+            type: 'toggle' },
+        ];
       },
       // a method, not an arrow: it needs `this` to ask for its own setting.
       // 0 is never off the grid, or every padding:0 would light up
@@ -86,10 +101,10 @@
         // a decision anyone made, and sweeping them buried the findings that
         // were. Padding, margin and gap are typed by a person; those are the
         // spacing scale.
-        return this._scan(i, false)
+        return this._scan(i, Tools.setting(this, 'boxes'))
           // and drop what layout worked out rather than what anyone chose:
           // ml-auto arrives here as margin-left: 1127px
-          .filter(([, v]) => v <= CONFIG.GRID_MAX)
+          .filter(([, v]) => v <= Tools.setting(this, 'max'))
           .map(([n, v]) => ({
           el: i.el,
           verdict: 'fail',

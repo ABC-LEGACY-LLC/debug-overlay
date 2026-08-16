@@ -4,7 +4,9 @@
     .dbgov-badge .dup { color: #ff8a65; font-weight: 700; }
     `,
       id: 'dupid',
-      icon: '⧉',
+      // not ⧉ — the copy button already uses that glyph, and two identical
+      // icons in one bar is a bar you have to read twice
+      icon: '⌗',
       title: 'Duplicate ids — the same id used more than once',
 
       rules: {

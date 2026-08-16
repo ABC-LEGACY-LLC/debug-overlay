@@ -98,7 +98,8 @@ const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm,
 // \b would match U.mark(…) and this.pairs(); a hook is never called through a dot
 const calls = (s, h) => new RegExp(`(^|[^.\\w])${h}\\s*\\(`, 'm').test(strip(s));
 const HOOKS = ['badge', 'compact', 'report', 'reportTail', 'draw', 'listRows',
-               'pendingIndex', 'annotate', 'audit', 'auditPage', 'options'];
+               'pendingIndex', 'annotate', 'audit', 'auditPage', 'options',
+               'intercept'];
 
 for (const t of tools) {
   const bad = [];

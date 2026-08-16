@@ -75,19 +75,27 @@
       return ` — whole page · ${s.rules} rule${s.rules === 1 ? '' : 's'}` +
              ` · ${s.elements} elements`;
     },
-    async copy() {
-      const txt = Report.text();
+    /**
+     * Put text on the clipboard. Separate from copy() because it is not only
+     * the report that ever wants this — a tool that picks something off the
+     * page needs the same two-step, and a second copy of the fallback is a
+     * second thing to get wrong.
+     */
+    async toClipboard(txt) {
       try {
         await navigator.clipboard.writeText(txt);
-        Panel.flash('✓');
       } catch {
+        // no clipboard permission, or an insecure origin
         const t = document.createElement('textarea');
         t.value = txt;
         document.body.append(t);
         t.select();
         document.execCommand('copy');
         t.remove();
-        Panel.flash('✓');
       }
+    },
+    async copy() {
+      await Report.toClipboard(Report.text());
+      Panel.flash('✓');
     },
   };
