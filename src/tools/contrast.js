@@ -1,15 +1,9 @@
-  /**
-   * DETECT half of what used to be `contrast`, and the half that draws where
-   * the failures are.
-   *
-   * Three answers, not two. An element with no text of its own has no contrast
-   * to have — that is silence, correctly. A colour space that cannot be read,
-   * a gradient behind the text, a missing canvas: those are REVIEWS, each
-   * carrying a reason, because folding them in with the passes let a page of
-   * unreadable text audit clean.
-   */
   defineTool({
+    // visuals owned by this tool — appended to the stylesheet at boot
     css: `
+    .dbgov-badge .ok  { color: #b5e853; }
+    .dbgov-badge .bad { color: #ff6b6b; font-weight: 700; }
+    .dbgov-badge .unk { color: #8ab4f8; font-style: italic; }
     /* where the findings actually are. dashed, never filled: a mark points at
        a problem, it must not hide the thing it is pointing at */
     .dbgov-flag { outline-offset: 1px; }
@@ -18,10 +12,13 @@
     .dbgov-flag.info   { outline: 2px dashed #9ad0ff; }
     .dbgov-flag.review { outline: 2px dotted #8ab4f8; }
     `,
-      id: 'colour-rule',
-      icon: '◑',
-      title: 'Contrast rule — audit the whole page for unreadable text',
+      id: 'contrast',
+      icon: '◐',
+      // the level is the user's choice now, so it cannot be stated here
+      title: 'Contrast — WCAG text contrast ratio',
 
+      // What each rule IS, separate from what any one element measured. The
+      // instance message says 2.76:1; this says why, and what to do.
       rules: {
         'contrast-aa': {
           help: 'Body text needs 4.5:1 against its background, or 7:1 at AAA; ' +
@@ -87,5 +84,25 @@
           Place.put(box, r.left, r.top, r.width, r.height);
           layer.append(box);
         }
+      },
+      badge(i) {
+        const c = Colour.measure(i);
+        if (!c) return null;
+        // say so on hover too — silence here is what taught the eye to trust
+        // a page the tool had not actually checked
+        if (c.unknown) return `<span class="unk">contrast ?</span>`;
+        const cls = c.pass ? 'ok' : 'bad';
+        return `<span class="${cls}">${c.ratio.toFixed(2)}:1 ${c.level}${c.pass ? '✓' : '✗'}</span>`;
+      },
+      compact(i) {
+        const c = Colour.measure(i);
+        if (!c || c.unknown || c.pass) return null;   // quiet unless it fails
+        return `<span class="bad">${c.ratio.toFixed(1)}:1 ✗</span>`;
+      },
+      report(i) {
+        const c = Colour.measure(i);
+        if (!c) return [];
+        if (c.unknown) return [`  contrast: not measured — ${Colour.why[c.unknown]}`];
+        return [`  contrast: ${c.ratio.toFixed(2)}:1 vs required ${c.need} (${c.isLarge ? 'large' : 'normal'} text) → ${c.pass ? 'PASS' : 'FAIL'}`];
       },
     });
