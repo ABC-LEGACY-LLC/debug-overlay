@@ -60,7 +60,12 @@
           ctl.setRemoveMode(true);
           return;
         }
-        if (e.key === 'Escape' && State.enabled) {
+        // Escape inside a field is "abandon this edit", not "throw my pins
+        // away". The ⚙ controls live in root, and a page's own inputs answer
+        // to typing() — without both guards, leaving a number half-typed
+        // cleared every pin and nothing on screen said why.
+        if (e.key === 'Escape' && State.enabled &&
+            !Interactions.typing(e) && !root.contains(e.target)) {
           if (State.removeMode) ctl.setRemoveMode(false);
           else if (State.pins.length) ctl.clearPins();
           else ctl.setPower(false);

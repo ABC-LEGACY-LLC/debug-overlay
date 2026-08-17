@@ -274,6 +274,44 @@ from `userscript.json`. This exists because a stale install and a current one
 otherwise look identical, which is the same failure as a dead `@updateURL`
 seen from the other end.
 
+## Things a rule got wrong, and must not again
+- **Read `opacity`.** `color:#000; opacity:.1` was reported 21:1 PASS while the
+  identical `rgba(0,0,0,.1)` was reported 1.25:1 FAIL. The sweep's gate only
+  skips the exact string `'0'`, so anything fainter still arrives here.
+- **A first-truthy chain is not a check of both axes.** `rowGap || columnGap`
+  meant an off-grid column gap beside an on-grid row gap was invisible.
+- **`Math.round` breaks ties toward +Infinity**, so `+2.5` and `-2.5` got
+  opposite grid verdicts. `U.px` rounds half away from zero.
+- **One judgement, asked in one place.** `Scale.judges(n)` is off-grid AND
+  within the ceiling; the badge and the sweep both call it. When the ceiling
+  lived only in the rule, a resolved `margin:auto` got a ⚠ and no finding.
+- **Two settings must not silently cancel.** The 96px spacing ceiling applied
+  to width and height too, so arming "Judge width & height" produced nothing.
+- **Only `affects: 'detect'` invalidates a sweep.** Throwing away the most
+  expensive thing the tool does because a copy preference changed is not caution.
+
+## The list renders by index, so the index must stay true
+`List.set` binds each row to its position and hands that position back. The
+renderer prunes pins whose element left the page, and doing that without
+telling the list left every later row resolving one position too far — ✕ on
+`#3` deleted `#2`. `ui/` may not call `app/`, so the renderer announces
+(`Render.onPinsPruned`) and `boot.js` decides who listens. Any future path that
+mutates `State.pins` outside the controller owes the same announcement.
+
+Escape belongs to whatever has focus: guarded by `Interactions.typing(e)` AND
+`root.contains(e.target)`, because the ⚙ controls are inputs inside the
+overlay's own root and abandoning an edit used to clear every pin.
+
+## An update must not take anything away
+- A saved armed set answers for the tools that existed when it was written.
+  `CONFIG.SEEN_KEY` records which ids this install has met, so a capability
+  shipped later gets its `startsOn` say while one the user switched off stays
+  off. Without it a new tool arrived invisible.
+- An owner that changes the id its settings are stored under declares `was:`.
+- Settings whose owner this build cannot name are carried untouched
+  (`Settings.carried`) rather than pruned on the next unrelated write — or no
+  later version could migrate what an earlier one saved.
+
 ## A rule has three answers, not two
 Pass, fail, and **`verdict: 'review'`** — I tried and could not tell. The third
 is not a nicety: silence was the first fix and it turned out to be its own

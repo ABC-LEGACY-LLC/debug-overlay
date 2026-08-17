@@ -29,7 +29,7 @@
        * split: the rule below reaches the same verdict through the same call.
        */
       annotate(html, n) {
-        return Scale.off(n) ? `<span class="warn">${html}⚠</span>` : html;
+        return Scale.judges(n) ? `<span class="warn">${html}⚠</span>` : html;
       },
 
       report(i) {
@@ -60,16 +60,11 @@
         // a decision anyone made, and sweeping them buried the findings that
         // were. Padding, margin and gap are typed by a person; those are the
         // spacing scale.
+        // No filter here any more. The ceiling — and the fact that it has two
+        // sides, and that it must not apply to a width or a height — all
+        // belong to Scale.judges, so the badge and this reach the same verdict
+        // through the same call and cannot disagree about one number.
         return Scale.scan(i, Scale.boxes())
-          // and drop what layout worked out rather than what anyone chose:
-          // ml-auto arrives here as margin-left: 1127px.
-          //
-          // ABS, because the ceiling has two sides. `v <= max` bounded the
-          // positive one only, so a negative margin of any size sailed through
-          // — a real page reported -1127px as off-grid while +1127px was
-          // correctly ignored, and a pull-left of -240px would have read as a
-          // spacing decision somebody made.
-          .filter(([, v]) => Math.abs(v) <= Scale.max())
           .map(([n, v]) => ({
           el: i.el,
           verdict: 'fail',

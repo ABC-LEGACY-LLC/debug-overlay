@@ -16,6 +16,10 @@
 
   // before loadTools: a tool's options decide what its rules do, and arming
   // one immediately schedules a render that asks
+  // the page can remove a pinned element at any time; the list must not go on
+  // showing rows that no longer index into anything
+  Render.onPinsPruned = Controller.refreshList;
+
   Settings.load();
   Controller.loadTools();
   Interactions.install(Controller);

@@ -176,7 +176,20 @@
         if (!fg) return { unknown: this.paint() ? 'fg-colour' : 'no-canvas' };
         const bg = this.bg(el);
         if (bg.unknown) return bg;
-        const ratio = this.ratio(fg, bg);
+        // CSS opacity, which nothing here used to read. `color: rgba(0,0,0,.1)`
+        // was correctly reported 1.25:1 while the visually identical
+        // `color: #000; opacity:.1` was reported 21.00:1 PASS — a confident
+        // wrong answer about text nobody can read, which is the one outcome
+        // the three-answer design exists to rule out. The sweep's own gate
+        // only skips the exact string '0', so 0.01 reaches here.
+        //
+        // Folding it into the foreground alpha is exact when the element paints
+        // no background of its own, which is the ordinary case for text. Where
+        // it does, both text and that background fade together and this
+        // understates the ratio — erring toward reporting a problem, which is
+        // the safe direction for a rule about readability.
+        const faded = { ...fg, a: (fg.a == null ? 1 : fg.a) * this.opacityOf(el) };
+        const ratio = this.ratio(faded, bg);
         const size = parseFloat(cs.fontSize);
         const bold = parseInt(cs.fontWeight, 10) >= 700;
         const isLarge = size >= CONFIG.CONTRAST.largePx ||
@@ -187,7 +200,18 @@
         const level = Tools.setting(this, 'level');
         const want = CONFIG.CONTRAST.levels[level];
         const need = isLarge ? want.large : want.normal;
-        return { ratio, need, pass: ratio >= need, isLarge, fg, bg, level, want };
+        return { ratio, need, pass: ratio >= need, isLarge, fg: faded, bg, level, want };
       },
+    /** Cumulative CSS opacity: every ancestor multiplies what is painted. */
+    opacityOf(el) {
+      let o = 1;
+      for (let e = el; e && e.nodeType === 1; e = e.parentElement) {
+        const v = parseFloat(getComputedStyle(e).opacity);
+        if (Number.isFinite(v) && v < 1) o *= Math.max(0, v);
+        if (o === 0) break;
+      }
+      return o;
+    },
+
     rgb: (c) => `${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)}`,
   });

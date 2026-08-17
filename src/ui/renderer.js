@@ -9,7 +9,13 @@
       Place.reset();
       if (!State.enabled) return;
 
+      // The popover renders rows by index and hands that index back. Dropping
+      // a pin here without telling it left every row after the gap resolving
+      // one position too far — clicking ✕ on #3 deleted #2. UI may not call
+      // APP, so it announces and BOOT decides who listens.
+      const had = State.pins.length;
       State.pins = State.pins.filter((p) => document.contains(p.el));
+      if (State.pins.length !== had) Render.onPinsPruned?.();
       const pinned = new Set(State.pins.map((p) => p.el));
 
       // a tool may mark one pin as "still being chosen" — the renderer just asks
@@ -104,6 +110,7 @@
 
     return {
       now,
+      onPinsPruned: null,
       schedule() {
         cancelAnimationFrame(raf);
         raf = requestAnimationFrame(now);

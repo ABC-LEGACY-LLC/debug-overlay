@@ -56,11 +56,13 @@
       const v = Settings.fromControl(row, raw);
       if (v === null) { Controller.refreshList(); return; }   // put the field back
       Settings.apply(row, v);
-      // The last sweep was judged under the OLD setting. Leaving it up would
-      // keep findings on screen that the rule would no longer make, with
-      // nothing saying why — the same lie as a stale audit after the page
-      // moves on, and it costs one click to run again.
-      State.sweep = null;
+      /* The last sweep was judged under the OLD setting — but only a setting
+         that feeds a rule can have changed a verdict. Discarding the audit
+         because somebody switched what Ctrl+click copies threw away the most
+         expensive thing the tool does (~77% getComputedStyle over every
+         element) for a preference no rule consults. `affects` already says
+         which is which. */
+      if (row.opt.affects === 'detect') State.sweep = null;
       Render.schedule();
       Controller.refreshList();
     },
@@ -105,11 +107,28 @@
      * something the registry already vouched for, so no core file spells one.
      */
     loadTools() {
+      const registered = TOOLS.map((t) => t.id);
       let ids = TOOLS.filter((t) => t.startsOn).map((t) => t.id);
+      let seen = null;
+      try {
+        const s = JSON.parse(Store.get(CONFIG.SEEN_KEY) || 'null');
+        if (Array.isArray(s)) seen = s;
+      } catch {}
       try {
         const saved = JSON.parse(Store.get(CONFIG.TOOLS_KEY) || 'null');
-        if (Array.isArray(saved)) ids = saved;
+        if (Array.isArray(saved)) {
+          /* A saved set answers for the tools that existed when it was
+             written. Treating it as the whole answer meant a capability
+             shipped later arrived switched off and unmentioned — under an
+             update model whose entire promise is that nothing needs doing.
+             So a tool this install has never met gets its own say; one it has
+             met keeps whatever the user decided, including "off". */
+          const known = seen || registered;   // first run after this shipped: nothing is new
+          ids = saved.filter((id) => Tools.byId(id));
+          for (const t of TOOLS) if (t.startsOn && !known.includes(t.id)) ids.push(t.id);
+        }
       } catch {}
+      Store.set(CONFIG.SEEN_KEY, JSON.stringify(registered));
       State.tools = new Set(ids.filter((id) => Tools.byId(id)));
       TOOLS.forEach((t) => Panel.setTool(t.id, State.tools.has(t.id)));
     },

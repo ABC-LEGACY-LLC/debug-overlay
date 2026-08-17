@@ -56,6 +56,11 @@ process.on('uncaughtException', (e) => {
   process.exit(1);
 });
 
+/** Checks that need a painted frame. Run inside the final block, never on a
+ *  timer of their own — a second timer racing the summary decides the exit
+ *  code by luck. */
+const pendingChecks = [];
+
 let failed = 0;
 function ok(name, cond, detail) {
   if (cond) { console.log(`  ✓ ${name}`); return; }
@@ -660,7 +665,10 @@ console.log('\nSETTINGS');
   // A value the tool no longer offers must not silently read as choice 0 —
   // the picker would then disagree with the rule it claims to drive.
   const d6 = new JSDOM(page, opts);
-  d6.window.localStorage.setItem('__dbgov_settings', '{"grid":{"step":37}}');
+  // keyed by the OWNER that actually stores it. Naming 'grid' here made this
+  // vacuous the day `step` moved to the scale subject: the load took its
+  // "nothing saved" branch and never reached the validity check below.
+  d6.window.localStorage.setItem('__dbgov_settings', '{"scale":{"step":37}}');
   d6.window.eval(source);
   const bar6 = d6.window.document.getElementById('__dbgov-bar');
   d6.window.dispatchEvent(new d6.window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
@@ -978,6 +986,142 @@ console.log('\nREGRESSIONS');
   du.window.close();
 }
 
+console.log('\nREVIEW FIXES');
+/**
+ * Defects an adversarial review turned up at v3.8.38, each verified against a
+ * running bundle before it was fixed and pinned here after.
+ */
+{
+  const opts = { url: 'https://example.test/', pretendToBeVisual: true,
+                 runScripts: 'outside-only', virtualConsole: new VirtualConsole() };
+  const boot = (html, ls) => {
+    const d = new JSDOM(`<!doctype html><html><body>${html}</body></html>`, opts);
+    if (ls) Object.entries(ls).forEach(([k, v]) => d.window.localStorage.setItem(k, v));
+    d.window.eval(source);
+    return d.window;
+  };
+  const swept = (w) => {
+    const b = w.document.getElementById('__dbgov-bar');
+    let out = null;
+    Object.defineProperty(w.navigator, 'clipboard',
+      { value: { writeText: async (t) => { out = t; } }, configurable: true });
+    w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+    b.querySelector('[data-sweep]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    b.querySelector('[data-copy]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    return out || '';
+  };
+
+  // opacity: two visually identical renderings must not get opposite verdicts
+  const wo = boot(`<div style="background:rgb(255,255,255)">
+      <p id="alpha" style="color:rgba(0,0,0,.1)">alpha</p>
+      <p id="op" style="color:rgb(0,0,0);opacity:.1">opacity</p></div>`);
+  const ro = swept(wo);
+  ok('CSS opacity reaches the contrast verdict', /contrast-aa ×2/.test(ro),
+    (/## findings[^\n]*/.exec(ro) || ['no findings'])[0] +
+    ' — faded text used to be reported 21:1 PASS');
+  wo.close();
+
+  // a first-truthy chain looked at one axis and called it the gap
+  const wg = boot('<div style="display:flex;row-gap:12px;column-gap:13px">x</div>');
+  ok('an off-grid column gap is seen past an on-grid row gap',
+    /13px is off/.test(swept(wg)), 'the row gap won the || and the column gap was never tested');
+  wg.close();
+
+  // Math.round breaks ties toward +Infinity, so the sign decided the verdict
+  const wr = boot('<div style="margin-left:2.5px">a</div><div style="margin-left:-2.5px">b</div>');
+  const rr = swept(wr);
+  ok('a half-pixel is judged by distance, not by sign',
+    /3px is off/.test(rr) && /-3px is off/.test(rr), rr.match(/-?\dpx is off[^\n]*/g)?.join(' | '));
+  wr.close();
+
+  // two settings that silently cancelled: every real box is wider than 96px
+  const wb = boot('<div id="w">x</div>', { __dbgov_settings: '{"scale":{"step":2,"max":96,"boxes":true}}' });
+  wb.document.getElementById('w').getBoundingClientRect =
+    () => ({ width: 301, height: 101, left: 0, top: 0, right: 301, bottom: 101 });
+  ok('the spacing ceiling does not cancel "Judge width & height"',
+    /301px is off/.test(swept(wb)), 'arming the toggle produced nothing at the default ceiling');
+  wb.close();
+
+  // the popover renders by index and hands the index back
+  const wp = boot('<div id="a">A</div><div id="b">B</div><div id="c">C</div>');
+  const barP = wp.document.getElementById('__dbgov-bar');
+  const listP = wp.document.getElementById('__dbgov-list');
+  wp.dispatchEvent(new wp.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  for (const id of ['a', 'b', 'c']) {
+    const el = wp.document.getElementById(id);
+    wp.document.elementFromPoint = () => el;
+    el.dispatchEvent(new wp.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
+  }
+  barP.querySelector('[data-c]').dispatchEvent(new wp.MouseEvent('click', { bubbles: true }));
+  wp.document.getElementById('b').remove();
+  wp.dispatchEvent(new wp.MouseEvent('mousemove', { bubbles: true, clientX: 1, clientY: 1 }));
+
+  // Escape belongs to whatever has focus
+  const we = boot('<div id="a">A</div><div id="b">B</div>');
+  const barE = we.document.getElementById('__dbgov-bar');
+  const listE = we.document.getElementById('__dbgov-list');
+  we.dispatchEvent(new we.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  for (const id of ['a', 'b']) {
+    const el = we.document.getElementById(id);
+    we.document.elementFromPoint = () => el;
+    el.dispatchEvent(new we.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
+  }
+  barE.querySelector('[data-settings]').dispatchEvent(new we.MouseEvent('click', { bubbles: true }));
+  const numE = [...listE.querySelectorAll('.row')]
+    .find((r) => r.querySelector('input[type=number]')).querySelector('input');
+  numE.dispatchEvent(new we.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  barE.querySelector('[data-c]').dispatchEvent(new we.MouseEvent('click', { bubbles: true }));
+  ok('Escape in a panel field abandons the edit, not the pins',
+    listE.querySelectorAll('.row').length === 2,
+    `${listE.querySelectorAll('.row').length} pins left`);
+  we.close();
+
+  // a capability shipped after the user last chose must still appear
+  const wn2 = boot('<div id="a">A</div>', {
+    __dbgov_tools: '["measure","select"]',
+    __dbgov_seen: '["measure","select","contrast","dupid","pick"]',
+  });
+  const armedN = [...wn2.document.querySelectorAll('#__dbgov-bar button.tool.armed')]
+    .map((b) => b.dataset.tool);
+  ok('a tool this install has never met gets its own default',
+    armedN.includes('grid'), armedN.join(', ') || '(none)');
+  ok('and one it has met keeps what the user decided',
+    !armedN.includes('dupid'), armedN.join(', '));
+  wn2.close();
+
+  // settings this build cannot name must survive somebody changing another one
+  const wk = boot('<div id="a">A</div>',
+    { __dbgov_settings: '{"scale":{"step":8},"ghost":{"threshold":42}}' });
+  const barK = wk.document.getElementById('__dbgov-bar');
+  wk.dispatchEvent(new wk.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  barK.querySelector('[data-settings]').dispatchEvent(new wk.MouseEvent('click', { bubbles: true }));
+  const selK = [...wk.document.querySelectorAll('#__dbgov-list .row')]
+    .find((r) => r.querySelector('.lbl').textContent === 'Pin grouping').querySelector('select');
+  selK.selectedIndex = 1; selK.dispatchEvent(new wk.Event('change'));
+  ok('a setting whose owner this build does not know is not destroyed',
+    /"ghost"/.test(wk.localStorage.getItem('__dbgov_settings') || ''),
+    wk.localStorage.getItem('__dbgov_settings'));
+  wk.close();
+
+  // Deliberately NOT its own timer. The summary below prints and exits on a
+  // timer of its own, so a second one racing it decides the exit code by luck —
+  // which is the same "green by accident" this suite has already been caught
+  // by once. It runs inside that block instead, before the count is read.
+  pendingChecks.push(() => {
+    const tags = [...listP.querySelectorAll('.row .tag')].map((t) => t.textContent);
+    const rows = [...listP.querySelectorAll('.row')];
+    const target = tags[tags.length - 1];
+    rows[rows.length - 1].querySelector('.rm')
+      .dispatchEvent(new wp.MouseEvent('click', { bubbles: true }));
+    const left = [...listP.querySelectorAll('.row .tag')].map((t) => t.textContent);
+    ok('the list drops rows whose element left the page',
+      tags.join(' ') === '#1 #3', tags.join(' '));
+    ok('so ✕ removes the pin that was clicked', !left.includes(target),
+      `clicked ${target}, left ${left.join(' ')}`);
+    wp.close();
+  });
+}
+
 // ---- the sections that need a painted frame ---------------------------------
 // Marks and badges only exist after the renderer runs, which is an animation
 // frame away. Everything above is synchronous; these are not, so they go last
@@ -1001,6 +1145,9 @@ window.dispatchEvent(new window.KeyboardEvent('keydown', { ...hot, bubbles: true
 bar.querySelector('[data-sweep]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 
 setTimeout(() => {
+  console.log('\nREVIEW FIXES (after a frame)');
+  pendingChecks.forEach((fn) => fn());
+
   console.log('\nMARKS');
   // A findings list says what is wrong; a mark says where. The renderer hands
   // each armed tool its own findings and nobody else's, so the layer stays

@@ -46,6 +46,19 @@
     },
 
     /**
+     * Off the grid AND close enough to be something somebody typed.
+     *
+     * The ceiling used to live only in the rule, so a resolved `margin: auto`
+     * of 1127px got a ⚠ on the badge and no finding in the sweep — the badge
+     * and the audit disagreeing about one number, which is the exact
+     * contradiction this subject exists to make impossible. Every consumer
+     * asks this, so there is one answer.
+     */
+    judges(n) {
+      return this.off(n) && Math.abs(n) <= this.max();
+    },
+
+    /**
      * Off-grid numbers on one element, as [name, value] pairs. `boxes` adds
      * width and height — true when somebody pointed at this element and asked,
      * false when a sweep is judging the page.
@@ -61,16 +74,32 @@
       const cs = info.cs;
       const pad = U.fourPlain(cs, 'padding'), mar = U.fourPlain(cs, 'margin');
       const out = [];
-      const check = (n, v) => { if (this.off(v)) out.push([n, v]); };
+      // Spacing carries the ceiling; a box does not. `max` exists to keep
+      // resolved layout arithmetic out of a list of typed spacing tokens, and
+      // at its 96px default it silently cancelled the "Judge width & height"
+      // toggle outright — almost every real element is wider than that, so
+      // arming the control produced nothing at all and no setting said why.
+      const check = (n, v) => { if (this.judges(v)) out.push([n, v]); };
       if (boxes) {
         const r = info.r;
-        check('w', Math.round(r.width)); check('h', Math.round(r.height));
+        const box = (n, v) => { if (this.off(v)) out.push([n, v]); };
+        box('w', Math.round(r.width)); box('h', Math.round(r.height));
       }
       ['t', 'r', 'b', 'l'].forEach((k) => { check('pad-' + k, pad[k]); check('mar-' + k, mar[k]); });
-      // the shorthand as well as the longhands: a browser resolves `gap` into
-      // both, and jsdom leaves it on the shorthand
-      const gap = U.px(cs.rowGap) || U.px(cs.columnGap) || U.px(cs.gap);
-      if (gap) check('gap', gap);
+      // BOTH axes. `rowGap || columnGap || gap` is a first-truthy chain, so a
+      // non-zero row gap won the test and the column gap was never looked at —
+      // an off-grid column gap beside an on-grid row gap was invisible to the
+      // badge, the report and the sweep alike. Named per axis too, so the
+      // report can say which one it meant.
+      const row = U.px(cs.rowGap), col = U.px(cs.columnGap);
+      if (row || col) {
+        if (row) check('gap-row', row);
+        if (col) check('gap-col', col);
+      } else {
+        // jsdom, and anything else that leaves the shorthand unresolved
+        const gap = U.px(cs.gap);
+        if (gap) check('gap', gap);
+      }
       return out;
     },
   });

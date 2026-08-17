@@ -40,6 +40,9 @@
         (b) => b.classList.toggle('armed', !!view && b.dataset.view === view)),
     });
 
+    // button -> { original, timer } while a transient message is showing
+    const flashing = new Map();
+
     const api = {
       el,
       onToggle: null, onTool: null, onDetail: null, onCopy: null, onClear: null,
@@ -70,11 +73,26 @@
       toggleList: List.toggle,
       setList: List.set,
 
+      /**
+       * Two flashes on one button inside the window left the message there for
+       * good: the second captured the first's text as "the original" and its
+       * timer, firing last, wrote that back. ⌕ twice in a second was enough,
+       * and the button then read "0" forever.
+       */
       flash(msg, sel = '[data-copy]') {
         const b = el.querySelector(sel);
-        const old = b.textContent;
+        if (!b) return;
+        const live = flashing.get(b);
+        const original = live ? live.original : b.textContent;
+        if (live) clearTimeout(live.timer);
         b.textContent = msg;
-        setTimeout(() => (b.textContent = old), 1200);
+        flashing.set(b, {
+          original,
+          timer: setTimeout(() => {
+            b.textContent = original;
+            flashing.delete(b);
+          }, CONFIG.FLASH_MS),
+        });
       },
       rect: () => el.getBoundingClientRect(),
       isOn: () => el.classList.contains('on'),

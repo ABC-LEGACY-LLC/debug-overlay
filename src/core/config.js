@@ -33,6 +33,11 @@
     POS_KEY: '__dbgov_pos',
     TOOLS_KEY: '__dbgov_tools',
     SETTINGS_KEY: '__dbgov_settings',
+    // Which tool ids this install has already met. Without it a saved armed
+    // set answers for tools that no longer exist and stays silent about ones
+    // shipped since — so a new capability arrives switched off and invisible.
+    SEEN_KEY: '__dbgov_seen',
+    FLASH_MS: 1200,           // how long a button shows a transient message
     // No DEFAULT_TOOLS list here any more. It named tool ids in a core file,
     // so shipping a tool that should start armed meant editing this — the one
     // place "a new tool is one new file" was not literally true. A tool says

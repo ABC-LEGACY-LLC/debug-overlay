@@ -12,6 +12,7 @@
         value.
      ====================================================================== */
   const Settings = {
+    carried: {},   // saved values whose owner this build does not know
     /**
      * One row per option, under a heading for what that option CHANGES.
      *
@@ -102,7 +103,7 @@
     /** Write one option through, and persist the lot. */
     apply(row, v) {
       (State.settings[row.tool.id] ||= {})[row.opt.key] = v;
-      Store.set(CONFIG.SETTINGS_KEY, JSON.stringify(State.settings));
+      Store.set(CONFIG.SETTINGS_KEY, JSON.stringify({ ...Settings.carried, ...State.settings }));
     },
 
     /**
@@ -130,6 +131,13 @@
           out[t.id][o.key] = Settings.valid(o, was) ? was : o.def;
         }
       }
+      /* Anything saved under an id this build does not register — a renamed
+         owner, a removed tool, a downgrade — is kept aside and written back
+         untouched. Rebuilding the blob from the registered owners alone
+         destroyed it on the next unrelated change, so no later version could
+         migrate what an earlier one had stored. */
+      Settings.carried = {};
+      for (const id of Object.keys(saved)) if (!(id in out)) Settings.carried[id] = saved[id];
       State.settings = out;
     },
   };

@@ -2,7 +2,17 @@
      UTILS — pure helpers
      ====================================================================== */
   const U = {
-    px: (v) => Math.round(parseFloat(v) || 0),
+    /**
+     * Math.round breaks ties toward +Infinity, so +2.5 became 3 (off a 2px
+     * grid) and -2.5 became -2 (on it) — the SIGN of a half-pixel decided the
+     * verdict rather than its distance from the grid. Fractional computed
+     * margins are ordinary on fractional-DPR displays. Half away from zero
+     * treats a margin and its mirror image alike.
+     */
+    px: (v) => {
+      const n = parseFloat(v) || 0;
+      return Math.sign(n) * Math.round(Math.abs(n));
+    },
 
     /**
      * Anything the PAGE controls has to come through here before it is

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.38
+// @version      3.8.40
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -263,7 +263,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: '3.8.38',
+    VERSION: '3.8.40',
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -284,6 +284,11 @@ HOW TO USE
     POS_KEY: '__dbgov_pos',
     TOOLS_KEY: '__dbgov_tools',
     SETTINGS_KEY: '__dbgov_settings',
+    // Which tool ids this install has already met. Without it a saved armed
+    // set answers for tools that no longer exist and stays silent about ones
+    // shipped since — so a new capability arrives switched off and invisible.
+    SEEN_KEY: '__dbgov_seen',
+    FLASH_MS: 1200,           // how long a button shows a transient message
     // No DEFAULT_TOOLS list here any more. It named tool ids in a core file,
     // so shipping a tool that should start armed meant editing this — the one
     // place "a new tool is one new file" was not literally true. A tool says
@@ -399,7 +404,17 @@ HOW TO USE
      UTILS — pure helpers
      ====================================================================== */
   const U = {
-    px: (v) => Math.round(parseFloat(v) || 0),
+    /**
+     * Math.round breaks ties toward +Infinity, so +2.5 became 3 (off a 2px
+     * grid) and -2.5 became -2 (on it) — the SIGN of a half-pixel decided the
+     * verdict rather than its distance from the grid. Fractional computed
+     * margins are ordinary on fractional-DPR displays. Half away from zero
+     * treats a margin and its mirror image alike.
+     */
+    px: (v) => {
+      const n = parseFloat(v) || 0;
+      return Math.sign(n) * Math.round(Math.abs(n));
+    },
 
     /**
      * Anything the PAGE controls has to come through here before it is
@@ -1093,7 +1108,20 @@ HOW TO USE
         if (!fg) return { unknown: this.paint() ? 'fg-colour' : 'no-canvas' };
         const bg = this.bg(el);
         if (bg.unknown) return bg;
-        const ratio = this.ratio(fg, bg);
+        // CSS opacity, which nothing here used to read. `color: rgba(0,0,0,.1)`
+        // was correctly reported 1.25:1 while the visually identical
+        // `color: #000; opacity:.1` was reported 21.00:1 PASS — a confident
+        // wrong answer about text nobody can read, which is the one outcome
+        // the three-answer design exists to rule out. The sweep's own gate
+        // only skips the exact string '0', so 0.01 reaches here.
+        //
+        // Folding it into the foreground alpha is exact when the element paints
+        // no background of its own, which is the ordinary case for text. Where
+        // it does, both text and that background fade together and this
+        // understates the ratio — erring toward reporting a problem, which is
+        // the safe direction for a rule about readability.
+        const faded = { ...fg, a: (fg.a == null ? 1 : fg.a) * this.opacityOf(el) };
+        const ratio = this.ratio(faded, bg);
         const size = parseFloat(cs.fontSize);
         const bold = parseInt(cs.fontWeight, 10) >= 700;
         const isLarge = size >= CONFIG.CONTRAST.largePx ||
@@ -1104,8 +1132,19 @@ HOW TO USE
         const level = Tools.setting(this, 'level');
         const want = CONFIG.CONTRAST.levels[level];
         const need = isLarge ? want.large : want.normal;
-        return { ratio, need, pass: ratio >= need, isLarge, fg, bg, level, want };
+        return { ratio, need, pass: ratio >= need, isLarge, fg: faded, bg, level, want };
       },
+    /** Cumulative CSS opacity: every ancestor multiplies what is painted. */
+    opacityOf(el) {
+      let o = 1;
+      for (let e = el; e && e.nodeType === 1; e = e.parentElement) {
+        const v = parseFloat(getComputedStyle(e).opacity);
+        if (Number.isFinite(v) && v < 1) o *= Math.max(0, v);
+        if (o === 0) break;
+      }
+      return o;
+    },
+
     rgb: (c) => `${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)}`,
   });
 
@@ -1158,6 +1197,19 @@ HOW TO USE
     },
 
     /**
+     * Off the grid AND close enough to be something somebody typed.
+     *
+     * The ceiling used to live only in the rule, so a resolved `margin: auto`
+     * of 1127px got a ⚠ on the badge and no finding in the sweep — the badge
+     * and the audit disagreeing about one number, which is the exact
+     * contradiction this subject exists to make impossible. Every consumer
+     * asks this, so there is one answer.
+     */
+    judges(n) {
+      return this.off(n) && Math.abs(n) <= this.max();
+    },
+
+    /**
      * Off-grid numbers on one element, as [name, value] pairs. `boxes` adds
      * width and height — true when somebody pointed at this element and asked,
      * false when a sweep is judging the page.
@@ -1173,16 +1225,32 @@ HOW TO USE
       const cs = info.cs;
       const pad = U.fourPlain(cs, 'padding'), mar = U.fourPlain(cs, 'margin');
       const out = [];
-      const check = (n, v) => { if (this.off(v)) out.push([n, v]); };
+      // Spacing carries the ceiling; a box does not. `max` exists to keep
+      // resolved layout arithmetic out of a list of typed spacing tokens, and
+      // at its 96px default it silently cancelled the "Judge width & height"
+      // toggle outright — almost every real element is wider than that, so
+      // arming the control produced nothing at all and no setting said why.
+      const check = (n, v) => { if (this.judges(v)) out.push([n, v]); };
       if (boxes) {
         const r = info.r;
-        check('w', Math.round(r.width)); check('h', Math.round(r.height));
+        const box = (n, v) => { if (this.off(v)) out.push([n, v]); };
+        box('w', Math.round(r.width)); box('h', Math.round(r.height));
       }
       ['t', 'r', 'b', 'l'].forEach((k) => { check('pad-' + k, pad[k]); check('mar-' + k, mar[k]); });
-      // the shorthand as well as the longhands: a browser resolves `gap` into
-      // both, and jsdom leaves it on the shorthand
-      const gap = U.px(cs.rowGap) || U.px(cs.columnGap) || U.px(cs.gap);
-      if (gap) check('gap', gap);
+      // BOTH axes. `rowGap || columnGap || gap` is a first-truthy chain, so a
+      // non-zero row gap won the test and the column gap was never looked at —
+      // an off-grid column gap beside an on-grid row gap was invisible to the
+      // badge, the report and the sweep alike. Named per axis too, so the
+      // report can say which one it meant.
+      const row = U.px(cs.rowGap), col = U.px(cs.columnGap);
+      if (row || col) {
+        if (row) check('gap-row', row);
+        if (col) check('gap-col', col);
+      } else {
+        // jsdom, and anything else that leaves the shorthand unresolved
+        const gap = U.px(cs.gap);
+        if (gap) check('gap', gap);
+      }
       return out;
     },
   });
@@ -1389,7 +1457,7 @@ HOW TO USE
        * split: the rule below reaches the same verdict through the same call.
        */
       annotate(html, n) {
-        return Scale.off(n) ? `<span class="warn">${html}⚠</span>` : html;
+        return Scale.judges(n) ? `<span class="warn">${html}⚠</span>` : html;
       },
 
       report(i) {
@@ -1420,16 +1488,11 @@ HOW TO USE
         // a decision anyone made, and sweeping them buried the findings that
         // were. Padding, margin and gap are typed by a person; those are the
         // spacing scale.
+        // No filter here any more. The ceiling — and the fact that it has two
+        // sides, and that it must not apply to a width or a height — all
+        // belong to Scale.judges, so the badge and this reach the same verdict
+        // through the same call and cannot disagree about one number.
         return Scale.scan(i, Scale.boxes())
-          // and drop what layout worked out rather than what anyone chose:
-          // ml-auto arrives here as margin-left: 1127px.
-          //
-          // ABS, because the ceiling has two sides. `v <= max` bounded the
-          // positive one only, so a negative margin of any size sailed through
-          // — a real page reported -1127px as off-grid while +1127px was
-          // correctly ignored, and a pull-left of -240px would have read as a
-          // spacing decision somebody made.
-          .filter(([, v]) => Math.abs(v) <= Scale.max())
           .map(([n, v]) => ({
           el: i.el,
           verdict: 'fail',
@@ -2132,6 +2195,9 @@ HOW TO USE
         (b) => b.classList.toggle('armed', !!view && b.dataset.view === view)),
     });
 
+    // button -> { original, timer } while a transient message is showing
+    const flashing = new Map();
+
     const api = {
       el,
       onToggle: null, onTool: null, onDetail: null, onCopy: null, onClear: null,
@@ -2162,11 +2228,26 @@ HOW TO USE
       toggleList: List.toggle,
       setList: List.set,
 
+      /**
+       * Two flashes on one button inside the window left the message there for
+       * good: the second captured the first's text as "the original" and its
+       * timer, firing last, wrote that back. ⌕ twice in a second was enough,
+       * and the button then read "0" forever.
+       */
       flash(msg, sel = '[data-copy]') {
         const b = el.querySelector(sel);
-        const old = b.textContent;
+        if (!b) return;
+        const live = flashing.get(b);
+        const original = live ? live.original : b.textContent;
+        if (live) clearTimeout(live.timer);
         b.textContent = msg;
-        setTimeout(() => (b.textContent = old), 1200);
+        flashing.set(b, {
+          original,
+          timer: setTimeout(() => {
+            b.textContent = original;
+            flashing.delete(b);
+          }, CONFIG.FLASH_MS),
+        });
       },
       rect: () => el.getBoundingClientRect(),
       isOn: () => el.classList.contains('on'),
@@ -2382,7 +2463,13 @@ HOW TO USE
       Place.reset();
       if (!State.enabled) return;
 
+      // The popover renders rows by index and hands that index back. Dropping
+      // a pin here without telling it left every row after the gap resolving
+      // one position too far — clicking ✕ on #3 deleted #2. UI may not call
+      // APP, so it announces and BOOT decides who listens.
+      const had = State.pins.length;
       State.pins = State.pins.filter((p) => document.contains(p.el));
+      if (State.pins.length !== had) Render.onPinsPruned?.();
       const pinned = new Set(State.pins.map((p) => p.el));
 
       // a tool may mark one pin as "still being chosen" — the renderer just asks
@@ -2477,6 +2564,7 @@ HOW TO USE
 
     return {
       now,
+      onPinsPruned: null,
       schedule() {
         cancelAnimationFrame(raf);
         raf = requestAnimationFrame(now);
@@ -2650,7 +2738,12 @@ HOW TO USE
           ctl.setRemoveMode(true);
           return;
         }
-        if (e.key === 'Escape' && State.enabled) {
+        // Escape inside a field is "abandon this edit", not "throw my pins
+        // away". The ⚙ controls live in root, and a page's own inputs answer
+        // to typing() — without both guards, leaving a number half-typed
+        // cleared every pin and nothing on screen said why.
+        if (e.key === 'Escape' && State.enabled &&
+            !Interactions.typing(e) && !root.contains(e.target)) {
           if (State.removeMode) ctl.setRemoveMode(false);
           else if (State.pins.length) ctl.clearPins();
           else ctl.setPower(false);
@@ -2773,11 +2866,13 @@ HOW TO USE
       const v = Settings.fromControl(row, raw);
       if (v === null) { Controller.refreshList(); return; }   // put the field back
       Settings.apply(row, v);
-      // The last sweep was judged under the OLD setting. Leaving it up would
-      // keep findings on screen that the rule would no longer make, with
-      // nothing saying why — the same lie as a stale audit after the page
-      // moves on, and it costs one click to run again.
-      State.sweep = null;
+      /* The last sweep was judged under the OLD setting — but only a setting
+         that feeds a rule can have changed a verdict. Discarding the audit
+         because somebody switched what Ctrl+click copies threw away the most
+         expensive thing the tool does (~77% getComputedStyle over every
+         element) for a preference no rule consults. `affects` already says
+         which is which. */
+      if (row.opt.affects === 'detect') State.sweep = null;
       Render.schedule();
       Controller.refreshList();
     },
@@ -2822,11 +2917,28 @@ HOW TO USE
      * something the registry already vouched for, so no core file spells one.
      */
     loadTools() {
+      const registered = TOOLS.map((t) => t.id);
       let ids = TOOLS.filter((t) => t.startsOn).map((t) => t.id);
+      let seen = null;
+      try {
+        const s = JSON.parse(Store.get(CONFIG.SEEN_KEY) || 'null');
+        if (Array.isArray(s)) seen = s;
+      } catch {}
       try {
         const saved = JSON.parse(Store.get(CONFIG.TOOLS_KEY) || 'null');
-        if (Array.isArray(saved)) ids = saved;
+        if (Array.isArray(saved)) {
+          /* A saved set answers for the tools that existed when it was
+             written. Treating it as the whole answer meant a capability
+             shipped later arrived switched off and unmentioned — under an
+             update model whose entire promise is that nothing needs doing.
+             So a tool this install has never met gets its own say; one it has
+             met keeps whatever the user decided, including "off". */
+          const known = seen || registered;   // first run after this shipped: nothing is new
+          ids = saved.filter((id) => Tools.byId(id));
+          for (const t of TOOLS) if (t.startsOn && !known.includes(t.id)) ids.push(t.id);
+        }
       } catch {}
+      Store.set(CONFIG.SEEN_KEY, JSON.stringify(registered));
       State.tools = new Set(ids.filter((id) => Tools.byId(id)));
       TOOLS.forEach((t) => Panel.setTool(t.id, State.tools.has(t.id)));
     },
@@ -2949,6 +3061,7 @@ HOW TO USE
         value.
      ====================================================================== */
   const Settings = {
+    carried: {},   // saved values whose owner this build does not know
     /**
      * One row per option, under a heading for what that option CHANGES.
      *
@@ -3039,7 +3152,7 @@ HOW TO USE
     /** Write one option through, and persist the lot. */
     apply(row, v) {
       (State.settings[row.tool.id] ||= {})[row.opt.key] = v;
-      Store.set(CONFIG.SETTINGS_KEY, JSON.stringify(State.settings));
+      Store.set(CONFIG.SETTINGS_KEY, JSON.stringify({ ...Settings.carried, ...State.settings }));
     },
 
     /**
@@ -3067,6 +3180,13 @@ HOW TO USE
           out[t.id][o.key] = Settings.valid(o, was) ? was : o.def;
         }
       }
+      /* Anything saved under an id this build does not register — a renamed
+         owner, a removed tool, a downgrade — is kept aside and written back
+         untouched. Rebuilding the blob from the registered owners alone
+         destroyed it on the next unrelated change, so no later version could
+         migrate what an earlier one had stored. */
+      Settings.carried = {};
+      for (const id of Object.keys(saved)) if (!(id in out)) Settings.carried[id] = saved[id];
       State.settings = out;
     },
   };
@@ -3194,6 +3314,10 @@ HOW TO USE
 
   // before loadTools: a tool's options decide what its rules do, and arming
   // one immediately schedules a render that asks
+  // the page can remove a pinned element at any time; the list must not go on
+  // showing rows that no longer index into anything
+  Render.onPinsPruned = Controller.refreshList;
+
   Settings.load();
   Controller.loadTools();
   Interactions.install(Controller);
