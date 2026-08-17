@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.35
+// @version      3.8.36
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -263,7 +263,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: '3.8.35',
+    VERSION: '3.8.36',
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -761,6 +761,26 @@ HOW TO USE
   const role = (key) => ROLES.find((r) => r.key === key);
 
   /**
+   * Presentation order, derived — which button sits where, which ⚙ row is
+   * first. Filenames used to carry this as numeric prefixes, which meant a
+   * name said when a thing displays rather than what it is, and left the last
+   * numbers in a tree that had otherwise stopped using them.
+   *
+   * By the first ROLE a component fills, then by id. That reproduces the bar
+   * as it was — pick after measure, dupid after the two that also describe —
+   * without anything being spelled. Roles are plural and this takes the first,
+   * which is a display decision only: nothing is claimed about the others, and
+   * being wrong costs an ordering, never a verdict.
+   */
+  const byRole = (a, b) => {
+    const rank = (t) => {
+      const i = ROLES.findIndex((r) => r.has(t));
+      return i < 0 ? ROLES.length : i;
+    };
+    return rank(a) - rank(b) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  };
+
+  /**
    * SUBJECTS — a shared measurement, and the settings that govern it.
    *
    * WHY: `step` was grid's setting and `level` was contrast's, but neither is
@@ -819,10 +839,11 @@ HOW TO USE
       // yes/no question instead, which composition cannot make false, and the
       // full role list goes in the tooltip where there is room to be plural.
       const checks = role('detect').has;
+      const inOrder = TOOLS.slice().sort(byRole);
       return [
-        { cls: '', note: '', tools: TOOLS.filter((t) => !checks(t)) },
+        { cls: '', note: '', tools: inOrder.filter((t) => !checks(t)) },
         { cls: 'checks', note: ' · also runs in the page audit',
-          tools: TOOLS.filter(checks) },
+          tools: inOrder.filter(checks) },
       ].filter((r) => r.tools.length);
     },
 
@@ -851,7 +872,8 @@ HOW TO USE
      * more general fact: "the spacing step is 2px" is true of the project, and
      * what any one component does with it comes after.
      */
-    settingOwners: () => [...SUBJECTS, ...TOOLS].filter((o) => o.options),
+    settingOwners: () => [...SUBJECTS, ...TOOLS.slice().sort(byRole)]
+      .filter((o) => o.options),
 
     /** Every role a tool fills, in ROLES order. Plural by construction. */
     rolesOf: (t) => ROLES.filter((r) => r.has(t)).map((r) => r.label),
@@ -892,73 +914,7 @@ HOW TO USE
     },
   };
 
-  // ─── src/subjects/10-scale.js ──────────────────────────────────────────
-  /**
-   * THE SPACING SCALE — what counts as "on the grid", and the settings for it.
-   *
-   * These moved out of the grid tool because they were never really its. A
-   * step of 2px is a fact about the project you are looking at; the ⚠ on a
-   * badge and the finding in a sweep are two things that consult it. Leaving
-   * the setting on one of them would mean the other could not see it, and a
-   * split that gave each its own copy would let a badge say a value is fine
-   * while the audit says it is not.
-   */
-  const Scale = defineSubject({
-    id: 'scale',
-    icon: '▦',
-
-    options() {
-      return [
-        // 2, not 4, because that is what the scale in front of us actually is:
-        // Tailwind's default spacing has half-steps (0.5 = 2px, 1.5 = 6px) and
-        // a real page used them 2,681 times. A rule has to check the scale a
-        // project HAS; making the project match the rule is the wrong way round.
-        { key: 'step', label: 'Grid step', def: CONFIG.GRID,
-          values: [1, 2, 4, 8], suffix: 'px', affects: 'detect' },
-        // Where a spacing token stops and layout arithmetic begins.
-        // getComputedStyle resolves `margin: auto` to the pixels it worked out
-        // — 1127px on a real page — and nothing distinguishes that from a value
-        // somebody typed. Nobody types 1127px.
-        { key: 'max', label: 'Ignore above', def: CONFIG.GRID_MAX,
-          type: 'number', min: 8, max: 2000, step: 8, suffix: 'px', affects: 'detect' },
-        // OFF, and it stays off by default: width and height are what layout
-        // produced, not what anyone typed, and judging them turned one real
-        // signal into 2,215 findings about icon geometry on a real page.
-        { key: 'boxes', label: 'Judge width & height', def: false,
-          type: 'toggle', affects: 'detect' },
-      ];
-    },
-
-    step() { return Tools.setting(this, 'step'); },
-    max() { return Tools.setting(this, 'max'); },
-    boxes() { return Tools.setting(this, 'boxes'); },
-
-    /** 0 is never off the grid, or every padding:0 would light up. */
-    off(n) {
-      const step = this.step();
-      return n !== 0 && n % step !== 0;
-    },
-
-    /**
-     * Off-grid numbers on one element, as [name, value] pairs. `boxes` adds
-     * width and height — true when somebody pointed at this element and asked,
-     * false when a sweep is judging the page.
-     */
-    scan({ r, cs }, boxes) {
-      const pad = U.fourPlain(cs, 'padding'), mar = U.fourPlain(cs, 'margin');
-      const out = [];
-      const check = (n, v) => { if (this.off(v)) out.push([n, v]); };
-      if (boxes) { check('w', Math.round(r.width)); check('h', Math.round(r.height)); }
-      ['t', 'r', 'b', 'l'].forEach((k) => { check('pad-' + k, pad[k]); check('mar-' + k, mar[k]); });
-      // the shorthand as well as the longhands: a browser resolves `gap` into
-      // both, and jsdom leaves it on the shorthand
-      const gap = U.px(cs.rowGap) || U.px(cs.columnGap) || U.px(cs.gap);
-      if (gap) check('gap', gap);
-      return out;
-    },
-  });
-
-  // ─── src/subjects/20-colour.js ─────────────────────────────────────────
+  // ─── src/subjects/colour.js ────────────────────────────────────────────
   /**
    * COLOUR — resolving a colour honestly, and the level to judge it against.
    *
@@ -1152,342 +1108,73 @@ HOW TO USE
     rgb: (c) => `${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)}`,
   });
 
-  // ─── src/tools/05-select.js ────────────────────────────────────────────
-  defineTool({
-      id: 'select',
-      icon: '⬚',
-      title: 'Select — how pinned elements group up',
-      startsOn: true,
+  // ─── src/subjects/scale.js ─────────────────────────────────────────────
+  /**
+   * THE SPACING SCALE — what counts as "on the grid", and the settings for it.
+   *
+   * These moved out of the grid tool because they were never really its. A
+   * step of 2px is a fact about the project you are looking at; the ⚠ on a
+   * badge and the finding in a sweep are two things that consult it. Leaving
+   * the setting on one of them would mean the other could not see it, and a
+   * split that gave each its own copy would let a badge say a value is fine
+   * while the audit says it is not.
+   */
+  const Scale = defineSubject({
+    id: 'scale',
+    icon: '▦',
 
-      /**
-       * SELECT, and only SELECT. This came out of measure, which had been the
-       * read-out AND the thing deciding what was selected — so a second way of
-       * selecting could not be added without editing the tool that draws
-       * badges. Nothing here describes an element; it decides which elements
-       * belong together, and hands that to whoever wants to say something
-       * about the pair.
-       */
-      options() {
-        return [{ key: 'mode', label: 'Pin grouping', def: CONFIG.PAIR_MODE,
-                  values: ['pairs', 'chain'], affects: 'select' }];
-      },
+    options() {
+      return [
+        // 2, not 4, because that is what the scale in front of us actually is:
+        // Tailwind's default spacing has half-steps (0.5 = 2px, 1.5 = 6px) and
+        // a real page used them 2,681 times. A rule has to check the scale a
+        // project HAS; making the project match the rule is the wrong way round.
+        { key: 'step', label: 'Grid step', def: CONFIG.GRID,
+          values: [1, 2, 4, 8], suffix: 'px', affects: 'detect' },
+        // Where a spacing token stops and layout arithmetic begins.
+        // getComputedStyle resolves `margin: auto` to the pixels it worked out
+        // — 1127px on a real page — and nothing distinguishes that from a value
+        // somebody typed. Nobody types 1127px.
+        { key: 'max', label: 'Ignore above', def: CONFIG.GRID_MAX,
+          type: 'number', min: 8, max: 2000, step: 8, suffix: 'px', affects: 'detect' },
+        // OFF, and it stays off by default: width and height are what layout
+        // produced, not what anyone typed, and judging them turned one real
+        // signal into 2,215 findings about icon geometry on a real page.
+        { key: 'boxes', label: 'Judge width & height', def: false,
+          type: 'toggle', affects: 'detect' },
+      ];
+    },
 
-      // only Shift-clicked pins take part — a plain click is "inspect this",
-      // and silently roping it into a measurement is not what was asked
-      _pins: () => State.pins.filter((p) => p.kind === CONFIG.PIN_KIND.SHIFT),
+    step() { return Tools.setting(this, 'step'); },
+    max() { return Tools.setting(this, 'max'); },
+    boxes() { return Tools.setting(this, 'boxes'); },
 
-      /**
-       * The single place grouping is decided.
-       *
-       * 'pairs' — every group takes two clicks and the next starts a fresh
-       * one, so a pin is never silently reused. 'chain' — each new pin groups
-       * with the previous one.
-       */
-      _form() {
-        const mp = this._pins();
-        const mode = Tools.setting(this, 'mode');
-        const step = mode === 'pairs' ? 2 : 1;
-        const out = [];
-        for (let k = 0; k + 1 < mp.length; k += step) out.push([mp[k], mp[k + 1]]);
-        const pending = (mode === 'pairs' && mp.length % 2) ? mp[mp.length - 1] : null;
-        return { groups: out, pending };
-      },
+    /** 0 is never off the grid, or every padding:0 would light up. */
+    off(n) {
+      const step = this.step();
+      return n !== 0 && n % step !== 0;
+    },
 
-      /** Hook: what is grouped, for anything that draws or reports BETWEEN
-       *  elements. Consumers never learn who grouped them. */
-      groups() { return this._form().groups; },
+    /**
+     * Off-grid numbers on one element, as [name, value] pairs. `boxes` adds
+     * width and height — true when somebody pointed at this element and asked,
+     * false when a sweep is judging the page.
+     */
+    scan({ r, cs }, boxes) {
+      const pad = U.fourPlain(cs, 'padding'), mar = U.fourPlain(cs, 'margin');
+      const out = [];
+      const check = (n, v) => { if (this.off(v)) out.push([n, v]); };
+      if (boxes) { check('w', Math.round(r.width)); check('h', Math.round(r.height)); }
+      ['t', 'r', 'b', 'l'].forEach((k) => { check('pad-' + k, pad[k]); check('mar-' + k, mar[k]); });
+      // the shorthand as well as the longhands: a browser resolves `gap` into
+      // both, and jsdom leaves it on the shorthand
+      const gap = U.px(cs.rowGap) || U.px(cs.columnGap) || U.px(cs.gap);
+      if (gap) check('gap', gap);
+      return out;
+    },
+  });
 
-      /** Hook: which pin is still waiting for its partner. */
-      pendingIndex() {
-        const { pending } = this._form();
-        return pending ? State.pins.indexOf(pending) : -1;
-      },
-
-      /**
-       * Hook: rows for the panel's pin list. The distance in the detail column
-       * comes from core geometry, not from a read-out hook — this tool
-       * describes its own grouping, which is still selection, and implements
-       * no badge or annotate to claim otherwise.
-       */
-      listRows() {
-        const { groups, pending } = this._form();
-        const rows = groups.map(([A, B]) => {
-          const ra = A.el.getBoundingClientRect(), rb = B.el.getBoundingClientRect();
-          const g = U.gap(ra, rb);
-          const axis = Measure.axisOf(ra, rb);
-          const detail = axis.kind === 'overlap' ? 'overlapping'
-            : axis.kind === 'diagonal' ? `→ ${g.dx} · ↓ ${g.dy} px`
-            : axis.kind === 'vertical' ? `↕ ${g.dy} px` : `↔ ${g.dx} px`;
-          return { tag: `#${A.id}→#${B.id}`,
-                   label: `${U.labelOf(A.el)} ↔ ${U.labelOf(B.el)}`,
-                   detail, pins: [A, B] };
-        });
-        if (pending) rows.push({ tag: `#${pending.id}…`, label: U.labelOf(pending.el),
-                                 detail: 'pick its pair', pins: [pending] });
-        return rows;
-      },
-
-      /** A half-finished selection is a fact about the report's scope. */
-      reportTail() {
-        const { pending } = this._form();
-        return pending ? [`[#${pending.id}] waiting for its pair`] : [];
-      },
-    });
-
-  // ─── src/tools/10-measure.js ───────────────────────────────────────────
-  defineTool({
-    // visuals owned by this tool — appended to the stylesheet at boot
-    css: `
-    .dbgov-leader { position: fixed; pointer-events: none; background: rgba(255,255,255,.55); }
-    .dbgov-line { position: fixed; pointer-events: none; background: rgba(181,232,83,.85);
-      border-radius: 1px; box-shadow: 0 0 0 .5px rgba(0,0,0,.4); }
-    .dbgov-cap { position: fixed; pointer-events: none; background: #b5e853;
-      border-radius: 1px; box-shadow: 0 0 0 .5px rgba(0,0,0,.5); }
-    .dbgov-arrow { position: fixed; pointer-events: none; width: 0; height: 0;
-      filter: drop-shadow(0 0 .5px rgba(0,0,0,.6)); }
-    .dbgov-arrow.up    { border-left: 5px solid transparent; border-right: 5px solid transparent;
-                         border-bottom: 7px solid #b5e853; }
-    .dbgov-arrow.down  { border-left: 5px solid transparent; border-right: 5px solid transparent;
-                         border-top: 7px solid #b5e853; }
-    .dbgov-arrow.left  { border-top: 5px solid transparent; border-bottom: 5px solid transparent;
-                         border-right: 7px solid #b5e853; }
-    .dbgov-arrow.right { border-top: 5px solid transparent; border-bottom: 5px solid transparent;
-                         border-left: 7px solid #b5e853; }
-    .dbgov-ext { position: fixed; pointer-events: none;
-      background: repeating-linear-gradient(to right,
-        rgba(181,232,83,.7) 0 4px, transparent 4px 8px); }
-    .dbgov-ext.v { background: repeating-linear-gradient(to bottom,
-        rgba(181,232,83,.7) 0 4px, transparent 4px 8px); }
-    .dbgov-dist { position: fixed; pointer-events: none;
-      background: rgba(24,28,14,.95); color: #b5e853; border-radius: 7px;
-      padding: 3px 8px; font-size: 12px; font-weight: 700; white-space: nowrap; }
-    .dbgov-dist.vert { border-left: 2px solid #b5e853; }
-    `,
-      id: 'measure',
-      icon: '📐',
-      title: 'Measure — size, radius, spacing, font, distances',
-      startsOn: true,      // the read-out is what the overlay is FOR
-      /**
-       * INSPECT, and only INSPECT. The pairing that used to live here is a
-       * SELECT tool now; this asks the registry what is grouped and measures
-       * between whatever comes back. Drawing the gap between two elements is a
-       * measurement — deciding WHICH two is not, and keeping both here is what
-       * made this tool two things at once.
-       */
-      badge(i) {
-        const { el, r, cs } = i;
-        // whatever decoration applies here — never "is <some named tool> on"
-        const dec = Tools.annotator(i);
-        const bits = [`<span class="sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`];
-        const rad = U.radius(cs); if (rad) bits.push(`<span class="rad">r ${rad}</span>`);
-        const p = U.four(cs, 'padding', dec); if (p) bits.push(`<span class="sp">p ${p.join(' ')}</span>`);
-        const m = U.four(cs, 'margin', dec);  if (m) bits.push(`<span class="sp">m ${m.join(' ')}</span>`);
-        if (cs.display.includes('flex') || cs.display.includes('grid')) {
-          const g = U.px(cs.columnGap) || U.px(cs.gap);
-          bits.push(`<span class="sp">${U.esc(cs.display)}${g ? ' gap ' + U.mark(g, dec) : ''}</span>`);
-        }
-        bits.push(`<span class="fnt">${U.px(cs.fontSize)}/${U.px(cs.lineHeight) || '–'} ${cs.fontWeight}</span>`);
-        // the id is page-authored text on its way to innerHTML — never raw
-        bits.push(`<span class="tag">${el.tagName.toLowerCase()}${el.id ? '#' + U.esc(el.id) : ''}</span>`);
-        return bits.join(' · ');
-      },
-      compact(i) {
-        const { r, cs } = i;
-        const dec = Tools.annotator(i);
-        const bits = [`<span class="sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`];
-        const rad = U.radius(cs); if (rad) bits.push(`<span class="rad">r ${rad}</span>`);
-        // deliberately padding only — the compact badge never marked m or gap
-        const p = U.four(cs, 'padding', dec); if (p) bits.push(`<span class="sp">p ${p.join(' ')}</span>`);
-        return bits.join(' · ');
-      },
-      report({ r, cs }) {
-        const pad = U.fourPlain(cs, 'padding'), mar = U.fourPlain(cs, 'margin');
-        return [
-          `  box: ${Math.round(r.width)}×${Math.round(r.height)} @ (${Math.round(r.left)}, ${Math.round(r.top)})`,
-          `  padding: ${pad.t} ${pad.r} ${pad.b} ${pad.l} | margin: ${mar.t} ${mar.r} ${mar.b} ${mar.l} | radius: ${U.radius(cs) || 0}`,
-          `  display: ${cs.display}${U.px(cs.gap) ? ' gap:' + U.px(cs.gap) : ''} | position: ${cs.position} | overflow: ${cs.overflow}`,
-          `  font: ${U.px(cs.fontSize)}px/${U.px(cs.lineHeight) || 'normal'} ${cs.fontWeight} ${cs.fontFamily.split(',')[0]}`,
-          `  color: ${cs.color} | bg: ${cs.backgroundColor}`,
-        ];
-      },
-      /**
-       * A pair has a distance; a group of five does not have one distance.
-       * Anything that is not two elements is something this tool has nothing
-       * to say about, and it says so by drawing nothing rather than guessing
-       * which two of them were meant.
-       */
-      _pairs: () => Tools.groups().filter((g) => g.length === 2),
-
-      // dimension lines between grouped pins
-      draw({ layer, Place }) {
-        Measure.resetLanes();
-        for (const [A, B] of this._pairs()) {
-          Measure.dimension(layer, Place, A.el.getBoundingClientRect(),
-                            B.el.getBoundingClientRect(), `#${A.id}→#${B.id}`);
-        }
-      },
-      reportTail() {
-        return this._pairs().map(([A, B]) => {
-          const ra = A.el.getBoundingClientRect(), rb = B.el.getBoundingClientRect();
-          const g = U.gap(ra, rb);
-          const axis = Measure.axisOf(ra, rb);
-          return `[#${A.id} → #${B.id}] ${axis.label}: ` +
-                 (axis.kind === 'overlap' ? 'elements overlap'
-                   : axis.kind === 'diagonal' ? `horizontal ${g.dx}px + vertical ${g.dy}px`
-                   : `${axis.kind === 'vertical' ? g.dy : g.dx}px`);
-        });
-      },
-    });
-
-  // ─── src/tools/15-pick.js ──────────────────────────────────────────────
-  defineTool({
-    // visuals owned by this tool — appended to the stylesheet at boot
-    css: `
-    .dbgov-picked { outline: 2px solid #b5e853; outline-offset: 1px;
-      background: rgba(181,232,83,.12); }
-    `,
-      id: 'pick',
-      icon: '⌖',
-      title: 'Pick — Ctrl+click (⌘+click) copies what you clicked',
-      // OFF by default: it takes over a click, and a tool that changes what
-      // clicking does should be something you asked for.
-
-      /**
-       * What Ctrl+click puts on the clipboard. A selector is the address you
-       * paste into a chat or a test; the text is what you paste into a bug
-       * report or a translation file. Both are things you would otherwise
-       * select by hand and get wrong at the edges.
-       */
-      options() {
-        return [{ key: 'what', label: 'Ctrl+click copies', def: 'selector',
-                  values: ['selector', 'text'], affects: 'act' }];
-      },
-
-      /**
-       * INPUT hook — the only one that acts on the page rather than describing
-       * it. Returning true means this click was ours: the pin that would
-       * normally follow does not happen, because landing a pin under an action
-       * is the overlay doing two things for one click.
-       *
-       * Meta as well as Ctrl: Ctrl+click is the context menu on macOS, so the
-       * modifier that means "modified click" there is ⌘.
-       */
-      intercept({ type, ev, el }) {
-        if (type !== 'click' || !(ev.ctrlKey || ev.metaKey)) return false;
-        const txt = Tools.setting(this, 'what') === 'text'
-          ? (el.textContent || '').trim()
-          : U.selectorOf(el);
-        if (!txt) return false;     // nothing to copy is not a click we took
-        Report.toClipboard(txt);
-        this._hit = el;
-        // The clipboard is invisible. Without this the only difference between
-        // a copy that worked and one that silently did not is what turns up
-        // when you paste, which is too late to notice.
-        clearTimeout(this._timer);
-        this._timer = setTimeout(() => { this._hit = null; Render.schedule(); },
-                                 CONFIG.PICK_FLASH);
-        Render.schedule();
-        return true;
-      },
-
-      draw({ layer, Place }) {
-        if (!this._hit || !document.contains(this._hit)) return;
-        const r = this._hit.getBoundingClientRect();
-        const box = document.createElement('div');
-        box.className = 'dbgov-box dbgov-picked';
-        Place.put(box, r.left, r.top, r.width, r.height);
-        layer.append(box);
-      },
-
-      report({ el }) {
-        return [`  selector: ${U.selectorOf(el)}`];
-      },
-    });
-
-  // ─── src/tools/20-grid.js ──────────────────────────────────────────────
-  defineTool({
-    // visuals owned by this tool — appended to the stylesheet at boot
-    css: `
-    .dbgov-badge .warn{ color: #ffd54f; }
-    `,
-      id: 'grid',
-      icon: '▦',
-      // No number in the title: the step is the user's now, and a title baked
-      // at boot would still be claiming 2px long after they picked 8.
-      title: 'Grid — flag values off the spacing grid',
-      startsOn: true,      // the ⚠ on a badge is what makes the read-out useful
-
-      rules: {
-        'grid-off': {
-          help: 'Spacing should be a multiple of the grid step — change which ' +
-                'step this checks in the panel under ⚙.',
-          why: 'One-off values are how a spacing scale erodes: each looks ' +
-               'harmless alone, and together they are why nothing lines up.',
-        },
-      },
-
-      /**
-       * LENS hook: every number another tool prints comes through here first.
-       * `html` is what earlier lenses made of it, so we wrap rather than
-       * replace, and the ⚠ markup sits next to the .warn rule for it.
-       *
-       * The judgement itself is the subject's — this decides how to SHOW an
-       * off-grid number, not what one is. That is the whole point of the
-       * split: the rule below reaches the same verdict through the same call.
-       */
-      annotate(html, n) {
-        return Scale.off(n) ? `<span class="warn">${html}⚠</span>` : html;
-      },
-
-      report(i) {
-        const bad = Scale.scan(i, true);
-        return bad.length
-          ? [`  ⚠ off ${Scale.step()}px grid: ` +
-             `${bad.map(([n, v]) => `${n}:${v}`).join(', ')}`]
-          : [];
-      },
-
-      /**
-       * RULE hook. This tool decorates other tools' numbers AND produces
-       * findings — two roles at once, which the old one-label-per-tool
-       * taxonomy made impossible for no reason but the shape of the label.
-       *
-       * Keyed by VALUE, not by element: one 13px used in forty places is one
-       * decision someone made, not forty mistakes. That is the page-wide
-       * pattern a per-element read-out could never show you — it is why this
-       * belongs in a sweep and not only on a badge.
-       */
-      audit(i) {
-        // An <svg> path has a bounding box and no authored anything. Judging
-        // those turned one real signal into 2,215 findings about icon
-        // geometry on a real page.
-        if (!(i.el instanceof HTMLElement)) return [];
-        // Width and height are the OUTPUT of layout — a text span is as wide
-        // as its text, a scroll container as tall as its content. Neither is
-        // a decision anyone made, and sweeping them buried the findings that
-        // were. Padding, margin and gap are typed by a person; those are the
-        // spacing scale.
-        return Scale.scan(i, Scale.boxes())
-          // and drop what layout worked out rather than what anyone chose:
-          // ml-auto arrives here as margin-left: 1127px
-          .filter(([, v]) => v <= Scale.max())
-          .map(([n, v]) => ({
-          el: i.el,
-          verdict: 'fail',
-          // a spacing system is a convention, not a rule anyone can be hurt
-          // by breaking — it ranks below anything a reader actually suffers
-          severity: 'info',
-          rule: 'grid-off',
-          // the VALUE, not the side it appeared on: these group by value, and
-          // "pad-t ×24" would read as 24 top paddings when it is one number
-          // used in twenty-four places. The sides are in the per-pin report.
-          message: `${v}px is off the ${Scale.step()}px grid`,
-          key: `grid-off|${v}`,
-        }));
-      },
-    });
-
-  // ─── src/tools/30-contrast.js ──────────────────────────────────────────
+  // ─── src/tools/contrast.js ─────────────────────────────────────────────
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `
@@ -1597,7 +1284,7 @@ HOW TO USE
       },
     });
 
-  // ─── src/tools/40-dupid.js ─────────────────────────────────────────────
+  // ─── src/tools/dupid.js ────────────────────────────────────────────────
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `
@@ -1654,6 +1341,341 @@ HOW TO USE
         if (!el.id) return [];
         const n = document.querySelectorAll(`[id="${CSS.escape ? CSS.escape(el.id) : el.id}"]`).length;
         return n > 1 ? [`  ⧉ id "${el.id}" is used ${n} times on this page`] : [];
+      },
+    });
+
+  // ─── src/tools/grid.js ─────────────────────────────────────────────────
+  defineTool({
+    // visuals owned by this tool — appended to the stylesheet at boot
+    css: `
+    .dbgov-badge .warn{ color: #ffd54f; }
+    `,
+      id: 'grid',
+      icon: '▦',
+      // No number in the title: the step is the user's now, and a title baked
+      // at boot would still be claiming 2px long after they picked 8.
+      title: 'Grid — flag values off the spacing grid',
+      startsOn: true,      // the ⚠ on a badge is what makes the read-out useful
+
+      rules: {
+        'grid-off': {
+          help: 'Spacing should be a multiple of the grid step — change which ' +
+                'step this checks in the panel under ⚙.',
+          why: 'One-off values are how a spacing scale erodes: each looks ' +
+               'harmless alone, and together they are why nothing lines up.',
+        },
+      },
+
+      /**
+       * LENS hook: every number another tool prints comes through here first.
+       * `html` is what earlier lenses made of it, so we wrap rather than
+       * replace, and the ⚠ markup sits next to the .warn rule for it.
+       *
+       * The judgement itself is the subject's — this decides how to SHOW an
+       * off-grid number, not what one is. That is the whole point of the
+       * split: the rule below reaches the same verdict through the same call.
+       */
+      annotate(html, n) {
+        return Scale.off(n) ? `<span class="warn">${html}⚠</span>` : html;
+      },
+
+      report(i) {
+        const bad = Scale.scan(i, true);
+        return bad.length
+          ? [`  ⚠ off ${Scale.step()}px grid: ` +
+             `${bad.map(([n, v]) => `${n}:${v}`).join(', ')}`]
+          : [];
+      },
+
+      /**
+       * RULE hook. This tool decorates other tools' numbers AND produces
+       * findings — two roles at once, which the old one-label-per-tool
+       * taxonomy made impossible for no reason but the shape of the label.
+       *
+       * Keyed by VALUE, not by element: one 13px used in forty places is one
+       * decision someone made, not forty mistakes. That is the page-wide
+       * pattern a per-element read-out could never show you — it is why this
+       * belongs in a sweep and not only on a badge.
+       */
+      audit(i) {
+        // An <svg> path has a bounding box and no authored anything. Judging
+        // those turned one real signal into 2,215 findings about icon
+        // geometry on a real page.
+        if (!(i.el instanceof HTMLElement)) return [];
+        // Width and height are the OUTPUT of layout — a text span is as wide
+        // as its text, a scroll container as tall as its content. Neither is
+        // a decision anyone made, and sweeping them buried the findings that
+        // were. Padding, margin and gap are typed by a person; those are the
+        // spacing scale.
+        return Scale.scan(i, Scale.boxes())
+          // and drop what layout worked out rather than what anyone chose:
+          // ml-auto arrives here as margin-left: 1127px
+          .filter(([, v]) => v <= Scale.max())
+          .map(([n, v]) => ({
+          el: i.el,
+          verdict: 'fail',
+          // a spacing system is a convention, not a rule anyone can be hurt
+          // by breaking — it ranks below anything a reader actually suffers
+          severity: 'info',
+          rule: 'grid-off',
+          // the VALUE, not the side it appeared on: these group by value, and
+          // "pad-t ×24" would read as 24 top paddings when it is one number
+          // used in twenty-four places. The sides are in the per-pin report.
+          message: `${v}px is off the ${Scale.step()}px grid`,
+          key: `grid-off|${v}`,
+        }));
+      },
+    });
+
+  // ─── src/tools/measure.js ──────────────────────────────────────────────
+  defineTool({
+    // visuals owned by this tool — appended to the stylesheet at boot
+    css: `
+    .dbgov-leader { position: fixed; pointer-events: none; background: rgba(255,255,255,.55); }
+    .dbgov-line { position: fixed; pointer-events: none; background: rgba(181,232,83,.85);
+      border-radius: 1px; box-shadow: 0 0 0 .5px rgba(0,0,0,.4); }
+    .dbgov-cap { position: fixed; pointer-events: none; background: #b5e853;
+      border-radius: 1px; box-shadow: 0 0 0 .5px rgba(0,0,0,.5); }
+    .dbgov-arrow { position: fixed; pointer-events: none; width: 0; height: 0;
+      filter: drop-shadow(0 0 .5px rgba(0,0,0,.6)); }
+    .dbgov-arrow.up    { border-left: 5px solid transparent; border-right: 5px solid transparent;
+                         border-bottom: 7px solid #b5e853; }
+    .dbgov-arrow.down  { border-left: 5px solid transparent; border-right: 5px solid transparent;
+                         border-top: 7px solid #b5e853; }
+    .dbgov-arrow.left  { border-top: 5px solid transparent; border-bottom: 5px solid transparent;
+                         border-right: 7px solid #b5e853; }
+    .dbgov-arrow.right { border-top: 5px solid transparent; border-bottom: 5px solid transparent;
+                         border-left: 7px solid #b5e853; }
+    .dbgov-ext { position: fixed; pointer-events: none;
+      background: repeating-linear-gradient(to right,
+        rgba(181,232,83,.7) 0 4px, transparent 4px 8px); }
+    .dbgov-ext.v { background: repeating-linear-gradient(to bottom,
+        rgba(181,232,83,.7) 0 4px, transparent 4px 8px); }
+    .dbgov-dist { position: fixed; pointer-events: none;
+      background: rgba(24,28,14,.95); color: #b5e853; border-radius: 7px;
+      padding: 3px 8px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .dbgov-dist.vert { border-left: 2px solid #b5e853; }
+    `,
+      id: 'measure',
+      icon: '📐',
+      title: 'Measure — size, radius, spacing, font, distances',
+      startsOn: true,      // the read-out is what the overlay is FOR
+      /**
+       * INSPECT, and only INSPECT. The pairing that used to live here is a
+       * SELECT tool now; this asks the registry what is grouped and measures
+       * between whatever comes back. Drawing the gap between two elements is a
+       * measurement — deciding WHICH two is not, and keeping both here is what
+       * made this tool two things at once.
+       */
+      badge(i) {
+        const { el, r, cs } = i;
+        // whatever decoration applies here — never "is <some named tool> on"
+        const dec = Tools.annotator(i);
+        const bits = [`<span class="sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`];
+        const rad = U.radius(cs); if (rad) bits.push(`<span class="rad">r ${rad}</span>`);
+        const p = U.four(cs, 'padding', dec); if (p) bits.push(`<span class="sp">p ${p.join(' ')}</span>`);
+        const m = U.four(cs, 'margin', dec);  if (m) bits.push(`<span class="sp">m ${m.join(' ')}</span>`);
+        if (cs.display.includes('flex') || cs.display.includes('grid')) {
+          const g = U.px(cs.columnGap) || U.px(cs.gap);
+          bits.push(`<span class="sp">${U.esc(cs.display)}${g ? ' gap ' + U.mark(g, dec) : ''}</span>`);
+        }
+        bits.push(`<span class="fnt">${U.px(cs.fontSize)}/${U.px(cs.lineHeight) || '–'} ${cs.fontWeight}</span>`);
+        // the id is page-authored text on its way to innerHTML — never raw
+        bits.push(`<span class="tag">${el.tagName.toLowerCase()}${el.id ? '#' + U.esc(el.id) : ''}</span>`);
+        return bits.join(' · ');
+      },
+      compact(i) {
+        const { r, cs } = i;
+        const dec = Tools.annotator(i);
+        const bits = [`<span class="sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`];
+        const rad = U.radius(cs); if (rad) bits.push(`<span class="rad">r ${rad}</span>`);
+        // deliberately padding only — the compact badge never marked m or gap
+        const p = U.four(cs, 'padding', dec); if (p) bits.push(`<span class="sp">p ${p.join(' ')}</span>`);
+        return bits.join(' · ');
+      },
+      report({ r, cs }) {
+        const pad = U.fourPlain(cs, 'padding'), mar = U.fourPlain(cs, 'margin');
+        return [
+          `  box: ${Math.round(r.width)}×${Math.round(r.height)} @ (${Math.round(r.left)}, ${Math.round(r.top)})`,
+          `  padding: ${pad.t} ${pad.r} ${pad.b} ${pad.l} | margin: ${mar.t} ${mar.r} ${mar.b} ${mar.l} | radius: ${U.radius(cs) || 0}`,
+          `  display: ${cs.display}${U.px(cs.gap) ? ' gap:' + U.px(cs.gap) : ''} | position: ${cs.position} | overflow: ${cs.overflow}`,
+          `  font: ${U.px(cs.fontSize)}px/${U.px(cs.lineHeight) || 'normal'} ${cs.fontWeight} ${cs.fontFamily.split(',')[0]}`,
+          `  color: ${cs.color} | bg: ${cs.backgroundColor}`,
+        ];
+      },
+      /**
+       * A pair has a distance; a group of five does not have one distance.
+       * Anything that is not two elements is something this tool has nothing
+       * to say about, and it says so by drawing nothing rather than guessing
+       * which two of them were meant.
+       */
+      _pairs: () => Tools.groups().filter((g) => g.length === 2),
+
+      // dimension lines between grouped pins
+      draw({ layer, Place }) {
+        Measure.resetLanes();
+        for (const [A, B] of this._pairs()) {
+          Measure.dimension(layer, Place, A.el.getBoundingClientRect(),
+                            B.el.getBoundingClientRect(), `#${A.id}→#${B.id}`);
+        }
+      },
+      reportTail() {
+        return this._pairs().map(([A, B]) => {
+          const ra = A.el.getBoundingClientRect(), rb = B.el.getBoundingClientRect();
+          const g = U.gap(ra, rb);
+          const axis = Measure.axisOf(ra, rb);
+          return `[#${A.id} → #${B.id}] ${axis.label}: ` +
+                 (axis.kind === 'overlap' ? 'elements overlap'
+                   : axis.kind === 'diagonal' ? `horizontal ${g.dx}px + vertical ${g.dy}px`
+                   : `${axis.kind === 'vertical' ? g.dy : g.dx}px`);
+        });
+      },
+    });
+
+  // ─── src/tools/pick.js ─────────────────────────────────────────────────
+  defineTool({
+    // visuals owned by this tool — appended to the stylesheet at boot
+    css: `
+    .dbgov-picked { outline: 2px solid #b5e853; outline-offset: 1px;
+      background: rgba(181,232,83,.12); }
+    `,
+      id: 'pick',
+      icon: '⌖',
+      title: 'Pick — Ctrl+click (⌘+click) copies what you clicked',
+      // OFF by default: it takes over a click, and a tool that changes what
+      // clicking does should be something you asked for.
+
+      /**
+       * What Ctrl+click puts on the clipboard. A selector is the address you
+       * paste into a chat or a test; the text is what you paste into a bug
+       * report or a translation file. Both are things you would otherwise
+       * select by hand and get wrong at the edges.
+       */
+      options() {
+        return [{ key: 'what', label: 'Ctrl+click copies', def: 'selector',
+                  values: ['selector', 'text'], affects: 'act' }];
+      },
+
+      /**
+       * INPUT hook — the only one that acts on the page rather than describing
+       * it. Returning true means this click was ours: the pin that would
+       * normally follow does not happen, because landing a pin under an action
+       * is the overlay doing two things for one click.
+       *
+       * Meta as well as Ctrl: Ctrl+click is the context menu on macOS, so the
+       * modifier that means "modified click" there is ⌘.
+       */
+      intercept({ type, ev, el }) {
+        if (type !== 'click' || !(ev.ctrlKey || ev.metaKey)) return false;
+        const txt = Tools.setting(this, 'what') === 'text'
+          ? (el.textContent || '').trim()
+          : U.selectorOf(el);
+        if (!txt) return false;     // nothing to copy is not a click we took
+        Report.toClipboard(txt);
+        this._hit = el;
+        // The clipboard is invisible. Without this the only difference between
+        // a copy that worked and one that silently did not is what turns up
+        // when you paste, which is too late to notice.
+        clearTimeout(this._timer);
+        this._timer = setTimeout(() => { this._hit = null; Render.schedule(); },
+                                 CONFIG.PICK_FLASH);
+        Render.schedule();
+        return true;
+      },
+
+      draw({ layer, Place }) {
+        if (!this._hit || !document.contains(this._hit)) return;
+        const r = this._hit.getBoundingClientRect();
+        const box = document.createElement('div');
+        box.className = 'dbgov-box dbgov-picked';
+        Place.put(box, r.left, r.top, r.width, r.height);
+        layer.append(box);
+      },
+
+      report({ el }) {
+        return [`  selector: ${U.selectorOf(el)}`];
+      },
+    });
+
+  // ─── src/tools/select.js ───────────────────────────────────────────────
+  defineTool({
+      id: 'select',
+      icon: '⬚',
+      title: 'Select — how pinned elements group up',
+      startsOn: true,
+
+      /**
+       * SELECT, and only SELECT. This came out of measure, which had been the
+       * read-out AND the thing deciding what was selected — so a second way of
+       * selecting could not be added without editing the tool that draws
+       * badges. Nothing here describes an element; it decides which elements
+       * belong together, and hands that to whoever wants to say something
+       * about the pair.
+       */
+      options() {
+        return [{ key: 'mode', label: 'Pin grouping', def: CONFIG.PAIR_MODE,
+                  values: ['pairs', 'chain'], affects: 'select' }];
+      },
+
+      // only Shift-clicked pins take part — a plain click is "inspect this",
+      // and silently roping it into a measurement is not what was asked
+      _pins: () => State.pins.filter((p) => p.kind === CONFIG.PIN_KIND.SHIFT),
+
+      /**
+       * The single place grouping is decided.
+       *
+       * 'pairs' — every group takes two clicks and the next starts a fresh
+       * one, so a pin is never silently reused. 'chain' — each new pin groups
+       * with the previous one.
+       */
+      _form() {
+        const mp = this._pins();
+        const mode = Tools.setting(this, 'mode');
+        const step = mode === 'pairs' ? 2 : 1;
+        const out = [];
+        for (let k = 0; k + 1 < mp.length; k += step) out.push([mp[k], mp[k + 1]]);
+        const pending = (mode === 'pairs' && mp.length % 2) ? mp[mp.length - 1] : null;
+        return { groups: out, pending };
+      },
+
+      /** Hook: what is grouped, for anything that draws or reports BETWEEN
+       *  elements. Consumers never learn who grouped them. */
+      groups() { return this._form().groups; },
+
+      /** Hook: which pin is still waiting for its partner. */
+      pendingIndex() {
+        const { pending } = this._form();
+        return pending ? State.pins.indexOf(pending) : -1;
+      },
+
+      /**
+       * Hook: rows for the panel's pin list. The distance in the detail column
+       * comes from core geometry, not from a read-out hook — this tool
+       * describes its own grouping, which is still selection, and implements
+       * no badge or annotate to claim otherwise.
+       */
+      listRows() {
+        const { groups, pending } = this._form();
+        const rows = groups.map(([A, B]) => {
+          const ra = A.el.getBoundingClientRect(), rb = B.el.getBoundingClientRect();
+          const g = U.gap(ra, rb);
+          const axis = Measure.axisOf(ra, rb);
+          const detail = axis.kind === 'overlap' ? 'overlapping'
+            : axis.kind === 'diagonal' ? `→ ${g.dx} · ↓ ${g.dy} px`
+            : axis.kind === 'vertical' ? `↕ ${g.dy} px` : `↔ ${g.dx} px`;
+          return { tag: `#${A.id}→#${B.id}`,
+                   label: `${U.labelOf(A.el)} ↔ ${U.labelOf(B.el)}`,
+                   detail, pins: [A, B] };
+        });
+        if (pending) rows.push({ tag: `#${pending.id}…`, label: U.labelOf(pending.el),
+                                 detail: 'pick its pair', pins: [pending] });
+        return rows;
+      },
+
+      /** A half-finished selection is a fact about the report's scope. */
+      reportTail() {
+        const { pending } = this._form();
+        return pending ? [`[#${pending.id}] waiting for its pair`] : [];
       },
     });
 

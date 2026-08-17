@@ -52,7 +52,7 @@ tab: the bundle skips frames, so an embedded editor preview shows nothing.
   dependencies allow — the build fails if it is in one and not the other, in
   either direction. `tools/*` stays auto-discovered, so a new tool is still one
   new file and nothing else.
-- `tools/30-contrast.js` is over the 220-line advisory and staying there. The
+- `tools/contrast.js` is over the 220-line advisory and staying there. The
   only way to shrink it is to move the colour helpers into a core file, and
   they live in the tool deliberately (see below). A line count is not worth
   trading a boundary for.
@@ -170,7 +170,7 @@ true; now nothing central knows the name of anything.
 
 ## Subjects — shared measurement, and the settings that govern it
 `src/subjects/*` holds what more than one component needs to agree about:
-`10-scale.js` owns `step`/`max`/`boxes` and the off-grid test; `20-colour.js`
+`scale.js` owns `step`/`max`/`boxes` and the off-grid test; `colour.js`
 owns the WCAG `level`, the colour resolution, the memoised cache and the 1×1
 canvas.
 
@@ -213,7 +213,7 @@ flat run ordered by filename.
 **One tool, one role, unless it genuinely does two things.** Pairing used to
 live in measure, which made it a read-out *and* the thing deciding what was
 selected — and no second way of selecting could be added without editing the
-tool that draws badges. `tools/05-select.js` owns grouping and publishes it
+tool that draws badges. `tools/select.js` owns grouping and publishes it
 through `groups()`; measure asks `Tools.groups()` and measures between whatever
 comes back. A lasso or a select-by-query is now one new file that every
 consumer picks up, and neither side learns the other's id.
@@ -225,7 +225,7 @@ that can hand it on, and it does so by hook with no tool named. Return true and
 the click was yours; the pin does not also happen, because the overlay doing
 two things for one click is its own bug.
 
-Claim narrowly. `15-pick.js` takes only Ctrl/⌘+clicks; a tool that swallows
+Claim narrowly. `pick.js` takes only Ctrl/⌘+clicks; a tool that swallows
 every click has taken the overlay away from everything else. Meta as well as
 Ctrl, because Ctrl+click is the context menu on macOS.
 

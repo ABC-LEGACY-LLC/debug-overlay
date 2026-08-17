@@ -62,6 +62,26 @@
   const role = (key) => ROLES.find((r) => r.key === key);
 
   /**
+   * Presentation order, derived — which button sits where, which ⚙ row is
+   * first. Filenames used to carry this as numeric prefixes, which meant a
+   * name said when a thing displays rather than what it is, and left the last
+   * numbers in a tree that had otherwise stopped using them.
+   *
+   * By the first ROLE a component fills, then by id. That reproduces the bar
+   * as it was — pick after measure, dupid after the two that also describe —
+   * without anything being spelled. Roles are plural and this takes the first,
+   * which is a display decision only: nothing is claimed about the others, and
+   * being wrong costs an ordering, never a verdict.
+   */
+  const byRole = (a, b) => {
+    const rank = (t) => {
+      const i = ROLES.findIndex((r) => r.has(t));
+      return i < 0 ? ROLES.length : i;
+    };
+    return rank(a) - rank(b) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  };
+
+  /**
    * SUBJECTS — a shared measurement, and the settings that govern it.
    *
    * WHY: `step` was grid's setting and `level` was contrast's, but neither is
@@ -120,10 +140,11 @@
       // yes/no question instead, which composition cannot make false, and the
       // full role list goes in the tooltip where there is room to be plural.
       const checks = role('detect').has;
+      const inOrder = TOOLS.slice().sort(byRole);
       return [
-        { cls: '', note: '', tools: TOOLS.filter((t) => !checks(t)) },
+        { cls: '', note: '', tools: inOrder.filter((t) => !checks(t)) },
         { cls: 'checks', note: ' · also runs in the page audit',
-          tools: TOOLS.filter(checks) },
+          tools: inOrder.filter(checks) },
       ].filter((r) => r.tools.length);
     },
 
@@ -152,7 +173,8 @@
      * more general fact: "the spacing step is 2px" is true of the project, and
      * what any one component does with it comes after.
      */
-    settingOwners: () => [...SUBJECTS, ...TOOLS].filter((o) => o.options),
+    settingOwners: () => [...SUBJECTS, ...TOOLS.slice().sort(byRole)]
+      .filter((o) => o.options),
 
     /** Every role a tool fills, in ROLES order. Plural by construction. */
     rolesOf: (t) => ROLES.filter((r) => r.has(t)).map((r) => r.label),

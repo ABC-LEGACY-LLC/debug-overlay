@@ -119,7 +119,7 @@ console.log('\nTOOL FILES');
 const ACCESSOR = /(?:Tools\.\w+|State\.tools\.has)\s*\(\s*'([a-z][\w-]*)'/g;
 const BY_FIELD = /\.id\s*===?\s*'([a-z][\w-]*)'/g;   // the other way back in
 /* Comments are stripped first. Without that, a file that merely EXPLAINS a
-   hook is reported as implementing it — 40-dupid.js says "audit(info) cannot
+   hook is reported as implementing it — dupid.js says "audit(info) cannot
    ask this" in its own doc comment and was listed as having an audit hook it
    does not have. Only whole-line // comments go, so a URL inside a string
    keeps its slashes. */

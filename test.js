@@ -847,8 +847,12 @@ console.log('\nCATEGORIES');
     }
     return out;
   };
-  ok('settings from different tools share a category',
-    under('Detect').join(', ') === 'Grid step, Ignore above, Judge width & height, WCAG level',
+  // A set, not a sequence: order inside a category is derived now, and an
+  // assertion on the sequence would fail the day a role is added without
+  // anything true having changed.
+  ok('settings from different owners share a category',
+    under('Detect').slice().sort().join(', ')
+      === 'Grid step, Ignore above, Judge width & height, WCAG level',
     under('Detect').join(', '));
 
   // ---- roles, derived from hooks, plural only where that is true ----------

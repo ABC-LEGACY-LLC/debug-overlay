@@ -156,15 +156,15 @@ src/
     geometry.js        dimension-line geometry, tool-agnostic
     registry.js        defineTool(), the Tools helpers, the four ROLES
   subjects/            ← auto-discovered; shared measurement + its settings
-    10-scale.js        what counts as on-grid, and step/max/boxes
-    20-colour.js       colour resolution, the cache, and the WCAG level
+    colour.js          colour resolution, the cache, and the WCAG level
+    scale.js           what counts as on-grid, and step/max/boxes
   tools/               ← auto-discovered; one file per capability
-    05-select.js       how pinned elements group up
-    10-measure.js      sizes, spacing, distances  ← copy this as a template
-    15-pick.js         Ctrl+click copies a selector
-    20-grid.js         off-grid value warnings
-    30-contrast.js     WCAG contrast ratio
-    40-dupid.js        duplicate ids — a whole-page question
+    contrast.js        WCAG contrast ratio
+    dupid.js           duplicate ids — a whole-page question
+    grid.js            off-grid value warnings
+    measure.js         sizes, spacing, distances  ← copy this as a template
+    pick.js            Ctrl+click copies a selector
+    select.js          how pinned elements group up
   ui/
     styles.js          core CSS (tools carry their own)
     dom.js             root + drawing layer
@@ -198,10 +198,10 @@ and not the other, in either direction — a file that exists but ships in no
 bundle is exactly the kind of silence this project keeps designing out.
 
 `tools/*` is still globbed, so **a new tool is one new file and nothing else**.
-Tools may not name each other, so their order is presentation only: which
-button sits where, and which row comes first under ⚙. That is the one place a
-numeric prefix still earns its keep, and now it means only that — the files are
-numbered so that reading the directory gives you the bar, left to right.
+No filename anywhere carries a number now. Where a tool appears in the bar is
+derived from the first ROLE it fills, then by id — so the order is a fact about
+what a component does, not about how it was spelled, and it cannot go stale
+against the thing it describes.
 
 ## Adding a tool
 
@@ -248,7 +248,7 @@ file to name it.
 `intercept({ type, ev, el })` is the only hook that **acts** on the page rather
 than describing it. Armed tools are offered each click before it becomes a pin;
 returning true means the click was yours and no pin lands underneath. Claim
-narrowly — `15-pick.js` takes only Ctrl/⌘+clicks — because a tool that swallows
+narrowly — `pick.js` takes only Ctrl/⌘+clicks — because a tool that swallows
 every click has taken the overlay away from everything else.
 
 `options()` makes a tool adjustable without a rebuild — one row each under the
