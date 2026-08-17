@@ -82,6 +82,17 @@ that a file in `detect/` has `audit`, but not that it has *only* detect hooks,
 without banning composition. Roles are plural on purpose — grid and contrast
 are each Inspect *and* Detect.
 
+Splitting a composed tool to make role-folders work was considered and is
+worse. grid's `_off(n)` reads the `step` setting and both `annotate` and
+`audit` go through it; contrast's `_measure()` feeds `badge`, `compact`,
+`report` AND `audit`, over a memoised `_cache` and one 1×1 canvas. Two files
+could not share either, because no tool may name another — so each would
+declare its own `step` / `level`, the user would set the same thing twice, and
+the badge could say a value passes while the audit says it fails. Contrast
+would also carry two colour caches and two canvases over a page with thousands
+of nodes. The directory would be tidy and the software would be worse; that is
+structure serving the filesystem instead of the problem.
+
 When `tools/` does outgrow one directory, subdivide by **subject** — `layout/`,
 `a11y/`, `content/` — which is stable and human-declared, the same reason
 `core/ ui/ app/` work. `build.js` globs and `audit.js` walks `tools/`
@@ -192,7 +203,7 @@ that can hand it on, and it does so by hook with no tool named. Return true and
 the click was yours; the pin does not also happen, because the overlay doing
 two things for one click is its own bug.
 
-Claim narrowly. `50-pick.js` takes only Ctrl/⌘+clicks; a tool that swallows
+Claim narrowly. `15-pick.js` takes only Ctrl/⌘+clicks; a tool that swallows
 every click has taken the overlay away from everything else. Meta as well as
 Ctrl, because Ctrl+click is the context menu on macOS.
 

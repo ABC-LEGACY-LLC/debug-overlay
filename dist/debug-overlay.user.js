@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.33
+// @version      3.8.34
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -261,7 +261,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: '3.8.33',
+    VERSION: '3.8.34',
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -1043,6 +1043,71 @@ HOW TO USE
       },
     });
 
+  // ─── src/tools/15-pick.js ──────────────────────────────────────────────
+  defineTool({
+    // visuals owned by this tool — appended to the stylesheet at boot
+    css: `
+    .dbgov-picked { outline: 2px solid #b5e853; outline-offset: 1px;
+      background: rgba(181,232,83,.12); }
+    `,
+      id: 'pick',
+      icon: '⌖',
+      title: 'Pick — Ctrl+click (⌘+click) copies what you clicked',
+      // OFF by default: it takes over a click, and a tool that changes what
+      // clicking does should be something you asked for.
+
+      /**
+       * What Ctrl+click puts on the clipboard. A selector is the address you
+       * paste into a chat or a test; the text is what you paste into a bug
+       * report or a translation file. Both are things you would otherwise
+       * select by hand and get wrong at the edges.
+       */
+      options() {
+        return [{ key: 'what', label: 'Ctrl+click copies', def: 'selector',
+                  values: ['selector', 'text'], affects: 'act' }];
+      },
+
+      /**
+       * INPUT hook — the only one that acts on the page rather than describing
+       * it. Returning true means this click was ours: the pin that would
+       * normally follow does not happen, because landing a pin under an action
+       * is the overlay doing two things for one click.
+       *
+       * Meta as well as Ctrl: Ctrl+click is the context menu on macOS, so the
+       * modifier that means "modified click" there is ⌘.
+       */
+      intercept({ type, ev, el }) {
+        if (type !== 'click' || !(ev.ctrlKey || ev.metaKey)) return false;
+        const txt = Tools.setting(this, 'what') === 'text'
+          ? (el.textContent || '').trim()
+          : U.selectorOf(el);
+        if (!txt) return false;     // nothing to copy is not a click we took
+        Report.toClipboard(txt);
+        this._hit = el;
+        // The clipboard is invisible. Without this the only difference between
+        // a copy that worked and one that silently did not is what turns up
+        // when you paste, which is too late to notice.
+        clearTimeout(this._timer);
+        this._timer = setTimeout(() => { this._hit = null; Render.schedule(); },
+                                 CONFIG.PICK_FLASH);
+        Render.schedule();
+        return true;
+      },
+
+      draw({ layer, Place }) {
+        if (!this._hit || !document.contains(this._hit)) return;
+        const r = this._hit.getBoundingClientRect();
+        const box = document.createElement('div');
+        box.className = 'dbgov-box dbgov-picked';
+        Place.put(box, r.left, r.top, r.width, r.height);
+        layer.append(box);
+      },
+
+      report({ el }) {
+        return [`  selector: ${U.selectorOf(el)}`];
+      },
+    });
+
   // ─── src/tools/20-grid.js ──────────────────────────────────────────────
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
@@ -1514,71 +1579,6 @@ HOW TO USE
         if (!el.id) return [];
         const n = document.querySelectorAll(`[id="${CSS.escape ? CSS.escape(el.id) : el.id}"]`).length;
         return n > 1 ? [`  ⧉ id "${el.id}" is used ${n} times on this page`] : [];
-      },
-    });
-
-  // ─── src/tools/50-pick.js ──────────────────────────────────────────────
-  defineTool({
-    // visuals owned by this tool — appended to the stylesheet at boot
-    css: `
-    .dbgov-picked { outline: 2px solid #b5e853; outline-offset: 1px;
-      background: rgba(181,232,83,.12); }
-    `,
-      id: 'pick',
-      icon: '⌖',
-      title: 'Pick — Ctrl+click (⌘+click) copies what you clicked',
-      // OFF by default: it takes over a click, and a tool that changes what
-      // clicking does should be something you asked for.
-
-      /**
-       * What Ctrl+click puts on the clipboard. A selector is the address you
-       * paste into a chat or a test; the text is what you paste into a bug
-       * report or a translation file. Both are things you would otherwise
-       * select by hand and get wrong at the edges.
-       */
-      options() {
-        return [{ key: 'what', label: 'Ctrl+click copies', def: 'selector',
-                  values: ['selector', 'text'], affects: 'act' }];
-      },
-
-      /**
-       * INPUT hook — the only one that acts on the page rather than describing
-       * it. Returning true means this click was ours: the pin that would
-       * normally follow does not happen, because landing a pin under an action
-       * is the overlay doing two things for one click.
-       *
-       * Meta as well as Ctrl: Ctrl+click is the context menu on macOS, so the
-       * modifier that means "modified click" there is ⌘.
-       */
-      intercept({ type, ev, el }) {
-        if (type !== 'click' || !(ev.ctrlKey || ev.metaKey)) return false;
-        const txt = Tools.setting(this, 'what') === 'text'
-          ? (el.textContent || '').trim()
-          : U.selectorOf(el);
-        if (!txt) return false;     // nothing to copy is not a click we took
-        Report.toClipboard(txt);
-        this._hit = el;
-        // The clipboard is invisible. Without this the only difference between
-        // a copy that worked and one that silently did not is what turns up
-        // when you paste, which is too late to notice.
-        clearTimeout(this._timer);
-        this._timer = setTimeout(() => { this._hit = null; Render.schedule(); },
-                                 CONFIG.PICK_FLASH);
-        Render.schedule();
-        return true;
-      },
-
-      draw({ layer, Place }) {
-        if (!this._hit || !document.contains(this._hit)) return;
-        const r = this._hit.getBoundingClientRect();
-        const box = document.createElement('div');
-        box.className = 'dbgov-box dbgov-picked';
-        Place.put(box, r.left, r.top, r.width, r.height);
-        layer.append(box);
-      },
-
-      report({ el }) {
-        return [`  selector: ${U.selectorOf(el)}`];
       },
     });
 
