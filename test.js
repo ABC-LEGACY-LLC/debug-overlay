@@ -40,6 +40,9 @@ const TOOLS_ON_DISK = fs.readdirSync(path.join(ROOT, 'src', 'tools'))
     id: (s.match(/id: '([a-z][a-z0-9-]*)'/) || [])[1],
     // the same test the panel groups by: either hook contributes findings
     judges: /(^|[^.\w])(audit|auditPage)\s*\(/m.test(s),
+    css: /\bcss:\s*`/.test(s),
+    // a tool that emits its own class must ship the rule that colours it
+    emits: [...s.matchAll(/class="([a-z-]+)"/g)].map((m) => m[1]),
   }));
 const idsOnDisk = TOOLS_ON_DISK.map((t) => t.id).sort();
 
@@ -96,15 +99,20 @@ const cssOf = (who) => (sheets.find((s) => (s.dataset.tool || 'core') === who) |
 ok('stylesheet injected', sheets.length > 0 && sheets[0].textContent.length > 0);
 // One sheet per tool is the containment: a parser that gives up takes the
 // rest of ITS sheet with it and nothing else.
-ok('each tool ships its own sheet',
-  ['measure', 'grid', 'contrast'].every((id) => cssOf(id).length > 0),
-  sheets.map((s) => s.dataset.tool || 'core').join(', '));
+const withCss = TOOLS_ON_DISK.filter((t) => t.css);
+ok('each tool that declares CSS ships its own sheet',
+  withCss.length > 0 && withCss.every((t) => cssOf(t.id).length > 0),
+  withCss.filter((t) => !cssOf(t.id).length).map((t) => t.id).join(', ') || 'none missing');
 ok('tool CSS reached its sheet', cssOf('measure').includes('.dbgov-line'),
   'measure tool css missing');
-// the lens emits <span class="warn"> itself, so its markup and the rule that
-// colours it have to ship from the same file
-ok('lens CSS reached its sheet', cssOf('grid').includes('.dbgov-badge .warn'),
-  'grid lens css missing');
+// A class a tool emits has to be styled somewhere it actually ships — its own
+// sheet, or core. Derived, because splitting a tool is exactly how markup ends
+// up in one file and its styling in another, and the page just looks wrong
+// while every test still passes.
+const orphanClass = TOOLS_ON_DISK.flatMap((t) =>
+  t.emits.filter((c) => !cssOf(t.id).includes('.' + c) && !cssOf('core').includes('.' + c))
+    .map((c) => `${t.id} emits .${c}, nothing styles it`));
+ok('every class a tool emits is styled', !orphanClass.length, orphanClass.join('; '));
 
 console.log('\nSTYLESHEET');
 // Malformed CSS never fails loudly: the parser drops the broken rule and

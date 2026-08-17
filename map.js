@@ -61,7 +61,7 @@ console.log('\nTOOLS          roles are derived from hooks, so they can be plura
 for (const b of bar.querySelectorAll('button.tool')) {
   const id = b.dataset.tool;
   const roles = (b.title.split('\n')[1] || '').replace(' · also runs in the page audit', '');
-  console.log(`  ${b.textContent}  ${id.padEnd(10)}${roles.padEnd(20)}${from[id] || '?'}`);
+  console.log(`  ${b.textContent}  ${id.padEnd(16)}${roles.padEnd(20)}${from[id] || '?'}`);
 }
 
 w.dispatchEvent(new w.KeyboardEvent('keydown',

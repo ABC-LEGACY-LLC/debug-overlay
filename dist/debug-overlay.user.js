@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.36
+// @version      3.8.37
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -263,7 +263,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: '3.8.36',
+    VERSION: '3.8.37',
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -1174,13 +1174,61 @@ HOW TO USE
     },
   });
 
-  // ─── src/tools/contrast.js ─────────────────────────────────────────────
+  // ─── src/tools/colour-readout.js ───────────────────────────────────────
+  /**
+   * INSPECT half of what used to be `contrast`. It states the ratio for the
+   * element under the cursor; the rule beside it judges every element on the
+   * page. Both call Colour.measure(), so the level they are judged against is
+   * one value, not two that can drift apart — a badge reading AA✓ over a
+   * finding reading AAA✗ is the failure this arrangement rules out.
+   */
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `
     .dbgov-badge .ok  { color: #b5e853; }
     .dbgov-badge .bad { color: #ff6b6b; font-weight: 700; }
     .dbgov-badge .unk { color: #8ab4f8; font-style: italic; }
+    `,
+      id: 'colour-readout',
+      icon: '◐',
+      // the level is the user's choice, so it cannot be stated here
+      title: 'Contrast — the WCAG ratio for what you are pointing at',
+
+      badge(i) {
+        const c = Colour.measure(i);
+        if (!c) return null;
+        // say so on hover too — silence here is what taught the eye to trust
+        // a page the tool had not actually checked
+        if (c.unknown) return `<span class="unk">contrast ?</span>`;
+        const cls = c.pass ? 'ok' : 'bad';
+        return `<span class="${cls}">${c.ratio.toFixed(2)}:1 ${c.level}${c.pass ? '✓' : '✗'}</span>`;
+      },
+      compact(i) {
+        const c = Colour.measure(i);
+        if (!c || c.unknown || c.pass) return null;   // quiet unless it fails
+        return `<span class="bad">${c.ratio.toFixed(1)}:1 ✗</span>`;
+      },
+      report(i) {
+        const c = Colour.measure(i);
+        if (!c) return [];
+        if (c.unknown) return [`  contrast: not measured — ${Colour.why[c.unknown]}`];
+        return [`  contrast: ${c.ratio.toFixed(2)}:1 vs required ${c.need} (${c.isLarge ? 'large' : 'normal'} text) → ${c.pass ? 'PASS' : 'FAIL'}`];
+      },
+    });
+
+  // ─── src/tools/colour-rule.js ──────────────────────────────────────────
+  /**
+   * DETECT half of what used to be `contrast`, and the half that draws where
+   * the failures are.
+   *
+   * Three answers, not two. An element with no text of its own has no contrast
+   * to have — that is silence, correctly. A colour space that cannot be read,
+   * a gradient behind the text, a missing canvas: those are REVIEWS, each
+   * carrying a reason, because folding them in with the passes let a page of
+   * unreadable text audit clean.
+   */
+  defineTool({
+    css: `
     /* where the findings actually are. dashed, never filled: a mark points at
        a problem, it must not hide the thing it is pointing at */
     .dbgov-flag { outline-offset: 1px; }
@@ -1189,13 +1237,10 @@ HOW TO USE
     .dbgov-flag.info   { outline: 2px dashed #9ad0ff; }
     .dbgov-flag.review { outline: 2px dotted #8ab4f8; }
     `,
-      id: 'contrast',
-      icon: '◐',
-      // the level is the user's choice now, so it cannot be stated here
-      title: 'Contrast — WCAG text contrast ratio',
+      id: 'colour-rule',
+      icon: '◑',
+      title: 'Contrast rule — audit the whole page for unreadable text',
 
-      // What each rule IS, separate from what any one element measured. The
-      // instance message says 2.76:1; this says why, and what to do.
       rules: {
         'contrast-aa': {
           help: 'Body text needs 4.5:1 against its background, or 7:1 at AAA; ' +
@@ -1262,26 +1307,6 @@ HOW TO USE
           layer.append(box);
         }
       },
-      badge(i) {
-        const c = Colour.measure(i);
-        if (!c) return null;
-        // say so on hover too — silence here is what taught the eye to trust
-        // a page the tool had not actually checked
-        if (c.unknown) return `<span class="unk">contrast ?</span>`;
-        const cls = c.pass ? 'ok' : 'bad';
-        return `<span class="${cls}">${c.ratio.toFixed(2)}:1 ${c.level}${c.pass ? '✓' : '✗'}</span>`;
-      },
-      compact(i) {
-        const c = Colour.measure(i);
-        if (!c || c.unknown || c.pass) return null;   // quiet unless it fails
-        return `<span class="bad">${c.ratio.toFixed(1)}:1 ✗</span>`;
-      },
-      report(i) {
-        const c = Colour.measure(i);
-        if (!c) return [];
-        if (c.unknown) return [`  contrast: not measured — ${Colour.why[c.unknown]}`];
-        return [`  contrast: ${c.ratio.toFixed(2)}:1 vs required ${c.need} (${c.isLarge ? 'large' : 'normal'} text) → ${c.pass ? 'PASS' : 'FAIL'}`];
-      },
     });
 
   // ─── src/tools/dupid.js ────────────────────────────────────────────────
@@ -1341,89 +1366,6 @@ HOW TO USE
         if (!el.id) return [];
         const n = document.querySelectorAll(`[id="${CSS.escape ? CSS.escape(el.id) : el.id}"]`).length;
         return n > 1 ? [`  ⧉ id "${el.id}" is used ${n} times on this page`] : [];
-      },
-    });
-
-  // ─── src/tools/grid.js ─────────────────────────────────────────────────
-  defineTool({
-    // visuals owned by this tool — appended to the stylesheet at boot
-    css: `
-    .dbgov-badge .warn{ color: #ffd54f; }
-    `,
-      id: 'grid',
-      icon: '▦',
-      // No number in the title: the step is the user's now, and a title baked
-      // at boot would still be claiming 2px long after they picked 8.
-      title: 'Grid — flag values off the spacing grid',
-      startsOn: true,      // the ⚠ on a badge is what makes the read-out useful
-
-      rules: {
-        'grid-off': {
-          help: 'Spacing should be a multiple of the grid step — change which ' +
-                'step this checks in the panel under ⚙.',
-          why: 'One-off values are how a spacing scale erodes: each looks ' +
-               'harmless alone, and together they are why nothing lines up.',
-        },
-      },
-
-      /**
-       * LENS hook: every number another tool prints comes through here first.
-       * `html` is what earlier lenses made of it, so we wrap rather than
-       * replace, and the ⚠ markup sits next to the .warn rule for it.
-       *
-       * The judgement itself is the subject's — this decides how to SHOW an
-       * off-grid number, not what one is. That is the whole point of the
-       * split: the rule below reaches the same verdict through the same call.
-       */
-      annotate(html, n) {
-        return Scale.off(n) ? `<span class="warn">${html}⚠</span>` : html;
-      },
-
-      report(i) {
-        const bad = Scale.scan(i, true);
-        return bad.length
-          ? [`  ⚠ off ${Scale.step()}px grid: ` +
-             `${bad.map(([n, v]) => `${n}:${v}`).join(', ')}`]
-          : [];
-      },
-
-      /**
-       * RULE hook. This tool decorates other tools' numbers AND produces
-       * findings — two roles at once, which the old one-label-per-tool
-       * taxonomy made impossible for no reason but the shape of the label.
-       *
-       * Keyed by VALUE, not by element: one 13px used in forty places is one
-       * decision someone made, not forty mistakes. That is the page-wide
-       * pattern a per-element read-out could never show you — it is why this
-       * belongs in a sweep and not only on a badge.
-       */
-      audit(i) {
-        // An <svg> path has a bounding box and no authored anything. Judging
-        // those turned one real signal into 2,215 findings about icon
-        // geometry on a real page.
-        if (!(i.el instanceof HTMLElement)) return [];
-        // Width and height are the OUTPUT of layout — a text span is as wide
-        // as its text, a scroll container as tall as its content. Neither is
-        // a decision anyone made, and sweeping them buried the findings that
-        // were. Padding, margin and gap are typed by a person; those are the
-        // spacing scale.
-        return Scale.scan(i, Scale.boxes())
-          // and drop what layout worked out rather than what anyone chose:
-          // ml-auto arrives here as margin-left: 1127px
-          .filter(([, v]) => v <= Scale.max())
-          .map(([n, v]) => ({
-          el: i.el,
-          verdict: 'fail',
-          // a spacing system is a convention, not a rule anyone can be hurt
-          // by breaking — it ranks below anything a reader actually suffers
-          severity: 'info',
-          rule: 'grid-off',
-          // the VALUE, not the side it appeared on: these group by value, and
-          // "pad-t ×24" would read as 24 top paddings when it is one number
-          // used in twenty-four places. The sides are in the per-pin report.
-          message: `${v}px is off the ${Scale.step()}px grid`,
-          key: `grid-off|${v}`,
-        }));
       },
     });
 
@@ -1594,6 +1536,100 @@ HOW TO USE
 
       report({ el }) {
         return [`  selector: ${U.selectorOf(el)}`];
+      },
+    });
+
+  // ─── src/tools/scale-marks.js ──────────────────────────────────────────
+  /**
+   * INSPECT half of what used to be `grid`. It shows you an off-grid number
+   * where you are already looking; the rule beside it judges the whole page.
+   *
+   * Neither owns the step — `Scale` does. That is what makes this split safe:
+   * both halves reach the same verdict through the same call, so the ⚠ on a
+   * badge can never disagree with the finding in a sweep. Splitting them while
+   * each held its own copy of `step` was the thing that would have broken.
+   */
+  defineTool({
+    // visuals owned by this tool — appended to the stylesheet at boot
+    css: `
+    .dbgov-badge .warn{ color: #ffd54f; }
+    `,
+      id: 'scale-marks',
+      icon: '⚠',
+      // No number in the title: the step is the user's, and a title baked at
+      // boot would still be claiming 2px long after they picked 8.
+      title: 'Grid marks — flag numbers that are off the spacing grid',
+      startsOn: true,      // the ⚠ is what makes the read-out worth reading
+
+      /**
+       * LENS hook: every number another tool prints comes through here first.
+       * `html` is what earlier lenses made of it, so we wrap rather than
+       * replace, and the ⚠ markup sits next to the .warn rule for it.
+       */
+      annotate(html, n) {
+        return Scale.off(n) ? `<span class="warn">${html}⚠</span>` : html;
+      },
+
+      report(i) {
+        const bad = Scale.scan(i, true);
+        return bad.length
+          ? [`  ⚠ off ${Scale.step()}px grid: ` +
+             `${bad.map(([n, v]) => `${n}:${v}`).join(', ')}`]
+          : [];
+      },
+    });
+
+  // ─── src/tools/scale-rule.js ───────────────────────────────────────────
+  /**
+   * DETECT half of what used to be `grid`. Same question as the marks beside
+   * it, asked of every visible element instead of the one under the cursor.
+   *
+   * The page-wide view is not the per-element one repeated: keyed by VALUE,
+   * one 13px used in forty places is one decision somebody made, not forty
+   * mistakes. That pattern is invisible from a badge, and it is the reason
+   * this half is worth having at all.
+   */
+  defineTool({
+      id: 'scale-rule',
+      icon: '▦',
+      title: 'Grid rule — audit the whole page against the spacing grid',
+
+      rules: {
+        'grid-off': {
+          help: 'Spacing should be a multiple of the grid step — change which ' +
+                'step this checks in the panel under ⚙.',
+          why: 'One-off values are how a spacing scale erodes: each looks ' +
+               'harmless alone, and together they are why nothing lines up.',
+        },
+      },
+
+      audit(i) {
+        // An <svg> path has a bounding box and no authored anything. Judging
+        // those turned one real signal into 2,215 findings about icon geometry
+        // on a real page.
+        if (!(i.el instanceof HTMLElement)) return [];
+        // Width and height are the OUTPUT of layout — a text span is as wide as
+        // its text, a scroll container as tall as its content. Neither is a
+        // decision anyone made, and sweeping them buried the findings that
+        // were. Padding, margin and gap are typed by a person; those are the
+        // spacing scale.
+        return Scale.scan(i, Scale.boxes())
+          // and drop what layout worked out rather than what anyone chose:
+          // ml-auto arrives here as margin-left: 1127px
+          .filter(([, v]) => v <= Scale.max())
+          .map(([n, v]) => ({
+            el: i.el,
+            verdict: 'fail',
+            // a spacing system is a convention, not a rule anyone can be hurt
+            // by breaking — it ranks below anything a reader actually suffers
+            severity: 'info',
+            rule: 'grid-off',
+            // the VALUE, not the side it appeared on: these group by value, and
+            // "pad-t ×24" would read as 24 top paddings when it is one number
+            // used in twenty-four places. The sides are in the per-pin report.
+            message: `${v}px is off the ${Scale.step()}px grid`,
+            key: `grid-off|${v}`,
+          }));
       },
     });
 
