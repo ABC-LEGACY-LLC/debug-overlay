@@ -32,12 +32,13 @@ let fail = 0;
    The cross-tool rule needs every id before it can judge the first file
    (measure is read before grid's id is known), and the core-file id bans
    below are derived from that same list. */
-const toolDir = path.join(SRC, 'tools');
-const toolFiles = fs.existsSync(toolDir)
-  ? fs.readdirSync(toolDir).filter((f) => f.endsWith('.js')).sort()
-  : [];
+/* Recursive, like the build's own glob. tools/ is flat today and will not stay
+   flat forever; discovering them with readdirSync would mean the day someone
+   subdivides it, every tool in a subfolder silently stops being audited — no
+   id check, no icon check, no cross-tool check, and a green run saying so. */
+const toolFiles = walk().filter((f) => f.startsWith('tools/'));
 const tools = toolFiles.map((f) => {
-  const s = fs.readFileSync(path.join(toolDir, f), 'utf8');
+  const s = read(f);
   return {
     f, s,
     id: (s.match(/id: '([a-z][a-z0-9-]*)'/) || [])[1],
@@ -164,7 +165,7 @@ for (const t of tools) {
   const hooks = HOOKS.filter((h) => calls(t.s, h));
   if (!hooks.length) bad.push('implements no hook — nothing would ever call it');
   if (bad.length) fail++;
-  console.log(`  ${bad.length ? '✗' : '✓'} ${t.f.padEnd(16)} id=${(t.id || '??').padEnd(9)}` +
+  console.log(`  ${bad.length ? '✗' : '✓'} ${t.f.replace('tools/', '').padEnd(16)} id=${(t.id || '??').padEnd(9)}` +
               `${String(t.lines).padStart(3)} lines  hooks: ${hooks.join(', ') || 'none'}`);
   bad.forEach((b) => console.log(`      ${b}`));
 }
@@ -207,6 +208,19 @@ for (const h of HOOKS) {
     new RegExp(`\\.${h}\\b|\\bt\\.${h}|withHook\\('${h}'|'${h}'`).test(strip(s))).map(([f]) => f);
   if (!users.length) fail++;
   console.log(`  ${users.length ? '✓' : '✗'} ${h.padEnd(14)}${users.join(', ') || 'nothing calls this'}`);
+}
+
+/* A flat tools/ is right until it is not, and the moment it stops being right
+   is not something anyone notices while adding the file that broke it. Advisory
+   like the line count, and it names the axis — subdivide by SUBJECT (layout,
+   a11y, content), never by role. A role is derived from hooks, so a folder
+   named after one goes stale the day someone adds a badge() and nothing moves
+   the file. Directories are for what a file IS, not for what it does. */
+const FLAT_TOOLS = 20;
+if (tools.length > FLAT_TOOLS) {
+  console.log(`\n! tools/ holds ${tools.length} files — past ${FLAT_TOOLS} a flat folder stops` +
+              ` helping.\n  Subdivide by SUBJECT (layout/, a11y/, content/), never by role.` +
+              `\n  build.js globs tools/ recursively, so the layout is free to change.`);
 }
 
 console.log('\nFILE SIZES');

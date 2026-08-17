@@ -73,10 +73,20 @@ does. They are not the same axis and neither is written in the other:
 | `ui/` | a surface or a widget | the panel is made of these |
 | `app/` | a page-level operation, or glue | what the panel's buttons DO |
 
-`tools/` is deliberately **not** sub-foldered by role. A folder is exclusive
-and a role is not: grid and contrast are each Inspect *and* Detect, so
-`tools/detect/grid.js` would assert grid is only a rule — the same lie as
-filing it under one bar group, but worse, because a folder has no tooltip.
+`tools/` is deliberately **not** sub-foldered by role, and will not be. A role
+is DERIVED from hooks; a folder path is declared. Foldering by a derived thing
+means editing a file's contents silently makes its location wrong and nothing
+ever moves it — add a `badge()` to dupid and `tools/detect/dupid.js` becomes a
+half-truth no test can catch. The audit cannot rescue it either: it could check
+that a file in `detect/` has `audit`, but not that it has *only* detect hooks,
+without banning composition. Roles are plural on purpose — grid and contrast
+are each Inspect *and* Detect.
+
+When `tools/` does outgrow one directory, subdivide by **subject** — `layout/`,
+`a11y/`, `content/` — which is stable and human-declared, the same reason
+`core/ ui/ app/` work. `build.js` globs and `audit.js` walks `tools/`
+recursively, so that move costs nothing; the audit prints an advisory past 20
+files so the decision gets made rather than forgotten.
 
 `npm run map` boots the built bundle and prints the bar, every tool's derived
 roles with the file it came from, and the grouped ⚙ view. Use it to answer
