@@ -9,8 +9,10 @@
     // between them; what puts a tool in one run rather than another is not
     // its business.
     const toolRuns = Tools.runs().map((run) => run.tools.map((t) =>
+      // The roles go in the tooltip, not in the grouping: a button sits in one
+      // place and most tools fill two, so this is where it can say both.
       `<button class="tool whenOn ${run.cls}" data-tool="${t.id}"` +
-      ` title="${t.title}${run.note}">${t.icon}</button>`).join(''))
+      ` title="${t.title}\n${Tools.rolesOf(t).join(' · ')}${run.note}">${t.icon}</button>`).join(''))
       .join('<hr class="sep whenOn">');
     el.innerHTML = `
       <span class="grip" title="Drag to move — snaps to the nearest edge">⋮⋮</span>

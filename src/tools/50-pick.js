@@ -18,7 +18,7 @@
        */
       options() {
         return [{ key: 'what', label: 'Ctrl+click copies', def: 'selector',
-                  values: ['selector', 'text'] }];
+                  values: ['selector', 'text'], affects: 'act' }];
       },
 
       /**

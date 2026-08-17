@@ -229,9 +229,17 @@ panel's ⚙, read back with `Tools.setting(this, 'key')`:
 ```js
 options() {
   return [{ key: 'step', label: 'Grid step', def: CONFIG.GRID,
-            values: [1, 2, 4, 8], suffix: 'px' }];
+            values: [1, 2, 4, 8], suffix: 'px', affects: 'detect' }];
 }
 ```
+
+`affects` is the one category in this codebase that is declared rather than
+derived — `select`, `inspect`, `detect` or `act`. A tool's own **roles** come
+from its hooks and are never written down; no hook, though, can tell you
+whether a knob is a detection threshold or a display preference. The ⚙ view
+groups on it, and the audit fails an option that omits it. Options also come in
+three shapes: `values:` for a picker, `type: 'number'` with `min`/`max`/`step`,
+and `type: 'toggle'`.
 
 `def` belongs in `CONFIG`, so that file still says what a fresh install does
 while the panel says what this one is doing now. Never state the value in a

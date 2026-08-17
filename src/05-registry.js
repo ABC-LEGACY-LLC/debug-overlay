@@ -24,6 +24,43 @@
           options()      → [{ key, label, values, def }] the panel can change
           css            → stylesheet text, read from EVERY registered tool
      ====================================================================== */
+  /**
+   * The four things a component can be.
+   *
+   * ROLES ARE DERIVED. A tool's hooks already say what it does, so a label on
+   * the tool could only repeat them and then drift out of step — which is
+   * exactly how the old `kind` field failed. Nothing declares a role.
+   *
+   * They are also PLURAL. grid annotates other tools' numbers and produces
+   * findings; contrast describes an element and judges it. One label per tool
+   * would have to be wrong about most of the toolset.
+   *
+   * A SETTING is the one case that cannot be derived: no hook can tell you
+   * whether grid's `max` is a detection scope or a display preference. So an
+   * option declares `affects`, and audit.js refuses one that does not.
+   *
+   * `report` is in no role on purpose — every tool contributes to the copied
+   * report, so it says nothing about what any of them is.
+   *
+   * The order is the order the ⚙ view reads in: what you pick, what you are
+   * shown about it, what is judged wrong with it, what happens when you act.
+   */
+  const ROLES = [
+    { key: 'select', label: 'Select',
+      note: 'how what you click becomes what you are looking at',
+      has: (t) => !!(t.groups || t.listRows || t.pendingIndex) },
+    { key: 'inspect', label: 'Inspect',
+      note: 'what gets shown about it',
+      has: (t) => !!(t.badge || t.compact || t.annotate) },
+    { key: 'detect', label: 'Detect',
+      note: 'what counts as a problem',
+      has: (t) => !!(t.audit || t.auditPage) },
+    { key: 'act', label: 'Act',
+      note: 'what the overlay does to the page or the clipboard',
+      has: (t) => !!t.intercept },
+  ];
+  const role = (key) => ROLES.find((r) => r.key === key);
+
   const TOOLS = [];
   /** Register a debug tool. One call per file in src/tools/. */
   const defineTool = (t) => { TOOLS.push(t); return t; };
@@ -58,9 +95,12 @@
      * separates them — a third run would need no panel change at all.
      */
     runs() {
-      // either hook contributes findings — a rule that can only answer a
-      // page-wide question is still one the audit runs
-      const checks = (t) => !!(t.audit || t.auditPage);
+      // The one axis a BUTTON can carry. A button sits in exactly one place,
+      // and most tools hold two roles — filing grid under Detect would tell
+      // you it is not also the thing putting ⚠ on your padding. This asks a
+      // yes/no question instead, which composition cannot make false, and the
+      // full role list goes in the tooltip where there is room to be plural.
+      const checks = role('detect').has;
       return [
         { cls: '', note: '', tools: TOOLS.filter((t) => !checks(t)) },
         { cls: 'checks', note: ' · also runs in the page audit',
@@ -79,6 +119,26 @@
      * of times per sweep to be told the same thing.
      */
     setting: (t, key) => State.settings[t.id]?.[key],
+
+    /** Every role a tool fills, in ROLES order. Plural by construction. */
+    rolesOf: (t) => ROLES.filter((r) => r.has(t)).map((r) => r.label),
+
+    /**
+     * Every grouping the armed selection tools have formed.
+     *
+     * WHY THIS EXISTS: measure used to pair pins itself, which made it a
+     * read-out AND the thing that decides what is selected — two roles in one
+     * tool, and no way to add a second way of selecting without editing it.
+     * Anything that draws or reports BETWEEN elements asks this instead, so a
+     * lasso or a select-by-query reaches every consumer the day it lands and
+     * no consumer ever learns who made the group.
+     */
+    groups() {
+      const out = [];
+      for (const t of Tools.withHook('groups', true))
+        out.push(...(t.groups.call(t) || []));
+      return out;
+    },
 
     /**
      * WHY THIS EXISTS: measure used to ask whether one specific NAMED tool was

@@ -28,9 +28,15 @@
     `,
       id: 'measure',
       icon: '📐',
-      title: 'Measure — size, radius, spacing, font, pin distances',
+      title: 'Measure — size, radius, spacing, font, distances',
       startsOn: true,      // the read-out is what the overlay is FOR
-      // this tool owns the geometry read-out and the pin distance lines
+      /**
+       * INSPECT, and only INSPECT. The pairing that used to live here is a
+       * SELECT tool now; this asks the registry what is grouped and measures
+       * between whatever comes back. Drawing the gap between two elements is a
+       * measurement — deciding WHICH two is not, and keeping both here is what
+       * made this tool two things at once.
+       */
       badge(i) {
         const { el, r, cs } = i;
         // whatever decoration applies here — never "is <some named tool> on"
@@ -67,66 +73,24 @@
           `  color: ${cs.color} | bg: ${cs.backgroundColor}`,
         ];
       },
-      // only Shift-clicked pins take part in measuring
-      measurePins: () => State.pins.filter((p) => p.kind === CONFIG.PIN_KIND.SHIFT),
-
       /**
-       * 'pairs' — every measurement takes two clicks and the next starts a
-       * fresh one, so a pin is never silently reused. 'chain' measures each
-       * new pin to the previous one. Which you want depends on what you are
-       * doing, and it used to take a rebuild to change your mind.
+       * A pair has a distance; a group of five does not have one distance.
+       * Anything that is not two elements is something this tool has nothing
+       * to say about, and it says so by drawing nothing rather than guessing
+       * which two of them were meant.
        */
-      options() {
-        return [{ key: 'mode', label: 'Measure pins in', def: CONFIG.MEASURE_MODE,
-                  values: ['pairs', 'chain'] }];
-      },
+      _pairs: () => Tools.groups().filter((g) => g.length === 2),
 
-      // the single place pairing is decided — draw() and reportTail() share it
-      pairs() {
-        const mp = this.measurePins();
-        const mode = Tools.setting(this, 'mode');
-        const step = mode === 'pairs' ? 2 : 1;
-        const out = [];
-        for (let k = 0; k + 1 < mp.length; k += step) out.push([mp[k], mp[k + 1]]);
-        const pending = (mode === 'pairs' && mp.length % 2) ? mp[mp.length - 1] : null;
-        return { pairs: out, pending };
-      },
-
-      // hook: which pin (if any) is still waiting for its partner
-      pendingIndex() {
-        const { pending } = this.pairs();
-        return pending ? State.pins.indexOf(pending) : -1;
-      },
-      // hook: rows this tool contributes to the panel's pin list
-      listRows() {
-        const { pairs, pending } = this.pairs();
-        const rows = pairs.map(([A, B]) => {
-          const ra = A.el.getBoundingClientRect(), rb = B.el.getBoundingClientRect();
-          const g = U.gap(ra, rb);
-          const axis = Measure.axisOf(ra, rb);
-          const detail = axis.kind === 'overlap' ? 'overlapping'
-            : axis.kind === 'diagonal' ? `→ ${g.dx} · ↓ ${g.dy} px`
-            : axis.kind === 'vertical' ? `↕ ${g.dy} px` : `↔ ${g.dx} px`;
-          return { tag: `#${A.id}→#${B.id}`,
-                   label: `${U.labelOf(A.el)} ↔ ${U.labelOf(B.el)}`,
-                   detail, pins: [A, B] };
-        });
-        if (pending) rows.push({ tag: `#${pending.id}…`, label: U.labelOf(pending.el),
-                                 detail: 'pick its pair', pins: [pending] });
-        return rows;
-      },
-
-      // dimension lines between paired pins
+      // dimension lines between grouped pins
       draw({ layer, Place }) {
         Measure.resetLanes();
-        for (const [A, B] of this.pairs().pairs) {
+        for (const [A, B] of this._pairs()) {
           Measure.dimension(layer, Place, A.el.getBoundingClientRect(),
                             B.el.getBoundingClientRect(), `#${A.id}→#${B.id}`);
         }
       },
       reportTail() {
-        const { pairs, pending } = this.pairs();
-        const out = pairs.map(([A, B]) => {
+        return this._pairs().map(([A, B]) => {
           const ra = A.el.getBoundingClientRect(), rb = B.el.getBoundingClientRect();
           const g = U.gap(ra, rb);
           const axis = Measure.axisOf(ra, rb);
@@ -135,7 +99,5 @@
                    : axis.kind === 'diagonal' ? `horizontal ${g.dx}px + vertical ${g.dy}px`
                    : `${axis.kind === 'vertical' ? g.dy : g.dx}px`);
         });
-        if (pending) out.push(`[#${pending.id}] waiting for its pair`);
-        return out;
       },
     });

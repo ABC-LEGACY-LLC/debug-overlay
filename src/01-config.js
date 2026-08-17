@@ -41,7 +41,7 @@
     // 'pairs' = every measurement takes two clicks (from → to) and the next
     //           click starts a fresh pair, so a pin is never reused silently.
     // 'chain' = old behaviour: each pin measures to the previous one.
-    MEASURE_MODE: 'pairs',
+    PAIR_MODE: 'pairs',
     // A pin's "kind" names which tool consumes it. Defined once here so the
     // input layer, controller and renderer never hardcode a tool's id.
     PIN_KIND: { PLAIN: 'note', SHIFT: 'measure' },

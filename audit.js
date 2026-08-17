@@ -34,7 +34,8 @@ const tools = toolFiles.map((f) => {
     // checked — the value is the author's business, having one is not.
     icon: /\bicon:\s*(['"`])(.+?)\1/.test(s),
     title: /\btitle:\s*(['"`])(.+?)\1/.test(s),
-    kind: (s.match(/kind: '(instrument|rule|lens)'/) || [])[1],
+    // the `kind:` extractor that used to sit here is gone with the field it
+    // read — it had been parsed into a variable nothing looked at for releases
     defs: (s.match(/defineTool\(/g) || []).length,
     lines: s.split('\n').length,
   };
@@ -54,7 +55,7 @@ const RULES = [
   ['14-controller.js', /localStorage/, 'STORE owns persistence — localStorage is per-origin'],
   ['08-panel.js', /\bState\./, 'PANEL fires callbacks; CONTROLLER owns state'],
   ['08-panel.js', /\bpairs?\b|measurePins/, 'PANEL must not know what a pair is'],
-  ['11-renderer.js', /MEASURE_MODE/, 'RENDERER must ask tools via hooks'],
+  ['11-renderer.js', /PAIR_MODE/, 'RENDERER must ask tools via hooks'],
   ['09-placement.js', /\bTools\.|\bState\./, 'PLACEMENT only positions boxes'],
 ];
 
@@ -99,7 +100,19 @@ const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm,
 const calls = (s, h) => new RegExp(`(^|[^.\\w])${h}\\s*\\(`, 'm').test(strip(s));
 const HOOKS = ['badge', 'compact', 'report', 'reportTail', 'draw', 'listRows',
                'pendingIndex', 'annotate', 'audit', 'auditPage', 'options',
-               'intercept'];
+               'intercept', 'groups'];
+
+/* The category vocabulary, read out of the registry rather than repeated here
+   — the same reason the banned-id list is derived from the tools themselves.
+   A role is derived from hooks and needs no checking; what an option AFFECTS
+   cannot be derived from anything, so it is the one thing a tool declares and
+   therefore the one thing that can be wrong. */
+const CATS = [...read('05-registry.js').matchAll(/\{\s*key:\s*'([a-z]+)',\s*label:/g)]
+  .map((m) => m[1]);
+if (!CATS.length) {
+  console.log('\n✗ no roles found in 05-registry.js — the ROLES extractor here is out of date');
+  fail++;
+}
 
 for (const t of tools) {
   const bad = [];
@@ -111,6 +124,19 @@ for (const t of tools) {
   // the panel is the one surface where every tool has to be legible.
   if (!t.icon) bad.push('no icon — the panel button would read "undefined"');
   if (!t.title) bad.push('no title — the button tooltip would read "undefined"');
+  /* An option says what it CHANGES. A role is derived from hooks and cannot go
+     stale; this cannot be derived from anything — no hook distinguishes a
+     detection threshold from a display preference — so it is declared, and an
+     undeclared one has nowhere to be filed. Without this the ⚙ view silently
+     goes back to being one flat list ordered by filename, which is the state
+     this whole category pass existed to fix. */
+  const keys = (t.s.match(/\bkey: '/g) || []).length;
+  const affects = [...t.s.matchAll(/\baffects: '([a-z]+)'/g)].map((m) => m[1]);
+  if (keys !== affects.length)
+    bad.push(`${keys} option(s) but ${affects.length} affects: — each option declares one`);
+  for (const a of affects)
+    if (CATS.length && !CATS.includes(a))
+      bad.push(`affects: '${a}' is not a role — expected one of ${CATS.join(', ')}`);
   // The four kind rules that used to live here are gone. A `kind` label could
   // only repeat what the hooks already said — this file proved it by checking
   // the label by grepping for the hook — and one label per tool made roles

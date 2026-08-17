@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.29
+// @version      3.8.30
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -24,7 +24,7 @@ HOW TO USE
                         "from" (cyan, marked 1…), the 2nd is "to" and draws the
                         dimension. The 3rd starts a brand new pair — nothing is
                         ever chained off your previous selection.
-                        Set CONFIG.MEASURE_MODE = 'chain' for the old behaviour.
+                        Set Pin grouping to 'chain' under ⚙ for the old behaviour.
   Click again ......... unpin (or click with the other modifier to switch the
                         pin between inspect and measure)
   Hold X .............. REMOVE mode: a red ✕ appears on every pin and only pins
@@ -63,7 +63,11 @@ HOW TO USE
   at all. WHAT gets measured is decided by the tools below it, each an
   independent toggle you can mix freely:
 
-    📐 measure   sizes, radius, padding/margin, gap, font, pin distances
+    ⬚ select    how pinned elements group up — pairs or a chain. Pairing
+                 lives here and not in measure, so a new way of selecting is
+                 one new file and everything that measures picks it up.
+    📐 measure   sizes, radius, padding/margin, gap, font, and the distance
+                 between whatever the selection tools have grouped
     ▦ grid       marks any number another tool prints that is off the
                  spacing step (⚠ — 2px by default, change it under ⚙). In ⌕ it
                  judges AUTHORED spacing only — padding, margin, gap — never
@@ -75,6 +79,14 @@ HOW TO USE
     ⌖ pick       Ctrl+click (⌘+click) copies what you clicked — its selector,
                  or its text (⚙). Off by default: it takes a click over, and
                  that should be something you asked for.
+
+  Every tool fills one or more of four ROLES, derived from the hooks it
+  implements and shown in its tooltip: Select (what you are looking at),
+  Inspect (what is shown about it), Detect (what counts as a problem), Act
+  (what the overlay does to the page or the clipboard). A tool declares none
+  of this — grid says "Inspect · Detect" because it annotates AND audits. The
+  ⚙ list is grouped the same way: by what a setting CHANGES, not by which tool
+  happens to own it.
 
   A tool's own settings live under ⚙, never in a menu of its own — the panel
   is the only surface, so a tool added later is controllable the moment it
@@ -141,10 +153,18 @@ HOW TO USE
       audit: (i) => [{ el, verdict, severity, rule, message, key }],  // optional
       auditPage: (all) => [],  // optional, once per sweep with every element
       options: () => [{ key: 'depth', label: 'Stack depth',   // optional
-                        def: CONFIG.DEPTH, values: [1, 2, 3], suffix: '' }],
+                        def: CONFIG.DEPTH, values: [1, 2, 3],
+                        affects: 'inspect' }],
       intercept: ({ type, ev, el }) => false,   // optional, act on a click
       rules: { 'my-rule': { help, why, docs } },   // optional, what a rule IS
     }
+
+    Every option declares `affects` — 'select', 'inspect', 'detect' or 'act' —
+    and the ⚙ view files the row under that heading. It is the ONE category in
+    this codebase that is declared rather than derived: a tool's roles come
+    from its hooks and cannot go stale, but no hook can tell you whether a knob
+    is a detection threshold or a display preference. audit.js fails an option
+    without one.
 
     options() is how a tool becomes adjustable without a rebuild. Each entry
     gets a row under ⚙; `def` is the shipped default and belongs in CONFIG, so
@@ -237,7 +257,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: '3.8.29',
+    VERSION: '3.8.30',
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -266,7 +286,7 @@ HOW TO USE
     // 'pairs' = every measurement takes two clicks (from → to) and the next
     //           click starts a fresh pair, so a pin is never reused silently.
     // 'chain' = old behaviour: each pin measures to the previous one.
-    MEASURE_MODE: 'pairs',
+    PAIR_MODE: 'pairs',
     // A pin's "kind" names which tool consumes it. Defined once here so the
     // input layer, controller and renderer never hardcode a tool's id.
     PIN_KIND: { PLAIN: 'note', SHIFT: 'measure' },
@@ -697,6 +717,43 @@ HOW TO USE
           options()      → [{ key, label, values, def }] the panel can change
           css            → stylesheet text, read from EVERY registered tool
      ====================================================================== */
+  /**
+   * The four things a component can be.
+   *
+   * ROLES ARE DERIVED. A tool's hooks already say what it does, so a label on
+   * the tool could only repeat them and then drift out of step — which is
+   * exactly how the old `kind` field failed. Nothing declares a role.
+   *
+   * They are also PLURAL. grid annotates other tools' numbers and produces
+   * findings; contrast describes an element and judges it. One label per tool
+   * would have to be wrong about most of the toolset.
+   *
+   * A SETTING is the one case that cannot be derived: no hook can tell you
+   * whether grid's `max` is a detection scope or a display preference. So an
+   * option declares `affects`, and audit.js refuses one that does not.
+   *
+   * `report` is in no role on purpose — every tool contributes to the copied
+   * report, so it says nothing about what any of them is.
+   *
+   * The order is the order the ⚙ view reads in: what you pick, what you are
+   * shown about it, what is judged wrong with it, what happens when you act.
+   */
+  const ROLES = [
+    { key: 'select', label: 'Select',
+      note: 'how what you click becomes what you are looking at',
+      has: (t) => !!(t.groups || t.listRows || t.pendingIndex) },
+    { key: 'inspect', label: 'Inspect',
+      note: 'what gets shown about it',
+      has: (t) => !!(t.badge || t.compact || t.annotate) },
+    { key: 'detect', label: 'Detect',
+      note: 'what counts as a problem',
+      has: (t) => !!(t.audit || t.auditPage) },
+    { key: 'act', label: 'Act',
+      note: 'what the overlay does to the page or the clipboard',
+      has: (t) => !!t.intercept },
+  ];
+  const role = (key) => ROLES.find((r) => r.key === key);
+
   const TOOLS = [];
   /** Register a debug tool. One call per file in src/tools/. */
   const defineTool = (t) => { TOOLS.push(t); return t; };
@@ -731,9 +788,12 @@ HOW TO USE
      * separates them — a third run would need no panel change at all.
      */
     runs() {
-      // either hook contributes findings — a rule that can only answer a
-      // page-wide question is still one the audit runs
-      const checks = (t) => !!(t.audit || t.auditPage);
+      // The one axis a BUTTON can carry. A button sits in exactly one place,
+      // and most tools hold two roles — filing grid under Detect would tell
+      // you it is not also the thing putting ⚠ on your padding. This asks a
+      // yes/no question instead, which composition cannot make false, and the
+      // full role list goes in the tooltip where there is room to be plural.
+      const checks = role('detect').has;
       return [
         { cls: '', note: '', tools: TOOLS.filter((t) => !checks(t)) },
         { cls: 'checks', note: ' · also runs in the page audit',
@@ -753,6 +813,26 @@ HOW TO USE
      */
     setting: (t, key) => State.settings[t.id]?.[key],
 
+    /** Every role a tool fills, in ROLES order. Plural by construction. */
+    rolesOf: (t) => ROLES.filter((r) => r.has(t)).map((r) => r.label),
+
+    /**
+     * Every grouping the armed selection tools have formed.
+     *
+     * WHY THIS EXISTS: measure used to pair pins itself, which made it a
+     * read-out AND the thing that decides what is selected — two roles in one
+     * tool, and no way to add a second way of selecting without editing it.
+     * Anything that draws or reports BETWEEN elements asks this instead, so a
+     * lasso or a select-by-query reaches every consumer the day it lands and
+     * no consumer ever learns who made the group.
+     */
+    groups() {
+      const out = [];
+      for (const t of Tools.withHook('groups', true))
+        out.push(...(t.groups.call(t) || []));
+      return out;
+    },
+
     /**
      * WHY THIS EXISTS: measure used to ask whether one specific NAMED tool was
      * switched on before it printed a padding, which made this file's claim
@@ -771,6 +851,88 @@ HOW TO USE
         (html, t) => t.annotate?.call(t, html, n, info) || html, `${n}`);
     },
   };
+
+  // ─── src/tools/05-select.js ────────────────────────────────────────────
+  defineTool({
+      id: 'select',
+      icon: '⬚',
+      title: 'Select — how pinned elements group up',
+      startsOn: true,
+
+      /**
+       * SELECT, and only SELECT. This came out of measure, which had been the
+       * read-out AND the thing deciding what was selected — so a second way of
+       * selecting could not be added without editing the tool that draws
+       * badges. Nothing here describes an element; it decides which elements
+       * belong together, and hands that to whoever wants to say something
+       * about the pair.
+       */
+      options() {
+        return [{ key: 'mode', label: 'Pin grouping', def: CONFIG.PAIR_MODE,
+                  values: ['pairs', 'chain'], affects: 'select' }];
+      },
+
+      // only Shift-clicked pins take part — a plain click is "inspect this",
+      // and silently roping it into a measurement is not what was asked
+      _pins: () => State.pins.filter((p) => p.kind === CONFIG.PIN_KIND.SHIFT),
+
+      /**
+       * The single place grouping is decided.
+       *
+       * 'pairs' — every group takes two clicks and the next starts a fresh
+       * one, so a pin is never silently reused. 'chain' — each new pin groups
+       * with the previous one.
+       */
+      _form() {
+        const mp = this._pins();
+        const mode = Tools.setting(this, 'mode');
+        const step = mode === 'pairs' ? 2 : 1;
+        const out = [];
+        for (let k = 0; k + 1 < mp.length; k += step) out.push([mp[k], mp[k + 1]]);
+        const pending = (mode === 'pairs' && mp.length % 2) ? mp[mp.length - 1] : null;
+        return { groups: out, pending };
+      },
+
+      /** Hook: what is grouped, for anything that draws or reports BETWEEN
+       *  elements. Consumers never learn who grouped them. */
+      groups() { return this._form().groups; },
+
+      /** Hook: which pin is still waiting for its partner. */
+      pendingIndex() {
+        const { pending } = this._form();
+        return pending ? State.pins.indexOf(pending) : -1;
+      },
+
+      /**
+       * Hook: rows for the panel's pin list. The distance in the detail column
+       * comes from core geometry, not from a read-out hook — this tool
+       * describes its own grouping, which is still selection, and implements
+       * no badge or annotate to claim otherwise.
+       */
+      listRows() {
+        const { groups, pending } = this._form();
+        const rows = groups.map(([A, B]) => {
+          const ra = A.el.getBoundingClientRect(), rb = B.el.getBoundingClientRect();
+          const g = U.gap(ra, rb);
+          const axis = Measure.axisOf(ra, rb);
+          const detail = axis.kind === 'overlap' ? 'overlapping'
+            : axis.kind === 'diagonal' ? `→ ${g.dx} · ↓ ${g.dy} px`
+            : axis.kind === 'vertical' ? `↕ ${g.dy} px` : `↔ ${g.dx} px`;
+          return { tag: `#${A.id}→#${B.id}`,
+                   label: `${U.labelOf(A.el)} ↔ ${U.labelOf(B.el)}`,
+                   detail, pins: [A, B] };
+        });
+        if (pending) rows.push({ tag: `#${pending.id}…`, label: U.labelOf(pending.el),
+                                 detail: 'pick its pair', pins: [pending] });
+        return rows;
+      },
+
+      /** A half-finished selection is a fact about the report's scope. */
+      reportTail() {
+        const { pending } = this._form();
+        return pending ? [`[#${pending.id}] waiting for its pair`] : [];
+      },
+    });
 
   // ─── src/tools/10-measure.js ───────────────────────────────────────────
   defineTool({
@@ -803,9 +965,15 @@ HOW TO USE
     `,
       id: 'measure',
       icon: '📐',
-      title: 'Measure — size, radius, spacing, font, pin distances',
+      title: 'Measure — size, radius, spacing, font, distances',
       startsOn: true,      // the read-out is what the overlay is FOR
-      // this tool owns the geometry read-out and the pin distance lines
+      /**
+       * INSPECT, and only INSPECT. The pairing that used to live here is a
+       * SELECT tool now; this asks the registry what is grouped and measures
+       * between whatever comes back. Drawing the gap between two elements is a
+       * measurement — deciding WHICH two is not, and keeping both here is what
+       * made this tool two things at once.
+       */
       badge(i) {
         const { el, r, cs } = i;
         // whatever decoration applies here — never "is <some named tool> on"
@@ -842,66 +1010,24 @@ HOW TO USE
           `  color: ${cs.color} | bg: ${cs.backgroundColor}`,
         ];
       },
-      // only Shift-clicked pins take part in measuring
-      measurePins: () => State.pins.filter((p) => p.kind === CONFIG.PIN_KIND.SHIFT),
-
       /**
-       * 'pairs' — every measurement takes two clicks and the next starts a
-       * fresh one, so a pin is never silently reused. 'chain' measures each
-       * new pin to the previous one. Which you want depends on what you are
-       * doing, and it used to take a rebuild to change your mind.
+       * A pair has a distance; a group of five does not have one distance.
+       * Anything that is not two elements is something this tool has nothing
+       * to say about, and it says so by drawing nothing rather than guessing
+       * which two of them were meant.
        */
-      options() {
-        return [{ key: 'mode', label: 'Measure pins in', def: CONFIG.MEASURE_MODE,
-                  values: ['pairs', 'chain'] }];
-      },
+      _pairs: () => Tools.groups().filter((g) => g.length === 2),
 
-      // the single place pairing is decided — draw() and reportTail() share it
-      pairs() {
-        const mp = this.measurePins();
-        const mode = Tools.setting(this, 'mode');
-        const step = mode === 'pairs' ? 2 : 1;
-        const out = [];
-        for (let k = 0; k + 1 < mp.length; k += step) out.push([mp[k], mp[k + 1]]);
-        const pending = (mode === 'pairs' && mp.length % 2) ? mp[mp.length - 1] : null;
-        return { pairs: out, pending };
-      },
-
-      // hook: which pin (if any) is still waiting for its partner
-      pendingIndex() {
-        const { pending } = this.pairs();
-        return pending ? State.pins.indexOf(pending) : -1;
-      },
-      // hook: rows this tool contributes to the panel's pin list
-      listRows() {
-        const { pairs, pending } = this.pairs();
-        const rows = pairs.map(([A, B]) => {
-          const ra = A.el.getBoundingClientRect(), rb = B.el.getBoundingClientRect();
-          const g = U.gap(ra, rb);
-          const axis = Measure.axisOf(ra, rb);
-          const detail = axis.kind === 'overlap' ? 'overlapping'
-            : axis.kind === 'diagonal' ? `→ ${g.dx} · ↓ ${g.dy} px`
-            : axis.kind === 'vertical' ? `↕ ${g.dy} px` : `↔ ${g.dx} px`;
-          return { tag: `#${A.id}→#${B.id}`,
-                   label: `${U.labelOf(A.el)} ↔ ${U.labelOf(B.el)}`,
-                   detail, pins: [A, B] };
-        });
-        if (pending) rows.push({ tag: `#${pending.id}…`, label: U.labelOf(pending.el),
-                                 detail: 'pick its pair', pins: [pending] });
-        return rows;
-      },
-
-      // dimension lines between paired pins
+      // dimension lines between grouped pins
       draw({ layer, Place }) {
         Measure.resetLanes();
-        for (const [A, B] of this.pairs().pairs) {
+        for (const [A, B] of this._pairs()) {
           Measure.dimension(layer, Place, A.el.getBoundingClientRect(),
                             B.el.getBoundingClientRect(), `#${A.id}→#${B.id}`);
         }
       },
       reportTail() {
-        const { pairs, pending } = this.pairs();
-        const out = pairs.map(([A, B]) => {
+        return this._pairs().map(([A, B]) => {
           const ra = A.el.getBoundingClientRect(), rb = B.el.getBoundingClientRect();
           const g = U.gap(ra, rb);
           const axis = Measure.axisOf(ra, rb);
@@ -910,8 +1036,6 @@ HOW TO USE
                    : axis.kind === 'diagonal' ? `horizontal ${g.dx}px + vertical ${g.dy}px`
                    : `${axis.kind === 'vertical' ? g.dy : g.dx}px`);
         });
-        if (pending) out.push(`[#${pending.id}] waiting for its pair`);
-        return out;
       },
     });
 
@@ -946,19 +1070,19 @@ HOW TO USE
       options() {
         return [
           { key: 'step', label: 'Grid step', def: CONFIG.GRID,
-            values: [1, 2, 4, 8], suffix: 'px' },
+            values: [1, 2, 4, 8], suffix: 'px', affects: 'detect' },
           // Where a spacing token stops and layout arithmetic begins. It is a
           // judgement about a project, not a constant: margin:auto resolved to
           // 1127px on a real page, and the cut-off that keeps that out is the
           // same one that could hide a real 120px gap.
           { key: 'max', label: 'Ignore above', def: CONFIG.GRID_MAX,
-            type: 'number', min: 8, max: 2000, step: 8, suffix: 'px' },
+            type: 'number', min: 8, max: 2000, step: 8, suffix: 'px', affects: 'detect' },
           // OFF, and it has to stay the default: width and height are what
           // layout produced, not what anyone typed, and judging them turned one
           // real signal into 2,215 findings about icon geometry. Available
           // because on a page of fixed-size components it is the right question.
           { key: 'boxes', label: 'Judge width & height', def: false,
-            type: 'toggle' },
+            type: 'toggle', affects: 'detect' },
         ];
       },
       // a method, not an arrow: it needs `this` to ask for its own setting.
@@ -1067,7 +1191,7 @@ HOW TO USE
        */
       options() {
         return [{ key: 'level', label: 'WCAG level', def: CONFIG.CONTRAST.level,
-                  values: Object.keys(CONFIG.CONTRAST.levels) }];
+                  values: Object.keys(CONFIG.CONTRAST.levels), affects: 'detect' }];
       },
 
       // What each rule IS, separate from what any one element measured. The
@@ -1410,7 +1534,7 @@ HOW TO USE
        */
       options() {
         return [{ key: 'what', label: 'Ctrl+click copies', def: 'selector',
-                  values: ['selector', 'text'] }];
+                  values: ['selector', 'text'], affects: 'act' }];
       },
 
       /**
@@ -1510,6 +1634,12 @@ HOW TO USE
       background: #2c2c31; color: #b5e853; font-weight: 700; border: 0;
       border-radius: 6px; padding: 3px 6px; }
     #__dbgov-list .opt:hover { background: #3a3a41; }
+    /* what the settings under it change — the category, not the owning tool */
+    #__dbgov-list .head { padding: 10px 8px 4px; color: #8f8f96;
+      font-size: 10px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+    #__dbgov-list .head:first-child { padding-top: 4px; }
+    #__dbgov-list .head .note { display: block; margin-top: 2px;
+      font-size: 10px; font-weight: 400; letter-spacing: 0; text-transform: none; }
     #__dbgov-list .num { flex: none; display: flex; align-items: center; gap: 4px; }
     #__dbgov-list .num .opt { width: 68px; text-align: right; }
     #__dbgov-list .unit { color: #8f8f96; font-weight: 400; }
@@ -1783,6 +1913,25 @@ HOW TO USE
           return;
         }
         rows.forEach((row, i) => {
+          /* A heading is a row like any other so that INDICES STILL LINE UP:
+             the panel hands back the index it was given, and if headings were
+             a separate structure every row under one would be off by however
+             many came before it — changing the wrong setting entirely. It is
+             not clickable and carries no control, so nothing can be fired
+             from it. */
+          if (row.heading) {
+            const h = document.createElement('div');
+            h.className = 'head';
+            h.textContent = row.heading;
+            if (row.detail) {
+              const n = document.createElement('span');
+              n.className = 'note';
+              n.textContent = row.detail;
+              h.append(n);
+            }
+            el.append(h);
+            return;
+          }
           const r = document.createElement('div');
           r.className = 'row';
           const tag = document.createElement('span');
@@ -1832,8 +1981,10 @@ HOW TO USE
     // between them; what puts a tool in one run rather than another is not
     // its business.
     const toolRuns = Tools.runs().map((run) => run.tools.map((t) =>
+      // The roles go in the tooltip, not in the grouping: a button sits in one
+      // place and most tools fill two, so this is where it can say both.
       `<button class="tool whenOn ${run.cls}" data-tool="${t.id}"` +
-      ` title="${t.title}${run.note}">${t.icon}</button>`).join(''))
+      ` title="${t.title}\n${Tools.rolesOf(t).join(' · ')}${run.note}">${t.icon}</button>`).join(''))
       .join('<hr class="sep whenOn">');
     el.innerHTML = `
       <span class="grip" title="Drag to move — snaps to the nearest edge">⋮⋮</span>
@@ -2678,20 +2829,39 @@ HOW TO USE
         value.
      ====================================================================== */
   const Settings = {
-    /** One row per option per tool, in registry order. */
+    /**
+     * One row per option, under a heading for what that option CHANGES.
+     *
+     * Grouped by category, not by owning tool. Ordered by filename, the list
+     * read as one flat run of six unrelated knobs: how clicks pair up sat next
+     * to a WCAG threshold sat next to what lands on the clipboard, and nothing
+     * said they were different kinds of thing. The tool's icon still labels
+     * every row, so which tool owns what is not lost — it is just no longer
+     * the only structure on offer.
+     *
+     * An empty category prints no heading. A tool that adds the first ACT
+     * option makes that section appear, and nothing here changes.
+     */
     rows() {
-      const rows = [];
-      for (const t of Tools.withHook('options')) {
-        for (const o of t.options.call(t)) {
-          rows.push({
-            tag: t.icon,
-            label: o.label,
-            control: Settings.controlFor(o, Tools.setting(t, o.key)),
-            tool: t, opt: o,
-          });
+      const out = [];
+      for (const r of ROLES) {
+        const rows = [];
+        for (const t of Tools.withHook('options')) {
+          for (const o of t.options.call(t)) {
+            if (o.affects !== r.key) continue;
+            rows.push({
+              tag: t.icon,
+              label: o.label,
+              control: Settings.controlFor(o, Tools.setting(t, o.key)),
+              tool: t, opt: o,
+            });
+          }
         }
+        if (!rows.length) continue;
+        out.push({ heading: r.label, detail: r.note });
+        out.push(...rows);
       }
-      return rows;
+      return out;
     },
 
     /**

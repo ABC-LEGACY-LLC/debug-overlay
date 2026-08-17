@@ -12,20 +12,39 @@
         value.
      ====================================================================== */
   const Settings = {
-    /** One row per option per tool, in registry order. */
+    /**
+     * One row per option, under a heading for what that option CHANGES.
+     *
+     * Grouped by category, not by owning tool. Ordered by filename, the list
+     * read as one flat run of six unrelated knobs: how clicks pair up sat next
+     * to a WCAG threshold sat next to what lands on the clipboard, and nothing
+     * said they were different kinds of thing. The tool's icon still labels
+     * every row, so which tool owns what is not lost — it is just no longer
+     * the only structure on offer.
+     *
+     * An empty category prints no heading. A tool that adds the first ACT
+     * option makes that section appear, and nothing here changes.
+     */
     rows() {
-      const rows = [];
-      for (const t of Tools.withHook('options')) {
-        for (const o of t.options.call(t)) {
-          rows.push({
-            tag: t.icon,
-            label: o.label,
-            control: Settings.controlFor(o, Tools.setting(t, o.key)),
-            tool: t, opt: o,
-          });
+      const out = [];
+      for (const r of ROLES) {
+        const rows = [];
+        for (const t of Tools.withHook('options')) {
+          for (const o of t.options.call(t)) {
+            if (o.affects !== r.key) continue;
+            rows.push({
+              tag: t.icon,
+              label: o.label,
+              control: Settings.controlFor(o, Tools.setting(t, o.key)),
+              tool: t, opt: o,
+            });
+          }
         }
+        if (!rows.length) continue;
+        out.push({ heading: r.label, detail: r.note });
+        out.push(...rows);
       }
-      return rows;
+      return out;
     },
 
     /**

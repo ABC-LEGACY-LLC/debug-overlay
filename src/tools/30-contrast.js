@@ -25,7 +25,7 @@
        */
       options() {
         return [{ key: 'level', label: 'WCAG level', def: CONFIG.CONTRAST.level,
-                  values: Object.keys(CONFIG.CONTRAST.levels) }];
+                  values: Object.keys(CONFIG.CONTRAST.levels), affects: 'detect' }];
       },
 
       // What each rule IS, separate from what any one element measured. The

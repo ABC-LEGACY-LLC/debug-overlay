@@ -28,19 +28,19 @@
       options() {
         return [
           { key: 'step', label: 'Grid step', def: CONFIG.GRID,
-            values: [1, 2, 4, 8], suffix: 'px' },
+            values: [1, 2, 4, 8], suffix: 'px', affects: 'detect' },
           // Where a spacing token stops and layout arithmetic begins. It is a
           // judgement about a project, not a constant: margin:auto resolved to
           // 1127px on a real page, and the cut-off that keeps that out is the
           // same one that could hide a real 120px gap.
           { key: 'max', label: 'Ignore above', def: CONFIG.GRID_MAX,
-            type: 'number', min: 8, max: 2000, step: 8, suffix: 'px' },
+            type: 'number', min: 8, max: 2000, step: 8, suffix: 'px', affects: 'detect' },
           // OFF, and it has to stay the default: width and height are what
           // layout produced, not what anyone typed, and judging them turned one
           // real signal into 2,215 findings about icon geometry. Available
           // because on a page of fixed-size components it is the right question.
           { key: 'boxes', label: 'Judge width & height', def: false,
-            type: 'toggle' },
+            type: 'toggle', affects: 'detect' },
         ];
       },
       // a method, not an arrow: it needs `this` to ask for its own setting.

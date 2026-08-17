@@ -77,6 +77,25 @@
           return;
         }
         rows.forEach((row, i) => {
+          /* A heading is a row like any other so that INDICES STILL LINE UP:
+             the panel hands back the index it was given, and if headings were
+             a separate structure every row under one would be off by however
+             many came before it — changing the wrong setting entirely. It is
+             not clickable and carries no control, so nothing can be fired
+             from it. */
+          if (row.heading) {
+            const h = document.createElement('div');
+            h.className = 'head';
+            h.textContent = row.heading;
+            if (row.detail) {
+              const n = document.createElement('span');
+              n.className = 'note';
+              n.textContent = row.detail;
+              h.append(n);
+            }
+            el.append(h);
+            return;
+          }
           const r = document.createElement('div');
           r.className = 'row';
           const tag = document.createElement('span');

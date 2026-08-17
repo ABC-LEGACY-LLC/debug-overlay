@@ -114,6 +114,34 @@ because a rule must never be handed NaN.
 tool ids in a core file, which made "a new tool is one new file" not quite
 true; now nothing central knows the name of anything.
 
+## Four roles, derived — and one category that has to be declared
+`ROLES` in `05-registry.js` is the vocabulary: **Select · Inspect · Detect ·
+Act**. A tool's roles come from the hooks it implements and are never written
+down, because a label can only repeat what the hooks say and then drift — that
+is exactly how the old `kind` field died. They are also plural: grid is Inspect
+*and* Detect, so anything forcing one label per tool will be wrong about most
+of the toolset. `report` belongs to no role; every tool has it, so it
+distinguishes nothing.
+
+The bar groups on one boolean only (does it feed ⌕), because a button sits in
+one place and most tools fill two roles. The full list goes in the tooltip,
+where being plural costs nothing.
+
+A **setting** is the one thing that cannot be derived: no hook distinguishes a
+detection threshold from a display preference. So every `options()` entry
+declares `affects: '<role key>'`, the ⚙ view groups on it, and `audit.js` fails
+a tool whose option count and `affects:` count disagree, or that names a role
+the registry does not have. Without that check the list silently reverts to one
+flat run ordered by filename.
+
+**One tool, one role, unless it genuinely does two things.** Pairing used to
+live in measure, which made it a read-out *and* the thing deciding what was
+selected — and no second way of selecting could be added without editing the
+tool that draws badges. `tools/05-select.js` owns grouping and publishes it
+through `groups()`; measure asks `Tools.groups()` and measures between whatever
+comes back. A lasso or a select-by-query is now one new file that every
+consumer picks up, and neither side learns the other's id.
+
 ## The one hook that writes
 `intercept({ type, ev, el })` is offered to armed tools before a click becomes
 a pin — `13-interactions.js` is where input enters, so it is the only place

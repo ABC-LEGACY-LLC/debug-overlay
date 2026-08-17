@@ -677,9 +677,12 @@ console.log('\nSTORAGE');
   d7.window.dispatchEvent(new d7.window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
   bar7.querySelector('[data-tool="contrast"]')
     .dispatchEvent(new d7.window.MouseEvent('click', { bubbles: true }));
+  // against the bar rather than a literal list: what matters is that the store
+  // and the buttons agree, and a spelled-out default breaks every time a tool
+  // ships without saying anything true having changed
   ok('a choice is written where every site can read it',
-    gm7.get('__dbgov_tools') === '["measure","grid","contrast"]',
-    JSON.stringify(gm7.get('__dbgov_tools')));
+    JSON.parse(gm7.get('__dbgov_tools') || '[]').sort().join(',') === armedIn(d7.window),
+    `stored ${gm7.get('__dbgov_tools')} vs armed ${armedIn(d7.window)}`);
   ok('and not into this one origin',
     d7.window.localStorage.getItem('__dbgov_tools') === null,
     'writing both leaves two answers to the same question');
@@ -714,8 +717,9 @@ console.log('\nSTORAGE');
   bar9.querySelector('[data-tool="contrast"]')
     .dispatchEvent(new d9.window.MouseEvent('click', { bubbles: true }));
   ok('with no GM API it falls back to the origin',
-    d9.window.localStorage.getItem('__dbgov_tools') === '["measure","grid","contrast"]',
-    JSON.stringify(d9.window.localStorage.getItem('__dbgov_tools')));
+    JSON.parse(d9.window.localStorage.getItem('__dbgov_tools') || '[]').sort().join(',')
+      === armedIn(d9.window),
+    `stored ${d9.window.localStorage.getItem('__dbgov_tools')} vs armed ${armedIn(d9.window)}`);
 
   // ---- the frame check, exercised directly --------------------------------
   // frameElement is the identity-free half of this; @noframes is the other.
@@ -784,6 +788,80 @@ console.log('\nINPUT');
   ok('and its own setting changes what it copies', picked === 'hello', JSON.stringify(picked));
 
   d11.window.close();
+}
+
+console.log('\nCATEGORIES');
+/**
+ * Roles are derived from hooks and settings declare what they change. The two
+ * assertions that matter: a component fills ONE role unless it genuinely does
+ * two things, and the ⚙ list is filed by what a setting changes rather than by
+ * whichever tool happens to own it.
+ */
+{
+  const dc = new JSDOM(
+    `<!doctype html><html><body>
+       <div id="one" style="width:40px;height:20px">one</div>
+       <div id="two" style="width:40px;height:20px;margin-top:30px">two</div>
+     </body></html>`,
+    { url: 'https://example.test/', pretendToBeVisual: true,
+      runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
+  const w = dc.window;
+  w.eval(source);
+  const bar = w.document.getElementById('__dbgov-bar');
+  const list = w.document.getElementById('__dbgov-list');
+  const hit = (sel) => bar.querySelector(sel).dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+
+  // ---- the ⚙ view, filed by what each setting changes ---------------------
+  hit('[data-settings]');
+  const heads = [...list.querySelectorAll('.head')].map((h) => h.childNodes[0].textContent);
+  ok('the ⚙ view is grouped by what a setting changes',
+    heads.join(' → ') === 'Select → Detect → Act', heads.join(' → ') || '(no headings)');
+  ok('and a category nobody uses prints no heading', !heads.includes('Inspect'),
+    'an empty section is a heading over nothing');
+  // the grid rows are not adjacent to each other because they own the tool —
+  // they are adjacent because all three change what counts as a problem
+  const under = (h) => {
+    const out = [];
+    let seen = false;
+    for (const n of list.children) {
+      if (n.classList.contains('head')) { seen = n.childNodes[0].textContent === h; continue; }
+      if (seen) out.push(n.querySelector('.lbl').textContent);
+    }
+    return out;
+  };
+  ok('settings from different tools share a category',
+    under('Detect').join(', ') === 'Grid step, Ignore above, Judge width & height, WCAG level',
+    under('Detect').join(', '));
+
+  // ---- roles, derived from hooks, plural only where that is true ----------
+  const roleOf = (id) => bar.querySelector(`[data-tool="${id}"]`).title.split('\n')[1];
+  ok('select fills one role', roleOf('select') === 'Select', roleOf('select'));
+  ok('and measure fills one role', roleOf('measure') === 'Inspect', roleOf('measure'));
+  ok('a tool that really does two things still says both',
+    roleOf('grid').startsWith('Inspect · Detect'), roleOf('grid'));
+
+  // ---- and the split holds at runtime -------------------------------------
+  // Pairing moved to SELECT; measuring stayed with INSPECT. Disarming the
+  // selection tool must take the grouping with it and leave the read-out.
+  const shiftPin = (id) => {
+    const el = w.document.getElementById(id);
+    w.document.elementFromPoint = () => el;
+    el.dispatchEvent(new w.MouseEvent('click',
+      { bubbles: true, clientX: 5, clientY: 5, shiftKey: true }));
+  };
+  shiftPin('one'); shiftPin('two');
+  hit('[data-c]');
+  const pairRow = () => [...list.querySelectorAll('.row')]
+    .find((r) => /→/.test(r.querySelector('.tag').textContent));
+  ok('the selection tool groups the pins it owns', !!pairRow(),
+    [...list.querySelectorAll('.row .tag')].map((t) => t.textContent).join(', '));
+  hit('[data-tool="select"]');
+  ok('and disarming it takes the grouping with it', !pairRow(),
+    'the pairing outlived the tool that forms it');
+  ok('while the pins themselves stay', list.querySelectorAll('.row').length === 2,
+    `${list.querySelectorAll('.row').length} rows — selection is not the same as pinning`);
+  dc.window.close();
 }
 
 // ---- the sections that need a painted frame ---------------------------------

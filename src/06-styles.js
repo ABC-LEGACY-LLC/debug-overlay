@@ -53,6 +53,12 @@
       background: #2c2c31; color: #b5e853; font-weight: 700; border: 0;
       border-radius: 6px; padding: 3px 6px; }
     #__dbgov-list .opt:hover { background: #3a3a41; }
+    /* what the settings under it change — the category, not the owning tool */
+    #__dbgov-list .head { padding: 10px 8px 4px; color: #8f8f96;
+      font-size: 10px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+    #__dbgov-list .head:first-child { padding-top: 4px; }
+    #__dbgov-list .head .note { display: block; margin-top: 2px;
+      font-size: 10px; font-weight: 400; letter-spacing: 0; text-transform: none; }
     #__dbgov-list .num { flex: none; display: flex; align-items: center; gap: 4px; }
     #__dbgov-list .num .opt { width: 68px; text-align: right; }
     #__dbgov-list .unit { color: #8f8f96; font-weight: 400; }

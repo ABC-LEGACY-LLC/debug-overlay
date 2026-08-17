@@ -8,7 +8,7 @@ HOW TO USE
                         "from" (cyan, marked 1…), the 2nd is "to" and draws the
                         dimension. The 3rd starts a brand new pair — nothing is
                         ever chained off your previous selection.
-                        Set CONFIG.MEASURE_MODE = 'chain' for the old behaviour.
+                        Set Pin grouping to 'chain' under ⚙ for the old behaviour.
   Click again ......... unpin (or click with the other modifier to switch the
                         pin between inspect and measure)
   Hold X .............. REMOVE mode: a red ✕ appears on every pin and only pins
@@ -47,7 +47,11 @@ HOW TO USE
   at all. WHAT gets measured is decided by the tools below it, each an
   independent toggle you can mix freely:
 
-    📐 measure   sizes, radius, padding/margin, gap, font, pin distances
+    ⬚ select    how pinned elements group up — pairs or a chain. Pairing
+                 lives here and not in measure, so a new way of selecting is
+                 one new file and everything that measures picks it up.
+    📐 measure   sizes, radius, padding/margin, gap, font, and the distance
+                 between whatever the selection tools have grouped
     ▦ grid       marks any number another tool prints that is off the
                  spacing step (⚠ — 2px by default, change it under ⚙). In ⌕ it
                  judges AUTHORED spacing only — padding, margin, gap — never
@@ -59,6 +63,14 @@ HOW TO USE
     ⌖ pick       Ctrl+click (⌘+click) copies what you clicked — its selector,
                  or its text (⚙). Off by default: it takes a click over, and
                  that should be something you asked for.
+
+  Every tool fills one or more of four ROLES, derived from the hooks it
+  implements and shown in its tooltip: Select (what you are looking at),
+  Inspect (what is shown about it), Detect (what counts as a problem), Act
+  (what the overlay does to the page or the clipboard). A tool declares none
+  of this — grid says "Inspect · Detect" because it annotates AND audits. The
+  ⚙ list is grouped the same way: by what a setting CHANGES, not by which tool
+  happens to own it.
 
   A tool's own settings live under ⚙, never in a menu of its own — the panel
   is the only surface, so a tool added later is controllable the moment it
@@ -125,10 +137,18 @@ HOW TO USE
       audit: (i) => [{ el, verdict, severity, rule, message, key }],  // optional
       auditPage: (all) => [],  // optional, once per sweep with every element
       options: () => [{ key: 'depth', label: 'Stack depth',   // optional
-                        def: CONFIG.DEPTH, values: [1, 2, 3], suffix: '' }],
+                        def: CONFIG.DEPTH, values: [1, 2, 3],
+                        affects: 'inspect' }],
       intercept: ({ type, ev, el }) => false,   // optional, act on a click
       rules: { 'my-rule': { help, why, docs } },   // optional, what a rule IS
     }
+
+    Every option declares `affects` — 'select', 'inspect', 'detect' or 'act' —
+    and the ⚙ view files the row under that heading. It is the ONE category in
+    this codebase that is declared rather than derived: a tool's roles come
+    from its hooks and cannot go stale, but no hook can tell you whether a knob
+    is a detection threshold or a display preference. audit.js fails an option
+    without one.
 
     options() is how a tool becomes adjustable without a rebuild. Each entry
     gets a row under ⚙; `def` is the shipped default and belongs in CONFIG, so
