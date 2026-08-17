@@ -580,6 +580,17 @@ console.log('\nSETTINGS');
   hit('[data-sweep]');
   ok('the rule now judges by the new setting', /off the 8px grid/.test(messages()), messages());
 
+  // The point of the subject. The per-pin line comes from the lens's read-out
+  // path and the finding comes from the rule's audit path; they are two
+  // consumers of one `step`, so one report has to state the same number twice.
+  const p4 = w4.document.getElementById('p');
+  w4.document.elementFromPoint = () => p4;
+  p4.dispatchEvent(new w4.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
+  hit('[data-copy]');
+  ok('and the lens and the rule read the one value',
+    /⚠ off 8px grid/.test(copied4 || '') && /is off the 8px grid/.test(copied4 || ''),
+    (copied4 || '').split('\n').filter((l) => /grid/.test(l)).join(' | ') || 'no grid lines');
+
   // ---- a typed number is not a choice, and can arrive broken ---------------
   hit('[data-settings]');
   const numOf = () => labelled('Ignore above').querySelector('input.opt');
@@ -606,6 +617,12 @@ console.log('\nSETTINGS');
 
   const saved = w4.localStorage.getItem('__dbgov_settings');
   ok('the choice is persisted', !!saved && /"step":8/.test(saved), String(saved));
+  // The step is owned by the SUBJECT, not by whichever component reads it. Two
+  // owners would mean two rows in ⚙ and two values, and a badge could then say
+  // 13px is fine over a finding saying it is not.
+  ok('and it belongs to the subject, not to one of its consumers',
+    /"scale":\{[^}]*"step":8/.test(saved) && !/"grid":\{[^}]*"step"/.test(saved),
+    String(saved));
   ok('and so are the typed and toggled ones',
     /"max":2000/.test(saved) && /"boxes":true/.test(saved), String(saved));
 

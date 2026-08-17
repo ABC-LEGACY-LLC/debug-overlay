@@ -155,6 +155,9 @@ src/
     utils.js           pure helpers (no DOM, no state)
     geometry.js        dimension-line geometry, tool-agnostic
     registry.js        defineTool(), the Tools helpers, the four ROLES
+  subjects/            ← auto-discovered; shared measurement + its settings
+    10-scale.js        what counts as on-grid, and step/max/boxes
+    20-colour.js       colour resolution, the cache, and the WCAG level
   tools/               ← auto-discovered; one file per capability
     05-select.js       how pinned elements group up
     10-measure.js      sizes, spacing, distances  ← copy this as a template

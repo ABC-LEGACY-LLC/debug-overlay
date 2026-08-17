@@ -20,63 +20,22 @@
       },
 
       /**
-       * The step is a property of the PROJECT, not of this rule: Tailwind's
-       * half-steps make 2 right here and 8 right elsewhere, and being wrong
-       * either way buries the findings that matter under the ones that do not.
-       * CONFIG.GRID is the default; this is how it stops needing a rebuild.
+       * LENS hook: every number another tool prints comes through here first.
+       * `html` is what earlier lenses made of it, so we wrap rather than
+       * replace, and the ⚠ markup sits next to the .warn rule for it.
+       *
+       * The judgement itself is the subject's — this decides how to SHOW an
+       * off-grid number, not what one is. That is the whole point of the
+       * split: the rule below reaches the same verdict through the same call.
        */
-      options() {
-        return [
-          { key: 'step', label: 'Grid step', def: CONFIG.GRID,
-            values: [1, 2, 4, 8], suffix: 'px', affects: 'detect' },
-          // Where a spacing token stops and layout arithmetic begins. It is a
-          // judgement about a project, not a constant: margin:auto resolved to
-          // 1127px on a real page, and the cut-off that keeps that out is the
-          // same one that could hide a real 120px gap.
-          { key: 'max', label: 'Ignore above', def: CONFIG.GRID_MAX,
-            type: 'number', min: 8, max: 2000, step: 8, suffix: 'px', affects: 'detect' },
-          // OFF, and it has to stay the default: width and height are what
-          // layout produced, not what anyone typed, and judging them turned one
-          // real signal into 2,215 findings about icon geometry. Available
-          // because on a page of fixed-size components it is the right question.
-          { key: 'boxes', label: 'Judge width & height', def: false,
-            type: 'toggle', affects: 'detect' },
-        ];
-      },
-      // a method, not an arrow: it needs `this` to ask for its own setting.
-      // 0 is never off the grid, or every padding:0 would light up
-      _off(n) {
-        const step = Tools.setting(this, 'step');
-        return n !== 0 && n % step !== 0;
+      annotate(html, n) {
+        return Scale.off(n) ? `<span class="warn">${html}⚠</span>` : html;
       },
 
-      // LENS hook: every number another tool prints comes through here first.
-      // `html` is what earlier lenses made of it, so we wrap rather than
-      // replace, and the ⚠ markup now sits next to the .warn rule for it.
-      annotate(html, n) {
-        return this._off(n) ? `<span class="warn">${html}⚠</span>` : html;
-      },
-      /**
-       * Off-grid numbers on one element, as [name, value] pairs. `boxes`
-       * adds width and height — true when you pointed at this element and
-       * asked, false when a sweep is judging the page (see audit).
-       */
-      _scan({ r, cs }, boxes) {
-        const pad = U.fourPlain(cs, 'padding'), mar = U.fourPlain(cs, 'margin');
-        const out = [];
-        const check = (n, v) => { if (this._off(v)) out.push([n, v]); };
-        if (boxes) { check('w', Math.round(r.width)); check('h', Math.round(r.height)); }
-        ['t', 'r', 'b', 'l'].forEach((k) => { check('pad-' + k, pad[k]); check('mar-' + k, mar[k]); });
-        // the shorthand as well as the longhands: a browser resolves `gap`
-        // into both, and jsdom leaves it on the shorthand
-        const gap = U.px(cs.rowGap) || U.px(cs.columnGap) || U.px(cs.gap);
-        if (gap) check('gap', gap);
-        return out;
-      },
       report(i) {
-        const bad = this._scan(i, true);
+        const bad = Scale.scan(i, true);
         return bad.length
-          ? [`  ⚠ off ${Tools.setting(this, 'step')}px grid: ` +
+          ? [`  ⚠ off ${Scale.step()}px grid: ` +
              `${bad.map(([n, v]) => `${n}:${v}`).join(', ')}`]
           : [];
       },
@@ -101,10 +60,10 @@
         // a decision anyone made, and sweeping them buried the findings that
         // were. Padding, margin and gap are typed by a person; those are the
         // spacing scale.
-        return this._scan(i, Tools.setting(this, 'boxes'))
+        return Scale.scan(i, Scale.boxes())
           // and drop what layout worked out rather than what anyone chose:
           // ml-auto arrives here as margin-left: 1127px
-          .filter(([, v]) => v <= Tools.setting(this, 'max'))
+          .filter(([, v]) => v <= Scale.max())
           .map(([n, v]) => ({
           el: i.el,
           verdict: 'fail',
@@ -115,7 +74,7 @@
           // the VALUE, not the side it appeared on: these group by value, and
           // "pad-t ×24" would read as 24 top paddings when it is one number
           // used in twenty-four places. The sides are in the per-pin report.
-          message: `${v}px is off the ${Tools.setting(this, 'step')}px grid`,
+          message: `${v}px is off the ${Scale.step()}px grid`,
           key: `grid-off|${v}`,
         }));
       },

@@ -97,6 +97,8 @@ HOW TO USE
     core/utils       pure functions — no DOM writes, no State reads
     core/geometry    dimension-line geometry & drawing (tool-agnostic)
     core/registry    ⭐ the plugin registry, and the four ROLES
+    subjects/*       shared measurement plus the settings that govern it —
+                     called by components, never calls back
     tools/*          ⭐ one file per debug capability, auto-discovered
     ui/styles        core CSS (tools carry their own)
     ui/dom           root & drawing layer

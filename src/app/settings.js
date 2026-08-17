@@ -29,7 +29,7 @@
       const out = [];
       for (const r of ROLES) {
         const rows = [];
-        for (const t of Tools.withHook('options')) {
+        for (const t of Tools.settingOwners()) {
           for (const o of t.options.call(t)) {
             if (o.affects !== r.key) continue;
             rows.push({
@@ -115,7 +115,7 @@
       let saved = {};
       try { saved = JSON.parse(Store.get(CONFIG.SETTINGS_KEY) || '{}') || {}; } catch {}
       const out = {};
-      for (const t of Tools.withHook('options')) {
+      for (const t of Tools.settingOwners()) {
         out[t.id] = {};
         for (const o of t.options.call(t)) {
           const was = saved[t.id]?.[o.key];

@@ -39,8 +39,9 @@ const VERSION_TOKEN = '__VERSION__';
  * folders were unusable for anything ordered. Naming it here instead makes the
  * filenames free and the folders real.
  *
- * '@tools' expands to every file in tools/, still auto-discovered and still
- * sorted — a new debug capability stays ONE NEW FILE with nothing else edited.
+ * '@subjects' and '@tools' expand to every file in those folders, still
+ * auto-discovered and still sorted — a new debug capability stays ONE NEW FILE
+ * with nothing else edited. Subjects come first because a tool calls them.
  * Tools may not name each other, so their order is presentation only: which
  * button sits where, and which row is first under ⚙.
  */
@@ -48,6 +49,7 @@ const ORDER = [
   'banner.js',
   'core/config.js', 'core/state.js', 'core/utils.js',
   'core/geometry.js', 'core/registry.js',
+  '@subjects',
   '@tools',
   'ui/styles.js', 'ui/dom.js', 'ui/controls.js', 'ui/list.js',
   'ui/panel.js', 'ui/placement.js', 'ui/badges.js', 'ui/renderer.js',
@@ -69,8 +71,9 @@ function allSources(dir = SRC, base = '') {
 
 /** src files, in the order above. Tools are auto-discovered. */
 function sources() {
-  const tools = allSources().filter((f) => f.startsWith('tools/')).sort();
-  const files = ORDER.flatMap((f) => (f === '@tools' ? tools : [f]));
+  const glob = (dir) => allSources().filter((f) => f.startsWith(dir + '/')).sort();
+  const files = ORDER.flatMap((f) =>
+    (f === '@tools' ? glob('tools') : f === '@subjects' ? glob('subjects') : [f]));
 
   // A file nobody listed would otherwise be silently left out of the bundle —
   // the same class of failure as a push that never reaches the browser, and

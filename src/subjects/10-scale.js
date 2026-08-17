@@ -1,0 +1,64 @@
+  /**
+   * THE SPACING SCALE — what counts as "on the grid", and the settings for it.
+   *
+   * These moved out of the grid tool because they were never really its. A
+   * step of 2px is a fact about the project you are looking at; the ⚠ on a
+   * badge and the finding in a sweep are two things that consult it. Leaving
+   * the setting on one of them would mean the other could not see it, and a
+   * split that gave each its own copy would let a badge say a value is fine
+   * while the audit says it is not.
+   */
+  const Scale = defineSubject({
+    id: 'scale',
+    icon: '▦',
+
+    options() {
+      return [
+        // 2, not 4, because that is what the scale in front of us actually is:
+        // Tailwind's default spacing has half-steps (0.5 = 2px, 1.5 = 6px) and
+        // a real page used them 2,681 times. A rule has to check the scale a
+        // project HAS; making the project match the rule is the wrong way round.
+        { key: 'step', label: 'Grid step', def: CONFIG.GRID,
+          values: [1, 2, 4, 8], suffix: 'px', affects: 'detect' },
+        // Where a spacing token stops and layout arithmetic begins.
+        // getComputedStyle resolves `margin: auto` to the pixels it worked out
+        // — 1127px on a real page — and nothing distinguishes that from a value
+        // somebody typed. Nobody types 1127px.
+        { key: 'max', label: 'Ignore above', def: CONFIG.GRID_MAX,
+          type: 'number', min: 8, max: 2000, step: 8, suffix: 'px', affects: 'detect' },
+        // OFF, and it stays off by default: width and height are what layout
+        // produced, not what anyone typed, and judging them turned one real
+        // signal into 2,215 findings about icon geometry on a real page.
+        { key: 'boxes', label: 'Judge width & height', def: false,
+          type: 'toggle', affects: 'detect' },
+      ];
+    },
+
+    step() { return Tools.setting(this, 'step'); },
+    max() { return Tools.setting(this, 'max'); },
+    boxes() { return Tools.setting(this, 'boxes'); },
+
+    /** 0 is never off the grid, or every padding:0 would light up. */
+    off(n) {
+      const step = this.step();
+      return n !== 0 && n % step !== 0;
+    },
+
+    /**
+     * Off-grid numbers on one element, as [name, value] pairs. `boxes` adds
+     * width and height — true when somebody pointed at this element and asked,
+     * false when a sweep is judging the page.
+     */
+    scan({ r, cs }, boxes) {
+      const pad = U.fourPlain(cs, 'padding'), mar = U.fourPlain(cs, 'margin');
+      const out = [];
+      const check = (n, v) => { if (this.off(v)) out.push([n, v]); };
+      if (boxes) { check('w', Math.round(r.width)); check('h', Math.round(r.height)); }
+      ['t', 'r', 'b', 'l'].forEach((k) => { check('pad-' + k, pad[k]); check('mar-' + k, mar[k]); });
+      // the shorthand as well as the longhands: a browser resolves `gap` into
+      // both, and jsdom leaves it on the shorthand
+      const gap = U.px(cs.rowGap) || U.px(cs.columnGap) || U.px(cs.gap);
+      if (gap) check('gap', gap);
+      return out;
+    },
+  });

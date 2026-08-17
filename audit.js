@@ -54,6 +54,22 @@ const tools = toolFiles.map((f) => {
 });
 const ids = tools.map((t) => t.id).filter(Boolean);
 
+/* Subjects are checked too. They carry no hooks and no button, so most tool
+   rules do not apply — but they DO declare options, which the ⚙ view paints,
+   and an id the settings store is keyed by. Unchecked, a subject with a typo'd
+   affects: would file its row nowhere and a duplicate id would have two owners
+   writing the same settings key. */
+const subjects = walk().filter((f) => f.startsWith('subjects/')).map((f) => {
+  const s = read(f);
+  return {
+    f, s,
+    id: (s.match(/id: '([a-z][a-z0-9-]*)'/) || [])[1],
+    icon: /\bicon:\s*(['"`])(.+?)\1/.test(s),
+    defs: (s.match(/defineSubject\(/g) || []).length,
+    lines: s.split('\n').length,
+  };
+});
+
 /** file → [ruleName, forbidden regex, why] */
 const RULES = [
   ['core/utils.js', /\bState\./, 'UTILS must stay pure — callers pass decorators in'],
@@ -126,6 +142,19 @@ if (!CATS.length) {
   fail++;
 }
 
+/** Every option declares what it CHANGES; nothing else can tell you. */
+function optionProblems(src) {
+  const out = [];
+  const keys = (src.match(/\bkey: '/g) || []).length;
+  const affects = [...src.matchAll(/\baffects: '([a-z]+)'/g)].map((m) => m[1]);
+  if (keys !== affects.length)
+    out.push(`${keys} option(s) but ${affects.length} affects: — each option declares one`);
+  for (const a of affects)
+    if (CATS.length && !CATS.includes(a))
+      out.push(`affects: '${a}' is not a role — expected one of ${CATS.join(', ')}`);
+  return out;
+}
+
 for (const t of tools) {
   const bad = [];
   if (t.defs !== 1) bad.push(`${t.defs} defineTool() calls, expected 1`);
@@ -142,13 +171,7 @@ for (const t of tools) {
      undeclared one has nowhere to be filed. Without this the ⚙ view silently
      goes back to being one flat list ordered by filename, which is the state
      this whole category pass existed to fix. */
-  const keys = (t.s.match(/\bkey: '/g) || []).length;
-  const affects = [...t.s.matchAll(/\baffects: '([a-z]+)'/g)].map((m) => m[1]);
-  if (keys !== affects.length)
-    bad.push(`${keys} option(s) but ${affects.length} affects: — each option declares one`);
-  for (const a of affects)
-    if (CATS.length && !CATS.includes(a))
-      bad.push(`affects: '${a}' is not a role — expected one of ${CATS.join(', ')}`);
+  bad.push(...optionProblems(t.s));
   // The four kind rules that used to live here are gone. A `kind` label could
   // only repeat what the hooks already said — this file proved it by checking
   // the label by grepping for the hook — and one label per tool made roles
@@ -170,6 +193,23 @@ for (const t of tools) {
   bad.forEach((b) => console.log(`      ${b}`));
 }
 
+console.log('\nSUBJECTS');
+const subjectIds = subjects.map((x) => x.id).filter(Boolean);
+for (const x of subjects) {
+  const bad = [];
+  if (x.defs !== 1) bad.push(`${x.defs} defineSubject() calls, expected 1`);
+  if (!x.id) bad.push('no id');
+  else if (subjectIds.indexOf(x.id) !== subjectIds.lastIndexOf(x.id))
+    bad.push(`duplicate id '${x.id}'`);
+  else if (ids.includes(x.id)) bad.push(`id '${x.id}' is already a tool's — settings share one store`);
+  if (!x.icon) bad.push('no icon — its ⚙ rows would have a blank tag');
+  bad.push(...optionProblems(x.s));
+  if (bad.length) fail++;
+  console.log(`  ${bad.length ? '✗' : '✓'} ${x.f.replace('subjects/', '').padEnd(16)}` +
+              `id=${(x.id || '??').padEnd(9)}${String(x.lines).padStart(4)} lines`);
+  bad.forEach((b) => console.log(`      ${b}`));
+}
+
 /* ---- layer rules ---------------------------------------------------------
    The folders are only guidance until something checks them. Every one of
    these held the day the folders landed — by habit, which is precisely the
@@ -185,6 +225,10 @@ const LAYERS = [
    'UI fires callbacks; APP decides what they mean'],
   ['ui/', /defineTool\(/, 'UI draws the panel — a capability is a tool, in tools/'],
   ['app/', /defineTool\(/, 'APP is glue and page-level work — a capability is a tool'],
+  // A subject is called BY components and never calls back. Without this it
+  // would drift into being a component that simply has no button.
+  ['subjects/', /\bPanel\.|\bList\.|\bRender\.|\bController\.|\bSettings\.|defineTool\(/,
+   'A SUBJECT is measurement plus settings — it is called, and calls nothing back'],
 ];
 for (const [dir, pattern, why] of LAYERS) {
   const hits = walk().filter((f) => f.startsWith(dir) && pattern.test(strip(read(f))));
@@ -202,7 +246,7 @@ for (const [dir, pattern, why] of LAYERS) {
 console.log('\nHOOK CONTRACT');
 /* Deliberately NOT the tools: a hook honoured only by the tool that implements
    it is still a contract nobody calls. The consumer has to be core. */
-const consumers = walk().filter((f) => !f.startsWith('tools/')).map((f) => [f, read(f)]);
+const consumers = walk().filter((f) => !f.startsWith('tools/') && !f.startsWith('subjects/')).map((f) => [f, read(f)]);
 for (const h of HOOKS) {
   const users = consumers.filter(([, s]) =>
     new RegExp(`\\.${h}\\b|\\bt\\.${h}|withHook\\('${h}'|'${h}'`).test(strip(s))).map(([f]) => f);

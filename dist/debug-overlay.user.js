@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.34
+// @version      3.8.35
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -113,6 +113,8 @@ HOW TO USE
     core/utils       pure functions — no DOM writes, no State reads
     core/geometry    dimension-line geometry & drawing (tool-agnostic)
     core/registry    ⭐ the plugin registry, and the four ROLES
+    subjects/*       shared measurement plus the settings that govern it —
+                     called by components, never calls back
     tools/*          ⭐ one file per debug capability, auto-discovered
     ui/styles        core CSS (tools carry their own)
     ui/dom           root & drawing layer
@@ -261,7 +263,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: '3.8.34',
+    VERSION: '3.8.35',
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -758,6 +760,25 @@ HOW TO USE
   ];
   const role = (key) => ROLES.find((r) => r.key === key);
 
+  /**
+   * SUBJECTS — a shared measurement, and the settings that govern it.
+   *
+   * WHY: `step` was grid's setting and `level` was contrast's, but neither is
+   * a property of a read-out. The spacing step is a property of the PROJECT,
+   * and both the ⚠ on a badge and the finding in a sweep have to agree about
+   * it or the overlay contradicts itself. Same for the WCAG level, and for the
+   * memoised colour cache underneath it — a page has tens of colours and
+   * thousands of nodes, and resolving them twice is real work done twice.
+   *
+   * A subject is not a component: no icon in the bar, no arming, no hooks. It
+   * is called BY components and never calls back — the same one-way rule the
+   * core files live under. That is what lets two components share a
+   * measurement without naming each other.
+   */
+  const SUBJECTS = [];
+  /** Register a shared subject. One call per file in src/subjects/. */
+  const defineSubject = (s) => { SUBJECTS.push(s); return s; };
+
   const TOOLS = [];
   /** Register a debug tool. One call per file in src/tools/. */
   const defineTool = (t) => { TOOLS.push(t); return t; };
@@ -815,7 +836,22 @@ HOW TO USE
      * re-deriving the answer from options() there would run the hook thousands
      * of times per sweep to be told the same thing.
      */
+    /**
+     * What one of an owner's own options is currently set to. The owner is a
+     * tool or a subject — anything with an id that declared the option. Asked
+     * with `this`, never with an id, so this stays as id-free as every other
+     * question the registry answers.
+     */
     setting: (t, key) => State.settings[t.id]?.[key],
+
+    /**
+     * Everything that declares settings, subjects first.
+     *
+     * Subjects lead because a setting that governs a shared measurement is the
+     * more general fact: "the spacing step is 2px" is true of the project, and
+     * what any one component does with it comes after.
+     */
+    settingOwners: () => [...SUBJECTS, ...TOOLS].filter((o) => o.options),
 
     /** Every role a tool fills, in ROLES order. Plural by construction. */
     rolesOf: (t) => ROLES.filter((r) => r.has(t)).map((r) => r.label),
@@ -855,6 +891,266 @@ HOW TO USE
         (html, t) => t.annotate?.call(t, html, n, info) || html, `${n}`);
     },
   };
+
+  // ─── src/subjects/10-scale.js ──────────────────────────────────────────
+  /**
+   * THE SPACING SCALE — what counts as "on the grid", and the settings for it.
+   *
+   * These moved out of the grid tool because they were never really its. A
+   * step of 2px is a fact about the project you are looking at; the ⚠ on a
+   * badge and the finding in a sweep are two things that consult it. Leaving
+   * the setting on one of them would mean the other could not see it, and a
+   * split that gave each its own copy would let a badge say a value is fine
+   * while the audit says it is not.
+   */
+  const Scale = defineSubject({
+    id: 'scale',
+    icon: '▦',
+
+    options() {
+      return [
+        // 2, not 4, because that is what the scale in front of us actually is:
+        // Tailwind's default spacing has half-steps (0.5 = 2px, 1.5 = 6px) and
+        // a real page used them 2,681 times. A rule has to check the scale a
+        // project HAS; making the project match the rule is the wrong way round.
+        { key: 'step', label: 'Grid step', def: CONFIG.GRID,
+          values: [1, 2, 4, 8], suffix: 'px', affects: 'detect' },
+        // Where a spacing token stops and layout arithmetic begins.
+        // getComputedStyle resolves `margin: auto` to the pixels it worked out
+        // — 1127px on a real page — and nothing distinguishes that from a value
+        // somebody typed. Nobody types 1127px.
+        { key: 'max', label: 'Ignore above', def: CONFIG.GRID_MAX,
+          type: 'number', min: 8, max: 2000, step: 8, suffix: 'px', affects: 'detect' },
+        // OFF, and it stays off by default: width and height are what layout
+        // produced, not what anyone typed, and judging them turned one real
+        // signal into 2,215 findings about icon geometry on a real page.
+        { key: 'boxes', label: 'Judge width & height', def: false,
+          type: 'toggle', affects: 'detect' },
+      ];
+    },
+
+    step() { return Tools.setting(this, 'step'); },
+    max() { return Tools.setting(this, 'max'); },
+    boxes() { return Tools.setting(this, 'boxes'); },
+
+    /** 0 is never off the grid, or every padding:0 would light up. */
+    off(n) {
+      const step = this.step();
+      return n !== 0 && n % step !== 0;
+    },
+
+    /**
+     * Off-grid numbers on one element, as [name, value] pairs. `boxes` adds
+     * width and height — true when somebody pointed at this element and asked,
+     * false when a sweep is judging the page.
+     */
+    scan({ r, cs }, boxes) {
+      const pad = U.fourPlain(cs, 'padding'), mar = U.fourPlain(cs, 'margin');
+      const out = [];
+      const check = (n, v) => { if (this.off(v)) out.push([n, v]); };
+      if (boxes) { check('w', Math.round(r.width)); check('h', Math.round(r.height)); }
+      ['t', 'r', 'b', 'l'].forEach((k) => { check('pad-' + k, pad[k]); check('mar-' + k, mar[k]); });
+      // the shorthand as well as the longhands: a browser resolves `gap` into
+      // both, and jsdom leaves it on the shorthand
+      const gap = U.px(cs.rowGap) || U.px(cs.columnGap) || U.px(cs.gap);
+      if (gap) check('gap', gap);
+      return out;
+    },
+  });
+
+  // ─── src/subjects/20-colour.js ─────────────────────────────────────────
+  /**
+   * COLOUR — resolving a colour honestly, and the level to judge it against.
+   *
+   * This moved out of the contrast tool for the same reason the spacing step
+   * moved out of grid: the WCAG level is a decision about the project, and the
+   * badge on hover and the finding in a sweep must not be able to disagree
+   * about it. The cache is the other half — a page has tens of distinct
+   * colours and thousands of nodes, and two copies of this would resolve every
+   * one of them twice.
+   *
+   * It lives here rather than in UTILS because reading a colour honestly needs
+   * a canvas, and UTILS may not touch the DOM.
+   */
+  const Colour = defineSubject({
+    id: 'colour',
+    icon: '◐',
+
+    /**
+     * AA is the level nearly everyone is held to; AAA is what accessibility
+     * commitments and public-sector procurement actually ask for. Both
+     * thresholds move together — a check wanting AAA of body text and AA of
+     * headings would be reporting against no standard at all.
+     */
+    options() {
+    return [{ key: 'level', label: 'WCAG level', def: CONFIG.CONTRAST.level,
+                values: Object.keys(CONFIG.CONTRAST.levels), affects: 'detect' }];
+    },
+
+    cache: new Map(),      // 20-50 distinct colours per page, 1000s of nodes
+    ctx: undefined,        // undefined = not tried yet, null = no canvas
+
+    /** A 1×1 scratch context, or null where canvas is unavailable. */
+    paint() {
+        if (this.ctx !== undefined) return this.ctx;
+        try {
+          const c = document.createElement('canvas');
+          c.width = c.height = 1;
+          this.ctx = c.getContext('2d', { willReadFrequently: true }) || null;
+        } catch { this.ctx = null; }
+        return this.ctx;
+      },
+
+    /**
+     * Any CSS colour → sRGB, by asking the browser to paint one pixel of it.
+     * That covers oklch(), lab(), color(display-p3 …) and whatever ships
+     * next, without this file knowing the maths for any of them.
+     *
+     * Guessing is what made this necessary: scraping the numbers out of
+     * oklch(0.985 0 0) read near-white as near-black and reported 1.00:1
+     * for text measuring 10.9:1. Anything still unreadable returns null,
+     * and null must stay "unknown" all the way up.
+     */
+    colour(str) {
+        const s = String(str || '');
+        if (!s) return null;
+        if (this.cache.has(s)) return this.cache.get(s);
+
+        let out = null;
+        const m = /^rgba?\(/.test(s) && s.match(/[\d.]+/g);
+        if (m && m.length >= 3) {
+          // the common case, and exact — no need to rasterise it
+          out = { r: +m[0], g: +m[1], b: +m[2], a: m[3] !== undefined ? +m[3] : 1 };
+        } else {
+          const ctx = this.paint();
+          // Two probes: a rejected colour leaves fillStyle on whichever probe
+          // was there, so the readbacks differ. An accepted one lands on the
+          // same value both times — including when it really is black.
+          if (ctx) {
+            ctx.fillStyle = '#000'; ctx.fillStyle = s; const a = ctx.fillStyle;
+            ctx.fillStyle = '#fff'; ctx.fillStyle = s; const b = ctx.fillStyle;
+            if (a === b) {
+              ctx.clearRect(0, 0, 1, 1);
+              ctx.fillRect(0, 0, 1, 1);
+              const d = ctx.getImageData(0, 0, 1, 1).data;
+              out = { r: d[0], g: d[1], b: d[2], a: d[3] / 255 };
+            }
+          }
+        }
+        this.cache.set(s, out);
+        return out;
+      },
+
+    /** Composite `over` (with alpha) onto the opaque colour `base`. */
+    over(over, base) {
+        const a = over.a == null ? 1 : over.a;
+        return {
+          r: over.r * a + base.r * (1 - a),
+          g: over.g * a + base.g * (1 - a),
+          b: over.b * a + base.b * (1 - a),
+          a: 1,
+        };
+      },
+
+    /**
+     * What the text is actually painted on, or `{ unknown }` naming what
+     * stopped it — the caller turns that into a finding rather than silence.
+     *
+     * Starts at the element, not its parent: an element that sets its own
+     * background paints it behind its own text, so every button, chip and
+     * alert was previously scored against whatever was behind the card
+     * instead. Translucent layers are collected and composited rather than
+     * taken as if opaque — the first layer over 5% alpha used to be returned
+     * outright, which is a different colour from what a reader sees.
+     */
+    bg(el) {
+        const layers = [];               // nearest the viewer first
+        let e = el;
+        while (e && e.nodeType === 1) {
+          const cs = getComputedStyle(e);
+          // An image or gradient can be any colour at the pixel under the
+          // text, and nothing here can sample it. Unknown, not white.
+          if (cs.backgroundImage && cs.backgroundImage !== 'none') return { unknown: 'bg-image' };
+          const raw = cs.backgroundColor;
+          const c = this.colour(raw);
+          // A colour we cannot read is not the same as no colour. Walking past
+          // it lands on the white default below and turns "I don't know" into
+          // a confident verdict against a background that was never there.
+          if (!c) {
+            if (raw && raw !== 'transparent')
+              return { unknown: this.paint() ? 'bg-colour' : 'no-canvas' };
+          } else if (c.a >= 0.999) {
+            return layers.reduceRight((base, l) => this.over(l, base), c);
+          } else if (c.a > 0) layers.push(c);
+          e = e.parentElement;
+        }
+        // nothing opaque anywhere: the canvas underneath a page is white
+        return layers.reduceRight((base, l) => this.over(l, base),
+                                  { r: 255, g: 255, b: 255, a: 1 });
+      },
+
+    lum({ r, g, b }) {
+        const f = (v) => {
+          v /= 255;
+          return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+        };
+        return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+      },
+    ratio(fg, bg) {
+        // flatten a translucent foreground onto the background first
+        const a = fg.a == null ? 1 : fg.a;
+        const mixed = {
+          r: fg.r * a + bg.r * (1 - a),
+          g: fg.g * a + bg.g * (1 - a),
+          b: fg.b * a + bg.b * (1 - a),
+        };
+        const l1 = this.lum(mixed), l2 = this.lum(bg);
+        const hi = Math.max(l1, l2), lo = Math.min(l1, l2);
+        return (hi + 0.05) / (lo + 0.05);
+      },
+    // Walked rather than spread: this is the first thing asked of every
+    // element in a page sweep, and [...childNodes] allocates an array for
+    // each one only to look at the first text node.
+    ownText(el) {
+        for (let n = el.firstChild; n; n = n.nextSibling)
+          if (n.nodeType === 3 && n.nodeValue.trim()) return true;
+        return false;
+      },
+
+    // Why a measurement could not be made. These reach the user, so they say
+    // what happened rather than naming the branch that produced them.
+    why: {
+        'fg-colour': 'the text colour is in a colour space this cannot read',
+        'bg-colour': 'the background colour is in a colour space this cannot read',
+        'bg-image': 'it sits on an image or gradient, so the pixel under the text is unknown',
+        'no-canvas': 'no canvas is available to resolve colours',
+      },
+
+    measure({ el, cs }) {
+        // NOT APPLICABLE is not the same as NOT KNOWN. An element with no text
+        // of its own has no contrast to have — reporting that as "review"
+        // would put every container on the page in the list and bury the real
+        // ones. Only the three below are things we tried to measure and failed.
+        if (!this.ownText(el)) return null;
+        const fg = this.colour(cs.color);
+        if (!fg) return { unknown: this.paint() ? 'fg-colour' : 'no-canvas' };
+        const bg = this.bg(el);
+        if (bg.unknown) return bg;
+        const ratio = this.ratio(fg, bg);
+        const size = parseFloat(cs.fontSize);
+        const bold = parseInt(cs.fontWeight, 10) >= 700;
+        const isLarge = size >= CONFIG.CONTRAST.largePx ||
+                        (bold && size >= CONFIG.CONTRAST.largeBoldPx);
+        // carried out with the verdict, not read again by each caller: the
+        // badge, the report and the finding must all name the same level they
+        // were actually judged against
+        const level = Tools.setting(this, 'level');
+        const want = CONFIG.CONTRAST.levels[level];
+        const need = isLarge ? want.large : want.normal;
+        return { ratio, need, pass: ratio >= need, isLarge, fg, bg, level, want };
+      },
+    rgb: (c) => `${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)}`,
+  });
 
   // ─── src/tools/05-select.js ────────────────────────────────────────────
   defineTool({
@@ -1131,63 +1427,22 @@ HOW TO USE
       },
 
       /**
-       * The step is a property of the PROJECT, not of this rule: Tailwind's
-       * half-steps make 2 right here and 8 right elsewhere, and being wrong
-       * either way buries the findings that matter under the ones that do not.
-       * CONFIG.GRID is the default; this is how it stops needing a rebuild.
+       * LENS hook: every number another tool prints comes through here first.
+       * `html` is what earlier lenses made of it, so we wrap rather than
+       * replace, and the ⚠ markup sits next to the .warn rule for it.
+       *
+       * The judgement itself is the subject's — this decides how to SHOW an
+       * off-grid number, not what one is. That is the whole point of the
+       * split: the rule below reaches the same verdict through the same call.
        */
-      options() {
-        return [
-          { key: 'step', label: 'Grid step', def: CONFIG.GRID,
-            values: [1, 2, 4, 8], suffix: 'px', affects: 'detect' },
-          // Where a spacing token stops and layout arithmetic begins. It is a
-          // judgement about a project, not a constant: margin:auto resolved to
-          // 1127px on a real page, and the cut-off that keeps that out is the
-          // same one that could hide a real 120px gap.
-          { key: 'max', label: 'Ignore above', def: CONFIG.GRID_MAX,
-            type: 'number', min: 8, max: 2000, step: 8, suffix: 'px', affects: 'detect' },
-          // OFF, and it has to stay the default: width and height are what
-          // layout produced, not what anyone typed, and judging them turned one
-          // real signal into 2,215 findings about icon geometry. Available
-          // because on a page of fixed-size components it is the right question.
-          { key: 'boxes', label: 'Judge width & height', def: false,
-            type: 'toggle', affects: 'detect' },
-        ];
-      },
-      // a method, not an arrow: it needs `this` to ask for its own setting.
-      // 0 is never off the grid, or every padding:0 would light up
-      _off(n) {
-        const step = Tools.setting(this, 'step');
-        return n !== 0 && n % step !== 0;
+      annotate(html, n) {
+        return Scale.off(n) ? `<span class="warn">${html}⚠</span>` : html;
       },
 
-      // LENS hook: every number another tool prints comes through here first.
-      // `html` is what earlier lenses made of it, so we wrap rather than
-      // replace, and the ⚠ markup now sits next to the .warn rule for it.
-      annotate(html, n) {
-        return this._off(n) ? `<span class="warn">${html}⚠</span>` : html;
-      },
-      /**
-       * Off-grid numbers on one element, as [name, value] pairs. `boxes`
-       * adds width and height — true when you pointed at this element and
-       * asked, false when a sweep is judging the page (see audit).
-       */
-      _scan({ r, cs }, boxes) {
-        const pad = U.fourPlain(cs, 'padding'), mar = U.fourPlain(cs, 'margin');
-        const out = [];
-        const check = (n, v) => { if (this._off(v)) out.push([n, v]); };
-        if (boxes) { check('w', Math.round(r.width)); check('h', Math.round(r.height)); }
-        ['t', 'r', 'b', 'l'].forEach((k) => { check('pad-' + k, pad[k]); check('mar-' + k, mar[k]); });
-        // the shorthand as well as the longhands: a browser resolves `gap`
-        // into both, and jsdom leaves it on the shorthand
-        const gap = U.px(cs.rowGap) || U.px(cs.columnGap) || U.px(cs.gap);
-        if (gap) check('gap', gap);
-        return out;
-      },
       report(i) {
-        const bad = this._scan(i, true);
+        const bad = Scale.scan(i, true);
         return bad.length
-          ? [`  ⚠ off ${Tools.setting(this, 'step')}px grid: ` +
+          ? [`  ⚠ off ${Scale.step()}px grid: ` +
              `${bad.map(([n, v]) => `${n}:${v}`).join(', ')}`]
           : [];
       },
@@ -1212,10 +1467,10 @@ HOW TO USE
         // a decision anyone made, and sweeping them buried the findings that
         // were. Padding, margin and gap are typed by a person; those are the
         // spacing scale.
-        return this._scan(i, Tools.setting(this, 'boxes'))
+        return Scale.scan(i, Scale.boxes())
           // and drop what layout worked out rather than what anyone chose:
           // ml-auto arrives here as margin-left: 1127px
-          .filter(([, v]) => v <= Tools.setting(this, 'max'))
+          .filter(([, v]) => v <= Scale.max())
           .map(([n, v]) => ({
           el: i.el,
           verdict: 'fail',
@@ -1226,7 +1481,7 @@ HOW TO USE
           // the VALUE, not the side it appeared on: these group by value, and
           // "pad-t ×24" would read as 24 top paddings when it is one number
           // used in twenty-four places. The sides are in the per-pin report.
-          message: `${v}px is off the ${Tools.setting(this, 'step')}px grid`,
+          message: `${v}px is off the ${Scale.step()}px grid`,
           key: `grid-off|${v}`,
         }));
       },
@@ -1252,17 +1507,6 @@ HOW TO USE
       // the level is the user's choice now, so it cannot be stated here
       title: 'Contrast — WCAG text contrast ratio',
 
-      /**
-       * AA is the level nearly everyone is held to; AAA is what accessibility
-       * commitments and public-sector procurement actually ask for. Both
-       * thresholds move together — a check that wanted AAA of body text and AA
-       * of headings would be reporting against no standard at all.
-       */
-      options() {
-        return [{ key: 'level', label: 'WCAG level', def: CONFIG.CONTRAST.level,
-                  values: Object.keys(CONFIG.CONTRAST.levels), affects: 'detect' }];
-      },
-
       // What each rule IS, separate from what any one element measured. The
       // instance message says 2.76:1; this says why, and what to do.
       rules: {
@@ -1277,180 +1521,11 @@ HOW TO USE
         },
       },
 
-      /* ---- colour, resolved rather than guessed ------------------------
-         These live here rather than in UTILS because reading a colour
-         honestly needs a canvas, and UTILS may not touch the DOM. Each of
-         them only ever had this one caller anyway. */
-
-      _cache: new Map(),      // 20-50 distinct colours per page, 1000s of nodes
-      _ctx: undefined,        // undefined = not tried yet, null = no canvas
-
-      /** A 1×1 scratch context, or null where canvas is unavailable. */
-      _paint() {
-        if (this._ctx !== undefined) return this._ctx;
-        try {
-          const c = document.createElement('canvas');
-          c.width = c.height = 1;
-          this._ctx = c.getContext('2d', { willReadFrequently: true }) || null;
-        } catch { this._ctx = null; }
-        return this._ctx;
-      },
-
-      /**
-       * Any CSS colour → sRGB, by asking the browser to paint one pixel of it.
-       * That covers oklch(), lab(), color(display-p3 …) and whatever ships
-       * next, without this file knowing the maths for any of them.
-       *
-       * Guessing is what made this necessary: scraping the numbers out of
-       * oklch(0.985 0 0) read near-white as near-black and reported 1.00:1
-       * for text measuring 10.9:1. Anything still unreadable returns null,
-       * and null must stay "unknown" all the way up.
-       */
-      _colour(str) {
-        const s = String(str || '');
-        if (!s) return null;
-        if (this._cache.has(s)) return this._cache.get(s);
-
-        let out = null;
-        const m = /^rgba?\(/.test(s) && s.match(/[\d.]+/g);
-        if (m && m.length >= 3) {
-          // the common case, and exact — no need to rasterise it
-          out = { r: +m[0], g: +m[1], b: +m[2], a: m[3] !== undefined ? +m[3] : 1 };
-        } else {
-          const ctx = this._paint();
-          // Two probes: a rejected colour leaves fillStyle on whichever probe
-          // was there, so the readbacks differ. An accepted one lands on the
-          // same value both times — including when it really is black.
-          if (ctx) {
-            ctx.fillStyle = '#000'; ctx.fillStyle = s; const a = ctx.fillStyle;
-            ctx.fillStyle = '#fff'; ctx.fillStyle = s; const b = ctx.fillStyle;
-            if (a === b) {
-              ctx.clearRect(0, 0, 1, 1);
-              ctx.fillRect(0, 0, 1, 1);
-              const d = ctx.getImageData(0, 0, 1, 1).data;
-              out = { r: d[0], g: d[1], b: d[2], a: d[3] / 255 };
-            }
-          }
-        }
-        this._cache.set(s, out);
-        return out;
-      },
-
-      /** Composite `over` (with alpha) onto the opaque colour `base`. */
-      _over(over, base) {
-        const a = over.a == null ? 1 : over.a;
-        return {
-          r: over.r * a + base.r * (1 - a),
-          g: over.g * a + base.g * (1 - a),
-          b: over.b * a + base.b * (1 - a),
-          a: 1,
-        };
-      },
-
-      /**
-       * What the text is actually painted on, or `{ unknown }` naming what
-       * stopped it — the caller turns that into a finding rather than silence.
-       *
-       * Starts at the element, not its parent: an element that sets its own
-       * background paints it behind its own text, so every button, chip and
-       * alert was previously scored against whatever was behind the card
-       * instead. Translucent layers are collected and composited rather than
-       * taken as if opaque — the first layer over 5% alpha used to be returned
-       * outright, which is a different colour from what a reader sees.
-       */
-      _bg(el) {
-        const layers = [];               // nearest the viewer first
-        let e = el;
-        while (e && e.nodeType === 1) {
-          const cs = getComputedStyle(e);
-          // An image or gradient can be any colour at the pixel under the
-          // text, and nothing here can sample it. Unknown, not white.
-          if (cs.backgroundImage && cs.backgroundImage !== 'none') return { unknown: 'bg-image' };
-          const raw = cs.backgroundColor;
-          const c = this._colour(raw);
-          // A colour we cannot read is not the same as no colour. Walking past
-          // it lands on the white default below and turns "I don't know" into
-          // a confident verdict against a background that was never there.
-          if (!c) {
-            if (raw && raw !== 'transparent')
-              return { unknown: this._paint() ? 'bg-colour' : 'no-canvas' };
-          } else if (c.a >= 0.999) {
-            return layers.reduceRight((base, l) => this._over(l, base), c);
-          } else if (c.a > 0) layers.push(c);
-          e = e.parentElement;
-        }
-        // nothing opaque anywhere: the canvas underneath a page is white
-        return layers.reduceRight((base, l) => this._over(l, base),
-                                  { r: 255, g: 255, b: 255, a: 1 });
-      },
-
-      _lum({ r, g, b }) {
-        const f = (v) => {
-          v /= 255;
-          return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-        };
-        return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
-      },
-      _ratio(fg, bg) {
-        // flatten a translucent foreground onto the background first
-        const a = fg.a == null ? 1 : fg.a;
-        const mixed = {
-          r: fg.r * a + bg.r * (1 - a),
-          g: fg.g * a + bg.g * (1 - a),
-          b: fg.b * a + bg.b * (1 - a),
-        };
-        const l1 = this._lum(mixed), l2 = this._lum(bg);
-        const hi = Math.max(l1, l2), lo = Math.min(l1, l2);
-        return (hi + 0.05) / (lo + 0.05);
-      },
-      // Walked rather than spread: this is the first thing asked of every
-      // element in a page sweep, and [...childNodes] allocates an array for
-      // each one only to look at the first text node.
-      _ownText(el) {
-        for (let n = el.firstChild; n; n = n.nextSibling)
-          if (n.nodeType === 3 && n.nodeValue.trim()) return true;
-        return false;
-      },
-
-      // Why a measurement could not be made. These reach the user, so they say
-      // what happened rather than naming the branch that produced them.
-      _why: {
-        'fg-colour': 'the text colour is in a colour space this cannot read',
-        'bg-colour': 'the background colour is in a colour space this cannot read',
-        'bg-image': 'it sits on an image or gradient, so the pixel under the text is unknown',
-        'no-canvas': 'no canvas is available to resolve colours',
-      },
-
-      _measure({ el, cs }) {
-        // NOT APPLICABLE is not the same as NOT KNOWN. An element with no text
-        // of its own has no contrast to have — reporting that as "review"
-        // would put every container on the page in the list and bury the real
-        // ones. Only the three below are things we tried to measure and failed.
-        if (!this._ownText(el)) return null;
-        const fg = this._colour(cs.color);
-        if (!fg) return { unknown: this._paint() ? 'fg-colour' : 'no-canvas' };
-        const bg = this._bg(el);
-        if (bg.unknown) return bg;
-        const ratio = this._ratio(fg, bg);
-        const size = parseFloat(cs.fontSize);
-        const bold = parseInt(cs.fontWeight, 10) >= 700;
-        const isLarge = size >= CONFIG.CONTRAST.largePx ||
-                        (bold && size >= CONFIG.CONTRAST.largeBoldPx);
-        // carried out with the verdict, not read again by each caller: the
-        // badge, the report and the finding must all name the same level they
-        // were actually judged against
-        const level = Tools.setting(this, 'level');
-        const want = CONFIG.CONTRAST.levels[level];
-        const need = isLarge ? want.large : want.normal;
-        return { ratio, need, pass: ratio >= need, isLarge, fg, bg, level, want };
-      },
-      _rgb: (c) => `${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)}`,
-
       // RULE hook: the verdict badge() shows, as data instead of prose. A
       // passing element produces nothing — a findings list is a list of
       // problems, which is what lets the same hook run over a whole page.
       audit(i) {
-        const c = this._measure(i);
+        const c = Colour.measure(i);
         if (!c) return [];              // no text of its own — nothing to judge
         if (c.unknown) return [{
           el: i.el,
@@ -1461,7 +1536,7 @@ HOW TO USE
           verdict: 'review',
           severity: 'info',
           rule: 'contrast-aa',
-          message: `not measured — ${this._why[c.unknown]}`,
+          message: `not measured — ${Colour.why[c.unknown]}`,
           // one row per reason, page-wide: 200 elements over one gradient are
           // one thing to go and look at, not 200
           key: `contrast-aa|review|${c.unknown}`,
@@ -1478,7 +1553,7 @@ HOW TO USE
                    `${c.isLarge ? 'large' : 'normal'} text`,
           // one line per colour pair, not per element: a 40-link nav is ONE
           // problem. Only the rule knows what "the same problem" means.
-          key: `contrast-aa|${this._rgb(c.fg)}|${this._rgb(c.bg)}|${c.isLarge}`,
+          key: `contrast-aa|${Colour.rgb(c.fg)}|${Colour.rgb(c.bg)}|${c.isLarge}`,
         }];
       },
       // Findings become places on the page, not just rows in a list. `found`
@@ -1501,7 +1576,7 @@ HOW TO USE
         }
       },
       badge(i) {
-        const c = this._measure(i);
+        const c = Colour.measure(i);
         if (!c) return null;
         // say so on hover too — silence here is what taught the eye to trust
         // a page the tool had not actually checked
@@ -1510,14 +1585,14 @@ HOW TO USE
         return `<span class="${cls}">${c.ratio.toFixed(2)}:1 ${c.level}${c.pass ? '✓' : '✗'}</span>`;
       },
       compact(i) {
-        const c = this._measure(i);
+        const c = Colour.measure(i);
         if (!c || c.unknown || c.pass) return null;   // quiet unless it fails
         return `<span class="bad">${c.ratio.toFixed(1)}:1 ✗</span>`;
       },
       report(i) {
-        const c = this._measure(i);
+        const c = Colour.measure(i);
         if (!c) return [];
-        if (c.unknown) return [`  contrast: not measured — ${this._why[c.unknown]}`];
+        if (c.unknown) return [`  contrast: not measured — ${Colour.why[c.unknown]}`];
         return [`  contrast: ${c.ratio.toFixed(2)}:1 vs required ${c.need} (${c.isLarge ? 'large' : 'normal'} text) → ${c.pass ? 'PASS' : 'FAIL'}`];
       },
     });
@@ -2850,7 +2925,7 @@ HOW TO USE
       const out = [];
       for (const r of ROLES) {
         const rows = [];
-        for (const t of Tools.withHook('options')) {
+        for (const t of Tools.settingOwners()) {
           for (const o of t.options.call(t)) {
             if (o.affects !== r.key) continue;
             rows.push({
@@ -2936,7 +3011,7 @@ HOW TO USE
       let saved = {};
       try { saved = JSON.parse(Store.get(CONFIG.SETTINGS_KEY) || '{}') || {}; } catch {}
       const out = {};
-      for (const t of Tools.withHook('options')) {
+      for (const t of Tools.settingOwners()) {
         out[t.id] = {};
         for (const o of t.options.call(t)) {
           const was = saved[t.id]?.[o.key];

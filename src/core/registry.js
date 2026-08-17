@@ -61,6 +61,25 @@
   ];
   const role = (key) => ROLES.find((r) => r.key === key);
 
+  /**
+   * SUBJECTS — a shared measurement, and the settings that govern it.
+   *
+   * WHY: `step` was grid's setting and `level` was contrast's, but neither is
+   * a property of a read-out. The spacing step is a property of the PROJECT,
+   * and both the ⚠ on a badge and the finding in a sweep have to agree about
+   * it or the overlay contradicts itself. Same for the WCAG level, and for the
+   * memoised colour cache underneath it — a page has tens of colours and
+   * thousands of nodes, and resolving them twice is real work done twice.
+   *
+   * A subject is not a component: no icon in the bar, no arming, no hooks. It
+   * is called BY components and never calls back — the same one-way rule the
+   * core files live under. That is what lets two components share a
+   * measurement without naming each other.
+   */
+  const SUBJECTS = [];
+  /** Register a shared subject. One call per file in src/subjects/. */
+  const defineSubject = (s) => { SUBJECTS.push(s); return s; };
+
   const TOOLS = [];
   /** Register a debug tool. One call per file in src/tools/. */
   const defineTool = (t) => { TOOLS.push(t); return t; };
@@ -118,7 +137,22 @@
      * re-deriving the answer from options() there would run the hook thousands
      * of times per sweep to be told the same thing.
      */
+    /**
+     * What one of an owner's own options is currently set to. The owner is a
+     * tool or a subject — anything with an id that declared the option. Asked
+     * with `this`, never with an id, so this stays as id-free as every other
+     * question the registry answers.
+     */
     setting: (t, key) => State.settings[t.id]?.[key],
+
+    /**
+     * Everything that declares settings, subjects first.
+     *
+     * Subjects lead because a setting that governs a shared measurement is the
+     * more general fact: "the spacing step is 2px" is true of the project, and
+     * what any one component does with it comes after.
+     */
+    settingOwners: () => [...SUBJECTS, ...TOOLS].filter((o) => o.options),
 
     /** Every role a tool fills, in ROLES order. Plural by construction. */
     rolesOf: (t) => ROLES.filter((r) => r.has(t)).map((r) => r.label),

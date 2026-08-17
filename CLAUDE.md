@@ -168,6 +168,28 @@ because a rule must never be handed NaN.
 tool ids in a core file, which made "a new tool is one new file" not quite
 true; now nothing central knows the name of anything.
 
+## Subjects — shared measurement, and the settings that govern it
+`src/subjects/*` holds what more than one component needs to agree about:
+`10-scale.js` owns `step`/`max`/`boxes` and the off-grid test; `20-colour.js`
+owns the WCAG `level`, the colour resolution, the memoised cache and the 1×1
+canvas.
+
+They moved out of grid and contrast because they were never really theirs. A
+2px step is a fact about the PROJECT; the ⚠ on a badge and the finding in a
+sweep are two things that consult it. Leaving it on one meant the other could
+not see it, and giving each a copy would let a badge say a value passes over a
+finding saying it fails — plus two colour caches resolving every colour twice
+on a page with thousands of nodes.
+
+A subject is **not a component**: no icon in the bar, no arming, no hooks. It
+is called by components and calls nothing back — the same one-way rule `core/`
+lives under, and `audit.js` checks it. It declares `options()` like a tool does
+and `Tools.settingOwners()` collects both, so a subject's settings appear under
+⚙ exactly as a tool's do.
+
+`defineSubject` is the registration. Ids share one settings store with tools,
+so the audit rejects a subject id that collides with a tool's.
+
 ## Four roles, derived — and one category that has to be declared
 `ROLES` in `core/registry.js` is the vocabulary: **Select · Inspect · Detect ·
 Act**. A tool's roles come from the hooks it implements and are never written
