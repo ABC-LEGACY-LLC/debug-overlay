@@ -169,6 +169,30 @@ for (const t of tools) {
   bad.forEach((b) => console.log(`      ${b}`));
 }
 
+/* ---- layer rules ---------------------------------------------------------
+   The folders are only guidance until something checks them. Every one of
+   these held the day the folders landed — by habit, which is precisely the
+   state a boundary is in just before it quietly stops being true.
+
+   They are also the answer to "where does my new file go": if it would break
+   one of these, it belongs in a different folder. */
+console.log('\nLAYERS');
+const LAYERS = [
+  ['core/', /\bPanel\.|\bList\.|\bRender\.|\bController\.|\bSettings\./,
+   'CORE is used by everything and reaches up to nothing'],
+  ['ui/', /\bController\.|\bSweep\.|\bReport\./,
+   'UI fires callbacks; APP decides what they mean'],
+  ['ui/', /defineTool\(/, 'UI draws the panel — a capability is a tool, in tools/'],
+  ['app/', /defineTool\(/, 'APP is glue and page-level work — a capability is a tool'],
+];
+for (const [dir, pattern, why] of LAYERS) {
+  const hits = walk().filter((f) => f.startsWith(dir) && pattern.test(strip(read(f))));
+  if (hits.length) {
+    console.log(`  ✗ ${dir}* — ${why}\n      ${hits.join(', ')}`);
+    fail++;
+  } else console.log(`  ✓ ${dir}* — ${why}`);
+}
+
 /* Nothing declares a tool's role any more, so the hook list has to be true.
    A name in HOOKS that no file consumes is a contract nobody honours: a tool
    implementing it would pass this audit, print in the column above, and never

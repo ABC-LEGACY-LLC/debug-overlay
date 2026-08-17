@@ -62,6 +62,28 @@ tab: the bundle skips frames, so an embedded editor preview shows nothing.
   so nobody needs a rebuild to change their mind.
 - Tool-specific CSS goes in that tool's `css:` field, not `src/ui/styles.js`.
 
+## Two structures, on purpose — and how to see both
+The **folder** says what kind of file a thing is. The **role** says what a tool
+does. They are not the same axis and neither is written in the other:
+
+| folder | what it is | where it shows up on the panel |
+|---|---|---|
+| `core/` | shared foundations | nowhere — no user surface at all |
+| `tools/` | a capability the user can arm | its own button, and its rows under ⚙ |
+| `ui/` | a surface or a widget | the panel is made of these |
+| `app/` | a page-level operation, or glue | what the panel's buttons DO |
+
+`tools/` is deliberately **not** sub-foldered by role. A folder is exclusive
+and a role is not: grid and contrast are each Inspect *and* Detect, so
+`tools/detect/grid.js` would assert grid is only a rule — the same lie as
+filing it under one bar group, but worse, because a folder has no tooltip.
+
+`npm run map` boots the built bundle and prints the bar, every tool's derived
+roles with the file it came from, and the grouped ⚙ view. Use it to answer
+"where will this show up" instead of guessing — it asks the running registry
+rather than re-deriving the roles, because a second copy of that mapping is
+exactly what the `kind` field died of.
+
 ## Boundaries (audit.js enforces these)
 - `core/utils.js` — pure. No `State.`, no DOM creation, no markup. Callers hand
   in a decorator; the tool that styles a class is the tool that emits it.
@@ -80,6 +102,11 @@ tab: the bundle skips frames, so an embedded editor preview shows nothing.
   was a `kind` field; it could only repeat what the hooks said, and one label
   per tool made roles exclusive for no reason. Roles compose — grid decorates
   other tools' numbers *and* produces findings.
+- The layers hold in one direction only: `core/` never mentions `Panel.`,
+  `Render.`, `Controller.` or `Settings.`; `ui/` never mentions `Controller.`,
+  `Sweep.` or `Report.`; and nothing outside `tools/` calls `defineTool()`.
+  All three were true by habit before the audit checked them, which is the
+  state a boundary is in right before it stops being true.
 - Every name in `HOOKS` must be consumed by some file. A hook nothing calls
   is a contract nobody honours: a tool could implement it, pass the audit,
   and never run.
