@@ -1144,7 +1144,20 @@ evil.dispatchEvent(new w3.MouseEvent('click', { bubbles: true, clientX: 5, clien
 window.dispatchEvent(new window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
 bar.querySelector('[data-sweep]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 
-setTimeout(() => {
+/**
+ * WAIT FOR THE FRAME, do not assume it. This was a fixed 80ms, which is a bet
+ * that the machine is idle — and under load the frame had not landed, so
+ * assertions about painted marks failed for a reason that had nothing to do
+ * with the code. An intermittently red suite gets re-run until it is green,
+ * which is the same "green by luck" the crash guard above exists to stop.
+ */
+function whenPainted(ready, run, waited = 0) {
+  if (ready() || waited > 4000) return run();
+  setTimeout(() => whenPainted(ready, run, waited + 25), 25);
+}
+
+whenPainted(() => window.document.querySelector('#__dbgov-root .dbgov-flag') &&
+                  w3.document.querySelector('#__dbgov-root .dbgov-badge'), () => {
   console.log('\nREVIEW FIXES (after a frame)');
   pendingChecks.forEach((fn) => fn());
 
@@ -1175,4 +1188,4 @@ setTimeout(() => {
 
   console.log(`\n${failed ? '✗' : '✓'} ${failed} failure(s)\n`);
   process.exit(failed ? 1 : 0);
-}, 80);
+});
