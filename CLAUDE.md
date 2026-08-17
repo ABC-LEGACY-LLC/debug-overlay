@@ -4,7 +4,11 @@
 
 ## Before finishing any change
 Run `npm run check` — it rebuilds, runs the architecture audit and the jsdom
-smoke test. Do not consider a change done until all three pass.
+smoke test. **Judge it by the exit code, never by reading the output.** A
+crashing suite prints a stack trace and no `✗` at all, so grepping the output
+for failures finds none and calls it green — that shipped twice, and half the
+assertions had not run either time. `test.js` now prints `✗ SUITE CRASHED` on
+an uncaught throw, but the exit code is still the only thing that cannot lie.
 
 Edit `src/`. Never edit `dist/` — the next build overwrites it.
 
@@ -56,6 +60,15 @@ tab: the bundle skips frames, so an embedded editor preview shows nothing.
   only way to shrink it is to move the colour helpers into a core file, and
   they live in the tool deliberately (see below). A line count is not worth
   trading a boundary for.
+- A rule's bounds have two sides. `v <= max` let every negative through, so a
+  page reported `-1127px` as a spacing decision while ignoring `+1127px`.
+- `U.info`'s `r` is a getter. **Never destructure it in a parameter list** —
+  `scan({ r, cs }, …)` evaluates it whether or not the body wants it, and turned
+  a styles-only sweep into one `getBoundingClientRect` per element.
+- An owner that changes the id its settings are stored under declares `was:`.
+  Moving `step` from the grid tool to the scale subject silently reset everyone
+  who had chosen an 8px grid; the owner names its own former id, so no core
+  file holds a list of what things used to be called.
 - Tunable numbers go in `src/core/config.js`. Never inline a magic number. If it
   is a number a *user* would want different on their project — a grid step, a
   threshold — CONFIG holds the default and the tool exposes it via `options()`

@@ -62,8 +62,14 @@
         // spacing scale.
         return Scale.scan(i, Scale.boxes())
           // and drop what layout worked out rather than what anyone chose:
-          // ml-auto arrives here as margin-left: 1127px
-          .filter(([, v]) => v <= Scale.max())
+          // ml-auto arrives here as margin-left: 1127px.
+          //
+          // ABS, because the ceiling has two sides. `v <= max` bounded the
+          // positive one only, so a negative margin of any size sailed through
+          // — a real page reported -1127px as off-grid while +1127px was
+          // correctly ignored, and a pull-left of -240px would have read as a
+          // spacing decision somebody made.
+          .filter(([, v]) => Math.abs(v) <= Scale.max())
           .map(([n, v]) => ({
           el: i.el,
           verdict: 'fail',

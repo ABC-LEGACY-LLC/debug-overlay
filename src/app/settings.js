@@ -116,9 +116,17 @@
       try { saved = JSON.parse(Store.get(CONFIG.SETTINGS_KEY) || '{}') || {}; } catch {}
       const out = {};
       for (const t of Tools.settingOwners()) {
+        // An owner may say what it used to be called. Moving `step` out of the
+        // grid tool and into the scale subject renamed the key it is stored
+        // under, and without this every user who had chosen an 8px grid or AAA
+        // contrast was silently returned to the defaults on upgrade — the same
+        // reset Store's localStorage adoption exists to prevent, arriving by a
+        // different door. The owner declares its own former name; no core file
+        // holds a list of what anything used to be.
+        const prev = saved[t.id] || (t.was && saved[t.was]) || null;
         out[t.id] = {};
         for (const o of t.options.call(t)) {
-          const was = saved[t.id]?.[o.key];
+          const was = prev?.[o.key];
           out[t.id][o.key] = Settings.valid(o, was) ? was : o.def;
         }
       }

@@ -13,6 +13,7 @@
    */
   const Colour = defineSubject({
     id: 'colour',
+    was: 'contrast',   // its settings lived under this id before the subject existed
     icon: '◐',
 
     /**

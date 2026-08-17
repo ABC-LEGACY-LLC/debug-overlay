@@ -43,6 +43,19 @@ const TOOLS_ON_DISK = fs.readdirSync(path.join(ROOT, 'src', 'tools'))
   }));
 const idsOnDisk = TOOLS_ON_DISK.map((t) => t.id).sort();
 
+/**
+ * A crash is not a pass. This suite died mid-run for two releases and printed
+ * no ✗ anywhere — just a stack trace — so anything reading the output for
+ * failures found none and called it green. The summary line is the contract:
+ * if the run ends without one, it ended badly.
+ */
+process.on('uncaughtException', (e) => {
+  console.log(`\n✗ SUITE CRASHED — ${e.message}`);
+  console.log(`    ${(e.stack || '').split('\n')[1] || ''}`.trimEnd());
+  console.log('\n✗ the run stopped here, so nothing after this point was checked\n');
+  process.exit(1);
+});
+
 let failed = 0;
 function ok(name, cond, detail) {
   if (cond) { console.log(`  ✓ ${name}`); return; }
@@ -212,7 +225,10 @@ let copied = null;
 Object.defineProperty(window.navigator, 'clipboard',
   { value: { writeText: async (t) => { copied = t; } }, configurable: true });
 window.dispatchEvent(new window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
-bar.querySelector('[data-tool="contrast"]').dispatchEvent(
+// derived: naming a tool here is how this file crashed when one was renamed
+const judge = TOOLS_ON_DISK.find((t) => t.judges && /contrast/.test(t.id));
+ok('a contrast rule exists to arm', !!judge, idsOnDisk.join(', '));
+bar.querySelector(`[data-tool="${judge.id}"]`).dispatchEvent(
   new window.MouseEvent('click', { bubbles: true }));
 const pin = (id) => {
   window.document.elementFromPoint = () => window.document.getElementById(id);
@@ -883,6 +899,83 @@ console.log('\nCATEGORIES');
   ok('while the pins themselves stay', list.querySelectorAll('.row').length === 2,
     `${list.querySelectorAll('.row').length} rows — selection is not the same as pinning`);
   dc.window.close();
+}
+
+console.log('\nREGRESSIONS');
+/**
+ * Three defects found on a real page and by review, each with the shape this
+ * project keeps meeting: a rule that is confidently wrong, work done that
+ * nobody asked for, and a silent reset on upgrade.
+ */
+{
+  const opts = { url: 'https://example.test/', pretendToBeVisual: true,
+                 runScripts: 'outside-only', virtualConsole: new VirtualConsole() };
+
+  // ---- the ceiling has two sides -----------------------------------------
+  // `v <= max` bounded large positives only, so a page reported -1127px as a
+  // spacing decision while ignoring +1127px. Both are layout arithmetic.
+  const dn = new JSDOM(`<!doctype html><html><body>
+      <div id="near" style="margin-left:-1px">a pixel someone typed</div>
+      <div id="far" style="margin-left:-1127px">what layout worked out</div>
+      <div id="pos" style="margin-left:1127px">the same, positive</div>
+    </body></html>`, opts);
+  const wn = dn.window;
+  wn.eval(source);
+  let copiedN = null;
+  Object.defineProperty(wn.navigator, 'clipboard',
+    { value: { writeText: async (t) => { copiedN = t; } }, configurable: true });
+  const barN = wn.document.getElementById('__dbgov-bar');
+  wn.dispatchEvent(new wn.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  barN.querySelector('[data-sweep]').dispatchEvent(new wn.MouseEvent('click', { bubbles: true }));
+  barN.querySelector('[data-copy]').dispatchEvent(new wn.MouseEvent('click', { bubbles: true }));
+  ok('a small negative is still judged', /-1px is off/.test(copiedN || ''),
+    'someone types -1px; it is a spacing decision like any other');
+  ok('a large negative is layout, not a decision', !/-1127px is off/.test(copiedN || ''),
+    'the ceiling bounded the positive side only');
+  ok('and the positive one stays ignored', !/\b1127px is off/.test(copiedN || ''),
+    'this half always worked — it is the control for the two above');
+  dn.window.close();
+
+  // ---- the lazy rect stays lazy ------------------------------------------
+  // U.info's `r` is a getter so a rule reading only styles never triggers
+  // layout. Destructuring it in a parameter list evaluates it anyway.
+  const rows = Array.from({ length: 40 }, (_, i) => `<p style="padding:8px">r${i}</p>`).join('');
+  const dl = new JSDOM(`<!doctype html><html><body>${rows}</body></html>`, opts);
+  const wl = dl.window;
+  const realRect = wl.Element.prototype.getBoundingClientRect;
+  let rects = 0;
+  wl.Element.prototype.getBoundingClientRect = function () {
+    rects++; return realRect.apply(this, arguments);
+  };
+  wl.eval(source);
+  const barL = wl.document.getElementById('__dbgov-bar');
+  wl.dispatchEvent(new wl.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  rects = 0;
+  barL.querySelector('[data-sweep]').dispatchEvent(new wl.MouseEvent('click', { bubbles: true }));
+  ok('a sweep does not force a layout read per element', rects < 10,
+    `${rects} getBoundingClientRect calls over 40 elements — the getter is being evaluated eagerly`);
+  dl.window.close();
+
+  // ---- an upgrade does not reset anybody ---------------------------------
+  // Moving `step` into the scale subject renamed the key it is stored under.
+  const du = new JSDOM('<!doctype html><html><body><div id="x">x</div></body></html>', opts);
+  du.window.localStorage.setItem('__dbgov_settings',
+    '{"grid":{"step":8,"max":96,"boxes":false},"contrast":{"level":"AAA"}}');
+  du.window.eval(source);
+  const barU = du.window.document.getElementById('__dbgov-bar');
+  du.window.dispatchEvent(new du.window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  barU.querySelector('[data-settings]').dispatchEvent(new du.window.MouseEvent('click', { bubbles: true }));
+  const valueOf = (label) => {
+    const r = [...du.window.document.querySelectorAll('#__dbgov-list .row')]
+      .find((x) => x.querySelector('.lbl').textContent === label);
+    const c = r && r.querySelector('.opt');
+    return c ? (c.tagName === 'SELECT' ? c.selectedOptions[0].textContent : c.value) : null;
+  };
+  ok('a setting stored under an owner\'s former id is adopted',
+    valueOf('Grid step') === '8px', String(valueOf('Grid step')));
+  ok('and so is the one that moved with it',
+    valueOf('WCAG level') === 'AAA', String(valueOf('WCAG level')));
+  du.window.close();
 }
 
 // ---- the sections that need a painted frame ---------------------------------

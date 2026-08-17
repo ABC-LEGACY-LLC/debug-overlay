@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.36
+// @version      3.8.37
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -263,7 +263,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: '3.8.36',
+    VERSION: '3.8.37',
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -930,6 +930,7 @@ HOW TO USE
    */
   const Colour = defineSubject({
     id: 'colour',
+    was: 'contrast',   // its settings lived under this id before the subject existed
     icon: '◐',
 
     /**
@@ -1121,6 +1122,7 @@ HOW TO USE
    */
   const Scale = defineSubject({
     id: 'scale',
+    was: 'grid',   // its settings lived under this id before the subject existed
     icon: '▦',
 
     options() {
@@ -1160,11 +1162,22 @@ HOW TO USE
      * width and height — true when somebody pointed at this element and asked,
      * false when a sweep is judging the page.
      */
-    scan({ r, cs }, boxes) {
+    scan(info, boxes) {
+      // NOT `scan({ r, cs }, …)`. `r` on U.info is a getter that runs
+      // getBoundingClientRect, and destructuring it in the parameter list
+      // evaluates it whether or not the body ever wants it — so the page sweep
+      // was forcing a layout read for every visible element to answer a
+      // question about padding. Measured: 62 rect reads over 60 elements, with
+      // `boxes` off, which is the default. Read it inside the branch that uses
+      // it and a colours-only pass pays nothing.
+      const cs = info.cs;
       const pad = U.fourPlain(cs, 'padding'), mar = U.fourPlain(cs, 'margin');
       const out = [];
       const check = (n, v) => { if (this.off(v)) out.push([n, v]); };
-      if (boxes) { check('w', Math.round(r.width)); check('h', Math.round(r.height)); }
+      if (boxes) {
+        const r = info.r;
+        check('w', Math.round(r.width)); check('h', Math.round(r.height));
+      }
       ['t', 'r', 'b', 'l'].forEach((k) => { check('pad-' + k, pad[k]); check('mar-' + k, mar[k]); });
       // the shorthand as well as the longhands: a browser resolves `gap` into
       // both, and jsdom leaves it on the shorthand
@@ -1409,8 +1422,14 @@ HOW TO USE
         // spacing scale.
         return Scale.scan(i, Scale.boxes())
           // and drop what layout worked out rather than what anyone chose:
-          // ml-auto arrives here as margin-left: 1127px
-          .filter(([, v]) => v <= Scale.max())
+          // ml-auto arrives here as margin-left: 1127px.
+          //
+          // ABS, because the ceiling has two sides. `v <= max` bounded the
+          // positive one only, so a negative margin of any size sailed through
+          // — a real page reported -1127px as off-grid while +1127px was
+          // correctly ignored, and a pull-left of -240px would have read as a
+          // spacing decision somebody made.
+          .filter(([, v]) => Math.abs(v) <= Scale.max())
           .map(([n, v]) => ({
           el: i.el,
           verdict: 'fail',
@@ -3034,9 +3053,17 @@ HOW TO USE
       try { saved = JSON.parse(Store.get(CONFIG.SETTINGS_KEY) || '{}') || {}; } catch {}
       const out = {};
       for (const t of Tools.settingOwners()) {
+        // An owner may say what it used to be called. Moving `step` out of the
+        // grid tool and into the scale subject renamed the key it is stored
+        // under, and without this every user who had chosen an 8px grid or AAA
+        // contrast was silently returned to the defaults on upgrade — the same
+        // reset Store's localStorage adoption exists to prevent, arriving by a
+        // different door. The owner declares its own former name; no core file
+        // holds a list of what anything used to be.
+        const prev = saved[t.id] || (t.was && saved[t.was]) || null;
         out[t.id] = {};
         for (const o of t.options.call(t)) {
-          const was = saved[t.id]?.[o.key];
+          const was = prev?.[o.key];
           out[t.id][o.key] = Settings.valid(o, was) ? was : o.def;
         }
       }

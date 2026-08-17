@@ -10,6 +10,7 @@
    */
   const Scale = defineSubject({
     id: 'scale',
+    was: 'grid',   // its settings lived under this id before the subject existed
     icon: '▦',
 
     options() {
@@ -49,11 +50,22 @@
      * width and height — true when somebody pointed at this element and asked,
      * false when a sweep is judging the page.
      */
-    scan({ r, cs }, boxes) {
+    scan(info, boxes) {
+      // NOT `scan({ r, cs }, …)`. `r` on U.info is a getter that runs
+      // getBoundingClientRect, and destructuring it in the parameter list
+      // evaluates it whether or not the body ever wants it — so the page sweep
+      // was forcing a layout read for every visible element to answer a
+      // question about padding. Measured: 62 rect reads over 60 elements, with
+      // `boxes` off, which is the default. Read it inside the branch that uses
+      // it and a colours-only pass pays nothing.
+      const cs = info.cs;
       const pad = U.fourPlain(cs, 'padding'), mar = U.fourPlain(cs, 'margin');
       const out = [];
       const check = (n, v) => { if (this.off(v)) out.push([n, v]); };
-      if (boxes) { check('w', Math.round(r.width)); check('h', Math.round(r.height)); }
+      if (boxes) {
+        const r = info.r;
+        check('w', Math.round(r.width)); check('h', Math.round(r.height));
+      }
       ['t', 'r', 'b', 'l'].forEach((k) => { check('pad-' + k, pad[k]); check('mar-' + k, mar[k]); });
       // the shorthand as well as the longhands: a browser resolves `gap` into
       // both, and jsdom leaves it on the shorthand
