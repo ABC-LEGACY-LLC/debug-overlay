@@ -40,29 +40,35 @@ tab: the bundle skips frames, so an embedded editor preview shows nothing.
 - A new debug capability is a NEW FILE in `src/tools/`, never an edit to the
   renderer, panel or controller. If you feel the urge to edit those to add a
   tool, the tool needs a new hook instead — add the hook generically.
-- Sections split when they grow two jobs, and the split keeps the caller's
-  surface identical: `07a-controls.js` and `07b-list.js` came out of the panel,
-  `14a-settings.js` out of the controller, and `Panel.setList` / `Panel.view`
-  still exist because nothing outside should have to learn that. Files sort
-  into build order by name, so `07a` lands after `07-dom.js` and before
-  `08-panel.js` — check the ordering before naming a new one.
+- Files split when they grow two jobs, and the split keeps the caller's
+  surface identical: `ui/controls.js` and `ui/list.js` came out of the panel,
+  `app/settings.js` out of the controller, and `Panel.setList` / `Panel.view`
+  still exist because nothing outside should have to learn that.
+- **Load order lives in `ORDER` in `build.js`, nowhere else.** Filenames used
+  to carry it as numeric prefixes; that made renaming dangerous, meant the same
+  convention said "load order" in `src/` and "display order" in `src/tools/`,
+  and made folders unusable for anything ordered. A new core file goes in
+  `core/`, `ui/` or `app/` with a plain name AND into `ORDER` at the point its
+  dependencies allow — the build fails if it is in one and not the other, in
+  either direction. `tools/*` stays auto-discovered, so a new tool is still one
+  new file and nothing else.
 - `tools/30-contrast.js` is over the 220-line advisory and staying there. The
   only way to shrink it is to move the colour helpers into a core file, and
   they live in the tool deliberately (see below). A line count is not worth
   trading a boundary for.
-- Tunable numbers go in `src/01-config.js`. Never inline a magic number. If it
+- Tunable numbers go in `src/core/config.js`. Never inline a magic number. If it
   is a number a *user* would want different on their project — a grid step, a
   threshold — CONFIG holds the default and the tool exposes it via `options()`
   so nobody needs a rebuild to change their mind.
-- Tool-specific CSS goes in that tool's `css:` field, not `src/06-styles.js`.
+- Tool-specific CSS goes in that tool's `css:` field, not `src/ui/styles.js`.
 
 ## Boundaries (audit.js enforces these)
-- `03-utils.js` — pure. No `State.`, no DOM creation, no markup. Callers hand
+- `core/utils.js` — pure. No `State.`, no DOM creation, no markup. Callers hand
   in a decorator; the tool that styles a class is the tool that emits it.
-- `04-measure.js` — rectangles only. No `Tools.`, no `Panel.`.
-- `08-panel.js` — no `State.`, and it must not know what a "pair" is. It
+- `core/geometry.js` — rectangles only. No `Tools.`, no `Panel.`.
+- `ui/panel.js` — no `State.`, and it must not know what a "pair" is. It
   fires callbacks; the controller handles them.
-- `11-renderer.js` / `13-interactions.js` / `14-controller.js` — never
+- `ui/renderer.js` / `app/interactions.js` / `app/controller.js` — never
   hardcode a tool id such as `'measure'`. Use hooks and `CONFIG.PIN_KIND`.
   The banned ids are derived from what is registered, so a fourth tool is
   guarded the day it lands.
@@ -115,7 +121,7 @@ tool ids in a core file, which made "a new tool is one new file" not quite
 true; now nothing central knows the name of anything.
 
 ## Four roles, derived — and one category that has to be declared
-`ROLES` in `05-registry.js` is the vocabulary: **Select · Inspect · Detect ·
+`ROLES` in `core/registry.js` is the vocabulary: **Select · Inspect · Detect ·
 Act**. A tool's roles come from the hooks it implements and are never written
 down, because a label can only repeat what the hooks say and then drift — that
 is exactly how the old `kind` field died. They are also plural: grid is Inspect
@@ -144,7 +150,7 @@ consumer picks up, and neither side learns the other's id.
 
 ## The one hook that writes
 `intercept({ type, ev, el })` is offered to armed tools before a click becomes
-a pin — `13-interactions.js` is where input enters, so it is the only place
+a pin — `app/interactions.js` is where input enters, so it is the only place
 that can hand it on, and it does so by hook with no tool named. Return true and
 the click was yours; the pin does not also happen, because the overlay doing
 two things for one click is its own bug.
@@ -156,14 +162,14 @@ Ctrl, because Ctrl+click is the context menu on macOS.
 ## We run in a sandbox now, so never ask a window who it is
 The header grants `GM_getValue`/`GM_setValue`, because `localStorage` is scoped
 to one origin and `@match` is every site — so everything the user chose was
-chosen again on the next domain. `Store` (in `02-state.js`) is the only way to
+chosen again on the next domain. `Store` (in `core/state.js`) is the only way to
 persist anything; it falls back to `localStorage` where the API is absent (dev
 page, tests) and adopts existing `localStorage` values on first run, so an
 upgrade never resets somebody. Do not call `localStorage` directly again.
 
 Asking for any GM API moves the script into the manager's sandbox, where
 `window` is a wrapper around the page's. Two consequences, both already handled
-in `00-banner.js` and both silent if reintroduced:
+in `banner.js` and both silent if reintroduced:
 
 - **Never compare window identities.** `window.top !== window.self` can be true
   in the *top* frame under a sandbox — the overlay would vanish everywhere and
@@ -177,7 +183,7 @@ Anything else that assumed page context is now suspect. `unsafeWindow` reaches
 the real page window if something ever genuinely needs it — nothing does yet.
 
 ## The version has to be visible
-`@grant none` means no `GM_info`, so `src/01-config.js` carries a `__VERSION__`
+`@grant none` means no `GM_info`, so `src/core/config.js` carries a `__VERSION__`
 placeholder that `build.js` substitutes into the bundle, and the panel shows it
 in the ⏻ tooltip. The build **fails** if the placeholder is missing. Do not
 hand-write a version into `src/` — that is a second copy, and it will drift
@@ -209,12 +215,12 @@ returns null rather than falling through to its white default when it meets
 one, and `_measure()` treats either as "say nothing". Results are memoised by
 string: a page has tens of colours and thousands of nodes.
 
-That is also why the colour helpers live in the tool and not in `03-utils.js`
+That is also why the colour helpers live in the tool and not in `core/utils.js`
 — reading a colour honestly needs the DOM, and utils may not have it. Each of
 them only ever had one caller.
 
 ## The sweep
-`15-sweep.js` runs every active `rule` over every visible element in one
+`app/sweep.js` runs every active `rule` over every visible element in one
 read-only pass. It stays tool-agnostic: it gates on `display`/`visibility`/
 `opacity`, reads `getComputedStyle` once per element and hands that same
 object to the rules, and asks nothing else about them.
@@ -235,7 +241,7 @@ concatenated into one sheet, so an unclosed `(` in grid cost grid *and*
 contrast their styling entirely — that shipped once. Measured again while
 splitting them: one broken paren in grid took contrast's 8 rules with it.
 
-`07-dom.js` now emits one `<style data-tool="…">` per tool plus one for the
+`ui/dom.js` now emits one `<style data-tool="…">` per tool plus one for the
 core, so the blast radius is the author's own file. `test.js` checks every
 sheet separately — braces and parens balance, and the parsed rule count
 matching what was written — and names the tool that broke. Keep those checks,
@@ -249,4 +255,5 @@ and never commit `dist/` without running the build.
 ## Escalate to the human instead of guessing
 - A change that would require relaxing an audit rule.
 - Anything touching `@match`, `@grant`, or the update URLs.
-- Restructuring sections or renaming files (build order depends on filenames).
+- Reordering `ORDER` in `build.js`, or moving a file between `core/`, `ui/`
+  and `app/` — the bundle is one closure and order is a real dependency.

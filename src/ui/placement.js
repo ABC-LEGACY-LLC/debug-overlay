@@ -1,5 +1,5 @@
   /* ======================================================================
-     9. PLACEMENT — collision-free positioning
+     PLACEMENT — collision-free positioning
      ====================================================================== */
   const Place = (() => {
     let taken = [];

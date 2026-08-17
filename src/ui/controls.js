@@ -1,5 +1,5 @@
   /* ======================================================================
-    7a. CONTROLS — one widget, from a description of it
+    CONTROLS — one widget, from a description of it
 
         Split out of PANEL because it never needed anything PANEL owns: no
         element, no state, no callbacks of its own. Everything it makes is

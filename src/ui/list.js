@@ -1,5 +1,5 @@
   /* ======================================================================
-    7b. LIST — the popover the panel opens
+    LIST — the popover the panel opens
 
         Split out of PANEL, which was doing two jobs: a bar of buttons that
         drags and snaps, and a list that renders rows. They share only an

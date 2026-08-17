@@ -12,7 +12,7 @@
  *
  * The page loads the built bundle with a plain <script> tag. The script does
  * ask for GM_getValue / GM_setValue, but never assumes them: Store in
- * 02-state.js falls back to localStorage when they are undefined, which is
+ * core/state.js falls back to localStorage when they are undefined, which is
  * exactly the case here. So a normal page still hosts the bundle unchanged —
  * with settings kept per origin instead of per script, which for one dev page
  * is the same thing.

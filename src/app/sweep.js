@@ -1,5 +1,5 @@
   /* ======================================================================
-    15. SWEEP — run the rules over the whole page instead of one element
+    SWEEP — run the rules over the whole page instead of one element
      ====================================================================== */
   const Sweep = {
     /**

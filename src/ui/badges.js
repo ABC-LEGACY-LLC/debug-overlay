@@ -1,5 +1,5 @@
   /* ======================================================================
-    10. BADGES — composed from ACTIVE tools only
+    BADGES — composed from ACTIVE tools only
      ====================================================================== */
   const Badges = {
     build(info, compact) {

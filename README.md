@@ -44,8 +44,8 @@ npm run dev        # http://localhost:8080  (PORT=3000 npm run dev to move it)
 ```
 
 It serves `dev/index.html` with the built bundle loaded by a plain `<script>`
-tag — which works because the userscript grants nothing and uses no `GM_*`
-API. `build.js --watch` runs alongside it, and the page reloads itself when a
+tag. The script asks for `GM_getValue`/`GM_setValue` but never assumes them —
+`Store` falls back to `localStorage`, which is what happens here. `build.js --watch` runs alongside it, and the page reloads itself when a
 rebuild lands, so saving a file in `src/` is the entire loop.
 
 The page carries something for each tool on purpose: padding and gaps off the
@@ -53,7 +53,7 @@ the spacing grid, a paragraph that fails AA contrast, and boxes worth measuring
 between.
 
 Open it in a **real browser tab**. The bundle skips frames by design
-(`00-banner.js`), so an embedded editor preview renders the page with no
+(`banner.js`), so an embedded editor preview renders the page with no
 overlay at all — the page says so if it detects it is framed.
 
 The dev loop never bumps the version: `--watch` builds with `--same`, so it
@@ -127,7 +127,7 @@ a setup step handed back to the user on each site they visited.
 
 The grant is not free. Asking for any GM API moves the script from page context
 into the manager's **sandbox**, where `window` is a wrapper rather than the
-page's own object. Two things in `src/00-banner.js` exist because of it:
+page's own object. Two things in `src/banner.js` exist because of it:
 
 - the frame check reads `window.frameElement` rather than comparing
   `window.top` to `window.self` — that comparison can be true in the *top*
@@ -137,7 +137,7 @@ page's own object. Two things in `src/00-banner.js` exist because of it:
   just a flag on `window`. A re-injection on soft navigation can arrive with a
   fresh sandbox and the same page.
 
-`Store` in `src/02-state.js` falls back to `localStorage` wherever the GM API
+`Store` in `src/core/state.js` falls back to `localStorage` wherever the GM API
 is absent — the dev page, the tests, a manager that does not implement it — and
 adopts anything already in `localStorage` on first run, so upgrading does not
 reset what you had.
@@ -148,32 +148,56 @@ reset what you had.
 
 ```
 src/
-  00-banner.js        IIFE open + single-instance guard
-  01-config.js        every tunable number and key
-  02-state.js         single source of truth, plain data
-  03-utils.js         pure helpers (no DOM, no state)
-  04-measure.js       dimension-line geometry, tool-agnostic
-  05-registry.js      TOOLS array + defineTool() + Tools helper
-  tools/
-    10-measure.js     sizes, spacing, distances  ← copy this as a template
-    20-grid.js        off-grid value warnings
-    30-contrast.js    WCAG contrast ratio
-    40-dupid.js       duplicate ids — a whole-page question
-  06-styles.js        core CSS (tools carry their own)
-  07-dom.js           root + drawing layer
-  08-panel.js         control panel: drag, snap, tuck, pin list
-  09-placement.js     collision-free badge positioning
-  10-badges.js        composes badges from active tools
-  11-renderer.js      draws one frame from state
-  12-report.js        structured text export
-  13-interactions.js  page-level mouse and keyboard
-  14-controller.js    the only glue between modules
-  15-sweep.js         runs every rule over every visible element
-  99-boot.js          wiring + IIFE close
+  banner.js            opens the closure + single-instance guard
+  core/
+    config.js          every tunable number and key
+    state.js           State, plus Store — the part that outlives the page
+    utils.js           pure helpers (no DOM, no state)
+    geometry.js        dimension-line geometry, tool-agnostic
+    registry.js        defineTool(), the Tools helpers, the four ROLES
+  tools/               ← auto-discovered; one file per capability
+    05-select.js       how pinned elements group up
+    10-measure.js      sizes, spacing, distances  ← copy this as a template
+    20-grid.js         off-grid value warnings
+    30-contrast.js     WCAG contrast ratio
+    40-dupid.js        duplicate ids — a whole-page question
+    50-pick.js         Ctrl+click copies a selector
+  ui/
+    styles.js          core CSS (tools carry their own)
+    dom.js             root + drawing layer
+    controls.js        one widget from a description of it
+    list.js            the popover the panel opens
+    panel.js           the bar: buttons, drag, snap, tuck
+    placement.js       collision-free badge positioning
+    badges.js          composes badges from active tools
+    renderer.js        draws one frame from state
+  app/
+    report.js          structured text export
+    interactions.js    page-level mouse and keyboard
+    controller.js      the only glue between modules
+    settings.js        the ⚙ view, and what a tool's options mean
+    sweep.js           runs every rule over every visible element
+  boot.js              wiring, start, and the closing brace
 ```
 
-Files are concatenated in filename order, with `src/tools/*` inserted right
-after `05-registry.js`. Adding a file needs no build config change.
+The bundle is **one IIFE with no imports**, so load order is a real dependency:
+`banner.js` opens the closure, `boot.js` closes it, and a file evaluated too
+early is a `ReferenceError` at boot — a blank overlay on every site.
+
+That order lives in **`ORDER` in `build.js`**, and nowhere else. It used to be
+encoded in numeric filename prefixes, which made renaming dangerous, meant the
+same convention said *load order* in `src/` and *display order* in
+`src/tools/`, and left folders unusable for anything ordered.
+
+Adding a core file means putting it in `core/`, `ui/` or `app/` **and** into
+`ORDER` at the point its dependencies allow. The build fails if it is in one
+and not the other, in either direction — a file that exists but ships in no
+bundle is exactly the kind of silence this project keeps designing out.
+
+`tools/*` is still globbed, so **a new tool is one new file and nothing else**.
+Tools may not name each other, so their order is presentation only: which
+button sits where, and which row comes first under ⚙. That is the one place a
+numeric prefix still earns its keep, and now it means only that.
 
 ## Adding a tool
 
@@ -262,14 +286,14 @@ finding, so a copied report explains itself.
 
 ## Rules the audit enforces
 
-- `03-utils.js` is pure — it never reads state, builds DOM, or owns markup.
+- `core/utils.js` is pure — it never reads state, builds DOM, or owns markup.
 - No file in `src/tools/` names another tool — no `Tools.byId('grid')`, no
   `t.id === 'grid'`. A lens reaches the tools; the tools never reach back.
 - Every name in `HOOKS` is consumed by some file — no hook exists that
   nothing would ever call.
-- `04-measure.js` knows only rectangles, never tools or the panel.
-- `08-panel.js` never touches state and never learns what a "pair" is.
-- `11-renderer.js`, `13-interactions.js`, `14-controller.js` never hardcode a
+- `core/geometry.js` knows only rectangles, never tools or the panel.
+- `ui/panel.js` never touches state and never learns what a "pair" is.
+- `ui/renderer.js`, `app/interactions.js`, `app/controller.js` never hardcode a
   tool id; they go through hooks and `CONFIG.PIN_KIND`.
 
 Each rule is there because that boundary was broken once already.

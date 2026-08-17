@@ -1,5 +1,5 @@
   /* ======================================================================
-    13. INTERACTIONS
+    INTERACTIONS
      ====================================================================== */
   const Interactions = {
     // is the user typing? then keys belong to the page, not to us

@@ -1,5 +1,5 @@
   /* ======================================================================
-     1. CONFIG
+     CONFIG
      ====================================================================== */
   /**
    * Anything a tool exposes through its options() hook takes its DEFAULT from

@@ -14,6 +14,17 @@ const path = require('path');
 const SRC = path.join(__dirname, 'src');
 const read = (f) => fs.readFileSync(path.join(SRC, f), 'utf8');
 const exists = (f) => fs.existsSync(path.join(SRC, f));
+/** Every .js under src/, as paths relative to src/. Folders are grouping now,
+ *  so nothing here may assume the files sit in one flat directory. */
+const walk = (dir = SRC, base = '') => {
+  const out = [];
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const rel = base ? `${base}/${e.name}` : e.name;
+    if (e.isDirectory()) out.push(...walk(path.join(dir, e.name), rel));
+    else if (e.name.endsWith('.js')) out.push(rel);
+  }
+  return out.sort();
+};
 
 let fail = 0;
 
@@ -44,25 +55,25 @@ const ids = tools.map((t) => t.id).filter(Boolean);
 
 /** file → [ruleName, forbidden regex, why] */
 const RULES = [
-  ['03-utils.js', /\bState\./, 'UTILS must stay pure — callers pass decorators in'],
-  ['03-utils.js', /document\.createElement/, 'UTILS must not build DOM'],
-  ['03-utils.js', /class="/, 'UTILS must not own markup — the tool that styles it does'],
-  ['04-measure.js', /\bTools\.|\bPanel\./, 'MEASURE is tool-agnostic geometry'],
+  ['core/utils.js', /\bState\./, 'UTILS must stay pure — callers pass decorators in'],
+  ['core/utils.js', /document\.createElement/, 'UTILS must not build DOM'],
+  ['core/utils.js', /class="/, 'UTILS must not own markup — the tool that styles it does'],
+  ['core/geometry.js', /\bTools\.|\bPanel\./, 'MEASURE is tool-agnostic geometry'],
   // Persistence goes through Store, which is per-script; localStorage is per
   // origin, and with @match *://*/* that silently means "per site" — the bug
   // this project just spent a release fixing.
-  ['08-panel.js', /localStorage/, 'STORE owns persistence — localStorage is per-origin'],
-  ['14-controller.js', /localStorage/, 'STORE owns persistence — localStorage is per-origin'],
-  ['08-panel.js', /\bState\./, 'PANEL fires callbacks; CONTROLLER owns state'],
-  ['08-panel.js', /\bpairs?\b|measurePins/, 'PANEL must not know what a pair is'],
-  ['11-renderer.js', /PAIR_MODE/, 'RENDERER must ask tools via hooks'],
-  ['09-placement.js', /\bTools\.|\bState\./, 'PLACEMENT only positions boxes'],
+  ['ui/panel.js', /localStorage/, 'STORE owns persistence — localStorage is per-origin'],
+  ['app/controller.js', /localStorage/, 'STORE owns persistence — localStorage is per-origin'],
+  ['ui/panel.js', /\bState\./, 'PANEL fires callbacks; CONTROLLER owns state'],
+  ['ui/panel.js', /\bpairs?\b|measurePins/, 'PANEL must not know what a pair is'],
+  ['ui/renderer.js', /PAIR_MODE/, 'RENDERER must ask tools via hooks'],
+  ['ui/placement.js', /\bTools\.|\bState\./, 'PLACEMENT only positions boxes'],
 ];
 
 // The three files that must never name a tool. Derived from the ids collected
 // above, so a fourth tool is guarded the day it registers instead of the day
 // someone remembers to edit three regexes.
-const ID_FREE = ['11-renderer.js', '13-interactions.js', '14-controller.js'];
+const ID_FREE = ['ui/renderer.js', 'app/interactions.js', 'app/controller.js'];
 if (ids.length) {
   const idRe = new RegExp(ids.map((i) => `'${i}'`).join('|'));
   for (const f of ID_FREE) RULES.push([f, idRe, 'must reach tools through hooks, never by id']);
@@ -107,10 +118,10 @@ const HOOKS = ['badge', 'compact', 'report', 'reportTail', 'draw', 'listRows',
    A role is derived from hooks and needs no checking; what an option AFFECTS
    cannot be derived from anything, so it is the one thing a tool declares and
    therefore the one thing that can be wrong. */
-const CATS = [...read('05-registry.js').matchAll(/\{\s*key:\s*'([a-z]+)',\s*label:/g)]
+const CATS = [...read('core/registry.js').matchAll(/\{\s*key:\s*'([a-z]+)',\s*label:/g)]
   .map((m) => m[1]);
 if (!CATS.length) {
-  console.log('\n✗ no roles found in 05-registry.js — the ROLES extractor here is out of date');
+  console.log('\n✗ no roles found in core/registry.js — the ROLES extractor here is out of date');
   fail++;
 }
 
@@ -164,8 +175,9 @@ for (const t of tools) {
    be called. That is exactly the silent failure the kind rules were guarding
    against, moved to where it can actually be checked. */
 console.log('\nHOOK CONTRACT');
-const consumers = fs.readdirSync(SRC).filter((f) => f.endsWith('.js'))
-  .map((f) => [f, read(f)]);
+/* Deliberately NOT the tools: a hook honoured only by the tool that implements
+   it is still a contract nobody calls. The consumer has to be core. */
+const consumers = walk().filter((f) => !f.startsWith('tools/')).map((f) => [f, read(f)]);
 for (const h of HOOKS) {
   const users = consumers.filter(([, s]) =>
     new RegExp(`\\.${h}\\b|\\bt\\.${h}|withHook\\('${h}'|'${h}'`).test(strip(s))).map(([f]) => f);
@@ -174,13 +186,12 @@ for (const h of HOOKS) {
 }
 
 console.log('\nFILE SIZES');
-const all = [...fs.readdirSync(SRC).filter((f) => f.endsWith('.js')).map((f) => [f, path.join(SRC, f)]),
-             ...toolFiles.map((f) => ['tools/' + f, path.join(toolDir, f)])];
+const all = walk().map((f) => [f, path.join(SRC, f)]);
 const BIG = 220;
 for (const [name, p] of all.sort()) {
   const n = fs.readFileSync(p, 'utf8').split('\n').length;
   const flag = n > BIG ? `  ← over ${BIG}, consider splitting` : '';
-  console.log(`  ${n > BIG ? '!' : ' '} ${name.padEnd(22)}${String(n).padStart(4)}${flag}`);
+  console.log(`  ${n > BIG ? '!' : ' '} ${name.padEnd(24)}${String(n).padStart(4)}${flag}`);
 }
 
 console.log(`\n${fail ? '✗' : '✓'} ${fail} problem(s)\n`);

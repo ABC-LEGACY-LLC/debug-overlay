@@ -1,5 +1,5 @@
   /* ======================================================================
-    14a. SETTINGS — the ⚙ view, and what a tool's options mean
+    SETTINGS — the ⚙ view, and what a tool's options mean
 
         Split out of CONTROLLER, which had grown two jobs: wiring the modules
         together, and being the whole of the settings system. This is the

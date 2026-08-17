@@ -1,5 +1,5 @@
   /* ======================================================================
-     4. MEASURE ENGINE — how a distance between two rects is drawn.
+     MEASURE ENGINE — how a distance between two rects is drawn.
      Pure geometry + drawing rules. Knows nothing about tools, panels or
      reports, so dimension styling can be tuned in isolation.
      ====================================================================== */

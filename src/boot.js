@@ -1,6 +1,6 @@
 
   /* ======================================================================
-    16. BOOT — wire the modules together and start
+    BOOT — wire the modules together and start
      ====================================================================== */
   Panel.onToggle = Controller.togglePower;
   Panel.onTool = Controller.toggleTool;

@@ -1,5 +1,5 @@
   /* ======================================================================
-     5. TOOLS — ⭐ the plugin registry
+     TOOLS — ⭐ the plugin registry
 
         No tool ever names another tool. When one needs something another
         provides it asks the registry a question with no id in it.

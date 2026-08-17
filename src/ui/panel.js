@@ -1,5 +1,5 @@
   /* ======================================================================
-     8. PANEL — self-contained; talks out only via callbacks
+     PANEL — self-contained; talks out only via callbacks
      ====================================================================== */
   const Panel = (() => {
     const el = document.createElement('div');

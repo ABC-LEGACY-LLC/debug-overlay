@@ -85,29 +85,33 @@ HOW TO USE
   SCRIPT, not for the site — set them once and every other site already agrees,
   and Tampermonkey's own sync carries them to a new machine.
 
-  ARCHITECTURE — each numbered section is independent; edit one to change
-  one behaviour. Sections appear in dependency order: nothing is used before
-  it is defined.
+  ARCHITECTURE — each file is independent; edit one to change one behaviour.
+  They are concatenated into a single closure in the order listed by ORDER in
+  build.js, which is the one place that order is written down. Filenames carry
+  no numbers, because a filename should say what a thing IS, not when it loads.
 
-    1. CONFIG        every tunable number/key
-    2. STATE         single source of truth, plain data only — with STORE,
-                     which is the part of it that outlives the page
-    3. UTILS         pure functions — no DOM writes, no State reads
-    4. MEASURE       dimension-line geometry & drawing (tool-agnostic)
-    5. TOOLS         ⭐ the plugin registry — add a debug mode here
-    6. STYLES        all CSS in one template string
-    7. DOM           root & drawing layer
-   7a. CONTROLS      one widget from a description of it
-   7b. LIST          the popover the panel opens
-    8. PANEL         the bar: buttons, drag, snap, auto-tuck
-    9. PLACEMENT     collision-free badge positioning
-   10. BADGES        composes badge HTML from the ACTIVE tools
-   11. RENDERER      draws one frame from STATE
-   12. REPORT        structured text export, also composed from tools
-   13. INTERACTIONS  page-level mouse & keyboard
-   14. CONTROLLER    the only glue between modules
-  14a. SETTINGS      the ⚙ view, and what a tool's options mean
-   15. SWEEP         runs the rules over the whole page
+    banner.js        opens the closure everything else lives in
+    core/config      every tunable number/key
+    core/state       single source of truth, plus STORE, the part of it
+                     that outlives the page
+    core/utils       pure functions — no DOM writes, no State reads
+    core/geometry    dimension-line geometry & drawing (tool-agnostic)
+    core/registry    ⭐ the plugin registry, and the four ROLES
+    tools/*          ⭐ one file per debug capability, auto-discovered
+    ui/styles        core CSS (tools carry their own)
+    ui/dom           root & drawing layer
+    ui/controls      one widget from a description of it
+    ui/list          the popover the panel opens
+    ui/panel         the bar: buttons, drag, snap, auto-tuck
+    ui/placement     collision-free badge positioning
+    ui/badges        composes badge HTML from the ACTIVE tools
+    ui/renderer      draws one frame from STATE
+    app/report       structured text export, composed from tools
+    app/interactions page-level mouse & keyboard
+    app/controller   the only glue between modules
+    app/settings     the ⚙ view, and what a tool's options mean
+    app/sweep        runs the rules over the whole page
+    boot.js          wires it together, starts it, closes the closure
 
   RULES that keep it from turning to mush:
     · UTILS is pure. It never reads State and never asks "is tool X on?" —

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.30
+// @version      3.8.31
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -101,29 +101,33 @@ HOW TO USE
   SCRIPT, not for the site — set them once and every other site already agrees,
   and Tampermonkey's own sync carries them to a new machine.
 
-  ARCHITECTURE — each numbered section is independent; edit one to change
-  one behaviour. Sections appear in dependency order: nothing is used before
-  it is defined.
+  ARCHITECTURE — each file is independent; edit one to change one behaviour.
+  They are concatenated into a single closure in the order listed by ORDER in
+  build.js, which is the one place that order is written down. Filenames carry
+  no numbers, because a filename should say what a thing IS, not when it loads.
 
-    1. CONFIG        every tunable number/key
-    2. STATE         single source of truth, plain data only — with STORE,
-                     which is the part of it that outlives the page
-    3. UTILS         pure functions — no DOM writes, no State reads
-    4. MEASURE       dimension-line geometry & drawing (tool-agnostic)
-    5. TOOLS         ⭐ the plugin registry — add a debug mode here
-    6. STYLES        all CSS in one template string
-    7. DOM           root & drawing layer
-   7a. CONTROLS      one widget from a description of it
-   7b. LIST          the popover the panel opens
-    8. PANEL         the bar: buttons, drag, snap, auto-tuck
-    9. PLACEMENT     collision-free badge positioning
-   10. BADGES        composes badge HTML from the ACTIVE tools
-   11. RENDERER      draws one frame from STATE
-   12. REPORT        structured text export, also composed from tools
-   13. INTERACTIONS  page-level mouse & keyboard
-   14. CONTROLLER    the only glue between modules
-  14a. SETTINGS      the ⚙ view, and what a tool's options mean
-   15. SWEEP         runs the rules over the whole page
+    banner.js        opens the closure everything else lives in
+    core/config      every tunable number/key
+    core/state       single source of truth, plus STORE, the part of it
+                     that outlives the page
+    core/utils       pure functions — no DOM writes, no State reads
+    core/geometry    dimension-line geometry & drawing (tool-agnostic)
+    core/registry    ⭐ the plugin registry, and the four ROLES
+    tools/*          ⭐ one file per debug capability, auto-discovered
+    ui/styles        core CSS (tools carry their own)
+    ui/dom           root & drawing layer
+    ui/controls      one widget from a description of it
+    ui/list          the popover the panel opens
+    ui/panel         the bar: buttons, drag, snap, auto-tuck
+    ui/placement     collision-free badge positioning
+    ui/badges        composes badge HTML from the ACTIVE tools
+    ui/renderer      draws one frame from STATE
+    app/report       structured text export, composed from tools
+    app/interactions page-level mouse & keyboard
+    app/controller   the only glue between modules
+    app/settings     the ⚙ view, and what a tool's options mean
+    app/sweep        runs the rules over the whole page
+    boot.js          wires it together, starts it, closes the closure
 
   RULES that keep it from turning to mush:
     · UTILS is pure. It never reads State and never asks "is tool X on?" —
@@ -216,7 +220,7 @@ HOW TO USE
   all derived from the registry automatically.
 */
 
-  // ─── src/00-banner.js ──────────────────────────────────────────────────
+  // ─── src/banner.js ─────────────────────────────────────────────────────
 (function () {
   'use strict';
 
@@ -242,9 +246,9 @@ HOW TO USE
   if (window.__DBG_OVERLAY__) return;
   window.__DBG_OVERLAY__ = true;
 
-  // ─── src/01-config.js ──────────────────────────────────────────────────
+  // ─── src/core/config.js ────────────────────────────────────────────────
   /* ======================================================================
-     1. CONFIG
+     CONFIG
      ====================================================================== */
   /**
    * Anything a tool exposes through its options() hook takes its DEFAULT from
@@ -257,7 +261,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: '3.8.30',
+    VERSION: '3.8.31',
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -311,9 +315,9 @@ HOW TO USE
     MARK_LIMIT: 200,
   };
 
-  // ─── src/02-state.js ───────────────────────────────────────────────────
+  // ─── src/core/state.js ─────────────────────────────────────────────────
   /* ======================================================================
-     2. STATE — what is known now, and what is kept between visits
+     STATE — what is known now, and what is kept between visits
 
         STORE is here rather than in a section of its own because it is the
         same concern: State is what the overlay knows, Store is the part of
@@ -363,7 +367,7 @@ HOW TO USE
   };
 
   /* ======================================================================
-     2b. STATE
+     STATE
      ====================================================================== */
   const State = {
     enabled: false,      // master power
@@ -388,9 +392,9 @@ HOW TO USE
     sweep: null,
   };
 
-  // ─── src/03-utils.js ───────────────────────────────────────────────────
+  // ─── src/core/utils.js ─────────────────────────────────────────────────
   /* ======================================================================
-     3. UTILS — pure helpers
+     UTILS — pure helpers
      ====================================================================== */
   const U = {
     px: (v) => Math.round(parseFloat(v) || 0),
@@ -493,9 +497,9 @@ HOW TO USE
   // single caller, and reading a colour properly needs a canvas — which this
   // file may not create. They moved into the tool that owns the subject.
 
-  // ─── src/04-measure.js ─────────────────────────────────────────────────
+  // ─── src/core/geometry.js ──────────────────────────────────────────────
   /* ======================================================================
-     4. MEASURE ENGINE — how a distance between two rects is drawn.
+     MEASURE ENGINE — how a distance between two rects is drawn.
      Pure geometry + drawing rules. Knows nothing about tools, panels or
      reports, so dimension styling can be tuned in isolation.
      ====================================================================== */
@@ -690,9 +694,9 @@ HOW TO USE
     },
   };
 
-  // ─── src/05-registry.js ────────────────────────────────────────────────
+  // ─── src/core/registry.js ──────────────────────────────────────────────
   /* ======================================================================
-     5. TOOLS — ⭐ the plugin registry
+     TOOLS — ⭐ the plugin registry
 
         No tool ever names another tool. When one needs something another
         provides it asks the registry a question with no id in it.
@@ -1578,9 +1582,9 @@ HOW TO USE
       },
     });
 
-  // ─── src/06-styles.js ──────────────────────────────────────────────────
+  // ─── src/ui/styles.js ──────────────────────────────────────────────────
   /* ======================================================================
-     6. STYLES
+     STYLES
      ====================================================================== */
   const CSS = `
     #__dbgov-root { position: fixed; inset: 0; z-index: ${CONFIG.Z}; pointer-events: none;
@@ -1730,9 +1734,9 @@ HOW TO USE
     #__dbgov-bar.tucked:hover { opacity: 1; }
   `;
 
-  // ─── src/07-dom.js ─────────────────────────────────────────────────────
+  // ─── src/ui/dom.js ─────────────────────────────────────────────────────
   /* ======================================================================
-     7. DOM
+     DOM
      ====================================================================== */
   const root = document.createElement('div');
   root.id = '__dbgov-root';
@@ -1758,9 +1762,9 @@ HOW TO USE
   root.append(layer);
   document.documentElement.append(root);
 
-  // ─── src/07a-controls.js ───────────────────────────────────────────────
+  // ─── src/ui/controls.js ────────────────────────────────────────────────
   /* ======================================================================
-    7a. CONTROLS — one widget, from a description of it
+    CONTROLS — one widget, from a description of it
 
         Split out of PANEL because it never needed anything PANEL owns: no
         element, no state, no callbacks of its own. Everything it makes is
@@ -1833,9 +1837,9 @@ HOW TO USE
     },
   };
 
-  // ─── src/07b-list.js ───────────────────────────────────────────────────
+  // ─── src/ui/list.js ────────────────────────────────────────────────────
   /* ======================================================================
-    7b. LIST — the popover the panel opens
+    LIST — the popover the panel opens
 
         Split out of PANEL, which was doing two jobs: a bar of buttons that
         drags and snaps, and a list that renders rows. They share only an
@@ -1969,9 +1973,9 @@ HOW TO USE
     return api;
   })();
 
-  // ─── src/08-panel.js ───────────────────────────────────────────────────
+  // ─── src/ui/panel.js ───────────────────────────────────────────────────
   /* ======================================================================
-     8. PANEL — self-contained; talks out only via callbacks
+     PANEL — self-contained; talks out only via callbacks
      ====================================================================== */
   const Panel = (() => {
     const el = document.createElement('div');
@@ -2155,9 +2159,9 @@ HOW TO USE
     return api;
   })();
 
-  // ─── src/09-placement.js ───────────────────────────────────────────────
+  // ─── src/ui/placement.js ───────────────────────────────────────────────
   /* ======================================================================
-     9. PLACEMENT — collision-free positioning
+     PLACEMENT — collision-free positioning
      ====================================================================== */
   const Place = (() => {
     let taken = [];
@@ -2233,9 +2237,9 @@ HOW TO USE
     };
   })();
 
-  // ─── src/10-badges.js ──────────────────────────────────────────────────
+  // ─── src/ui/badges.js ──────────────────────────────────────────────────
   /* ======================================================================
-    10. BADGES — composed from ACTIVE tools only
+    BADGES — composed from ACTIVE tools only
      ====================================================================== */
   const Badges = {
     build(info, compact) {
@@ -2250,9 +2254,9 @@ HOW TO USE
     },
   };
 
-  // ─── src/11-renderer.js ────────────────────────────────────────────────
+  // ─── src/ui/renderer.js ────────────────────────────────────────────────
   /* ======================================================================
-    11. RENDERER
+    RENDERER
      ====================================================================== */
   const Render = (() => {
     let raf = 0;
@@ -2364,9 +2368,9 @@ HOW TO USE
     };
   })();
 
-  // ─── src/12-report.js ──────────────────────────────────────────────────
+  // ─── src/app/report.js ─────────────────────────────────────────────────
   /* ======================================================================
-    12. REPORT — also composed from active tools
+    REPORT — also composed from active tools
      ====================================================================== */
   const Report = {
     text() {
@@ -2467,9 +2471,9 @@ HOW TO USE
     },
   };
 
-  // ─── src/13-interactions.js ────────────────────────────────────────────
+  // ─── src/app/interactions.js ───────────────────────────────────────────
   /* ======================================================================
-    13. INTERACTIONS
+    INTERACTIONS
      ====================================================================== */
   const Interactions = {
     // is the user typing? then keys belong to the page, not to us
@@ -2594,9 +2598,9 @@ HOW TO USE
     },
   };
 
-  // ─── src/14-controller.js ──────────────────────────────────────────────
+  // ─── src/app/controller.js ─────────────────────────────────────────────
   /* ======================================================================
-    14. CONTROLLER — the only glue
+    CONTROLLER — the only glue
      ====================================================================== */
   const Controller = {
     setPower(v) {
@@ -2814,9 +2818,9 @@ HOW TO USE
     },
   };
 
-  // ─── src/14a-settings.js ───────────────────────────────────────────────
+  // ─── src/app/settings.js ───────────────────────────────────────────────
   /* ======================================================================
-    14a. SETTINGS — the ⚙ view, and what a tool's options mean
+    SETTINGS — the ⚙ view, and what a tool's options mean
 
         Split out of CONTROLLER, which had grown two jobs: wiring the modules
         together, and being the whole of the settings system. This is the
@@ -2943,9 +2947,9 @@ HOW TO USE
     },
   };
 
-  // ─── src/15-sweep.js ───────────────────────────────────────────────────
+  // ─── src/app/sweep.js ──────────────────────────────────────────────────
   /* ======================================================================
-    15. SWEEP — run the rules over the whole page instead of one element
+    SWEEP — run the rules over the whole page instead of one element
      ====================================================================== */
   const Sweep = {
     /**
@@ -3047,10 +3051,10 @@ HOW TO USE
     },
   };
 
-  // ─── src/99-boot.js ────────────────────────────────────────────────────
+  // ─── src/boot.js ───────────────────────────────────────────────────────
 
   /* ======================================================================
-    16. BOOT — wire the modules together and start
+    BOOT — wire the modules together and start
      ====================================================================== */
   Panel.onToggle = Controller.togglePower;
   Panel.onTool = Controller.toggleTool;

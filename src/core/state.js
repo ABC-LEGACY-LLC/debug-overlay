@@ -1,5 +1,5 @@
   /* ======================================================================
-     2. STATE — what is known now, and what is kept between visits
+     STATE — what is known now, and what is kept between visits
 
         STORE is here rather than in a section of its own because it is the
         same concern: State is what the overlay knows, Store is the part of
@@ -49,7 +49,7 @@
   };
 
   /* ======================================================================
-     2b. STATE
+     STATE
      ====================================================================== */
   const State = {
     enabled: false,      // master power
