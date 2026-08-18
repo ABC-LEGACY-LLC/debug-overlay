@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.45
+// @version      3.8.46
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -263,7 +263,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: '3.8.45',
+    VERSION: '3.8.46',
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -1720,6 +1720,10 @@ HOW TO USE
   // ─── src/tools/select.js ───────────────────────────────────────────────
   defineTool({
       id: 'select',
+      // `mode` was measure's option before the select/measure split, so anyone
+      // who chose 'chain' had it silently reset. Same miss as scale and colour,
+      // caught one release later — an owner names its own former id.
+      was: 'measure',
       icon: '⬚',
       title: 'Select — how pinned elements group up',
       startsOn: true,

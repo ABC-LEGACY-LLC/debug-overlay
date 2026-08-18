@@ -1,5 +1,9 @@
   defineTool({
       id: 'select',
+      // `mode` was measure's option before the select/measure split, so anyone
+      // who chose 'chain' had it silently reset. Same miss as scale and colour,
+      // caught one release later — an owner names its own former id.
+      was: 'measure',
       icon: '⬚',
       title: 'Select — how pinned elements group up',
       startsOn: true,

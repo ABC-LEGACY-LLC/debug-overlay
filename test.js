@@ -983,6 +983,19 @@ console.log('\nREGRESSIONS');
     valueOf('Grid step') === '8px', String(valueOf('Grid step')));
   ok('and so is the one that moved with it',
     valueOf('WCAG level') === 'AAA', String(valueOf('WCAG level')));
+  // a tool can change owner too: `mode` was measure's before the select split
+  const dm = new JSDOM('<!doctype html><html><body><div id="x">x</div></body></html>', opts);
+  dm.window.localStorage.setItem('__dbgov_settings', '{"measure":{"mode":"chain"}}');
+  dm.window.eval(source);
+  dm.window.dispatchEvent(new dm.window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  dm.window.document.getElementById('__dbgov-bar').querySelector('[data-settings]')
+    .dispatchEvent(new dm.window.MouseEvent('click', { bubbles: true }));
+  const modeRow = [...dm.window.document.querySelectorAll('#__dbgov-list .row')]
+    .find((r) => r.querySelector('.lbl').textContent === 'Pin grouping');
+  ok('an option that changed OWNER is adopted too',
+    modeRow.querySelector('select').selectedOptions[0].textContent === 'chain',
+    modeRow.querySelector('select').selectedOptions[0].textContent);
+  dm.window.close();
   du.window.close();
 }
 
