@@ -1473,6 +1473,24 @@ console.log('\nPER-TOOL OPTIONS');
   ok('the same rows are still in ⚙', mine.every((l) => all.includes(l)),
     mine.filter((l) => !all.includes(l)).join(', ') || 'all present');
 
+  /* A tool whose settings live on a SUBJECT must still show them. "Grid step"
+     is grid's setting to anyone using it; that scale owns it so the lens and
+     the rule cannot disagree is internal, and right-clicking ▦ to be told
+     "nothing to configure" was the panel lying about its most configurable
+     tool. */
+  bar.querySelector('[data-tool="grid"]')
+    .dispatchEvent(new w.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  const gridRows = labels();
+  ok('a tool surfaces the subject settings it consults',
+    gridRows.includes('Grid step') && gridRows.includes('Ignore above'),
+    gridRows.join(', ') || (list.querySelector('.empty') || {}).textContent);
+  ok('and still not another tool\'s', !gridRows.includes('WCAG level'),
+    gridRows.join(', '));
+  ok('while the tooltip only offers it where there is something',
+    /right-click/.test(bar.querySelector('[data-tool="grid"]').title) &&
+    !/right-click/.test(bar.querySelector('[data-tool="dupid"]').title),
+    'dupid genuinely has nothing, and must not advertise an empty menu');
+
   // and the toggle governs the badge
   const el = w.document.getElementById('a');
   el.getBoundingClientRect = () => ({ left: 10, top: 10, right: 50, bottom: 30,

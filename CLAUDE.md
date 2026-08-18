@@ -197,6 +197,15 @@ The view name carries the id (`tool:measure`) the way `pins` and `findings`
 carry theirs: opaque to `ui/`, handed straight back, resolved by
 `Controller.toolOf`. No id is written in a core file.
 
+A tool whose settings live on a SUBJECT declares `uses: [Scale]`, and its menu
+shows them. "Grid step" is grid's setting to anyone holding it; that `scale`
+owns it so the lens and the rule cannot disagree is an internal matter, and
+right-clicking ▦ to be told "nothing to configure" was the panel lying about
+its most configurable tool. `uses:` is a dependency the tool already has —
+grid literally calls `Scale.off()` — and a subject is not a tool, so this is
+not one tool naming another. A tool with neither `options` nor `uses` does not
+advertise the gesture at all; dupid genuinely has nothing to configure.
+
 `audit.js` counts `key:` against `affects:` as QUOTED LITERALS, so options must
 be written out rather than built by a factory or from constants — that check is
 what stops an option shipping with no category, and a helper would satisfy it

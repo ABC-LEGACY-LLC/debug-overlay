@@ -9,6 +9,7 @@
       // at boot would still be claiming 2px long after they picked 8.
       title: 'Grid — flag values off the spacing grid',
       startsOn: true,      // the ⚠ on a badge is what makes the read-out useful
+      uses: [Scale],   // its settings are Scale's, and belong on its own menu
 
       rules: {
         'grid-off': {

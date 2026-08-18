@@ -9,6 +9,7 @@
       icon: '◐',
       // the level is the user's choice now, so it cannot be stated here
       title: 'Contrast — WCAG text contrast ratio',
+      uses: [Colour],   // its settings are Colour's, and belong on its own menu
 
       // What each rule IS, separate from what any one element measured. The
       // instance message says 2.76:1; this says why, and what to do.

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.53
+// @version      3.8.54
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -278,7 +278,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: '3.8.53',
+    VERSION: '3.8.54',
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -1291,6 +1291,7 @@ HOW TO USE
       icon: '◐',
       // the level is the user's choice now, so it cannot be stated here
       title: 'Contrast — WCAG text contrast ratio',
+      uses: [Colour],   // its settings are Colour's, and belong on its own menu
 
       // What each rule IS, separate from what any one element measured. The
       // instance message says 2.76:1; this says why, and what to do.
@@ -1475,6 +1476,7 @@ HOW TO USE
       // at boot would still be claiming 2px long after they picked 8.
       title: 'Grid — flag values off the spacing grid',
       startsOn: true,      // the ⚠ on a badge is what makes the read-out useful
+      uses: [Scale],   // its settings are Scale's, and belong on its own menu
 
       rules: {
         'grid-off': {
@@ -2345,7 +2347,7 @@ HOW TO USE
       ` title="${t.title}\n${Tools.rolesOf(t).join(' · ')}${run.note}` +
       // the tool says so itself, so a tool with nothing to configure does not
       // advertise a menu that would open empty
-      `${t.options ? '\nright-click for its options' : ''}">${t.icon}</button>`).join(''))
+      `${t.options || t.uses ? '\nright-click for its options' : ''}">${t.icon}</button>`).join(''))
       .join('<hr class="sep whenOn">');
     el.innerHTML = `
       <span class="grip" title="Drag to move — snaps to the nearest edge">⋮⋮</span>
@@ -3477,11 +3479,25 @@ HOW TO USE
       };
     },
 
-    /** Just this one owner's rows — the per-tool door. */
+    /**
+     * This one tool's rows — the per-tool door.
+     *
+     * INCLUDING the subjects it consults. "Grid step" is obviously grid's
+     * setting to anyone using it; that it is owned by the `scale` subject so
+     * the lens and the rule cannot disagree about it is an internal matter,
+     * and right-clicking ▦ to be told "nothing to configure" was the panel
+     * lying about the most configurable tool it has.
+     *
+     * The tool declares what it consults with `uses:`, which is a dependency
+     * it already has — grid literally calls Scale.off(). A subject is not a
+     * tool, so this is not one tool naming another.
+     */
     rowsFor(id) {
       const t = Tools.byId(id);
-      if (!t || !t.options) return [];
-      return t.options.call(t).map((o) => Settings.row(t, o));
+      if (!t) return [];
+      return [t, ...(t.uses || [])]
+        .filter((o) => o.options)
+        .flatMap((o) => o.options.call(o).map((opt) => Settings.row(o, opt)));
     },
 
     /**

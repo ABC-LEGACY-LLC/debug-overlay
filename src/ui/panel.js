@@ -15,7 +15,7 @@
       ` title="${t.title}\n${Tools.rolesOf(t).join(' · ')}${run.note}` +
       // the tool says so itself, so a tool with nothing to configure does not
       // advertise a menu that would open empty
-      `${t.options ? '\nright-click for its options' : ''}">${t.icon}</button>`).join(''))
+      `${t.options || t.uses ? '\nright-click for its options' : ''}">${t.icon}</button>`).join(''))
       .join('<hr class="sep whenOn">');
     el.innerHTML = `
       <span class="grip" title="Drag to move — snaps to the nearest edge">⋮⋮</span>

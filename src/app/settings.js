@@ -34,11 +34,25 @@
       };
     },
 
-    /** Just this one owner's rows — the per-tool door. */
+    /**
+     * This one tool's rows — the per-tool door.
+     *
+     * INCLUDING the subjects it consults. "Grid step" is obviously grid's
+     * setting to anyone using it; that it is owned by the `scale` subject so
+     * the lens and the rule cannot disagree about it is an internal matter,
+     * and right-clicking ▦ to be told "nothing to configure" was the panel
+     * lying about the most configurable tool it has.
+     *
+     * The tool declares what it consults with `uses:`, which is a dependency
+     * it already has — grid literally calls Scale.off(). A subject is not a
+     * tool, so this is not one tool naming another.
+     */
     rowsFor(id) {
       const t = Tools.byId(id);
-      if (!t || !t.options) return [];
-      return t.options.call(t).map((o) => Settings.row(t, o));
+      if (!t) return [];
+      return [t, ...(t.uses || [])]
+        .filter((o) => o.options)
+        .flatMap((o) => o.options.call(o).map((opt) => Settings.row(o, opt)));
     },
 
     /**
