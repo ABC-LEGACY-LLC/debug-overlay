@@ -18,7 +18,7 @@
   // one immediately schedules a render that asks
   // the page can remove a pinned element at any time; the list must not go on
   // showing rows that no longer index into anything
-  Render.onPinsPruned = Controller.refreshList;
+  Render.onPinsPruned = Controller.pinsPruned;
 
   Settings.load();
   Controller.loadTools();

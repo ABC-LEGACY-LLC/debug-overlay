@@ -1355,6 +1355,63 @@ console.log('\nPANEL AUDIT FIXES');
   we.close();
 }
 
+console.log('\nPIN NUMBERS');
+/**
+ * A pin's number is stable while it exists — removing #2 must not renumber #3,
+ * or a screenshot stops matching the report beside it. But the counter only
+ * ever climbed, so pin/unpin/pin left "#9" sitting beside a count chip reading
+ * 1: a number that referred to nothing and could not be read off a screenshot.
+ */
+{
+  const d = new JSDOM('<!doctype html><html><body><div id="a">a</div><div id="b">b</div></body></html>',
+    { url: 'https://example.test/', pretendToBeVisual: true,
+      runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
+  const w = d.window;
+  w.eval(source);
+  w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  const bar = w.document.getElementById('__dbgov-bar');
+  const list = w.document.getElementById('__dbgov-list');
+  const hit = (id) => {
+    const el = w.document.getElementById(id);
+    w.document.elementFromPoint = () => el;
+    el.dispatchEvent(new w.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
+  };
+  const tags = () => {
+    bar.querySelector('[data-c]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    const t = [...list.querySelectorAll('.row .tag')].map((x) => x.textContent).join(' ');
+    bar.querySelector('[data-c]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    return t || '(none)';
+  };
+
+  hit('a'); hit('a');            // pin then unpin — nothing is pinned now
+  hit('a');
+  ok('numbering restarts once nothing is pinned', tags() === '#1', tags());
+
+  hit('b');
+  ok('and a second pin follows it', tags() === '#1 #2', tags());
+  hit('a');
+  ok('while removing one does NOT renumber the other', tags() === '#2', tags());
+
+  hit('b');                       // empty again
+  hit('a');
+  ok('an empty list resets it however it was emptied', tags() === '#1', tags());
+
+  // and via ✕ clear, which always reset, plus the row ✕, which did not
+  hit('b');
+  bar.querySelector('[data-c]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  // one at a time, re-querying: the list re-renders after each removal, so a
+  // cached NodeList holds nodes that are no longer in the document
+  for (let guard = 0; guard < 20; guard++) {
+    const rm = list.querySelector('.row .rm');
+    if (!rm) break;
+    rm.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  }
+  bar.querySelector('[data-c]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  hit('a');
+  ok('including emptying it from the pin list', tags() === '#1', tags());
+  w.close();
+}
+
 // ---- the sections that need a painted frame ---------------------------------
 // Marks and badges only exist after the renderer runs, which is an animation
 // frame away. Everything above is synchronous; these are not, so they go last

@@ -179,6 +179,29 @@
       TOOLS.forEach((t) => Panel.setTool(t.id, State.tools.has(t.id)));
     },
 
+    /**
+     * Every path that adds or removes a pin ends here.
+     *
+     * A pin's NUMBER is stable while it exists: removing #2 must not renumber
+     * #3, or a screenshot taken a moment earlier stops matching the report
+     * beside it. But once nothing is pinned there is no numbering left to be
+     * stable about, and the counter kept climbing — pin, unpin, pin and you
+     * were looking at "#9" beside a count chip reading 1, a number that
+     * referred to nothing and could not be read off a screenshot.
+     */
+    pinsChanged() {
+      if (!State.pins.length) State.pinSeq = 0;
+      Render.schedule();
+      Controller.refreshList();
+    },
+
+    /** The renderer dropped pins whose element left the page; it is mid-frame,
+     *  so this must not ask for another one. */
+    pinsPruned() {
+      if (!State.pins.length) State.pinSeq = 0;
+      Controller.refreshList();
+    },
+
     // kind: CONFIG.PIN_KIND.PLAIN → inspect only, no measuring
     //       CONFIG.PIN_KIND.SHIFT → joins the pairing queue and draws lines
     togglePin(el, kind = CONFIG.PIN_KIND.PLAIN) {
@@ -190,8 +213,7 @@
       } else {
         State.pins.push({ el, id: ++State.pinSeq, kind });
       }
-      Render.schedule();
-      Controller.refreshList();
+      Controller.pinsChanged();
     },
     setRemoveMode(v) {
       State.removeMode = v;
@@ -204,8 +226,7 @@
       const i = State.pins.indexOf(pin);
       if (i >= 0) State.pins.splice(i, 1);
       State.removeTarget = null;
-      Render.schedule();
-      Controller.refreshList();
+      Controller.pinsChanged();
     },
     /**
      * The panel's pin list. Active tools claim the pins they own (measure
@@ -270,8 +291,7 @@
         const k = State.pins.indexOf(p);
         if (k >= 0) State.pins.splice(k, 1);
       });
-      Render.schedule();
-      Controller.refreshList();
+      Controller.pinsChanged();
     },
     /**
      * Clears everything the overlay has put ON the page — pins and the audit's
@@ -284,8 +304,7 @@
       State.pinSeq = 0;
       State.sweep = null;
       Panel.setSwept(false, 0);
-      Render.schedule();
-      Controller.refreshList();
+      Controller.pinsChanged();
     },
     toggleDetail() {
       State.detail = !State.detail;

@@ -361,6 +361,17 @@ seen from the other end.
 - **Only `affects: 'detect'` invalidates a sweep.** Throwing away the most
   expensive thing the tool does because a copy preference changed is not caution.
 
+## A pin's number, and when it may change
+Stable while the pin exists — removing #2 must not renumber #3, or a screenshot
+taken a moment earlier stops matching the report printed beside it. Reset the
+moment NOTHING is pinned: `State.pinSeq` only ever climbed, so pin, unpin, pin
+put "#9" next to a count chip reading 1 — a number referring to nothing, on a
+tool whose whole point is reading values off a screenshot.
+
+Every path that adds or removes a pin goes through `Controller.pinsChanged()`,
+which is where that decision lives. The renderer's prune has its own
+(`pinsPruned`) because it runs mid-frame and must not ask for another one.
+
 ## The list renders by index, so the index must stay true
 `List.set` binds each row to its position and hands that position back. The
 renderer prunes pins whose element left the page, and doing that without
