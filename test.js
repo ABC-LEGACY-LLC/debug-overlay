@@ -319,7 +319,7 @@ bar.querySelector('[data-sweep]').dispatchEvent(new window.MouseEvent('click', {
 bar.querySelector('[data-copy]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 const swept = copied || '';
 ok('a sweep audits the page with nothing pinned',
-  /## findings \(4\) — whole page/.test(swept),
+  /## findings — 4 problems · 4 occurrences · whole page/.test(swept),
   swept.slice(swept.indexOf('## findings')).split('\n')[0] || 'no findings section');
 // two it measured and two it could not, and the two kinds do not blur
 ok('measured and unmeasurable are separate counts',
@@ -332,14 +332,14 @@ ok('reviews sort below anything measured',
 // A zero that means "nothing was checked" and a zero that means "nothing is
 // wrong" must not print the same line, so the scope travels with the count.
 ok('the report says what was checked',
-  /— whole page · 3 rules · \d+ elements/.test(swept),
+  /· whole page · 3 rules · \d+ elements/.test(swept),
   swept.slice(swept.indexOf('## findings')).split('\n')[0]);
 // Arming decides what is DRAWN. With the only rule disarmed the page still
 // has the same problems, and the audit still has to find them.
 bar.querySelector('[data-tool="contrast"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 bar.querySelector('[data-sweep]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 bar.querySelector('[data-copy]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-ok('a disarmed rule is still swept', /## findings \(4\)/.test(copied || ''),
+ok('a disarmed rule is still swept', /## findings — 4 problems/.test(copied || ''),
   'the sweep followed the toggle instead of the page');
 bar.querySelector('[data-tool="contrast"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 ok('two different colour pairs stay two findings',
@@ -627,7 +627,7 @@ console.log('\nSETTINGS');
   Object.defineProperty(w4.navigator, 'clipboard',
     { value: { writeText: async (t) => { copied4 = t; } }, configurable: true });
   hit('[data-copy]');
-  ok('a live sweep reports its scope', /— whole page/.test(copied4 || ''),
+  ok('a live sweep reports its scope', /· whole page/.test(copied4 || ''),
     'without this the next assertion passes for the wrong reason');
 
   hit('[data-settings]');
@@ -637,7 +637,7 @@ console.log('\nSETTINGS');
 
   hit('[data-copy]');
   ok('changing a setting drops the sweep it invalidated',
-    !/— whole page/.test(copied4 || ''),
+    !/· whole page/.test(copied4 || ''),
     'findings judged under the old setting outlived it');
 
   hit('[data-sweep]');
@@ -1302,6 +1302,10 @@ console.log('\nPANEL AUDIT FIXES');
   ok('the bar says an audit is showing',
     barA.querySelector('[data-sweep]').classList.contains('swept'),
     'the ⌕ flash expires, so the marks outlived any sign of them');
+  ok('the bar carries a resting problem count',
+    /^\d+$/.test(barA.querySelector('[data-sweep]').textContent) &&
+    /distinct problem/.test(barA.querySelector('[data-sweep]').title),
+    `${barA.querySelector('[data-sweep]').textContent} — ${barA.querySelector('[data-sweep]').title}`);
   barA.querySelector('[data-clear]').dispatchEvent(new wa.MouseEvent('click', { bubbles: true }));
   ok('and ✕ is the way out of it',
     !barA.querySelector('[data-sweep]').classList.contains('swept'),
@@ -1332,6 +1336,15 @@ console.log('\nPANEL AUDIT FIXES');
   const listE = we.document.getElementById('__dbgov-list');
   const esc = () => we.document.body
     .dispatchEvent(new we.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  barE.querySelector('[data-sweep]').dispatchEvent(new we.MouseEvent('click', { bubbles: true }));
+  esc();
+  // From the ⚙ BUTTON, which is where focus lands when you open the panel with
+  // the mouse. A `!root.contains(e.target)` guard used to swallow exactly this.
+  barE.querySelector('[data-settings]').dispatchEvent(new we.MouseEvent('click', { bubbles: true }));
+  barE.querySelector('[data-settings]')
+    .dispatchEvent(new we.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  ok('Escape closes a panel opened with the mouse', !listE.classList.contains('open'),
+    'focus sits on the button that opened it, inside the overlay root');
   barE.querySelector('[data-sweep]').dispatchEvent(new we.MouseEvent('click', { bubbles: true }));
   esc();
   ok('Escape closes the open panel', !listE.classList.contains('open') && barE.classList.contains('on'),

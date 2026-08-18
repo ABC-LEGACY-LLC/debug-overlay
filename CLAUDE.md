@@ -270,7 +270,18 @@ Six defects a live audit found, each now guarded by a test:
 - **A cap must say so**, and only when it bit — asked per armed drawing rule,
   because the limit is per rule and a rule with no `draw()` caps nothing.
 - **Escape closes the top layer, never the session.** It used to fall through to
-  `setPower(false)` whenever nothing was pinned.
+  `setPower(false)` whenever nothing was pinned. Its only guard is
+  `Interactions.typing(e)` — a `!root.contains(e.target)` guard was added too
+  and silenced the commonest path of all: clicking a bar button leaves focus on
+  that button, inside root, so Escape did nothing after opening the panel with
+  the mouse. `typing()` already covers every ⚙ control, which is all that guard
+  was for.
+- **A count that matters must rest, not flash.** `Panel.flash` expires, so the
+  bar could not answer "does this page have problems?" without opening the
+  panel. The ⌕ button holds the grouped count while a sweep is showing. Two
+  bare numbers on one bar was the original complaint and the fix for that was
+  LABELLING them, not hiding one — the panel header names both quantities and
+  the button's own title says which it is.
 - **Nothing clamped to a viewport edge may describe an off-screen element.** A
   pin scrolled away parked its badge and number on the page's own header. Off
   screen, they are simply not drawn; the pin list is what reaches them.

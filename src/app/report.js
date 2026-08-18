@@ -38,7 +38,11 @@
       // over a stated scope is a result; an absent section is indistinguishable
       // from never having looked.
       if (State.sweep || groups.length) {
-        L.push('', `## findings (${list.length})${Report.scope()}`);
+        // The panel calls these "N distinct problems · M occurrences"; this
+        // said "findings (M)" for the same audit, so one number had two names
+        // depending on where you read it.
+        L.push('', `## findings — ${groups.length} problem${groups.length === 1 ? '' : 's'}` +
+                   ` · ${list.length} occurrence${list.length === 1 ? '' : 's'}${Report.scope()}`);
         for (const g of groups) {
           // 'review' outranks the severity in the label: what matters first is
           // whether this is a verdict or the absence of one
@@ -71,8 +75,8 @@
     /** What the findings above cover, so a zero among them can be read. */
     scope() {
       const s = State.sweep;
-      if (!s) return ' — pinned elements only';
-      return ` — whole page · ${s.rules} rule${s.rules === 1 ? '' : 's'}` +
+      if (!s) return ' · pinned elements only';
+      return ` · whole page · ${s.rules} rule${s.rules === 1 ? '' : 's'}` +
              ` · ${s.elements} elements` +
              // the page could not show them all; this text can
              (Object.values(s.byTool).some((f) => f.length > CONFIG.MARK_LIMIT)

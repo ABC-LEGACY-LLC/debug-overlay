@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.49
+// @version      3.8.50
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -269,7 +269,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: '3.8.49',
+    VERSION: '3.8.50',
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -2375,7 +2375,26 @@ HOW TO USE
        * the bar admitted they existed or removed them. One state now drives
        * both the button and the marks.
        */
-      setSwept(v) { el.querySelector('[data-sweep]').classList.toggle('swept', v); },
+      /**
+       * Whether an audit is showing, and how much it found.
+       *
+       * The count used to be a 1.2s flash, so once it expired the bar could not
+       * answer "does this page have problems?" without opening the panel — and
+       * the marks stayed on the page with nothing admitting they were there.
+       * It rests on the button now. It is safe to show a bare number here only
+       * because the panel header names both quantities ("N distinct problems ·
+       * M occurrences"); two unlabelled numbers on one bar was the original
+       * complaint, and the label is what fixed it, not hiding one of them.
+       */
+      setSwept(v, n) {
+        const b = el.querySelector('[data-sweep]');
+        b.classList.toggle('swept', !!v);
+        b.textContent = v ? String(n) : '⌕';
+        const what = v ? `Audit: ${n} distinct problem${n === 1 ? '' : 's'} — click to re-run`
+          : 'Audit the whole page';
+        b.title = what;
+        b.setAttribute('aria-label', what);
+      },
       setRemoveMode(v) {
         el.classList.toggle('removing', v);
         const st = el.querySelector('[data-st]');
@@ -2804,7 +2823,11 @@ HOW TO USE
       // over a stated scope is a result; an absent section is indistinguishable
       // from never having looked.
       if (State.sweep || groups.length) {
-        L.push('', `## findings (${list.length})${Report.scope()}`);
+        // The panel calls these "N distinct problems · M occurrences"; this
+        // said "findings (M)" for the same audit, so one number had two names
+        // depending on where you read it.
+        L.push('', `## findings — ${groups.length} problem${groups.length === 1 ? '' : 's'}` +
+                   ` · ${list.length} occurrence${list.length === 1 ? '' : 's'}${Report.scope()}`);
         for (const g of groups) {
           // 'review' outranks the severity in the label: what matters first is
           // whether this is a verdict or the absence of one
@@ -2837,8 +2860,8 @@ HOW TO USE
     /** What the findings above cover, so a zero among them can be read. */
     scope() {
       const s = State.sweep;
-      if (!s) return ' — pinned elements only';
-      return ` — whole page · ${s.rules} rule${s.rules === 1 ? '' : 's'}` +
+      if (!s) return ' · pinned elements only';
+      return ` · whole page · ${s.rules} rule${s.rules === 1 ? '' : 's'}` +
              ` · ${s.elements} elements` +
              // the page could not show them all; this text can
              (Object.values(s.byTool).some((f) => f.length > CONFIG.MARK_LIMIT)
@@ -2932,12 +2955,15 @@ HOW TO USE
           ctl.setRemoveMode(true);
           return;
         }
-        // Escape inside a field is "abandon this edit", not "throw my pins
-        // away". The ⚙ controls live in root, and a page's own inputs answer
-        // to typing() — without both guards, leaving a number half-typed
-        // cleared every pin and nothing on screen said why.
-        if (e.key === 'Escape' && State.enabled &&
-            !Interactions.typing(e) && !root.contains(e.target)) {
+        /* Escape inside a FIELD is "abandon this edit", not "close things" —
+           and typing() already says which those are (INPUT, TEXTAREA, SELECT,
+           contenteditable), which covers every ⚙ control there is.
+           `!root.contains(e.target)` used to guard it too, and that was wrong:
+           clicking any bar button leaves focus on that button, inside root, so
+           the guard swallowed Escape in the single most common path — open the
+           panel with the mouse, press Escape, nothing happens. It silenced
+           exactly the gesture the KEYS legend advertises. */
+        if (e.key === 'Escape' && State.enabled && !Interactions.typing(e)) {
           /* Escape closes the TOP LAYER, and never the session. It used to
              fall through to setPower(false) whenever nothing was pinned, so
              reading a page with the findings list open and no pins, one press
@@ -3028,7 +3054,7 @@ HOW TO USE
       // shift-click instead of measured from, so start the session clean.
       if (v) { try { getSelection()?.removeAllRanges(); } catch {} }
       if (!v) State.sweep = null;   // the page moves on; a stale audit lies
-      Panel.setSwept(!!State.sweep);
+      Panel.setSwept(!!State.sweep, 0);
       Panel.setOn(v);
       Render.schedule();
     },
@@ -3044,9 +3070,9 @@ HOW TO USE
       if (!State.enabled) return;
       State.sweep = Sweep.run();
       // the grouped count, not the raw one: "3" is a page with three problems,
-      // "5000" is the same page with one of them on every row
-      Panel.flash(`${Sweep.group(State.sweep.findings).length}`, '[data-sweep]');
-      Panel.setSwept(true);
+      // "5000" is the same page with one of them on every row. It RESTS on the
+      // button rather than flashing, so the bar keeps answering the question.
+      Panel.setSwept(true, Sweep.group(State.sweep.findings).length);
       Panel.toggleList(true, 'findings');
       Render.schedule();   // the marks are new; nothing else would ask for them
     },
@@ -3112,7 +3138,7 @@ HOW TO USE
          expensive thing the tool does (~77% getComputedStyle over every
          element) for a preference no rule consults. `affects` already says
          which is which. */
-      if (row.opt.affects === 'detect') { State.sweep = null; Panel.setSwept(false); }
+      if (row.opt.affects === 'detect') { State.sweep = null; Panel.setSwept(false, 0); }
       Render.schedule();
       Controller.refreshList();
     },
@@ -3302,7 +3328,7 @@ HOW TO USE
       State.pins = [];
       State.pinSeq = 0;
       State.sweep = null;
-      Panel.setSwept(false);
+      Panel.setSwept(false, 0);
       Render.schedule();
       Controller.refreshList();
     },

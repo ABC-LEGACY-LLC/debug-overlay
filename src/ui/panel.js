@@ -84,7 +84,26 @@
        * the bar admitted they existed or removed them. One state now drives
        * both the button and the marks.
        */
-      setSwept(v) { el.querySelector('[data-sweep]').classList.toggle('swept', v); },
+      /**
+       * Whether an audit is showing, and how much it found.
+       *
+       * The count used to be a 1.2s flash, so once it expired the bar could not
+       * answer "does this page have problems?" without opening the panel — and
+       * the marks stayed on the page with nothing admitting they were there.
+       * It rests on the button now. It is safe to show a bare number here only
+       * because the panel header names both quantities ("N distinct problems ·
+       * M occurrences"); two unlabelled numbers on one bar was the original
+       * complaint, and the label is what fixed it, not hiding one of them.
+       */
+      setSwept(v, n) {
+        const b = el.querySelector('[data-sweep]');
+        b.classList.toggle('swept', !!v);
+        b.textContent = v ? String(n) : '⌕';
+        const what = v ? `Audit: ${n} distinct problem${n === 1 ? '' : 's'} — click to re-run`
+          : 'Audit the whole page';
+        b.title = what;
+        b.setAttribute('aria-label', what);
+      },
       setRemoveMode(v) {
         el.classList.toggle('removing', v);
         const st = el.querySelector('[data-st]');

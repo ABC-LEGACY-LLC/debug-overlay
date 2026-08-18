@@ -9,7 +9,7 @@
       // shift-click instead of measured from, so start the session clean.
       if (v) { try { getSelection()?.removeAllRanges(); } catch {} }
       if (!v) State.sweep = null;   // the page moves on; a stale audit lies
-      Panel.setSwept(!!State.sweep);
+      Panel.setSwept(!!State.sweep, 0);
       Panel.setOn(v);
       Render.schedule();
     },
@@ -25,9 +25,9 @@
       if (!State.enabled) return;
       State.sweep = Sweep.run();
       // the grouped count, not the raw one: "3" is a page with three problems,
-      // "5000" is the same page with one of them on every row
-      Panel.flash(`${Sweep.group(State.sweep.findings).length}`, '[data-sweep]');
-      Panel.setSwept(true);
+      // "5000" is the same page with one of them on every row. It RESTS on the
+      // button rather than flashing, so the bar keeps answering the question.
+      Panel.setSwept(true, Sweep.group(State.sweep.findings).length);
       Panel.toggleList(true, 'findings');
       Render.schedule();   // the marks are new; nothing else would ask for them
     },
@@ -93,7 +93,7 @@
          expensive thing the tool does (~77% getComputedStyle over every
          element) for a preference no rule consults. `affects` already says
          which is which. */
-      if (row.opt.affects === 'detect') { State.sweep = null; Panel.setSwept(false); }
+      if (row.opt.affects === 'detect') { State.sweep = null; Panel.setSwept(false, 0); }
       Render.schedule();
       Controller.refreshList();
     },
@@ -283,7 +283,7 @@
       State.pins = [];
       State.pinSeq = 0;
       State.sweep = null;
-      Panel.setSwept(false);
+      Panel.setSwept(false, 0);
       Render.schedule();
       Controller.refreshList();
     },

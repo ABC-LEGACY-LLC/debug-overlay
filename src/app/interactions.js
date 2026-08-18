@@ -60,12 +60,15 @@
           ctl.setRemoveMode(true);
           return;
         }
-        // Escape inside a field is "abandon this edit", not "throw my pins
-        // away". The ⚙ controls live in root, and a page's own inputs answer
-        // to typing() — without both guards, leaving a number half-typed
-        // cleared every pin and nothing on screen said why.
-        if (e.key === 'Escape' && State.enabled &&
-            !Interactions.typing(e) && !root.contains(e.target)) {
+        /* Escape inside a FIELD is "abandon this edit", not "close things" —
+           and typing() already says which those are (INPUT, TEXTAREA, SELECT,
+           contenteditable), which covers every ⚙ control there is.
+           `!root.contains(e.target)` used to guard it too, and that was wrong:
+           clicking any bar button leaves focus on that button, inside root, so
+           the guard swallowed Escape in the single most common path — open the
+           panel with the mouse, press Escape, nothing happens. It silenced
+           exactly the gesture the KEYS legend advertises. */
+        if (e.key === 'Escape' && State.enabled && !Interactions.typing(e)) {
           /* Escape closes the TOP LAYER, and never the session. It used to
              fall through to setPower(false) whenever nothing was pinned, so
              reading a page with the findings list open and no pins, one press
