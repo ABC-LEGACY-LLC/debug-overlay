@@ -899,10 +899,8 @@ console.log('\nCATEGORIES');
   hit('[data-settings]');
   const heads = [...list.querySelectorAll('.head')].map((h) => h.childNodes[0].textContent);
   ok('the ⚙ view is grouped by what a setting changes',
-    heads.join(' → ') === 'Select → Detect → Act → Keys',
+    heads.join(' → ') === 'Select → Inspect → Detect → Act → Keys',
     heads.join(' → ') || '(no headings)');
-  ok('and a category nobody uses prints no heading', !heads.includes('Inspect'),
-    'an empty section is a heading over nothing');
   // the grid rows are not adjacent to each other because they own the tool —
   // they are adjacent because all three change what counts as a problem
   const under = (h) => {
@@ -917,6 +915,14 @@ console.log('\nCATEGORIES');
   // A set, not a sequence: order inside a category is derived now, and an
   // assertion on the sequence would fail the day a role is added without
   // anything true having changed.
+  /* Was "Inspect prints no heading", which only held while nothing had an
+     inspect setting — measure's field toggles fill that category now. The
+     invariant underneath is what mattered: a heading over nothing is worse
+     than no heading, so assert it of EVERY heading rather than of the one
+     that happened to be empty. */
+  const empties = heads.filter((h) => under(h).length === 0);
+  ok('and no heading stands over an empty section', !empties.length, empties.join(', '));
+
   ok('settings from different owners share a category',
     under('Detect').slice().sort().join(', ')
       === 'Grid step, Ignore above, Judge width & height, WCAG level',
@@ -1424,6 +1430,72 @@ console.log('\nPIN NUMBERS');
   hit('a');
   ok('including emptying it from the pin list', tags() === '#1', tags());
   w.close();
+}
+
+console.log('\nPER-TOOL OPTIONS');
+/**
+ * Two doors, one room. ⚙ shows every setting grouped by what it changes;
+ * right-clicking a tool shows that tool's subset. The second is a FILTER of
+ * the first — same options() call — so they cannot drift apart.
+ */
+{
+  const d = new JSDOM('<!doctype html><html><body>' +
+    // longhands, because jsdom does not expand the border-radius shorthand, and
+    // a stubbed rect, because it has no layout at all
+    '<div id="a" style="padding:6px 8px;border-top-left-radius:9px;' +
+    'border-top-right-radius:9px;border-bottom-right-radius:9px;' +
+    'border-bottom-left-radius:9px">a</div>' +
+    '</body></html>',
+    { url: 'https://example.test/', pretendToBeVisual: true,
+      runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
+  const w = d.window;
+  w.eval(source);
+  w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  const bar = w.document.getElementById('__dbgov-bar');
+  const list = w.document.getElementById('__dbgov-list');
+  const labels = () => [...list.querySelectorAll('.row .lbl')].map((x) => x.textContent);
+
+  bar.querySelector('[data-tool="measure"]')
+    .dispatchEvent(new w.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  const mine = labels();
+  ok('right-clicking a tool opens its own options', mine.length > 0 && list.classList.contains('open'),
+    `${mine.length} rows`);
+  ok('and shows only that tool\'s',
+    mine.includes('Radius') && !mine.includes('Grid step') && !mine.includes('WCAG level'),
+    mine.join(', '));
+  ok('titled with the tool, not with "Settings"',
+    /Measure/.test((list.querySelector('.viewhead') || {}).textContent || ''),
+    (list.querySelector('.viewhead') || {}).textContent || '(none)');
+
+  // the same rows are still in ⚙, because one is a filter of the other
+  bar.querySelector('[data-settings]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  const all = labels();
+  ok('the same rows are still in ⚙', mine.every((l) => all.includes(l)),
+    mine.filter((l) => !all.includes(l)).join(', ') || 'all present');
+
+  // and the toggle governs the badge
+  const el = w.document.getElementById('a');
+  el.getBoundingClientRect = () => ({ left: 10, top: 10, right: 50, bottom: 30,
+                                      width: 40, height: 20 });
+  w.document.elementFromPoint = () => el;
+  el.dispatchEvent(new w.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
+  bar.querySelector('[data-tool="measure"]')
+    .dispatchEvent(new w.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  const radiusRow = [...list.querySelectorAll('.row')]
+    .find((r) => r.querySelector('.lbl').textContent === 'Radius');
+  const tick = radiusRow.querySelector('input[type=checkbox]');
+  tick.checked = false;
+  tick.dispatchEvent(new w.Event('change'));
+  pendingChecks.push(() => {
+    const badge = w.document.querySelector('#__dbgov-root .dbgov-badge');
+    ok('turning a field off takes it off the badge',
+      !!badge && !/\br 9\b/.test(badge.textContent),
+      badge ? badge.textContent : '(no badge)');
+    ok('and leaves the rest of the badge alone',
+      !!badge && /40×20/.test(badge.textContent),
+      badge ? badge.textContent : '(no badge)');
+    w.close();
+  });
 }
 
 // ---- the sections that need a painted frame ---------------------------------

@@ -181,6 +181,27 @@ because a rule must never be handed NaN.
 tool ids in a core file, which made "a new tool is one new file" not quite
 true; now nothing central knows the name of anything.
 
+## Two doors into one room
+Settings are reachable two ways and stored once. ⚙ renders every row grouped by
+`affects`; right-clicking a tool button opens `tool:<id>`, which is the same
+rows filtered to that owner. Both call `Settings.row(owner, option)` — the
+second is a FILTER of the first, never a copy, so they cannot drift.
+
+Why both: "what is the grid step on this project" is a settings-screen
+question, asked once. "Take radius off this badge" is asked mid-task, about the
+tool you are already using, and making someone open a global list of everyone's
+options to answer it is the wrong shape. Neither door is a menu a tool built
+for itself — a tool shipped tomorrow appears in both automatically.
+
+The view name carries the id (`tool:measure`) the way `pins` and `findings`
+carry theirs: opaque to `ui/`, handed straight back, resolved by
+`Controller.toolOf`. No id is written in a core file.
+
+`audit.js` counts `key:` against `affects:` as QUOTED LITERALS, so options must
+be written out rather than built by a factory or from constants — that check is
+what stops an option shipping with no category, and a helper would satisfy it
+once for seven.
+
 ## Subjects — shared measurement, and the settings that govern it
 `src/subjects/*` holds what more than one component needs to agree about:
 `scale.js` owns `step`/`max`/`boxes` and the off-grid test; `colour.js`

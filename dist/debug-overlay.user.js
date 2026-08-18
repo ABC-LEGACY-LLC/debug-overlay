@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.52
+// @version      3.8.53
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -73,7 +73,12 @@ HOW TO USE
                  lives here and not in measure, so a new way of selecting is
                  one new file and everything that measures picks it up.
     📐 measure   sizes, radius, padding/margin, gap, font, and the distance
-                 between whatever the selection tools have grouped
+                 between whatever the selection tools have grouped. Right-click
+                 it to choose which of those the badge shows — a full badge is
+                 a lot of ink over a page you came to read one number off. The
+                 copied report always carries everything, because there the
+                 line you did not want costs nothing and the one you did costs
+                 a round trip.
     ▦ grid       marks any number another tool prints that is off the
                  spacing step (⚠ — 2px by default, change it under ⚙). In ⌕ it
                  judges AUTHORED spacing only — padding, margin, gap — never
@@ -94,9 +99,13 @@ HOW TO USE
   ⚙ list is grouped the same way: by what a setting CHANGES, not by which tool
   happens to own it.
 
-  A tool's own settings live under ⚙, never in a menu of its own — the panel
-  is the only surface, so a tool added later is controllable the moment it
-  appears without anything being installed or configured again.
+  A tool's settings have two doors into the same room. ⚙ lists every one of
+  them grouped by what it CHANGES; RIGHT-CLICK a tool's button for just that
+  tool's, without everyone else's. The second is a filter of the first — the
+  same options() call, the same control, the same value — so nothing can be set
+  in one place and stale in the other. Neither is a menu a tool built for
+  itself: a tool added tomorrow is configurable through both the moment it
+  appears, with nothing installed or wired up.
 
   The rule between the toggles is not decoration. Tools below it carry a green
   dot and feed ⌕ — which is why ⌕ sits with them. Tools above it only draw.
@@ -269,7 +278,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: '3.8.52',
+    VERSION: '3.8.53',
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -1602,30 +1611,61 @@ HOW TO USE
        * measurement — deciding WHICH two is not, and keeping both here is what
        * made this tool two things at once.
        */
+      /**
+       * WHICH FIELDS THE BADGE SHOWS. A full badge reads
+       * `92×4 · r 9999 · p 6 8 · m 0 · flex gap 8 · 14/20 500 · div#hero`,
+       * which is a lot of ink over the page when you came to look at one
+       * number. These decide what is on it.
+       *
+       * They govern the BADGES only, never `report()`. A badge sits on top of
+       * what you are reading, so density costs you something; the copied
+       * report is text you paste into a chat, where a line you do not need
+       * costs nothing and a line you do need costs a round trip.
+       */
+      options() {
+        // Written out rather than built by a helper: audit.js counts `key:`
+        // against `affects:` to catch an option that declares neither, and a
+        // factory would satisfy it once for all seven. Longhand keeps that
+        // check honest, and greppable.
+        return [
+          { key: 'size', label: 'Size', def: true, type: 'toggle', affects: 'inspect' },
+          { key: 'radius', label: 'Radius', def: true, type: 'toggle', affects: 'inspect' },
+          { key: 'padding', label: 'Padding', def: true, type: 'toggle', affects: 'inspect' },
+          { key: 'margin', label: 'Margin', def: true, type: 'toggle', affects: 'inspect' },
+          { key: 'layout', label: 'Display & gap', def: true, type: 'toggle', affects: 'inspect' },
+          { key: 'font', label: 'Font', def: true, type: 'toggle', affects: 'inspect' },
+          { key: 'tag', label: 'Tag & id', def: true, type: 'toggle', affects: 'inspect' },
+        ];
+      },
+
       badge(i) {
         const { el, r, cs } = i;
         // whatever decoration applies here — never "is <some named tool> on"
         const dec = Tools.annotator(i);
-        const bits = [`<span class="sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`];
-        const rad = U.radius(cs); if (rad) bits.push(`<span class="rad">r ${rad}</span>`);
-        const p = U.four(cs, 'padding', dec); if (p) bits.push(`<span class="sp">p ${p.join(' ')}</span>`);
-        const m = U.four(cs, 'margin', dec);  if (m) bits.push(`<span class="sp">m ${m.join(' ')}</span>`);
-        if (cs.display.includes('flex') || cs.display.includes('grid')) {
+        const on = (k) => Tools.setting(this, k);
+        const bits = [];
+        if (on('size')) bits.push(`<span class="sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`);
+        if (on('radius')) { const rad = U.radius(cs); if (rad) bits.push(`<span class="rad">r ${rad}</span>`); }
+        if (on('padding')) { const p = U.four(cs, 'padding', dec); if (p) bits.push(`<span class="sp">p ${p.join(' ')}</span>`); }
+        if (on('margin')) { const m = U.four(cs, 'margin', dec); if (m) bits.push(`<span class="sp">m ${m.join(' ')}</span>`); }
+        if (on('layout') && (cs.display.includes('flex') || cs.display.includes('grid'))) {
           const g = U.px(cs.columnGap) || U.px(cs.gap);
           bits.push(`<span class="sp">${U.esc(cs.display)}${g ? ' gap ' + U.mark(g, dec) : ''}</span>`);
         }
-        bits.push(`<span class="fnt">${U.px(cs.fontSize)}/${U.px(cs.lineHeight) || '–'} ${cs.fontWeight}</span>`);
+        if (on('font')) bits.push(`<span class="fnt">${U.px(cs.fontSize)}/${U.px(cs.lineHeight) || '–'} ${cs.fontWeight}</span>`);
         // the id is page-authored text on its way to innerHTML — never raw
-        bits.push(`<span class="tag">${el.tagName.toLowerCase()}${el.id ? '#' + U.esc(el.id) : ''}</span>`);
+        if (on('tag')) bits.push(`<span class="tag">${el.tagName.toLowerCase()}${el.id ? '#' + U.esc(el.id) : ''}</span>`);
         return bits.join(' · ');
       },
       compact(i) {
         const { r, cs } = i;
         const dec = Tools.annotator(i);
-        const bits = [`<span class="sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`];
-        const rad = U.radius(cs); if (rad) bits.push(`<span class="rad">r ${rad}</span>`);
+        const on = (k) => Tools.setting(this, k);
+        const bits = [];
+        if (on('size')) bits.push(`<span class="sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`);
+        if (on('radius')) { const rad = U.radius(cs); if (rad) bits.push(`<span class="rad">r ${rad}</span>`); }
         // deliberately padding only — the compact badge never marked m or gap
-        const p = U.four(cs, 'padding', dec); if (p) bits.push(`<span class="sp">p ${p.join(' ')}</span>`);
+        if (on('padding')) { const p = U.four(cs, 'padding', dec); if (p) bits.push(`<span class="sp">p ${p.join(' ')}</span>`); }
         return bits.join(' · ');
       },
       report({ r, cs }) {
@@ -2302,7 +2342,10 @@ HOW TO USE
       // The roles go in the tooltip, not in the grouping: a button sits in one
       // place and most tools fill two, so this is where it can say both.
       `<button class="tool whenOn ${run.cls}" data-tool="${t.id}"` +
-      ` title="${t.title}\n${Tools.rolesOf(t).join(' · ')}${run.note}">${t.icon}</button>`).join(''))
+      ` title="${t.title}\n${Tools.rolesOf(t).join(' · ')}${run.note}` +
+      // the tool says so itself, so a tool with nothing to configure does not
+      // advertise a menu that would open empty
+      `${t.options ? '\nright-click for its options' : ''}">${t.icon}</button>`).join(''))
       .join('<hr class="sep whenOn">');
     el.innerHTML = `
       <span class="grip" title="Drag to move — snaps to the nearest edge">⋮⋮</span>
@@ -2453,8 +2496,18 @@ HOW TO USE
       .forEach((b) => b.setAttribute('aria-pressed', 'false'));
 
     el.querySelector('.pwr').addEventListener('click', () => api.onToggle?.());
-    el.querySelectorAll('[data-tool]').forEach((b) =>
-      b.addEventListener('click', () => api.onTool?.(b.dataset.tool)));
+    el.querySelectorAll('[data-tool]').forEach((b) => {
+      b.addEventListener('click', () => api.onTool?.(b.dataset.tool));
+      /* Right-click opens THIS tool's options and nothing else. The view name
+         carries the id the way 'pins' and 'findings' carry theirs — opaque to
+         this file, handed straight back, so the panel still never learns what
+         any of them mean. preventDefault because the browser menu over our own
+         button helps nobody; the PAGE's menu is untouched. */
+      b.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        api.toggleList(undefined, `tool:${b.dataset.tool}`);
+      });
+    });
     el.querySelector('[data-c]').addEventListener('click', () => api.toggleList(undefined, 'pins'));
     el.querySelector('[data-settings]').addEventListener('click', () => api.toggleList(undefined, 'settings'));
     el.querySelector('[data-detail]').addEventListener('click', () => api.onDetail?.());
@@ -3079,7 +3132,8 @@ HOW TO USE
     /** Rows for whichever view the panel is showing. */
     rows(view) {
       const body = view === 'settings' ? Settings.rows()
-        : view === 'findings' ? Controller.findingRows() : Controller.pinList();
+        : Controller.toolOf(view) ? Settings.rowsFor(Controller.toolOf(view))
+          : view === 'findings' ? Controller.findingRows() : Controller.pinList();
       // Only when there IS a body: List shows its empty state on rows.length
       // === 0, and a title alone would suppress the one sentence that explains
       // why the view is empty.
@@ -3095,7 +3149,17 @@ HOW TO USE
      * counts distinct problems and the report counts occurrences, and neither
      * said which it was.
      */
+    /** The tool a `tool:<id>` view names, or null. No id is written here — it
+     *  arrives from the button that was clicked. */
+    toolOf: (view) => (String(view || '').startsWith('tool:') ? view.slice(5) : null),
+
     viewTitle(view, body) {
+      const owned = Controller.toolOf(view);
+      if (owned) {
+        const t = Tools.byId(owned);
+        return t && { title: t.title.split(/[—·]/)[0].trim(),
+                      detail: 'its own options — ⚙ has these and everyone else\'s' };
+      }
       if (view === 'settings') return { title: 'Settings', detail: 'what each tool checks and shows' };
       if (view === 'pins') {
         const n = State.pins.length;
@@ -3174,6 +3238,7 @@ HOW TO USE
      * and had nothing to say. Only the third is good news.
      */
     emptyFor(view) {
+      if (Controller.toolOf(view)) return 'This one has nothing to configure.';
       if (view === 'settings') return 'No tool has anything to configure.';
       if (view !== 'findings') return 'No pins yet — click to inspect, Shift+click to measure.';
       const s = State.sweep;
@@ -3392,6 +3457,34 @@ HOW TO USE
   const Settings = {
     carried: {},   // saved values whose owner this build does not know
     /**
+     * ONE row builder, so the two doors into these settings cannot drift.
+     * ⚙ shows every row grouped by what it changes; right-clicking a tool
+     * shows that tool's subset. The second is a FILTER of the first, never a
+     * copy — same options() call, same control, same value.
+     */
+    row(t, o) {
+      return {
+        tag: t.icon,
+        label: o.label,
+        control: Settings.controlFor(o, Tools.setting(t, o.key)),
+        /* A tool's own option does nothing while that tool is disarmed —
+           stored and waiting, not live. Hiding the row would be wrong, since
+           the value applies the moment you arm it; looking active was the
+           confusion, so it is dimmed. A SUBJECT has no armed state: its
+           settings feed the sweep, which runs every rule either way. */
+        inert: Tools.all.includes(t) && !State.tools.has(t.id),
+        tool: t, opt: o,
+      };
+    },
+
+    /** Just this one owner's rows — the per-tool door. */
+    rowsFor(id) {
+      const t = Tools.byId(id);
+      if (!t || !t.options) return [];
+      return t.options.call(t).map((o) => Settings.row(t, o));
+    },
+
+    /**
      * One row per option, under a heading for what that option CHANGES.
      *
      * Grouped by category, not by owning tool. Ordered by filename, the list
@@ -3458,6 +3551,7 @@ HOW TO USE
         ['Alt+click', 'let the click through to the page'],
         [`Hold ${CONFIG.REMOVE_KEY.replace('Key', '')}`, 'show ✕ on every pin'],
         ['Esc', 'close the panel, then the pins'],
+        ['Right-click a tool', 'its own options, without the others'],
         [hot, 'power on and off'],
       ];
       for (const t of Tools.withHook('gestures'))

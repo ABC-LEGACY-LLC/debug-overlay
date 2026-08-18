@@ -35,7 +35,8 @@
     /** Rows for whichever view the panel is showing. */
     rows(view) {
       const body = view === 'settings' ? Settings.rows()
-        : view === 'findings' ? Controller.findingRows() : Controller.pinList();
+        : Controller.toolOf(view) ? Settings.rowsFor(Controller.toolOf(view))
+          : view === 'findings' ? Controller.findingRows() : Controller.pinList();
       // Only when there IS a body: List shows its empty state on rows.length
       // === 0, and a title alone would suppress the one sentence that explains
       // why the view is empty.
@@ -51,7 +52,17 @@
      * counts distinct problems and the report counts occurrences, and neither
      * said which it was.
      */
+    /** The tool a `tool:<id>` view names, or null. No id is written here — it
+     *  arrives from the button that was clicked. */
+    toolOf: (view) => (String(view || '').startsWith('tool:') ? view.slice(5) : null),
+
     viewTitle(view, body) {
+      const owned = Controller.toolOf(view);
+      if (owned) {
+        const t = Tools.byId(owned);
+        return t && { title: t.title.split(/[—·]/)[0].trim(),
+                      detail: 'its own options — ⚙ has these and everyone else\'s' };
+      }
       if (view === 'settings') return { title: 'Settings', detail: 'what each tool checks and shows' };
       if (view === 'pins') {
         const n = State.pins.length;
@@ -130,6 +141,7 @@
      * and had nothing to say. Only the third is good news.
      */
     emptyFor(view) {
+      if (Controller.toolOf(view)) return 'This one has nothing to configure.';
       if (view === 'settings') return 'No tool has anything to configure.';
       if (view !== 'findings') return 'No pins yet — click to inspect, Shift+click to measure.';
       const s = State.sweep;

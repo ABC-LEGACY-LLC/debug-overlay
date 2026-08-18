@@ -57,7 +57,12 @@ HOW TO USE
                  lives here and not in measure, so a new way of selecting is
                  one new file and everything that measures picks it up.
     📐 measure   sizes, radius, padding/margin, gap, font, and the distance
-                 between whatever the selection tools have grouped
+                 between whatever the selection tools have grouped. Right-click
+                 it to choose which of those the badge shows — a full badge is
+                 a lot of ink over a page you came to read one number off. The
+                 copied report always carries everything, because there the
+                 line you did not want costs nothing and the one you did costs
+                 a round trip.
     ▦ grid       marks any number another tool prints that is off the
                  spacing step (⚠ — 2px by default, change it under ⚙). In ⌕ it
                  judges AUTHORED spacing only — padding, margin, gap — never
@@ -78,9 +83,13 @@ HOW TO USE
   ⚙ list is grouped the same way: by what a setting CHANGES, not by which tool
   happens to own it.
 
-  A tool's own settings live under ⚙, never in a menu of its own — the panel
-  is the only surface, so a tool added later is controllable the moment it
-  appears without anything being installed or configured again.
+  A tool's settings have two doors into the same room. ⚙ lists every one of
+  them grouped by what it CHANGES; RIGHT-CLICK a tool's button for just that
+  tool's, without everyone else's. The second is a filter of the first — the
+  same options() call, the same control, the same value — so nothing can be set
+  in one place and stale in the other. Neither is a menu a tool built for
+  itself: a tool added tomorrow is configurable through both the moment it
+  appears, with nothing installed or wired up.
 
   The rule between the toggles is not decoration. Tools below it carry a green
   dot and feed ⌕ — which is why ⌕ sits with them. Tools above it only draw.

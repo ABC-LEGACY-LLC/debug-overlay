@@ -14,6 +14,34 @@
   const Settings = {
     carried: {},   // saved values whose owner this build does not know
     /**
+     * ONE row builder, so the two doors into these settings cannot drift.
+     * ⚙ shows every row grouped by what it changes; right-clicking a tool
+     * shows that tool's subset. The second is a FILTER of the first, never a
+     * copy — same options() call, same control, same value.
+     */
+    row(t, o) {
+      return {
+        tag: t.icon,
+        label: o.label,
+        control: Settings.controlFor(o, Tools.setting(t, o.key)),
+        /* A tool's own option does nothing while that tool is disarmed —
+           stored and waiting, not live. Hiding the row would be wrong, since
+           the value applies the moment you arm it; looking active was the
+           confusion, so it is dimmed. A SUBJECT has no armed state: its
+           settings feed the sweep, which runs every rule either way. */
+        inert: Tools.all.includes(t) && !State.tools.has(t.id),
+        tool: t, opt: o,
+      };
+    },
+
+    /** Just this one owner's rows — the per-tool door. */
+    rowsFor(id) {
+      const t = Tools.byId(id);
+      if (!t || !t.options) return [];
+      return t.options.call(t).map((o) => Settings.row(t, o));
+    },
+
+    /**
      * One row per option, under a heading for what that option CHANGES.
      *
      * Grouped by category, not by owning tool. Ordered by filename, the list
@@ -80,6 +108,7 @@
         ['Alt+click', 'let the click through to the page'],
         [`Hold ${CONFIG.REMOVE_KEY.replace('Key', '')}`, 'show ✕ on every pin'],
         ['Esc', 'close the panel, then the pins'],
+        ['Right-click a tool', 'its own options, without the others'],
         [hot, 'power on and off'],
       ];
       for (const t of Tools.withHook('gestures'))

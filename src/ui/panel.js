@@ -12,7 +12,10 @@
       // The roles go in the tooltip, not in the grouping: a button sits in one
       // place and most tools fill two, so this is where it can say both.
       `<button class="tool whenOn ${run.cls}" data-tool="${t.id}"` +
-      ` title="${t.title}\n${Tools.rolesOf(t).join(' · ')}${run.note}">${t.icon}</button>`).join(''))
+      ` title="${t.title}\n${Tools.rolesOf(t).join(' · ')}${run.note}` +
+      // the tool says so itself, so a tool with nothing to configure does not
+      // advertise a menu that would open empty
+      `${t.options ? '\nright-click for its options' : ''}">${t.icon}</button>`).join(''))
       .join('<hr class="sep whenOn">');
     el.innerHTML = `
       <span class="grip" title="Drag to move — snaps to the nearest edge">⋮⋮</span>
@@ -163,8 +166,18 @@
       .forEach((b) => b.setAttribute('aria-pressed', 'false'));
 
     el.querySelector('.pwr').addEventListener('click', () => api.onToggle?.());
-    el.querySelectorAll('[data-tool]').forEach((b) =>
-      b.addEventListener('click', () => api.onTool?.(b.dataset.tool)));
+    el.querySelectorAll('[data-tool]').forEach((b) => {
+      b.addEventListener('click', () => api.onTool?.(b.dataset.tool));
+      /* Right-click opens THIS tool's options and nothing else. The view name
+         carries the id the way 'pins' and 'findings' carry theirs — opaque to
+         this file, handed straight back, so the panel still never learns what
+         any of them mean. preventDefault because the browser menu over our own
+         button helps nobody; the PAGE's menu is untouched. */
+      b.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        api.toggleList(undefined, `tool:${b.dataset.tool}`);
+      });
+    });
     el.querySelector('[data-c]').addEventListener('click', () => api.toggleList(undefined, 'pins'));
     el.querySelector('[data-settings]').addEventListener('click', () => api.toggleList(undefined, 'settings'));
     el.querySelector('[data-detail]').addEventListener('click', () => api.onDetail?.());
