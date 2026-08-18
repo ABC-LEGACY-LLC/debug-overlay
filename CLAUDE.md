@@ -276,9 +276,16 @@ Six defects a live audit found, each now guarded by a test:
   screen, they are simply not drawn; the pin list is what reaches them.
 - **The root is named, not `aria-hidden`.** It holds 13 tabbable buttons, so
   hiding it was `aria-hidden-focus` (WCAG 4.1.2). Decoration carries
-  `aria-hidden`; the root goes `inert` while powered off, which aria-hidden
-  could never do. Toggles carry `aria-pressed`, and there is a `:focus-visible`
-  rule — there was none at all.
+  `aria-hidden` instead. Toggles carry `aria-pressed`, and there is a
+  `:focus-visible` rule — there was none at all.
+- **Never `inert` the root.** v3.8.48 did, to drop the overlay out of the tab
+  order when powered off, and it took the ⏻ button and the ⋮⋮ grip with it —
+  the panel could not be switched back on by mouse at all, only by the hotkey.
+  It was redundant too: `.whenOn` and the popover are already `display: none`
+  when off, which removes them from the tab order by itself. **jsdom sets the
+  attribute without implementing its semantics**, so no test here can catch
+  this by behaviour — the suite asserts the attribute is absent, and that
+  exactly one button (⏻) is reachable when off.
 
 Row indices are the recurring hazard: `rows(view)` is what the panel renders,
 so **every callback must resolve against `rows(view)`**, never a narrower list.

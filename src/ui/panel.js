@@ -53,9 +53,15 @@
       onListOpen: null, onRowActivate: null, onRowRemove: null, onSweep: null,
       onRowChange: null,
       setOn(v) {
-        // Powered off the overlay is not just invisible, it is not there: inert
-        // removes it from the tab order and from the accessibility tree at once.
-        root.toggleAttribute('inert', !v);
+        /* NO `inert` here, ever. It was added to take the overlay out of the
+           tab order when powered off — but inert covers the WHOLE subtree, and
+           that includes the two controls which must never stop working: the ⏻
+           button and the ⋮⋮ grip. Shipped in v3.8.48 and it left the panel dead
+           to the mouse when off, reachable only by the hotkey.
+
+           It was redundant as well as harmful: `.whenOn` and the popover are
+           already `display: none` when off, which removes them from the tab
+           order and the accessibility tree by itself. */
         el.classList.toggle('on', v);
         el.querySelector('[data-st]').textContent = v ? 'ON' : 'OFF';
         if (!v) api.toggleList(false);

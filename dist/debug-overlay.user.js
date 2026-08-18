@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.48
+// @version      3.8.49
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -269,7 +269,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: '3.8.48',
+    VERSION: '3.8.49',
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -2344,9 +2344,15 @@ HOW TO USE
       onListOpen: null, onRowActivate: null, onRowRemove: null, onSweep: null,
       onRowChange: null,
       setOn(v) {
-        // Powered off the overlay is not just invisible, it is not there: inert
-        // removes it from the tab order and from the accessibility tree at once.
-        root.toggleAttribute('inert', !v);
+        /* NO `inert` here, ever. It was added to take the overlay out of the
+           tab order when powered off — but inert covers the WHOLE subtree, and
+           that includes the two controls which must never stop working: the ⏻
+           button and the ⋮⋮ grip. Shipped in v3.8.48 and it left the panel dead
+           to the mouse when off, reachable only by the hotkey.
+
+           It was redundant as well as harmful: `.whenOn` and the popover are
+           already `display: none` when off, which removes them from the tab
+           order and the accessibility tree by itself. */
         el.classList.toggle('on', v);
         el.querySelector('[data-st]').textContent = v ? 'ON' : 'OFF';
         if (!v) api.toggleList(false);

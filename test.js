@@ -106,6 +106,7 @@ if (bootError) { console.log(''); process.exit(1); }
 ok('single-instance flag set', window.__DBG_OVERLAY__ === true);
 
 const root = window.document.getElementById('__dbgov-root');
+const bar0 = window.document.getElementById('__dbgov-bar');
 ok('root element appended', !!root);
 /* This asserted aria-hidden="true" on the root, which was the DEFECT: the root
    holds 13 tabbable buttons, so it told assistive tech the subtree did not
@@ -120,8 +121,19 @@ ok('the decorative layer is hidden from a11y',
   !!root && [...root.children].some((c) =>
     c.tagName === 'DIV' && c.getAttribute('aria-hidden') === 'true'),
   'the painted layer carries no text anyone needs announced');
-ok('and powered off it is inert', root && root.hasAttribute('inert'),
-  'inert takes it out of the tab order, which aria-hidden never could');
+/* NEVER inert. jsdom sets the attribute without implementing its semantics, so
+   this can only assert the attribute is absent — but in a real browser inert
+   disables the whole subtree, and that includes ⏻ and the grip. v3.8.48 shipped
+   with it and the panel could not be switched back on by mouse at all. What
+   inert was meant to achieve is already true: everything that should be
+   unreachable when off is `display: none`. */
+ok('the overlay is never made inert', root && !root.hasAttribute('inert'),
+  'inert would take the power button and the drag grip with it');
+const shownOff = () => [...(bar0 ? bar0.querySelectorAll('button') : [])]
+  .filter((b) => window.getComputedStyle(b).display !== 'none');
+ok('and powered off, only the power control is reachable',
+  shownOff().length === 1 && shownOff()[0].classList.contains('pwr'),
+  shownOff().map((b) => b.className).join(', ') || 'nothing reachable at all');
 
 const sheets = root ? [...root.querySelectorAll('style')] : [];
 const cssOf = (who) => (sheets.find((s) => (s.dataset.tool || 'core') === who) || {}).textContent || '';
