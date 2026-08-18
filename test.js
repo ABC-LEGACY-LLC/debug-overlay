@@ -1122,6 +1122,83 @@ console.log('\nREVIEW FIXES');
   });
 }
 
+console.log('\nSTANDS ALONE');
+/**
+ * Every tool must be worth arming by itself. Measured, not assumed: armed
+ * alone, grid used to produce zero badges and zero ⚠ because `annotate` only
+ * decorates what OTHER tools print, and dupid changed nothing at all because
+ * findings reach the ⌕ list whether a rule is armed or not. Correct, silent
+ * and indistinguishable from broken.
+ */
+{
+  const opts = { url: 'https://example.test/', pretendToBeVisual: true,
+                 runScripts: 'outside-only', virtualConsole: new VirtualConsole() };
+  const ALL = JSON.stringify(idsOnDisk);
+  const only = (armed, html) => {
+    const d = new JSDOM(`<!doctype html><html><body>${html}</body></html>`, opts);
+    d.window.localStorage.setItem('__dbgov_tools', JSON.stringify(armed));
+    d.window.localStorage.setItem('__dbgov_seen', ALL);   // nothing counts as new
+    d.window.eval(source);
+    d.window.dispatchEvent(new d.window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+    return d.window;
+  };
+  const pinIt = (w, id, mods = {}) => {
+    const el = w.document.getElementById(id);
+    w.document.elementFromPoint = () => el;
+    el.dispatchEvent(new w.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5, ...mods }));
+  };
+
+  // grid, with nothing else to lean on
+  const wg = only(['grid'], '<div id="a" style="padding:7px">alpha</div>');
+  pinIt(wg, 'a');
+  pendingChecks.push(() => {
+    const root = wg.document.getElementById('__dbgov-root');
+    ok('grid says something with no other tool armed',
+      /⚠/.test(root.innerHTML) && root.querySelectorAll('.dbgov-badge').length > 0,
+      `${root.querySelectorAll('.dbgov-badge').length} badges, ⚠ ${/⚠/.test(root.innerHTML)}`);
+    wg.close();
+  });
+
+  // dupid, whose findings reach the list either way — arming it must still do something
+  const wd = only(['dupid'], '<p id="dup">one</p><p id="dup">two</p>');
+  wd.document.getElementById('__dbgov-bar').querySelector('[data-sweep]')
+    .dispatchEvent(new wd.MouseEvent('click', { bubbles: true }));
+  pendingChecks.push(() => {
+    ok('arming a rule changes something on screen',
+      wd.document.querySelectorAll('#__dbgov-root .dbgov-flag').length > 0,
+      'a toggle that paints nothing is worse than no toggle');
+    wd.close();
+  });
+
+  // a shift-click with nothing to group it must not promise a measurement
+  const wn = only(['measure'], '<div id="a">a</div><div id="b">b</div>');
+  pinIt(wn, 'a', { shiftKey: true });
+  pinIt(wn, 'b', { shiftKey: true });
+  let copiedN = null;
+  Object.defineProperty(wn.navigator, 'clipboard',
+    { value: { writeText: async (t) => { copiedN = t; } }, configurable: true });
+  wn.document.getElementById('__dbgov-bar').querySelector('[data-copy]')
+    .dispatchEvent(new wn.MouseEvent('click', { bubbles: true }));
+  ok('no grouping armed, so a shift-click is simply a pin',
+    !/\(measure\)/.test(copiedN || '') && /\(note\)/.test(copiedN || ''),
+    (copiedN || '').match(/\((note|measure)\)/g)?.join(' ') || 'no pins');
+  wn.close();
+
+  // and with a grouping armed it means what it always meant
+  const wy = only(['measure', 'select'], '<div id="a">a</div><div id="b">b</div>');
+  pinIt(wy, 'a', { shiftKey: true });
+  pinIt(wy, 'b', { shiftKey: true });
+  let copiedY = null;
+  Object.defineProperty(wy.navigator, 'clipboard',
+    { value: { writeText: async (t) => { copiedY = t; } }, configurable: true });
+  wy.document.getElementById('__dbgov-bar').querySelector('[data-copy]')
+    .dispatchEvent(new wy.MouseEvent('click', { bubbles: true }));
+  ok('with a grouping armed, a shift-click still joins one',
+    /\(measure\)/.test(copiedY || ''),
+    (copiedY || '').match(/\((note|measure)\)/g)?.join(' ') || 'no pins');
+  wy.close();
+}
+
 // ---- the sections that need a painted frame ---------------------------------
 // Marks and badges only exist after the renderer runs, which is an animation
 // frame away. Everything above is synchronous; these are not, so they go last

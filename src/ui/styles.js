@@ -69,6 +69,16 @@
       border-radius: 50%; background: #2c2c31; color: #ff8a8a; font-size: 11px;
       display: flex; align-items: center; justify-content: center; }
     #__dbgov-list .rm:hover { background: #ff5c5c; color: #fff; }
+    /* Where the findings actually are. Dashed, never filled: a mark points at
+       a problem, it must not hide the thing it is pointing at.
+       CORE, not one tool's: every rule may mark its own findings, and this was
+       contrast's private CSS until dupid needed to mark its own too. A class
+       more than one tool emits cannot live in either one's sheet. */
+    .dbgov-flag { outline-offset: 1px; }
+    .dbgov-flag.error  { outline: 2px dashed #ff6b6b; }
+    .dbgov-flag.warn   { outline: 2px dashed #ffd54f; }
+    .dbgov-flag.info   { outline: 2px dashed #9ad0ff; }
+    .dbgov-flag.review { outline: 2px dotted #8ab4f8; }
     #__dbgov-bar .cnt.armed { background: #ff8a65; color: #1a1a1a; }
 
     .dbgov-badge { position: fixed; pointer-events: none; max-width: 92vw;

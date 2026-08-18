@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.44
+// @version      3.8.45
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -263,7 +263,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: '3.8.44',
+    VERSION: '3.8.45',
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -1262,13 +1262,6 @@ HOW TO USE
     .dbgov-badge .ok  { color: #b5e853; }
     .dbgov-badge .bad { color: #ff6b6b; font-weight: 700; }
     .dbgov-badge .unk { color: #8ab4f8; font-style: italic; }
-    /* where the findings actually are. dashed, never filled: a mark points at
-       a problem, it must not hide the thing it is pointing at */
-    .dbgov-flag { outline-offset: 1px; }
-    .dbgov-flag.error  { outline: 2px dashed #ff6b6b; }
-    .dbgov-flag.warn   { outline: 2px dashed #ffd54f; }
-    .dbgov-flag.info   { outline: 2px dashed #9ad0ff; }
-    .dbgov-flag.review { outline: 2px dotted #8ab4f8; }
     `,
       id: 'contrast',
       icon: '◐',
@@ -1418,6 +1411,27 @@ HOW TO USE
         return out;
       },
 
+      /**
+       * ITS OWN SURFACE. Findings reach the ⌕ list whether a rule is armed or
+       * not, so a rule with no draw() changed nothing at all when you switched
+       * it on — measured: armed alone, zero badges, zero marks, zero lines. A
+       * toggle that does nothing is worse than no toggle.
+       *
+       * `found` is this tool's own findings, handed over by the renderer. The
+       * mark classes are core: more than one rule paints them, so they cannot
+       * belong to whichever tool needed them first.
+       */
+      draw({ layer, Place, found }) {
+        for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
+          if (!document.contains(f.el)) continue;
+          const r = f.el.getBoundingClientRect();
+          const box = document.createElement('div');
+          box.className = 'dbgov-box dbgov-flag ' + f.severity;
+          Place.put(box, r.left, r.top, r.width, r.height);
+          layer.append(box);
+        }
+      },
+
       report({ el }) {
         if (!el.id) return [];
         const n = document.querySelectorAll(`[id="${CSS.escape ? CSS.escape(el.id) : el.id}"]`).length;
@@ -1445,6 +1459,30 @@ HOW TO USE
           why: 'One-off values are how a spacing scale erodes: each looks ' +
                'harmless alone, and together they are why nothing lines up.',
         },
+      },
+
+      /**
+       * ITS OWN SURFACE — the thing this tool was missing.
+       *
+       * annotate() below is a LENS: it decorates numbers other tools print, so
+       * with nothing else armed it had nothing to decorate and this tool showed
+       * absolutely nothing. Correct, silent and indistinguishable from broken —
+       * a measured fact: armed alone it produced zero badges and zero ⚠.
+       *
+       * A component has to be worth arming by itself. This says what is off the
+       * grid without needing anyone else to have printed it first, and stays
+       * useful next to measure because it summarises where measure enumerates.
+       */
+      badge(i) {
+        const bad = Scale.scan(i, true);
+        if (!bad.length) return null;
+        // by value, not by side: 7px used on three edges is one decision
+        const vals = [...new Set(bad.map(([, v]) => v))];
+        return `<span class="warn">⚠ ${vals.join(' ')} off ${Scale.step()}px</span>`;
+      },
+      compact(i) {
+        const bad = Scale.scan(i, true);
+        return bad.length ? `<span class="warn">⚠${bad.length}</span>` : null;
       },
 
       /**
@@ -1833,6 +1871,16 @@ HOW TO USE
       border-radius: 50%; background: #2c2c31; color: #ff8a8a; font-size: 11px;
       display: flex; align-items: center; justify-content: center; }
     #__dbgov-list .rm:hover { background: #ff5c5c; color: #fff; }
+    /* Where the findings actually are. Dashed, never filled: a mark points at
+       a problem, it must not hide the thing it is pointing at.
+       CORE, not one tool's: every rule may mark its own findings, and this was
+       contrast's private CSS until dupid needed to mark its own too. A class
+       more than one tool emits cannot live in either one's sheet. */
+    .dbgov-flag { outline-offset: 1px; }
+    .dbgov-flag.error  { outline: 2px dashed #ff6b6b; }
+    .dbgov-flag.warn   { outline: 2px dashed #ffd54f; }
+    .dbgov-flag.info   { outline: 2px dashed #9ad0ff; }
+    .dbgov-flag.review { outline: 2px dotted #8ab4f8; }
     #__dbgov-bar .cnt.armed { background: #ff8a65; color: #1a1a1a; }
 
     .dbgov-badge { position: fixed; pointer-events: none; max-width: 92vw;
@@ -2799,7 +2847,16 @@ HOW TO USE
         const el = document.elementFromPoint(e.clientX, e.clientY);
         if (!el || root.contains(el)) return;
         if (Interactions.claimed('click', e, el)) return;
-        ctl.togglePin(el, e.shiftKey ? CONFIG.PIN_KIND.SHIFT : CONFIG.PIN_KIND.PLAIN);
+        /* A SHIFT pin exists to be grouped and measured. With no armed tool
+           publishing groups there is nothing to group it, so it used to sit
+           there numbered and lime — promising a measurement that could never
+           arrive, which is what "it just counts 1, 2, 3, 4" was. Ask whether
+           anyone is listening; if not, a shift-click is simply a pin.
+
+           A capability question, not an id: whatever publishes groups tomorrow
+           answers it without this file learning a name. */
+        const grouped = e.shiftKey && Tools.withHook('groups', true).length > 0;
+        ctl.togglePin(el, grouped ? CONFIG.PIN_KIND.SHIFT : CONFIG.PIN_KIND.PLAIN);
       }, true);
 
       addEventListener('scroll', Render.schedule, true);

@@ -187,6 +187,20 @@ for (const t of tools) {
 
   const hooks = HOOKS.filter((h) => calls(t.s, h));
   if (!hooks.length) bad.push('implements no hook — nothing would ever call it');
+  /* EVERY TOOL MUST BE WORTH ARMING ALONE.
+     These are the hooks whose effect both depends on the tool being armed and
+     is visible on screen. The others cannot carry a tool by themselves:
+     `annotate` is a lens that decorates what OTHER tools print, so armed alone
+     it shows nothing; `report`/`reportTail` are text in a copied report; and
+     findings from `audit`/`auditPage` reach the ⌕ list whether the tool is
+     armed or not, so a rule with no `draw` changes nothing when switched on.
+     Both were measured, not guessed — grid and dupid each produced zero badges,
+     zero marks and zero lines armed by themselves, which is indistinguishable
+     from a broken tool. A button that does nothing is worse than no button. */
+  const SURFACE = ['badge', 'compact', 'draw', 'listRows', 'intercept'];
+  if (hooks.length && !SURFACE.some((h) => hooks.includes(h)))
+    bad.push(`no surface of its own (${hooks.join(', ')}) — armed alone this shows ` +
+             `nothing. Add one of: ${SURFACE.join(', ')}`);
   if (bad.length) fail++;
   console.log(`  ${bad.length ? '✗' : '✓'} ${t.f.replace('tools/', '').padEnd(16)} id=${(t.id || '??').padEnd(9)}` +
               `${String(t.lines).padStart(3)} lines  hooks: ${hooks.join(', ') || 'none'}`);

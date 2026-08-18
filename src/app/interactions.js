@@ -121,7 +121,16 @@
         const el = document.elementFromPoint(e.clientX, e.clientY);
         if (!el || root.contains(el)) return;
         if (Interactions.claimed('click', e, el)) return;
-        ctl.togglePin(el, e.shiftKey ? CONFIG.PIN_KIND.SHIFT : CONFIG.PIN_KIND.PLAIN);
+        /* A SHIFT pin exists to be grouped and measured. With no armed tool
+           publishing groups there is nothing to group it, so it used to sit
+           there numbered and lime — promising a measurement that could never
+           arrive, which is what "it just counts 1, 2, 3, 4" was. Ask whether
+           anyone is listening; if not, a shift-click is simply a pin.
+
+           A capability question, not an id: whatever publishes groups tomorrow
+           answers it without this file learning a name. */
+        const grouped = e.shiftKey && Tools.withHook('groups', true).length > 0;
+        ctl.togglePin(el, grouped ? CONFIG.PIN_KIND.SHIFT : CONFIG.PIN_KIND.PLAIN);
       }, true);
 
       addEventListener('scroll', Render.schedule, true);

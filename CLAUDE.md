@@ -231,6 +231,30 @@ through `groups()`; measure asks `Tools.groups()` and measures between whatever
 comes back. A lasso or a select-by-query is now one new file that every
 consumer picks up, and neither side learns the other's id.
 
+## Every tool must be worth arming alone
+`audit.js` fails a tool whose only hooks are `annotate`, `report` or a rule.
+None of those carry a tool by itself: a lens decorates what OTHER tools print,
+report text is not on screen, and findings reach the ⌕ list whether the rule is
+armed or not. Measured, not assumed — armed by themselves, grid produced zero
+badges and zero ⚠, and dupid changed nothing at all. A tool that is correct,
+armed and silent is indistinguishable from a broken one, and a button that does
+nothing is worse than no button.
+
+So a tool needs one of `badge`, `compact`, `draw`, `listRows`, `intercept`.
+grid gained its own badge (it summarises where measure enumerates, so both
+armed is not redundant); dupid gained `draw`, which is also why `.dbgov-flag`
+moved to `ui/styles.js` — more than one rule paints findings, so those classes
+cannot live in whichever tool needed them first.
+
+Enhancing another component stays welcome; it just may not be the whole reason
+a component exists.
+
+**Nothing may be created for a consumer that is not there.** A shift-click made
+a lime `measure` pin whether or not anything grouped it — numbered, promising a
+measurement that could never arrive. `app/interactions.js` asks whether any
+armed tool publishes `groups` and makes an ordinary pin if not. A capability
+question, never an id, so a lasso shipped tomorrow answers it unchanged.
+
 ## The one hook that writes
 `intercept({ type, ev, el })` is offered to armed tools before a click becomes
 a pin — `app/interactions.js` is where input enters, so it is the only place

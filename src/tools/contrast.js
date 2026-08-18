@@ -4,13 +4,6 @@
     .dbgov-badge .ok  { color: #b5e853; }
     .dbgov-badge .bad { color: #ff6b6b; font-weight: 700; }
     .dbgov-badge .unk { color: #8ab4f8; font-style: italic; }
-    /* where the findings actually are. dashed, never filled: a mark points at
-       a problem, it must not hide the thing it is pointing at */
-    .dbgov-flag { outline-offset: 1px; }
-    .dbgov-flag.error  { outline: 2px dashed #ff6b6b; }
-    .dbgov-flag.warn   { outline: 2px dashed #ffd54f; }
-    .dbgov-flag.info   { outline: 2px dashed #9ad0ff; }
-    .dbgov-flag.review { outline: 2px dotted #8ab4f8; }
     `,
       id: 'contrast',
       icon: '◐',
