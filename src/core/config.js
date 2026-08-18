@@ -38,6 +38,8 @@
     // shipped since — so a new capability arrives switched off and invisible.
     SEEN_KEY: '__dbgov_seen',
     FLASH_MS: 1200,           // how long a button shows a transient message
+    LIST_GAP: 10,             // px between the bar and the popover it opens
+    LIST_PAD: 6,              // px the popover keeps from the viewport edge
     // No DEFAULT_TOOLS list here any more. It named tool ids in a core file,
     // so shipping a tool that should start armed meant editing this — the one
     // place "a new tool is one new file" was not literally true. A tool says

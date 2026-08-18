@@ -1212,6 +1212,93 @@ console.log('\nSTANDS ALONE');
   wy.close();
 }
 
+console.log('\nPANEL AUDIT FIXES');
+/**
+ * Four defects a live audit of the panel found, each reproduced before the fix.
+ */
+{
+  const opts = { url: 'https://example.test/', pretendToBeVisual: true,
+                 runScripts: 'outside-only', virtualConsole: new VirtualConsole() };
+  const boot = (html, ls) => {
+    const d = new JSDOM(`<!doctype html><html><body>${html}</body></html>`, opts);
+    if (ls) Object.entries(ls).forEach(([k, v]) => d.window.localStorage.setItem(k, v));
+    d.window.eval(source);
+    d.window.dispatchEvent(new d.window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+    return d.window;
+  };
+
+  // 1. the popover must never sit under the bar, which paints and hit-tests
+  //    above it and would eat clicks meant for the rows
+  const wl = boot('<div id="a">a</div>');
+  const barL = wl.document.getElementById('__dbgov-bar');
+  const listL = wl.document.getElementById('__dbgov-list');
+  barL.getBoundingClientRect = () => ({ left: 620, top: 8, right: 672, bottom: 604,
+                                        width: 52, height: 596 });
+  Object.defineProperty(listL, 'offsetWidth', { value: 460, configurable: true });
+  Object.defineProperty(listL, 'offsetHeight', { value: 255, configurable: true });
+  const overlapsBar = () => {
+    const x = parseFloat(listL.style.left), y = parseFloat(listL.style.top);
+    const b = barL.getBoundingClientRect();
+    return !(x + 460 <= b.left || x >= b.right || y + 255 <= b.top || y >= b.bottom);
+  };
+  const misses = [];
+  for (const side of ['right', 'left', 'top', 'bottom']) {
+    wl.__side = side;
+    barL.querySelector('[data-settings]').dispatchEvent(new wl.MouseEvent('click', { bubbles: true }));
+    barL.querySelector('[data-settings]').dispatchEvent(new wl.MouseEvent('click', { bubbles: true }));
+    barL.querySelector('[data-settings]').dispatchEvent(new wl.MouseEvent('click', { bubbles: true }));
+    if (overlapsBar()) misses.push(`${side} @ ${listL.style.left},${listL.style.top}`);
+  }
+  ok('the popover never lands under the bar', !misses.length, misses.join(' | '));
+  wl.close();
+
+  // 2. an audit on the page must be visible in the bar and removable from it
+  const wa = boot('<p style="color:#bbb">faint</p>', { __dbgov_tools: '["contrast"]' });
+  const barA = wa.document.getElementById('__dbgov-bar');
+  barA.querySelector('[data-sweep]').dispatchEvent(new wa.MouseEvent('click', { bubbles: true }));
+  ok('the bar says an audit is showing',
+    barA.querySelector('[data-sweep]').classList.contains('swept'),
+    'the ⌕ flash expires, so the marks outlived any sign of them');
+  barA.querySelector('[data-clear]').dispatchEvent(new wa.MouseEvent('click', { bubbles: true }));
+  ok('and ✕ is the way out of it',
+    !barA.querySelector('[data-sweep]').classList.contains('swept'),
+    'clearing pins used to leave the outlines with no control at all');
+  wa.close();
+
+  // 3. a cap nobody is told about reads as "this is everything"
+  const many = Array.from({ length: 420 }, () => '<p style="color:#bbb;padding:7px">x</p>').join('');
+  const wc = boot(many, { __dbgov_tools: '["contrast"]' });
+  const barC = wc.document.getElementById('__dbgov-bar');
+  const listC = wc.document.getElementById('__dbgov-list');
+  let copiedC = null;
+  Object.defineProperty(wc.navigator, 'clipboard',
+    { value: { writeText: async (t) => { copiedC = t; } }, configurable: true });
+  barC.querySelector('[data-sweep]').dispatchEvent(new wc.MouseEvent('click', { bubbles: true }));
+  barC.querySelector('[data-copy]').dispatchEvent(new wc.MouseEvent('click', { bubbles: true }));
+  ok('the findings list says the page could not show them all',
+    /shows the first 200/.test((listC.querySelector('.head') || {}).textContent || ''),
+    (listC.querySelector('.head') || {}).textContent || '(no heading)');
+  ok('and so does the copied report',
+    /outlines capped at 200 per rule/.test(copiedC || ''),
+    (/## findings[^\n]*/.exec(copiedC || '') || ['none'])[0]);
+  wc.close();
+
+  // 4. Escape closes the top layer, never the session
+  const we = boot('<p style="color:#bbb">faint</p>');
+  const barE = we.document.getElementById('__dbgov-bar');
+  const listE = we.document.getElementById('__dbgov-list');
+  const esc = () => we.document.body
+    .dispatchEvent(new we.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  barE.querySelector('[data-sweep]').dispatchEvent(new we.MouseEvent('click', { bubbles: true }));
+  esc();
+  ok('Escape closes the open panel', !listE.classList.contains('open') && barE.classList.contains('on'),
+    `list ${listE.classList.contains('open') ? 'open' : 'closed'}, power ${barE.classList.contains('on') ? 'ON' : 'OFF'}`);
+  esc(); esc();
+  ok('and never powers the tool off', barE.classList.contains('on'),
+    'Escape used to end the session whenever nothing was pinned');
+  we.close();
+}
+
 // ---- the sections that need a painted frame ---------------------------------
 // Marks and badges only exist after the renderer runs, which is an animation
 // frame away. Everything above is synchronous; these are not, so they go last

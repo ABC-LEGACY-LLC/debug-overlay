@@ -28,7 +28,7 @@
       <button class="cnt whenOn" data-c data-view="pins" title="Pinned elements — click for the list">0</button>
       <button class="act whenOn" data-detail title="Compact / full badges">≡</button>
       <button class="act whenOn" data-copy title="Copy report">⧉</button>
-      <button class="act whenOn" data-clear title="Clear pins">✕</button>`;
+      <button class="act whenOn" data-clear title="Clear pins and the audit's marks">✕</button>`;
     root.append(el);
 
     // The popover is LIST's; this says where it hangs and lights up whichever
@@ -58,6 +58,14 @@
         el.querySelector(`[data-tool="${id}"]`)?.classList.toggle('armed', v);
       },
       setDetail(v) { el.querySelector('[data-detail]').classList.toggle('armed', v); },
+      /**
+       * Whether an audit is currently showing on the page. The ⌕ flash is
+       * transient by design, so once it expired the bar said "no audit has
+       * run" while the page was still wearing its outlines, and nothing in
+       * the bar admitted they existed or removed them. One state now drives
+       * both the button and the marks.
+       */
+      setSwept(v) { el.querySelector('[data-sweep]').classList.toggle('swept', v); },
       setRemoveMode(v) {
         el.classList.toggle('removing', v);
         const st = el.querySelector('[data-st]');

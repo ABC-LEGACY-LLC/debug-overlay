@@ -73,7 +73,10 @@
       const s = State.sweep;
       if (!s) return ' — pinned elements only';
       return ` — whole page · ${s.rules} rule${s.rules === 1 ? '' : 's'}` +
-             ` · ${s.elements} elements`;
+             ` · ${s.elements} elements` +
+             // the page could not show them all; this text can
+             (Object.values(s.byTool).some((f) => f.length > CONFIG.MARK_LIMIT)
+               ? ` · outlines capped at ${CONFIG.MARK_LIMIT} per rule` : '');
     },
     /**
      * Put text on the clipboard. Separate from copy() because it is not only

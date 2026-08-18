@@ -79,6 +79,10 @@
     .dbgov-flag.warn   { outline: 2px dashed #ffd54f; }
     .dbgov-flag.info   { outline: 2px dashed #9ad0ff; }
     .dbgov-flag.review { outline: 2px dotted #8ab4f8; }
+    /* an audit is on the page right now — distinct from .armed, which only
+       means the findings VIEW is the one open. No backticks in here: this
+       whole sheet is a template literal. */
+    #__dbgov-bar .act.swept { box-shadow: inset 0 0 0 2px #b5e853; }
     #__dbgov-bar .cnt.armed { background: #ff8a65; color: #1a1a1a; }
 
     .dbgov-badge { position: fixed; pointer-events: none; max-width: 92vw;

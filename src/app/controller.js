@@ -9,6 +9,7 @@
       // shift-click instead of measured from, so start the session clean.
       if (v) { try { getSelection()?.removeAllRanges(); } catch {} }
       if (!v) State.sweep = null;   // the page moves on; a stale audit lies
+      Panel.setSwept(!!State.sweep);
       Panel.setOn(v);
       Render.schedule();
     },
@@ -26,6 +27,7 @@
       // the grouped count, not the raw one: "3" is a page with three problems,
       // "5000" is the same page with one of them on every row
       Panel.flash(`${Sweep.group(State.sweep.findings).length}`, '[data-sweep]');
+      Panel.setSwept(true);
       Panel.toggleList(true, 'findings');
       Render.schedule();   // the marks are new; nothing else would ask for them
     },
@@ -62,13 +64,13 @@
          expensive thing the tool does (~77% getComputedStyle over every
          element) for a preference no rule consults. `affects` already says
          which is which. */
-      if (row.opt.affects === 'detect') State.sweep = null;
+      if (row.opt.affects === 'detect') { State.sweep = null; Panel.setSwept(false); }
       Render.schedule();
       Controller.refreshList();
     },
     /** One row per distinct problem, worst first. No pin, so nothing to remove. */
     findingRows() {
-      return Sweep.group(State.sweep ? State.sweep.findings : []).map((g) => ({
+      const rows = Sweep.group(State.sweep ? State.sweep.findings : []).map((g) => ({
         tag: (g.verdict === 'review' ? 'review' : g.severity) + (g.n > 1 ? ` ×${g.n}` : ''),
         label: g.message,
         // the leaf, not the whole path: a row has to be scannable, and the
@@ -77,6 +79,21 @@
         accent: g.verdict === 'review' ? 'review' : g.severity,
         el: g.el,
       }));
+      /* A cap nobody is told about reads as "this is everything on the page".
+         Only say it when it actually bit: a rule that DRAWS and is armed and
+         found more than it can paint. Asking per drawing tool rather than of
+         the raw total keeps the message true — the limit is per rule, and a
+         rule with no draw() paints nothing to cap. */
+      const capped = State.sweep ? Tools.withHook('draw', true)
+        .map((t) => (State.sweep.byTool[t.id] || []).length)
+        .filter((n) => n > CONFIG.MARK_LIMIT) : [];
+      if (capped.length) {
+        rows.unshift({
+          heading: `${Math.max(...capped)} found by one rule`,
+          detail: `the page shows the first ${CONFIG.MARK_LIMIT} of each — this list is complete`,
+        });
+      }
+      return rows;
     },
     /**
      * Three different silences, and they must not share a sentence. Nobody has
@@ -223,9 +240,17 @@
       Render.schedule();
       Controller.refreshList();
     },
+    /**
+     * Clears everything the overlay has put ON the page — pins and the audit's
+     * outlines. It used to clear pins only, so an audit's 200 outlines had no
+     * exit at all: the ⌕ flash expired, the bar looked idle, and the page
+     * stayed covered with no control that admitted it.
+     */
     clearPins() {
       State.pins = [];
       State.pinSeq = 0;
+      State.sweep = null;
+      Panel.setSwept(false);
       Render.schedule();
       Controller.refreshList();
     },

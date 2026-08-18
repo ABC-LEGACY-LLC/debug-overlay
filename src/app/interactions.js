@@ -66,9 +66,15 @@
         // cleared every pin and nothing on screen said why.
         if (e.key === 'Escape' && State.enabled &&
             !Interactions.typing(e) && !root.contains(e.target)) {
+          /* Escape closes the TOP LAYER, and never the session. It used to
+             fall through to setPower(false) whenever nothing was pinned, so
+             reading a page with the findings list open and no pins, one press
+             took the panel, the audit and the session with it — for a key
+             whose universal meaning is "close this". Power stays on the button
+             and on Alt+Shift+D, both of which say so. */
           if (State.removeMode) ctl.setRemoveMode(false);
+          else if (Panel.isListOpen()) Panel.toggleList(false);
           else if (State.pins.length) ctl.clearPins();
-          else ctl.setPower(false);
         }
       }, true);
 

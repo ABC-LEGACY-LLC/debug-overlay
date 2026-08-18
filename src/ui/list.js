@@ -18,18 +18,46 @@
     let view = null;      // opaque name of whichever view is showing
     let anchor = null;    // { el, side(), mark(view) } — supplied by PANEL
 
+    /**
+     * Put the popover beside the bar, and NEVER under it.
+     *
+     * The bar is the later sibling in the root and neither declares a z-index,
+     * so inside the root's stacking context the bar paints — and hit-tests —
+     * above this. An overlap is therefore not cosmetic: the bar swallows
+     * clicks meant for the rows beneath it. Restacking is the wrong fix, since
+     * putting the popover on top would bury the button you close it with.
+     *
+     * So: four candidate placements, each clamped into the viewport FIRST and
+     * only then tested for whether it still clears the bar. Preference follows
+     * the edge the bar snapped to, which keeps the ordinary case exactly where
+     * it has always been; the rest are fallbacks for when the clamp bites.
+     */
     function place() {
       if (!anchor) return;
       const r = anchor.el.getBoundingClientRect();
       const w = el.offsetWidth, h = el.offsetHeight;
+      const G = CONFIG.LIST_GAP, P = CONFIG.LIST_PAD;
+      const at = (x, y) => ({
+        x: Math.max(P, Math.min(x, innerWidth - w - P)),
+        y: Math.max(P, Math.min(y, innerHeight - h - P)),
+      });
+      const beside = {
+        right: () => at(r.left - w - G, r.top),
+        left: () => at(r.right + G, r.top),
+        below: () => at(r.left + r.width / 2 - w / 2, r.bottom + G),
+        above: () => at(r.left + r.width / 2 - w / 2, r.top - h - G),
+      };
       const side = anchor.side();
-      let x, y;
-      if (side === 'left')       { x = r.right + 10; y = r.top; }
-      else if (side === 'right') { x = r.left - w - 10; y = r.top; }
-      else if (side === 'top')   { x = r.left - w / 2 + r.width / 2; y = r.bottom + 10; }
-      else                       { x = r.left - w / 2 + r.width / 2; y = r.top - h - 10; }
-      el.style.left = Math.max(6, Math.min(x, innerWidth - w - 6)) + 'px';
-      el.style.top = Math.max(6, Math.min(y, innerHeight - h - 6)) + 'px';
+      const order = side === 'left' ? ['left', 'right', 'below', 'above']
+        : side === 'right' ? ['right', 'left', 'below', 'above']
+          : side === 'top' ? ['below', 'right', 'left', 'above']
+            : ['above', 'right', 'left', 'below'];
+      const clears = (c) => c.x + w <= r.left || c.x >= r.right ||
+                            c.y + h <= r.top || c.y >= r.bottom;
+      const tried = order.map((k) => beside[k]());
+      const pick = tried.find(clears) || tried[0];
+      el.style.left = pick.x + 'px';
+      el.style.top = pick.y + 'px';
     }
 
     const api = {

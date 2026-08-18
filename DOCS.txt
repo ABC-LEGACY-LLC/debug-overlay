@@ -15,7 +15,9 @@ HOW TO USE
                         are clickable — click one to delete it. Works even for
                         pins whose element is hard to hit again. Release to exit.
   Hold Alt ............ pass clicks through to the page (links keep working)
-  Esc ................. clear pins (press again to power off)
+  Esc ................. closes the top layer: an open panel first, then remove
+                        mode, then pins. It never powers the tool off — that is
+                        the ⏻ button and Alt+Shift+D, both of which say so.
   ≡ ................... compact / full badges
   ⌕ ................... audit the WHOLE page — every active rule runs over every
                         visible element, and the button shows how many distinct
@@ -37,7 +39,11 @@ HOW TO USE
                         screen. Click a row to scroll to it and flash it; click
                         its ✕ to remove (a pair row removes both). Click the
                         chip again to close it before taking a screenshot.
-  ✕ ................... clear pins
+  ✕ ................... clear pins AND the audit's outlines. Those outlines used
+                        to have no exit at all: the ⌕ flash expires after a
+                        second, so the bar looked idle while the page stayed
+                        covered. ⌕ now keeps a green ring while an audit is
+                        showing.
   Panel ............... drag by ⋮⋮; snaps to nearest edge; while OFF it tucks
                         away after ~2s leaving a 10px peek. Position remembered.
 

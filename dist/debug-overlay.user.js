@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.46
+// @version      3.8.47
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -31,7 +31,9 @@ HOW TO USE
                         are clickable — click one to delete it. Works even for
                         pins whose element is hard to hit again. Release to exit.
   Hold Alt ............ pass clicks through to the page (links keep working)
-  Esc ................. clear pins (press again to power off)
+  Esc ................. closes the top layer: an open panel first, then remove
+                        mode, then pins. It never powers the tool off — that is
+                        the ⏻ button and Alt+Shift+D, both of which say so.
   ≡ ................... compact / full badges
   ⌕ ................... audit the WHOLE page — every active rule runs over every
                         visible element, and the button shows how many distinct
@@ -53,7 +55,11 @@ HOW TO USE
                         screen. Click a row to scroll to it and flash it; click
                         its ✕ to remove (a pair row removes both). Click the
                         chip again to close it before taking a screenshot.
-  ✕ ................... clear pins
+  ✕ ................... clear pins AND the audit's outlines. Those outlines used
+                        to have no exit at all: the ⌕ flash expires after a
+                        second, so the bar looked idle while the page stayed
+                        covered. ⌕ now keeps a green ring while an audit is
+                        showing.
   Panel ............... drag by ⋮⋮; snaps to nearest edge; while OFF it tucks
                         away after ~2s leaving a 10px peek. Position remembered.
 
@@ -263,7 +269,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: '3.8.46',
+    VERSION: '3.8.47',
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -289,6 +295,8 @@ HOW TO USE
     // shipped since — so a new capability arrives switched off and invisible.
     SEEN_KEY: '__dbgov_seen',
     FLASH_MS: 1200,           // how long a button shows a transient message
+    LIST_GAP: 10,             // px between the bar and the popover it opens
+    LIST_PAD: 6,              // px the popover keeps from the viewport edge
     // No DEFAULT_TOOLS list here any more. It named tool ids in a core file,
     // so shipping a tool that should start armed meant editing this — the one
     // place "a new tool is one new file" was not literally true. A tool says
@@ -1885,6 +1893,10 @@ HOW TO USE
     .dbgov-flag.warn   { outline: 2px dashed #ffd54f; }
     .dbgov-flag.info   { outline: 2px dashed #9ad0ff; }
     .dbgov-flag.review { outline: 2px dotted #8ab4f8; }
+    /* an audit is on the page right now — distinct from .armed, which only
+       means the findings VIEW is the one open. No backticks in here: this
+       whole sheet is a template literal. */
+    #__dbgov-bar .act.swept { box-shadow: inset 0 0 0 2px #b5e853; }
     #__dbgov-bar .cnt.armed { background: #ff8a65; color: #1a1a1a; }
 
     .dbgov-badge { position: fixed; pointer-events: none; max-width: 92vw;
@@ -2089,18 +2101,46 @@ HOW TO USE
     let view = null;      // opaque name of whichever view is showing
     let anchor = null;    // { el, side(), mark(view) } — supplied by PANEL
 
+    /**
+     * Put the popover beside the bar, and NEVER under it.
+     *
+     * The bar is the later sibling in the root and neither declares a z-index,
+     * so inside the root's stacking context the bar paints — and hit-tests —
+     * above this. An overlap is therefore not cosmetic: the bar swallows
+     * clicks meant for the rows beneath it. Restacking is the wrong fix, since
+     * putting the popover on top would bury the button you close it with.
+     *
+     * So: four candidate placements, each clamped into the viewport FIRST and
+     * only then tested for whether it still clears the bar. Preference follows
+     * the edge the bar snapped to, which keeps the ordinary case exactly where
+     * it has always been; the rest are fallbacks for when the clamp bites.
+     */
     function place() {
       if (!anchor) return;
       const r = anchor.el.getBoundingClientRect();
       const w = el.offsetWidth, h = el.offsetHeight;
+      const G = CONFIG.LIST_GAP, P = CONFIG.LIST_PAD;
+      const at = (x, y) => ({
+        x: Math.max(P, Math.min(x, innerWidth - w - P)),
+        y: Math.max(P, Math.min(y, innerHeight - h - P)),
+      });
+      const beside = {
+        right: () => at(r.left - w - G, r.top),
+        left: () => at(r.right + G, r.top),
+        below: () => at(r.left + r.width / 2 - w / 2, r.bottom + G),
+        above: () => at(r.left + r.width / 2 - w / 2, r.top - h - G),
+      };
       const side = anchor.side();
-      let x, y;
-      if (side === 'left')       { x = r.right + 10; y = r.top; }
-      else if (side === 'right') { x = r.left - w - 10; y = r.top; }
-      else if (side === 'top')   { x = r.left - w / 2 + r.width / 2; y = r.bottom + 10; }
-      else                       { x = r.left - w / 2 + r.width / 2; y = r.top - h - 10; }
-      el.style.left = Math.max(6, Math.min(x, innerWidth - w - 6)) + 'px';
-      el.style.top = Math.max(6, Math.min(y, innerHeight - h - 6)) + 'px';
+      const order = side === 'left' ? ['left', 'right', 'below', 'above']
+        : side === 'right' ? ['right', 'left', 'below', 'above']
+          : side === 'top' ? ['below', 'right', 'left', 'above']
+            : ['above', 'right', 'left', 'below'];
+      const clears = (c) => c.x + w <= r.left || c.x >= r.right ||
+                            c.y + h <= r.top || c.y >= r.bottom;
+      const tried = order.map((k) => beside[k]());
+      const pick = tried.find(clears) || tried[0];
+      el.style.left = pick.x + 'px';
+      el.style.top = pick.y + 'px';
     }
 
     const api = {
@@ -2235,7 +2275,7 @@ HOW TO USE
       <button class="cnt whenOn" data-c data-view="pins" title="Pinned elements — click for the list">0</button>
       <button class="act whenOn" data-detail title="Compact / full badges">≡</button>
       <button class="act whenOn" data-copy title="Copy report">⧉</button>
-      <button class="act whenOn" data-clear title="Clear pins">✕</button>`;
+      <button class="act whenOn" data-clear title="Clear pins and the audit's marks">✕</button>`;
     root.append(el);
 
     // The popover is LIST's; this says where it hangs and lights up whichever
@@ -2265,6 +2305,14 @@ HOW TO USE
         el.querySelector(`[data-tool="${id}"]`)?.classList.toggle('armed', v);
       },
       setDetail(v) { el.querySelector('[data-detail]').classList.toggle('armed', v); },
+      /**
+       * Whether an audit is currently showing on the page. The ⌕ flash is
+       * transient by design, so once it expired the bar said "no audit has
+       * run" while the page was still wearing its outlines, and nothing in
+       * the bar admitted they existed or removed them. One state now drives
+       * both the button and the marks.
+       */
+      setSwept(v) { el.querySelector('[data-sweep]').classList.toggle('swept', v); },
       setRemoveMode(v) {
         el.classList.toggle('removing', v);
         const st = el.querySelector('[data-st]');
@@ -2700,7 +2748,10 @@ HOW TO USE
       const s = State.sweep;
       if (!s) return ' — pinned elements only';
       return ` — whole page · ${s.rules} rule${s.rules === 1 ? '' : 's'}` +
-             ` · ${s.elements} elements`;
+             ` · ${s.elements} elements` +
+             // the page could not show them all; this text can
+             (Object.values(s.byTool).some((f) => f.length > CONFIG.MARK_LIMIT)
+               ? ` · outlines capped at ${CONFIG.MARK_LIMIT} per rule` : '');
     },
     /**
      * Put text on the clipboard. Separate from copy() because it is not only
@@ -2796,9 +2847,15 @@ HOW TO USE
         // cleared every pin and nothing on screen said why.
         if (e.key === 'Escape' && State.enabled &&
             !Interactions.typing(e) && !root.contains(e.target)) {
+          /* Escape closes the TOP LAYER, and never the session. It used to
+             fall through to setPower(false) whenever nothing was pinned, so
+             reading a page with the findings list open and no pins, one press
+             took the panel, the audit and the session with it — for a key
+             whose universal meaning is "close this". Power stays on the button
+             and on Alt+Shift+D, both of which say so. */
           if (State.removeMode) ctl.setRemoveMode(false);
+          else if (Panel.isListOpen()) Panel.toggleList(false);
           else if (State.pins.length) ctl.clearPins();
-          else ctl.setPower(false);
         }
       }, true);
 
@@ -2880,6 +2937,7 @@ HOW TO USE
       // shift-click instead of measured from, so start the session clean.
       if (v) { try { getSelection()?.removeAllRanges(); } catch {} }
       if (!v) State.sweep = null;   // the page moves on; a stale audit lies
+      Panel.setSwept(!!State.sweep);
       Panel.setOn(v);
       Render.schedule();
     },
@@ -2897,6 +2955,7 @@ HOW TO USE
       // the grouped count, not the raw one: "3" is a page with three problems,
       // "5000" is the same page with one of them on every row
       Panel.flash(`${Sweep.group(State.sweep.findings).length}`, '[data-sweep]');
+      Panel.setSwept(true);
       Panel.toggleList(true, 'findings');
       Render.schedule();   // the marks are new; nothing else would ask for them
     },
@@ -2933,13 +2992,13 @@ HOW TO USE
          expensive thing the tool does (~77% getComputedStyle over every
          element) for a preference no rule consults. `affects` already says
          which is which. */
-      if (row.opt.affects === 'detect') State.sweep = null;
+      if (row.opt.affects === 'detect') { State.sweep = null; Panel.setSwept(false); }
       Render.schedule();
       Controller.refreshList();
     },
     /** One row per distinct problem, worst first. No pin, so nothing to remove. */
     findingRows() {
-      return Sweep.group(State.sweep ? State.sweep.findings : []).map((g) => ({
+      const rows = Sweep.group(State.sweep ? State.sweep.findings : []).map((g) => ({
         tag: (g.verdict === 'review' ? 'review' : g.severity) + (g.n > 1 ? ` ×${g.n}` : ''),
         label: g.message,
         // the leaf, not the whole path: a row has to be scannable, and the
@@ -2948,6 +3007,21 @@ HOW TO USE
         accent: g.verdict === 'review' ? 'review' : g.severity,
         el: g.el,
       }));
+      /* A cap nobody is told about reads as "this is everything on the page".
+         Only say it when it actually bit: a rule that DRAWS and is armed and
+         found more than it can paint. Asking per drawing tool rather than of
+         the raw total keeps the message true — the limit is per rule, and a
+         rule with no draw() paints nothing to cap. */
+      const capped = State.sweep ? Tools.withHook('draw', true)
+        .map((t) => (State.sweep.byTool[t.id] || []).length)
+        .filter((n) => n > CONFIG.MARK_LIMIT) : [];
+      if (capped.length) {
+        rows.unshift({
+          heading: `${Math.max(...capped)} found by one rule`,
+          detail: `the page shows the first ${CONFIG.MARK_LIMIT} of each — this list is complete`,
+        });
+      }
+      return rows;
     },
     /**
      * Three different silences, and they must not share a sentence. Nobody has
@@ -3094,9 +3168,17 @@ HOW TO USE
       Render.schedule();
       Controller.refreshList();
     },
+    /**
+     * Clears everything the overlay has put ON the page — pins and the audit's
+     * outlines. It used to clear pins only, so an audit's 200 outlines had no
+     * exit at all: the ⌕ flash expired, the bar looked idle, and the page
+     * stayed covered with no control that admitted it.
+     */
     clearPins() {
       State.pins = [];
       State.pinSeq = 0;
+      State.sweep = null;
+      Panel.setSwept(false);
       Render.schedule();
       Controller.refreshList();
     },
