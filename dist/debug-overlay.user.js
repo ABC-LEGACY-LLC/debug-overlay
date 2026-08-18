@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.47
+// @version      3.8.48
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -269,7 +269,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: '3.8.47',
+    VERSION: '3.8.48',
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -367,7 +367,15 @@ HOW TO USE
         // had, so nobody's tools and settings reset on the day it shipped —
         // and write it through, so the next origin inherits it too.
         const old = localStorage.getItem(key);
-        if (old !== null) { GM_setValue(key, old); return old; }
+        if (old !== null) {
+          GM_setValue(key, old);
+          // and remove the original. Adoption used to copy and leave, so every
+          // site the script had ever touched kept a stale duplicate that went
+          // wrong the moment the GM copy changed — two answers to one question,
+          // with only one of them read.
+          try { localStorage.removeItem(key); } catch {}
+          return old;
+        }
         return null;
       } catch { return null; }
     },
@@ -1679,6 +1687,11 @@ HOW TO USE
        * report or a translation file. Both are things you would otherwise
        * select by hand and get wrong at the edges.
        */
+      /** Its own gesture, declared where the gesture lives. */
+      gestures() {
+        return [{ keys: 'Ctrl/⌘+click', does: 'copy what you clicked' }];
+      },
+
       options() {
         return [{ key: 'what', label: 'Ctrl+click copies', def: 'selector',
                   values: ['selector', 'text'], affects: 'act' }];
@@ -1828,7 +1841,10 @@ HOW TO USE
     .dbgov-pinbox.waiting { outline-color: #58c4ff; }
     .dbgov-pinbox.rmtarget { outline: 2px solid #ff5c5c; background: rgba(255,92,92,.10); }
     .dbgov-pinbox.flash { outline: 2.5px solid #58c4ff;
-      background: rgba(88,196,255,.18); animation: dbgov-pulse .9s ease-out; }
+      background: rgba(88,196,255,.18); }
+    @media (prefers-reduced-motion: no-preference) {
+      .dbgov-pinbox.flash { animation: dbgov-pulse .9s ease-out; }
+    }
     @keyframes dbgov-pulse {
       0% { box-shadow: 0 0 0 0 rgba(88,196,255,.55); }
       100% { box-shadow: 0 0 0 16px rgba(88,196,255,0); } }
@@ -1868,11 +1884,19 @@ HOW TO USE
       border-radius: 6px; padding: 3px 6px; }
     #__dbgov-list .opt:hover { background: #3a3a41; }
     /* what the settings under it change — the category, not the owning tool */
+    /* which of the three screens this is — one slot showed findings, pins and
+       settings with no header at all, so nothing said what you were reading */
+    #__dbgov-list .viewhead { padding: 4px 8px 8px; color: #fff; font-size: 13px;
+      font-weight: 800; border-bottom: 1px solid rgba(255,255,255,.10); margin-bottom: 4px; }
+    #__dbgov-list .viewhead .note { display: block; margin-top: 2px; color: #8f8f96;
+      font-size: 10px; font-weight: 400; }
     #__dbgov-list .head { padding: 10px 8px 4px; color: #8f8f96;
       font-size: 10px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
     #__dbgov-list .head:first-child { padding-top: 4px; }
     #__dbgov-list .head .note { display: block; margin-top: 2px;
       font-size: 10px; font-weight: 400; letter-spacing: 0; text-transform: none; }
+    /* stored and waiting — the tool that reads it is switched off */
+    #__dbgov-list .row.inert .lbl, #__dbgov-list .row.inert .tag { opacity: .45; }
     #__dbgov-list .num { flex: none; display: flex; align-items: center; gap: 4px; }
     #__dbgov-list .num .opt { width: 68px; text-align: right; }
     #__dbgov-list .unit { color: #8f8f96; font-weight: 400; }
@@ -1897,6 +1921,14 @@ HOW TO USE
        means the findings VIEW is the one open. No backticks in here: this
        whole sheet is a template literal. */
     #__dbgov-bar .act.swept { box-shadow: inset 0 0 0 2px #b5e853; }
+    /* There was no designed focus indicator anywhere in this sheet — a
+       keyboard user could tab through 13 controls with nothing to show where
+       they were. :focus-visible only, so a mouse click does not draw one. */
+    #__dbgov-root :focus-visible { outline: 2px solid #58c4ff; outline-offset: 2px; }
+    /* WCAG 2.5.8 wants 24x24. These three were 18x21, 20x20 and 15x15. */
+    #__dbgov-bar .cnt { min-width: 24px; min-height: 24px; }
+    #__dbgov-list .rm { width: 24px; height: 24px; }
+    #__dbgov-list .tick { width: 24px; height: 24px; }
     #__dbgov-bar .cnt.armed { background: #ff8a65; color: #1a1a1a; }
 
     .dbgov-badge { position: fixed; pointer-events: none; max-width: 92vw;
@@ -1983,7 +2015,15 @@ HOW TO USE
      ====================================================================== */
   const root = document.createElement('div');
   root.id = '__dbgov-root';
-  root.setAttribute('aria-hidden', 'true');
+  /* NOT aria-hidden. This root holds 13 tabbable buttons, so hiding it told
+     assistive tech the subtree does not exist while keyboard focus could still
+     land inside it — axe's aria-hidden-focus, WCAG 4.1.2. The decorative
+     layers get it instead (see the layer below and .dbgov-box/.dbgov-badge/
+     .dbgov-flag, all pointer-events:none), and the whole root goes `inert`
+     while powered off, which hides it from AT AND takes it out of the tab
+     order — the thing aria-hidden alone could never do. */
+  root.setAttribute('role', 'region');
+  root.setAttribute('aria-label', 'Debug overlay');
   /**
    * One sheet per tool, plus the core — not one sheet for all of them.
    *
@@ -2002,6 +2042,9 @@ HOW TO USE
   sheet(CSS);
   for (const t of TOOLS) if (t.css) sheet(t.css, t.id);
   const layer = document.createElement('div');
+  // everything painted onto the page is decoration: no text an AT user needs,
+  // and already unclickable
+  layer.setAttribute('aria-hidden', 'true');
   root.append(layer);
   document.documentElement.append(root);
 
@@ -2194,10 +2237,10 @@ HOW TO USE
              many came before it — changing the wrong setting entirely. It is
              not clickable and carries no control, so nothing can be fired
              from it. */
-          if (row.heading) {
+          if (row.title || row.heading) {
             const h = document.createElement('div');
-            h.className = 'head';
-            h.textContent = row.heading;
+            h.className = row.title ? 'viewhead' : 'head';
+            h.textContent = row.title || row.heading;
             if (row.detail) {
               const n = document.createElement('span');
               n.className = 'note';
@@ -2217,6 +2260,7 @@ HOW TO USE
           lbl.textContent = row.label;         // textContent: page text is never HTML here
           // carried, not interpreted — the stylesheet decides what it means
           if (row.accent) r.dataset.accent = row.accent;
+          if (row.inert) r.classList.add('inert');
           r.addEventListener('click', () => api.onRowActivate?.(i));
           if (row.control) {
             r.append(tag, lbl, Controls.build(row.control, (raw) => api.onRowChange?.(i, raw)));
@@ -2284,7 +2328,11 @@ HOW TO USE
       el,
       side: () => side,
       mark: (view) => el.querySelectorAll('[data-view]').forEach(
-        (b) => b.classList.toggle('armed', !!view && b.dataset.view === view)),
+        (b) => {
+          const on = !!view && b.dataset.view === view;
+          b.classList.toggle('armed', on);
+          b.setAttribute('aria-pressed', String(on));
+        }),
     });
 
     // button -> { original, timer } while a transient message is showing
@@ -2296,15 +2344,24 @@ HOW TO USE
       onListOpen: null, onRowActivate: null, onRowRemove: null, onSweep: null,
       onRowChange: null,
       setOn(v) {
+        // Powered off the overlay is not just invisible, it is not there: inert
+        // removes it from the tab order and from the accessibility tree at once.
+        root.toggleAttribute('inert', !v);
         el.classList.toggle('on', v);
         el.querySelector('[data-st]').textContent = v ? 'ON' : 'OFF';
         if (!v) api.toggleList(false);
         if (v) { clearTimeout(tuckTimer); untuck(); } else scheduleTuck();
       },
       setTool(id, v) {
-        el.querySelector(`[data-tool="${id}"]`)?.classList.toggle('armed', v);
+        const b = el.querySelector(`[data-tool="${id}"]`);
+        b?.classList.toggle('armed', v);
+        b?.setAttribute('aria-pressed', String(!!v));
       },
-      setDetail(v) { el.querySelector('[data-detail]').classList.toggle('armed', v); },
+      setDetail(v) {
+        const b = el.querySelector('[data-detail]');
+        b.classList.toggle('armed', v);
+        b.setAttribute('aria-pressed', String(!!v));
+      },
       /**
        * Whether an audit is currently showing on the page. The ⌕ flash is
        * transient by design, so once it expired the bar said "no audit has
@@ -2359,6 +2416,17 @@ HOW TO USE
     List.onRowActivate = (i) => api.onRowActivate?.(i);
     List.onRowRemove = (i) => api.onRowRemove?.(i);
     List.onRowChange = (i, raw) => api.onRowChange?.(i, raw);
+
+    /* A glyph is not a name. Every control carries a title for sighted users;
+       the first clause of it is the accessible name, and every toggle says
+       whether it is on — a screen reader had no way to tell an armed tool from
+       a disarmed one, because "armed" was a CSS class and nothing else. */
+    el.querySelectorAll('button').forEach((b) => {
+      const name = (b.title || '').split(/[\n·—]/)[0].trim();
+      if (name) b.setAttribute('aria-label', name);
+    });
+    el.querySelectorAll('[data-tool], [data-detail], [data-view]')
+      .forEach((b) => b.setAttribute('aria-pressed', 'false'));
 
     el.querySelector('.pwr').addEventListener('click', () => api.onToggle?.());
     el.querySelectorAll('[data-tool]').forEach((b) =>
@@ -2595,9 +2663,22 @@ HOW TO USE
         n.className = 'dbgov-pin-num' + kindCls;
         n.textContent = waiting ? p.id + '…' : p.id;
         layer.append(box, n);
-        const nx = Math.max(2, i.r.left - 10), ny = Math.max(2, i.r.top - 10);
-        Place.put(n, nx, ny);
-        Place.claim(nx, ny, waiting ? 32 : 22, 22);
+        /* A pin scrolled out of view used to have its number CLAMPED to the
+           viewport edge, so two stranded chips ended up sitting on the page's
+           own header reading as though they described it. The box tracks the
+           true rect correctly; it is the clamp that lies. Off-screen pins are
+           the pin list's job — it exists to reach exactly those. */
+        // STRICTLY outside: an element touching an edge, or a degenerate 0x0
+        // rect at the origin, is still somewhere you can look at.
+        const onScreen = !(i.r.bottom < 0 || i.r.top > innerHeight ||
+                           i.r.right < 0 || i.r.left > innerWidth);
+        if (onScreen) {
+          const nx = Math.max(2, i.r.left - 10), ny = Math.max(2, i.r.top - 10);
+          Place.put(n, nx, ny);
+          Place.claim(nx, ny, waiting ? 32 : 22, 22);
+        } else {
+          n.remove();
+        }
 
         // remove mode: a ✕ chip on every pin, enlarged on the one under the cursor
         if (State.removeMode) {
@@ -2636,6 +2717,10 @@ HOW TO USE
 
       // 3) pin badges — compact unless detail mode or that pin is hovered
       pinInfo.forEach(({ p, i }) => {
+        // same reason as the number chip above: a badge clamped to the edge
+        // describes an element nobody can see, next to elements it is not about
+        if (i.r.bottom < 0 || i.r.top > innerHeight ||
+            i.r.right < 0 || i.r.left > innerWidth) return;
         const full = State.detail || State.hoverEl === p.el;
         const html = Badges.build(i, !full);
         if (!html) return;
@@ -2962,8 +3047,37 @@ HOW TO USE
 
     /** Rows for whichever view the panel is showing. */
     rows(view) {
-      if (view === 'settings') return Settings.rows();
-      return view === 'findings' ? Controller.findingRows() : Controller.pinList();
+      const body = view === 'settings' ? Settings.rows()
+        : view === 'findings' ? Controller.findingRows() : Controller.pinList();
+      // Only when there IS a body: List shows its empty state on rows.length
+      // === 0, and a title alone would suppress the one sentence that explains
+      // why the view is empty.
+      if (!body.length) return body;
+      const t = Controller.viewTitle(view, body);
+      return t ? [t, ...body] : body;
+    },
+
+    /**
+     * One popover shows three unrelated screens with no header, so nothing on
+     * screen said what you were looking at — or that opening one destroyed the
+     * last. It also labels the two numbers an audit produces: the ⌕ flash
+     * counts distinct problems and the report counts occurrences, and neither
+     * said which it was.
+     */
+    viewTitle(view, body) {
+      if (view === 'settings') return { title: 'Settings', detail: 'what each tool checks and shows' };
+      if (view === 'pins') {
+        const n = State.pins.length;
+        return { title: 'Pins', detail: `${n} pinned element${n === 1 ? '' : 's'}` };
+      }
+      const s = State.sweep;
+      if (!s) return { title: 'Findings', detail: 'no audit has run' };
+      const groups = body.filter((r) => !r.heading && !r.title).length;
+      return {
+        title: 'Findings',
+        detail: `${groups} distinct problem${groups === 1 ? '' : 's'} · ` +
+                `${s.findings.length} occurrence${s.findings.length === 1 ? '' : 's'}`,
+      };
     },
 
     /**
@@ -3159,7 +3273,11 @@ HOW TO USE
       Controller._flash = setTimeout(() => { State.flashPins = null; Render.schedule(); }, 900);
     },
     removeRow(i) {
-      const row = Controller.pinList()[i];
+      /* rows(view), not pinList(): the panel hands back the index of what it
+         RENDERED, and that array now carries a title row. Indexing a different
+         list is how ✕ removed the wrong pin before. */
+      const row = Controller.rows(Panel.view())[i];
+      if (!row || !row.pins) return;
       if (!row) return;
       row.pins.forEach((p) => {
         const k = State.pins.indexOf(p);
@@ -3229,6 +3347,13 @@ HOW TO USE
               tag: t.icon,
               label: o.label,
               control: Settings.controlFor(o, Tools.setting(t, o.key)),
+              /* A tool's own option does nothing while that tool is disarmed —
+                 stored and waiting, not live. Hiding the row would be wrong,
+                 since the value applies the moment you arm it; looking active
+                 was the confusion, so it is dimmed. A SUBJECT has no armed
+                 state: its settings feed the sweep, which runs every rule
+                 either way, so those are never inert. */
+              inert: Tools.all.includes(t) && !State.tools.has(t.id),
               tool: t, opt: o,
             });
           }
@@ -3237,7 +3362,39 @@ HOW TO USE
         out.push({ heading: r.label, detail: r.note });
         out.push(...rows);
       }
+      const keys = Settings.gestureRows();
+      if (keys.length) {
+        out.push({ heading: 'Keys', detail: 'the parts of this that are not buttons' });
+        out.push(...keys);
+      }
       return out;
+    },
+
+    /**
+     * THE GESTURES. Three of them — Alt+click, the remove key, Escape — existed
+     * nowhere in the running UI at all: a user who had not read the source
+     * could not find them, which for Alt+click meant the pass-through everyone
+     * asks for looked like a missing feature.
+     *
+     * Key NAMES come from CONFIG so they cannot drift from what is bound, and a
+     * tool that claims a gesture of its own declares it, so nothing central has
+     * to keep a list of what the tools do.
+     */
+    gestureRows() {
+      const H = CONFIG.HOTKEY;
+      const hot = [H.ctrl && 'Ctrl', H.alt && 'Alt', H.shift && 'Shift',
+                   H.code.replace('Key', '')].filter(Boolean).join('+');
+      const rows = [
+        ['Click', 'pin an element'],
+        ['Shift+click', 'pin it for measuring'],
+        ['Alt+click', 'let the click through to the page'],
+        [`Hold ${CONFIG.REMOVE_KEY.replace('Key', '')}`, 'show ✕ on every pin'],
+        ['Esc', 'close the panel, then the pins'],
+        [hot, 'power on and off'],
+      ];
+      for (const t of Tools.withHook('gestures'))
+        for (const g of t.gestures.call(t) || []) rows.push([g.keys, g.does]);
+      return rows.map(([keys, does]) => ({ tag: keys, label: does, detail: '' }));
     },
 
     /**

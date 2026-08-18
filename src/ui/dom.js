@@ -3,7 +3,15 @@
      ====================================================================== */
   const root = document.createElement('div');
   root.id = '__dbgov-root';
-  root.setAttribute('aria-hidden', 'true');
+  /* NOT aria-hidden. This root holds 13 tabbable buttons, so hiding it told
+     assistive tech the subtree does not exist while keyboard focus could still
+     land inside it — axe's aria-hidden-focus, WCAG 4.1.2. The decorative
+     layers get it instead (see the layer below and .dbgov-box/.dbgov-badge/
+     .dbgov-flag, all pointer-events:none), and the whole root goes `inert`
+     while powered off, which hides it from AT AND takes it out of the tab
+     order — the thing aria-hidden alone could never do. */
+  root.setAttribute('role', 'region');
+  root.setAttribute('aria-label', 'Debug overlay');
   /**
    * One sheet per tool, plus the core — not one sheet for all of them.
    *
@@ -22,5 +30,8 @@
   sheet(CSS);
   for (const t of TOOLS) if (t.css) sheet(t.css, t.id);
   const layer = document.createElement('div');
+  // everything painted onto the page is decoration: no text an AT user needs,
+  // and already unclickable
+  layer.setAttribute('aria-hidden', 'true');
   root.append(layer);
   document.documentElement.append(root);

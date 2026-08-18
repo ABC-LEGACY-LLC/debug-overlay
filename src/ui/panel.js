@@ -37,7 +37,11 @@
       el,
       side: () => side,
       mark: (view) => el.querySelectorAll('[data-view]').forEach(
-        (b) => b.classList.toggle('armed', !!view && b.dataset.view === view)),
+        (b) => {
+          const on = !!view && b.dataset.view === view;
+          b.classList.toggle('armed', on);
+          b.setAttribute('aria-pressed', String(on));
+        }),
     });
 
     // button -> { original, timer } while a transient message is showing
@@ -49,15 +53,24 @@
       onListOpen: null, onRowActivate: null, onRowRemove: null, onSweep: null,
       onRowChange: null,
       setOn(v) {
+        // Powered off the overlay is not just invisible, it is not there: inert
+        // removes it from the tab order and from the accessibility tree at once.
+        root.toggleAttribute('inert', !v);
         el.classList.toggle('on', v);
         el.querySelector('[data-st]').textContent = v ? 'ON' : 'OFF';
         if (!v) api.toggleList(false);
         if (v) { clearTimeout(tuckTimer); untuck(); } else scheduleTuck();
       },
       setTool(id, v) {
-        el.querySelector(`[data-tool="${id}"]`)?.classList.toggle('armed', v);
+        const b = el.querySelector(`[data-tool="${id}"]`);
+        b?.classList.toggle('armed', v);
+        b?.setAttribute('aria-pressed', String(!!v));
       },
-      setDetail(v) { el.querySelector('[data-detail]').classList.toggle('armed', v); },
+      setDetail(v) {
+        const b = el.querySelector('[data-detail]');
+        b.classList.toggle('armed', v);
+        b.setAttribute('aria-pressed', String(!!v));
+      },
       /**
        * Whether an audit is currently showing on the page. The ⌕ flash is
        * transient by design, so once it expired the bar said "no audit has
@@ -112,6 +125,17 @@
     List.onRowActivate = (i) => api.onRowActivate?.(i);
     List.onRowRemove = (i) => api.onRowRemove?.(i);
     List.onRowChange = (i, raw) => api.onRowChange?.(i, raw);
+
+    /* A glyph is not a name. Every control carries a title for sighted users;
+       the first clause of it is the accessible name, and every toggle says
+       whether it is on — a screen reader had no way to tell an armed tool from
+       a disarmed one, because "armed" was a CSS class and nothing else. */
+    el.querySelectorAll('button').forEach((b) => {
+      const name = (b.title || '').split(/[\n·—]/)[0].trim();
+      if (name) b.setAttribute('aria-label', name);
+    });
+    el.querySelectorAll('[data-tool], [data-detail], [data-view]')
+      .forEach((b) => b.setAttribute('aria-pressed', 'false'));
 
     el.querySelector('.pwr').addEventListener('click', () => api.onToggle?.());
     el.querySelectorAll('[data-tool]').forEach((b) =>

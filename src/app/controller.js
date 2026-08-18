@@ -34,8 +34,37 @@
 
     /** Rows for whichever view the panel is showing. */
     rows(view) {
-      if (view === 'settings') return Settings.rows();
-      return view === 'findings' ? Controller.findingRows() : Controller.pinList();
+      const body = view === 'settings' ? Settings.rows()
+        : view === 'findings' ? Controller.findingRows() : Controller.pinList();
+      // Only when there IS a body: List shows its empty state on rows.length
+      // === 0, and a title alone would suppress the one sentence that explains
+      // why the view is empty.
+      if (!body.length) return body;
+      const t = Controller.viewTitle(view, body);
+      return t ? [t, ...body] : body;
+    },
+
+    /**
+     * One popover shows three unrelated screens with no header, so nothing on
+     * screen said what you were looking at — or that opening one destroyed the
+     * last. It also labels the two numbers an audit produces: the ⌕ flash
+     * counts distinct problems and the report counts occurrences, and neither
+     * said which it was.
+     */
+    viewTitle(view, body) {
+      if (view === 'settings') return { title: 'Settings', detail: 'what each tool checks and shows' };
+      if (view === 'pins') {
+        const n = State.pins.length;
+        return { title: 'Pins', detail: `${n} pinned element${n === 1 ? '' : 's'}` };
+      }
+      const s = State.sweep;
+      if (!s) return { title: 'Findings', detail: 'no audit has run' };
+      const groups = body.filter((r) => !r.heading && !r.title).length;
+      return {
+        title: 'Findings',
+        detail: `${groups} distinct problem${groups === 1 ? '' : 's'} · ` +
+                `${s.findings.length} occurrence${s.findings.length === 1 ? '' : 's'}`,
+      };
     },
 
     /**
@@ -231,7 +260,11 @@
       Controller._flash = setTimeout(() => { State.flashPins = null; Render.schedule(); }, 900);
     },
     removeRow(i) {
-      const row = Controller.pinList()[i];
+      /* rows(view), not pinList(): the panel hands back the index of what it
+         RENDERED, and that array now carries a title row. Indexing a different
+         list is how ✕ removed the wrong pin before. */
+      const row = Controller.rows(Panel.view())[i];
+      if (!row || !row.pins) return;
       if (!row) return;
       row.pins.forEach((p) => {
         const k = State.pins.indexOf(p);

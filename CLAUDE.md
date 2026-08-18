@@ -255,6 +255,35 @@ measurement that could never arrive. `app/interactions.js` asks whether any
 armed tool publishes `groups` and makes an ordinary pin if not. A capability
 question, never an id, so a lasso shipped tomorrow answers it unchanged.
 
+## The panel must not lie about itself
+Six defects a live audit found, each now guarded by a test:
+
+- **The bar paints AND hit-tests above the popover** (later sibling, both
+  `z-index: auto`), so an overlap eats clicks meant for rows. `List.place()`
+  clamps four candidates into the viewport and takes the first that still
+  clears the bar. Do not fix this by restacking — putting the popover on top
+  buries the button that closes it.
+- **A `Panel.flash` is transient, so it cannot be the only sign of state.** The
+  ⌕ count expired and the bar then looked idle while the page still wore 200
+  outlines per rule, with no control that removed them. `Panel.setSwept` and
+  ✕-clears-the-audit are one state, driven together.
+- **A cap must say so**, and only when it bit — asked per armed drawing rule,
+  because the limit is per rule and a rule with no `draw()` caps nothing.
+- **Escape closes the top layer, never the session.** It used to fall through to
+  `setPower(false)` whenever nothing was pinned.
+- **Nothing clamped to a viewport edge may describe an off-screen element.** A
+  pin scrolled away parked its badge and number on the page's own header. Off
+  screen, they are simply not drawn; the pin list is what reaches them.
+- **The root is named, not `aria-hidden`.** It holds 13 tabbable buttons, so
+  hiding it was `aria-hidden-focus` (WCAG 4.1.2). Decoration carries
+  `aria-hidden`; the root goes `inert` while powered off, which aria-hidden
+  could never do. Toggles carry `aria-pressed`, and there is a `:focus-visible`
+  rule — there was none at all.
+
+Row indices are the recurring hazard: `rows(view)` is what the panel renders,
+so **every callback must resolve against `rows(view)`**, never a narrower list.
+A view title added at index 0 is all it takes to make `✕` delete the wrong pin.
+
 ## The one hook that writes
 `intercept({ type, ev, el })` is offered to armed tools before a click becomes
 a pin — `app/interactions.js` is where input enters, so it is the only place

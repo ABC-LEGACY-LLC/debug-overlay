@@ -111,10 +111,10 @@
              many came before it — changing the wrong setting entirely. It is
              not clickable and carries no control, so nothing can be fired
              from it. */
-          if (row.heading) {
+          if (row.title || row.heading) {
             const h = document.createElement('div');
-            h.className = 'head';
-            h.textContent = row.heading;
+            h.className = row.title ? 'viewhead' : 'head';
+            h.textContent = row.title || row.heading;
             if (row.detail) {
               const n = document.createElement('span');
               n.className = 'note';
@@ -134,6 +134,7 @@
           lbl.textContent = row.label;         // textContent: page text is never HTML here
           // carried, not interpreted — the stylesheet decides what it means
           if (row.accent) r.dataset.accent = row.accent;
+          if (row.inert) r.classList.add('inert');
           r.addEventListener('click', () => api.onRowActivate?.(i));
           if (row.control) {
             r.append(tag, lbl, Controls.build(row.control, (raw) => api.onRowChange?.(i, raw)));

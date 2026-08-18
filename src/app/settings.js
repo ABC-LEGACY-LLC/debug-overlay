@@ -37,6 +37,13 @@
               tag: t.icon,
               label: o.label,
               control: Settings.controlFor(o, Tools.setting(t, o.key)),
+              /* A tool's own option does nothing while that tool is disarmed —
+                 stored and waiting, not live. Hiding the row would be wrong,
+                 since the value applies the moment you arm it; looking active
+                 was the confusion, so it is dimmed. A SUBJECT has no armed
+                 state: its settings feed the sweep, which runs every rule
+                 either way, so those are never inert. */
+              inert: Tools.all.includes(t) && !State.tools.has(t.id),
               tool: t, opt: o,
             });
           }
@@ -45,7 +52,39 @@
         out.push({ heading: r.label, detail: r.note });
         out.push(...rows);
       }
+      const keys = Settings.gestureRows();
+      if (keys.length) {
+        out.push({ heading: 'Keys', detail: 'the parts of this that are not buttons' });
+        out.push(...keys);
+      }
       return out;
+    },
+
+    /**
+     * THE GESTURES. Three of them — Alt+click, the remove key, Escape — existed
+     * nowhere in the running UI at all: a user who had not read the source
+     * could not find them, which for Alt+click meant the pass-through everyone
+     * asks for looked like a missing feature.
+     *
+     * Key NAMES come from CONFIG so they cannot drift from what is bound, and a
+     * tool that claims a gesture of its own declares it, so nothing central has
+     * to keep a list of what the tools do.
+     */
+    gestureRows() {
+      const H = CONFIG.HOTKEY;
+      const hot = [H.ctrl && 'Ctrl', H.alt && 'Alt', H.shift && 'Shift',
+                   H.code.replace('Key', '')].filter(Boolean).join('+');
+      const rows = [
+        ['Click', 'pin an element'],
+        ['Shift+click', 'pin it for measuring'],
+        ['Alt+click', 'let the click through to the page'],
+        [`Hold ${CONFIG.REMOVE_KEY.replace('Key', '')}`, 'show ✕ on every pin'],
+        ['Esc', 'close the panel, then the pins'],
+        [hot, 'power on and off'],
+      ];
+      for (const t of Tools.withHook('gestures'))
+        for (const g of t.gestures.call(t) || []) rows.push([g.keys, g.does]);
+      return rows.map(([keys, does]) => ({ tag: keys, label: does, detail: '' }));
     },
 
     /**

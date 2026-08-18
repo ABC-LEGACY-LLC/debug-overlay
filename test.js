@@ -107,7 +107,21 @@ ok('single-instance flag set', window.__DBG_OVERLAY__ === true);
 
 const root = window.document.getElementById('__dbgov-root');
 ok('root element appended', !!root);
-ok('root is hidden from a11y tree', root && root.getAttribute('aria-hidden') === 'true');
+/* This asserted aria-hidden="true" on the root, which was the DEFECT: the root
+   holds 13 tabbable buttons, so it told assistive tech the subtree did not
+   exist while keyboard focus could still land in it (axe aria-hidden-focus,
+   WCAG 4.1.2). The right invariants are that the root is named, the decorative
+   layer is hidden, and the whole thing is inert while powered off. */
+ok('the root is named, not hidden',
+  root && root.getAttribute('aria-hidden') === null &&
+  root.getAttribute('aria-label') === 'Debug overlay',
+  `aria-hidden=${root && root.getAttribute('aria-hidden')}`);
+ok('the decorative layer is hidden from a11y',
+  !!root && [...root.children].some((c) =>
+    c.tagName === 'DIV' && c.getAttribute('aria-hidden') === 'true'),
+  'the painted layer carries no text anyone needs announced');
+ok('and powered off it is inert', root && root.hasAttribute('inert'),
+  'inert takes it out of the tab order, which aria-hidden never could');
 
 const sheets = root ? [...root.querySelectorAll('style')] : [];
 const cssOf = (who) => (sheets.find((s) => (s.dataset.tool || 'core') === who) || {}).textContent || '';
@@ -559,10 +573,26 @@ console.log('\nSETTINGS');
   hit('[data-settings]');
   ok('⚙ opens a view of its own', list4.classList.contains('open') && rowsOf().length > 0,
     `${rowsOf().length} rows`);
+  // Rows under a ROLE heading are settings and must be controls. Rows under
+  // "Keys" are the gesture legend — deliberately read-only, since a gesture is
+  // not something you set.
+  const settingRows = () => {
+    const out = [];
+    let inKeys = false;
+    for (const n of list4.children) {
+      if (n.classList.contains('head')) { inKeys = n.childNodes[0].textContent === 'Keys'; continue; }
+      if (n.classList.contains('viewhead')) continue;
+      if (!inKeys) out.push(n);
+    }
+    return out;
+  };
   ok('every setting is a control, not a read-out',
-    rowsOf().length > 0 && rowsOf().every((r) => r.querySelector('.opt')),
-    rowsOf().filter((r) => !r.querySelector('.opt'))
+    settingRows().length > 0 && settingRows().every((r) => r.querySelector('.opt')),
+    settingRows().filter((r) => !r.querySelector('.opt'))
       .map((r) => r.querySelector('.lbl').textContent).join(', ') || 'none missing');
+  ok('and the gestures are listed where the user already is',
+    [...list4.querySelectorAll('.row .tag')].some((t) => /Alt\+click/.test(t.textContent)),
+    'Alt+click, the remove key and Esc existed nowhere in the running UI');
   // a list cannot express a threshold you type or a thing that is simply on
   ok('a choice, a number and a toggle all render',
     !!labelled('Grid step').querySelector('select.opt') &&
@@ -857,7 +887,8 @@ console.log('\nCATEGORIES');
   hit('[data-settings]');
   const heads = [...list.querySelectorAll('.head')].map((h) => h.childNodes[0].textContent);
   ok('the ⚙ view is grouped by what a setting changes',
-    heads.join(' → ') === 'Select → Detect → Act', heads.join(' → ') || '(no headings)');
+    heads.join(' → ') === 'Select → Detect → Act → Keys',
+    heads.join(' → ') || '(no headings)');
   ok('and a category nobody uses prints no heading', !heads.includes('Inspect'),
     'an empty section is a heading over nothing');
   // the grid rows are not adjacent to each other because they own the tool —

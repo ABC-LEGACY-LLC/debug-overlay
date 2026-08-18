@@ -41,9 +41,22 @@
         n.className = 'dbgov-pin-num' + kindCls;
         n.textContent = waiting ? p.id + '…' : p.id;
         layer.append(box, n);
-        const nx = Math.max(2, i.r.left - 10), ny = Math.max(2, i.r.top - 10);
-        Place.put(n, nx, ny);
-        Place.claim(nx, ny, waiting ? 32 : 22, 22);
+        /* A pin scrolled out of view used to have its number CLAMPED to the
+           viewport edge, so two stranded chips ended up sitting on the page's
+           own header reading as though they described it. The box tracks the
+           true rect correctly; it is the clamp that lies. Off-screen pins are
+           the pin list's job — it exists to reach exactly those. */
+        // STRICTLY outside: an element touching an edge, or a degenerate 0x0
+        // rect at the origin, is still somewhere you can look at.
+        const onScreen = !(i.r.bottom < 0 || i.r.top > innerHeight ||
+                           i.r.right < 0 || i.r.left > innerWidth);
+        if (onScreen) {
+          const nx = Math.max(2, i.r.left - 10), ny = Math.max(2, i.r.top - 10);
+          Place.put(n, nx, ny);
+          Place.claim(nx, ny, waiting ? 32 : 22, 22);
+        } else {
+          n.remove();
+        }
 
         // remove mode: a ✕ chip on every pin, enlarged on the one under the cursor
         if (State.removeMode) {
@@ -82,6 +95,10 @@
 
       // 3) pin badges — compact unless detail mode or that pin is hovered
       pinInfo.forEach(({ p, i }) => {
+        // same reason as the number chip above: a badge clamped to the edge
+        // describes an element nobody can see, next to elements it is not about
+        if (i.r.bottom < 0 || i.r.top > innerHeight ||
+            i.r.right < 0 || i.r.left > innerWidth) return;
         const full = State.detail || State.hoverEl === p.el;
         const html = Badges.build(i, !full);
         if (!html) return;

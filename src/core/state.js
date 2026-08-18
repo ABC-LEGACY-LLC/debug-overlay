@@ -34,7 +34,15 @@
         // had, so nobody's tools and settings reset on the day it shipped —
         // and write it through, so the next origin inherits it too.
         const old = localStorage.getItem(key);
-        if (old !== null) { GM_setValue(key, old); return old; }
+        if (old !== null) {
+          GM_setValue(key, old);
+          // and remove the original. Adoption used to copy and leave, so every
+          // site the script had ever touched kept a stale duplicate that went
+          // wrong the moment the GM copy changed — two answers to one question,
+          // with only one of them read.
+          try { localStorage.removeItem(key); } catch {}
+          return old;
+        }
         return null;
       } catch { return null; }
     },

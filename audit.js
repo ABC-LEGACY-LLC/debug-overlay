@@ -128,7 +128,7 @@ const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm,
 const calls = (s, h) => new RegExp(`(^|[^.\\w])${h}\\s*\\(`, 'm').test(strip(s));
 const HOOKS = ['badge', 'compact', 'report', 'reportTail', 'draw', 'listRows',
                'pendingIndex', 'annotate', 'audit', 'auditPage', 'options',
-               'intercept', 'groups'];
+               'intercept', 'groups', 'gestures'];
 
 /* The category vocabulary, read out of the registry rather than repeated here
    — the same reason the banned-id list is derived from the tools themselves.

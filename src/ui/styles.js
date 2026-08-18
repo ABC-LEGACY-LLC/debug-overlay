@@ -14,7 +14,10 @@
     .dbgov-pinbox.waiting { outline-color: #58c4ff; }
     .dbgov-pinbox.rmtarget { outline: 2px solid #ff5c5c; background: rgba(255,92,92,.10); }
     .dbgov-pinbox.flash { outline: 2.5px solid #58c4ff;
-      background: rgba(88,196,255,.18); animation: dbgov-pulse .9s ease-out; }
+      background: rgba(88,196,255,.18); }
+    @media (prefers-reduced-motion: no-preference) {
+      .dbgov-pinbox.flash { animation: dbgov-pulse .9s ease-out; }
+    }
     @keyframes dbgov-pulse {
       0% { box-shadow: 0 0 0 0 rgba(88,196,255,.55); }
       100% { box-shadow: 0 0 0 16px rgba(88,196,255,0); } }
@@ -54,11 +57,19 @@
       border-radius: 6px; padding: 3px 6px; }
     #__dbgov-list .opt:hover { background: #3a3a41; }
     /* what the settings under it change — the category, not the owning tool */
+    /* which of the three screens this is — one slot showed findings, pins and
+       settings with no header at all, so nothing said what you were reading */
+    #__dbgov-list .viewhead { padding: 4px 8px 8px; color: #fff; font-size: 13px;
+      font-weight: 800; border-bottom: 1px solid rgba(255,255,255,.10); margin-bottom: 4px; }
+    #__dbgov-list .viewhead .note { display: block; margin-top: 2px; color: #8f8f96;
+      font-size: 10px; font-weight: 400; }
     #__dbgov-list .head { padding: 10px 8px 4px; color: #8f8f96;
       font-size: 10px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
     #__dbgov-list .head:first-child { padding-top: 4px; }
     #__dbgov-list .head .note { display: block; margin-top: 2px;
       font-size: 10px; font-weight: 400; letter-spacing: 0; text-transform: none; }
+    /* stored and waiting — the tool that reads it is switched off */
+    #__dbgov-list .row.inert .lbl, #__dbgov-list .row.inert .tag { opacity: .45; }
     #__dbgov-list .num { flex: none; display: flex; align-items: center; gap: 4px; }
     #__dbgov-list .num .opt { width: 68px; text-align: right; }
     #__dbgov-list .unit { color: #8f8f96; font-weight: 400; }
@@ -83,6 +94,14 @@
        means the findings VIEW is the one open. No backticks in here: this
        whole sheet is a template literal. */
     #__dbgov-bar .act.swept { box-shadow: inset 0 0 0 2px #b5e853; }
+    /* There was no designed focus indicator anywhere in this sheet — a
+       keyboard user could tab through 13 controls with nothing to show where
+       they were. :focus-visible only, so a mouse click does not draw one. */
+    #__dbgov-root :focus-visible { outline: 2px solid #58c4ff; outline-offset: 2px; }
+    /* WCAG 2.5.8 wants 24x24. These three were 18x21, 20x20 and 15x15. */
+    #__dbgov-bar .cnt { min-width: 24px; min-height: 24px; }
+    #__dbgov-list .rm { width: 24px; height: 24px; }
+    #__dbgov-list .tick { width: 24px; height: 24px; }
     #__dbgov-bar .cnt.armed { background: #ff8a65; color: #1a1a1a; }
 
     .dbgov-badge { position: fixed; pointer-events: none; max-width: 92vw;

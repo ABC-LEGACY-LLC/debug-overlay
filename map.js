@@ -70,12 +70,18 @@ bar.querySelector('[data-settings]').dispatchEvent(new w.MouseEvent('click', { b
 
 console.log('\nSETTINGS       grouped by what each one CHANGES, not by which tool owns it');
 for (const n of d.querySelectorAll('#__dbgov-list > *')) {
+  if (n.classList.contains('viewhead')) continue;
   if (n.classList.contains('head')) {
     console.log(`\n  ${n.childNodes[0].textContent.toUpperCase().padEnd(9)}` +
                 `${(n.querySelector('.note') || {}).textContent || ''}`);
     continue;
   }
   const c = n.querySelector('.opt');
+  if (!c) {   // the gesture legend: read-only rows, no control
+    console.log(`    ${n.querySelector(".tag").textContent.padEnd(14)}` +
+                `${n.querySelector('.lbl').textContent}`);
+    continue;
+  }
   const shown = c.tagName === 'SELECT'
     ? [...c.options].map((o, i) => (i === c.selectedIndex ? `[${o.textContent}]` : o.textContent)).join(' ')
     : c.type === 'checkbox' ? (c.checked ? '[x]' : '[ ]')

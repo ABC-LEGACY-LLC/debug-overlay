@@ -16,6 +16,11 @@
        * report or a translation file. Both are things you would otherwise
        * select by hand and get wrong at the edges.
        */
+      /** Its own gesture, declared where the gesture lives. */
+      gestures() {
+        return [{ keys: 'Ctrl/⌘+click', does: 'copy what you clicked' }];
+      },
+
       options() {
         return [{ key: 'what', label: 'Ctrl+click copies', def: 'selector',
                   values: ['selector', 'text'], affects: 'act' }];
