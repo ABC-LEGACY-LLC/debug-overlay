@@ -190,15 +190,34 @@
      * referred to nothing and could not be read off a screenshot.
      */
     pinsChanged() {
-      if (!State.pins.length) State.pinSeq = 0;
       Render.schedule();
       Controller.refreshList();
+    },
+
+    /**
+     * The number a new pin gets: the SMALLEST one not currently in use.
+     *
+     * It was a counter that only climbed, so four pins on the page could read
+     * #1 #2 #6 #9 — numbers with no relation to what you were looking at, on a
+     * tool whose point is reading values off a screenshot. Resetting it when
+     * the list emptied fixed only the trivial case; unpin and re-pin with
+     * anything else still pinned and it kept going.
+     *
+     * Derived from the live pins rather than stored, so there is no counter
+     * left to drift. Existing pins keep their numbers — renumbering #3 to #2
+     * because #1 went away would break the screenshot you took a second ago —
+     * and the gap that leaves is exactly what the next pin fills.
+     */
+    nextPinId() {
+      const taken = new Set(State.pins.map((p) => p.id));
+      let n = 1;
+      while (taken.has(n)) n++;
+      return n;
     },
 
     /** The renderer dropped pins whose element left the page; it is mid-frame,
      *  so this must not ask for another one. */
     pinsPruned() {
-      if (!State.pins.length) State.pinSeq = 0;
       Controller.refreshList();
     },
 
@@ -211,7 +230,7 @@
         if (State.pins[i].kind === kind) State.pins.splice(i, 1);
         else State.pins[i].kind = kind;
       } else {
-        State.pins.push({ el, id: ++State.pinSeq, kind });
+        State.pins.push({ el, id: Controller.nextPinId(), kind });
       }
       Controller.pinsChanged();
     },
@@ -301,7 +320,6 @@
      */
     clearPins() {
       State.pins = [];
-      State.pinSeq = 0;
       State.sweep = null;
       Panel.setSwept(false, 0);
       Controller.pinsChanged();

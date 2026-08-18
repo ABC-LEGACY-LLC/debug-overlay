@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.51
+// @version      3.8.52
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -269,7 +269,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: '3.8.51',
+    VERSION: '3.8.52',
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -406,7 +406,6 @@ HOW TO USE
     removeMode: false,   // true while the remove key is held
     removeTarget: null,  // pin object under the cursor in remove mode
     flashPins: null,     // pins briefly highlighted after "reveal" from the list
-    pinSeq: 0,
     // Last whole-page sweep: { findings, rules, elements }, or null if none
     // has been run. It carries what RAN, not only what was found, because a
     // zero that means "nothing was checked" and a zero that means "nothing is
@@ -3235,15 +3234,34 @@ HOW TO USE
      * referred to nothing and could not be read off a screenshot.
      */
     pinsChanged() {
-      if (!State.pins.length) State.pinSeq = 0;
       Render.schedule();
       Controller.refreshList();
+    },
+
+    /**
+     * The number a new pin gets: the SMALLEST one not currently in use.
+     *
+     * It was a counter that only climbed, so four pins on the page could read
+     * #1 #2 #6 #9 — numbers with no relation to what you were looking at, on a
+     * tool whose point is reading values off a screenshot. Resetting it when
+     * the list emptied fixed only the trivial case; unpin and re-pin with
+     * anything else still pinned and it kept going.
+     *
+     * Derived from the live pins rather than stored, so there is no counter
+     * left to drift. Existing pins keep their numbers — renumbering #3 to #2
+     * because #1 went away would break the screenshot you took a second ago —
+     * and the gap that leaves is exactly what the next pin fills.
+     */
+    nextPinId() {
+      const taken = new Set(State.pins.map((p) => p.id));
+      let n = 1;
+      while (taken.has(n)) n++;
+      return n;
     },
 
     /** The renderer dropped pins whose element left the page; it is mid-frame,
      *  so this must not ask for another one. */
     pinsPruned() {
-      if (!State.pins.length) State.pinSeq = 0;
       Controller.refreshList();
     },
 
@@ -3256,7 +3274,7 @@ HOW TO USE
         if (State.pins[i].kind === kind) State.pins.splice(i, 1);
         else State.pins[i].kind = kind;
       } else {
-        State.pins.push({ el, id: ++State.pinSeq, kind });
+        State.pins.push({ el, id: Controller.nextPinId(), kind });
       }
       Controller.pinsChanged();
     },
@@ -3346,7 +3364,6 @@ HOW TO USE
      */
     clearPins() {
       State.pins = [];
-      State.pinSeq = 0;
       State.sweep = null;
       Panel.setSwept(false, 0);
       Controller.pinsChanged();

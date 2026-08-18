@@ -1363,7 +1363,8 @@ console.log('\nPIN NUMBERS');
  * 1: a number that referred to nothing and could not be read off a screenshot.
  */
 {
-  const d = new JSDOM('<!doctype html><html><body><div id="a">a</div><div id="b">b</div></body></html>',
+  const d = new JSDOM('<!doctype html><html><body>' +
+    ['a', 'b', 'c', 'd'].map((i) => `<div id="${i}">${i}</div>`).join('') + '</body></html>',
     { url: 'https://example.test/', pretendToBeVisual: true,
       runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
   const w = d.window;
@@ -1392,9 +1393,22 @@ console.log('\nPIN NUMBERS');
   hit('a');
   ok('while removing one does NOT renumber the other', tags() === '#2', tags());
 
-  hit('b');                       // empty again
+  /* The case that resetting-at-empty did not cover, and the one actually seen
+     on a real page: with pins still there, unpin and re-pin and the number kept
+     climbing — four pins reading #1 #2 #6 #9. A new pin takes the smallest
+     number not in use, so the set stays dense however you got there. */
   hit('a');
-  ok('an empty list resets it however it was emptied', tags() === '#1', tags());
+  ok('a freed number is reused, not skipped', tags() === '#1 #2', tags());
+  hit('c'); hit('d');
+  ok('and the set stays dense as it grows', tags() === '#1 #2 #3 #4', tags());
+  hit('c');                       // frees #3 from the middle
+  ok('removing from the middle leaves the others alone', tags() === '#1 #2 #4', tags());
+  hit('c');
+  ok('and the next pin fills that gap', tags() === '#1 #2 #3 #4', tags());
+  ['a', 'b', 'c', 'd'].forEach(hit);   // empty again
+  ok('unpinning the last one empties it', tags() === '(none)', tags());
+  hit('a');
+  ok('and numbering starts from 1 again', tags() === '#1', tags());
 
   // and via ✕ clear, which always reset, plus the row ✕, which did not
   hit('b');

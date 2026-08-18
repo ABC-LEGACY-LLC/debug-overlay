@@ -361,16 +361,21 @@ seen from the other end.
 - **Only `affects: 'detect'` invalidates a sweep.** Throwing away the most
   expensive thing the tool does because a copy preference changed is not caution.
 
-## A pin's number, and when it may change
-Stable while the pin exists — removing #2 must not renumber #3, or a screenshot
-taken a moment earlier stops matching the report printed beside it. Reset the
-moment NOTHING is pinned: `State.pinSeq` only ever climbed, so pin, unpin, pin
-put "#9" next to a count chip reading 1 — a number referring to nothing, on a
-tool whose whole point is reading values off a screenshot.
+## A pin's number is derived, never counted
+`Controller.nextPinId()` returns the **smallest number not currently in use**.
+There is no counter — `State.pinSeq` is gone, and with it anything that could
+drift from what is actually pinned.
 
-Every path that adds or removes a pin goes through `Controller.pinsChanged()`,
-which is where that decision lives. The renderer's prune has its own
-(`pinsPruned`) because it runs mid-frame and must not ask for another one.
+Two rules pull against each other and both matter. A live pin keeps its number:
+renumbering #3 to #2 because #1 was removed breaks the screenshot taken a
+second earlier, on a tool whose whole point is reading values off one. But the
+set has to stay dense, or four pins read `#1 #2 #6 #9` — numbers with no
+relation to what is on screen.
+
+Deriving satisfies both: nothing renumbers, and the gap a removal leaves is
+exactly what the next pin fills. Resetting a counter at zero was the first fix
+and it only covered the trivial case — unpin and re-pin with anything else
+still pinned and it kept climbing.
 
 ## The list renders by index, so the index must stay true
 `List.set` binds each row to its position and hands that position back. The
