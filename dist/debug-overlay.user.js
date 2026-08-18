@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.54
+// @version      3.8.55
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -278,7 +278,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: '3.8.54',
+    VERSION: '3.8.55',
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -1437,6 +1437,20 @@ HOW TO USE
       },
 
       /**
+       * What it has to say about the element you are pointing AT. It knew this
+       * all along and only ever said it in the copied report — hover a element
+       * whose id is used three times and the badge was silent, which is the
+       * one place you were looking.
+       */
+      badge({ el }) {
+        if (!el.id) return null;
+        const n = document.querySelectorAll(
+          `[id="${CSS.escape ? CSS.escape(el.id) : el.id}"]`).length;
+        return n > 1 ? `<span class="dup">⌗ id ×${n}</span>` : null;
+      },
+      compact(i) { return this.badge(i); },
+
+      /**
        * ITS OWN SURFACE. Findings reach the ⌕ list whether a rule is armed or
        * not, so a rule with no draw() changed nothing at all when you switched
        * it on — measured: armed alone, zero badges, zero marks, zero lines. A
@@ -1542,6 +1556,27 @@ HOW TO USE
        * pattern a per-element read-out could never show you — it is why this
        * belongs in a sweep and not only on a badge.
        */
+      /**
+       * WHERE the off-grid spacing is. grid was the only rule that produced
+       * findings and drew nothing — set the step to 4px on a Tailwind page and
+       * the list filled with thousands while the page stayed blank, so every
+       * row had to be clicked to find out where it was. contrast and dupid
+       * both marked theirs; this was the odd one out.
+       *
+       * `found` is this tool's own findings, handed over by the renderer. The
+       * mark classes are core, because more than one rule paints them.
+       */
+      draw({ layer, Place, found }) {
+        for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
+          if (!document.contains(f.el)) continue;
+          const r = f.el.getBoundingClientRect();
+          const box = document.createElement('div');
+          box.className = 'dbgov-box dbgov-flag ' + f.severity;
+          Place.put(box, r.left, r.top, r.width, r.height);
+          layer.append(box);
+        }
+      },
+
       audit(i) {
         // An <svg> path has a bounding box and no authored anything. Judging
         // those turned one real signal into 2,215 findings about icon

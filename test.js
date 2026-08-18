@@ -1516,6 +1516,40 @@ console.log('\nPER-TOOL OPTIONS');
   });
 }
 
+console.log('\nEVERY RULE SHOWS WHERE');
+/**
+ * Three rules, and only two of them marked their findings: grid produced
+ * thousands and drew nothing, so the list was full and the page blank. And
+ * dupid knew the element under the cursor had a duplicated id but only ever
+ * said so in the copied report.
+ */
+{
+  const d = new JSDOM('<!doctype html><html><body>' +
+    '<p id="dup" style="padding:7px">one</p><p id="dup">two</p></body></html>',
+    { url: 'https://example.test/', pretendToBeVisual: true,
+      runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
+  const w = d.window;
+  w.localStorage.setItem('__dbgov_tools', '["grid","dupid","measure"]');
+  w.localStorage.setItem('__dbgov_seen', JSON.stringify(idsOnDisk));
+  w.eval(source);
+  const bar = w.document.getElementById('__dbgov-bar');
+  w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  const el = w.document.getElementById('dup');
+  w.document.elementFromPoint = () => el;
+  el.dispatchEvent(new w.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
+  bar.querySelector('[data-detail]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  bar.querySelector('[data-sweep]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  pendingChecks.push(() => {
+    const root = w.document.getElementById('__dbgov-root');
+    const badge = (root.querySelector('.dbgov-badge') || {}).textContent || '';
+    ok('dupid says so on the badge, not only in the report', /id ×2/.test(badge), badge);
+    ok('grid marks where its findings are',
+      root.querySelectorAll('.dbgov-flag').length > 0,
+      'a finding you cannot locate is half a finding');
+    w.close();
+  });
+}
+
 // ---- the sections that need a painted frame ---------------------------------
 // Marks and badges only exist after the renderer runs, which is an animation
 // frame away. Everything above is synchronous; these are not, so they go last

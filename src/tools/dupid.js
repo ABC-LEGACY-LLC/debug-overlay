@@ -51,6 +51,20 @@
       },
 
       /**
+       * What it has to say about the element you are pointing AT. It knew this
+       * all along and only ever said it in the copied report — hover a element
+       * whose id is used three times and the badge was silent, which is the
+       * one place you were looking.
+       */
+      badge({ el }) {
+        if (!el.id) return null;
+        const n = document.querySelectorAll(
+          `[id="${CSS.escape ? CSS.escape(el.id) : el.id}"]`).length;
+        return n > 1 ? `<span class="dup">⌗ id ×${n}</span>` : null;
+      },
+      compact(i) { return this.badge(i); },
+
+      /**
        * ITS OWN SURFACE. Findings reach the ⌕ list whether a rule is armed or
        * not, so a rule with no draw() changed nothing at all when you switched
        * it on — measured: armed alone, zero badges, zero marks, zero lines. A

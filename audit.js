@@ -197,6 +197,13 @@ for (const t of tools) {
      Both were measured, not guessed — grid and dupid each produced zero badges,
      zero marks and zero lines armed by themselves, which is indistinguishable
      from a broken tool. A button that does nothing is worse than no button. */
+  /* A RULE MUST SHOW WHERE. contrast and dupid outlined their findings and
+     grid drew nothing, so a page with thousands of off-grid values had a full
+     list and a blank page — every row clicked one at a time to locate it. A
+     finding you cannot find is half a finding, and this is the difference
+     between three rules behaving the same way and two of them happening to. */
+  if ((hooks.includes('audit') || hooks.includes('auditPage')) && !hooks.includes('draw'))
+    bad.push('produces findings but never draws them — add draw() so they can be found on the page');
   const SURFACE = ['badge', 'compact', 'draw', 'listRows', 'intercept'];
   if (hooks.length && !SURFACE.some((h) => hooks.includes(h)))
     bad.push(`no surface of its own (${hooks.join(', ')}) — armed alone this shows ` +

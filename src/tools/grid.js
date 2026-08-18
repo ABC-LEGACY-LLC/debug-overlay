@@ -75,6 +75,27 @@
        * pattern a per-element read-out could never show you — it is why this
        * belongs in a sweep and not only on a badge.
        */
+      /**
+       * WHERE the off-grid spacing is. grid was the only rule that produced
+       * findings and drew nothing — set the step to 4px on a Tailwind page and
+       * the list filled with thousands while the page stayed blank, so every
+       * row had to be clicked to find out where it was. contrast and dupid
+       * both marked theirs; this was the odd one out.
+       *
+       * `found` is this tool's own findings, handed over by the renderer. The
+       * mark classes are core, because more than one rule paints them.
+       */
+      draw({ layer, Place, found }) {
+        for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
+          if (!document.contains(f.el)) continue;
+          const r = f.el.getBoundingClientRect();
+          const box = document.createElement('div');
+          box.className = 'dbgov-box dbgov-flag ' + f.severity;
+          Place.put(box, r.left, r.top, r.width, r.height);
+          layer.append(box);
+        }
+      },
+
       audit(i) {
         // An <svg> path has a bounding box and no authored anything. Judging
         // those turned one real signal into 2,215 findings about icon

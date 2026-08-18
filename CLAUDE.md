@@ -261,6 +261,18 @@ through `groups()`; measure asks `Tools.groups()` and measures between whatever
 comes back. A lasso or a select-by-query is now one new file that every
 consumer picks up, and neither side learns the other's id.
 
+## A rule must show WHERE
+`audit.js` fails a tool with `audit`/`auditPage` and no `draw`. contrast and
+dupid outlined their findings; grid drew nothing, so setting the step to 4px on
+a Tailwind page gave a list of thousands over a blank page and every row had to
+be clicked to find out where it was. A finding you cannot locate is half a
+finding — and this is the difference between three rules behaving the same way
+and two of them happening to.
+
+The mark classes (`.dbgov-flag` and the severity modifiers) live in
+`ui/styles.js`, not in whichever tool needed them first, because more than one
+rule paints them.
+
 ## Every tool must be worth arming alone
 `audit.js` fails a tool whose only hooks are `annotate`, `report` or a rule.
 None of those carry a tool by itself: a lens decorates what OTHER tools print,
