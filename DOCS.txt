@@ -64,7 +64,10 @@ HOW TO USE
                  line you did not want costs nothing and the one you did costs
                  a round trip.
     ▦ grid       marks any number another tool prints that is off the
-                 spacing step (⚠ — 2px by default, change it under ⚙). In ⌕ it
+                 spacing step (⚠ — 2px by default, change it under ⚙). Its
+                 "Suggest nearest step" option adds the fix after each mark:
+                 p 7⚠ becomes p 7⚠→8. Off by default — a suggestion doubles
+                 every marked number. In ⌕ it
                  judges AUTHORED spacing only — padding, margin, gap — never
                  width or height, which layout produces rather than anyone
                  choosing, and nothing above CONFIG.GRID_MAX, where

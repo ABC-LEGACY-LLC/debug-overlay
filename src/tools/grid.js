@@ -11,6 +11,18 @@
       startsOn: true,      // the ⚠ on a badge is what makes the read-out useful
       uses: [Scale],   // its settings are Scale's, and belong on its own menu
 
+      /**
+       * The lens's display preference — the RECOMMENDATION facet. Off by
+       * default: a suggestion doubles every marked number, so it has to be
+       * asked for. It lives here and not on the scale subject because "show me
+       * the fix" is about this lens's ink, not a fact about the project.
+       */
+      options() {
+        return [
+          { key: 'suggest', label: 'Suggest nearest step', def: false, type: 'toggle', affects: 'inspect' },
+        ];
+      },
+
       rules: {
         'grid-off': {
           help: 'Spacing should be a multiple of the grid step — change which ' +
@@ -54,7 +66,11 @@
        * split: the rule below reaches the same verdict through the same call.
        */
       annotate(html, n) {
-        return Scale.judges(n) ? `<span class="warn">${html}⚠</span>` : html;
+        if (!Scale.judges(n)) return html;
+        // ISSUE always; RECOMMENDATION only when asked. Both answers come from
+        // the subject, so the mark and the suggestion cannot disagree.
+        const fix = Tools.setting(this, 'suggest') ? `→${Scale.nearest(n)}` : '';
+        return `<span class="warn">${html}⚠${fix}</span>`;
       },
 
       report(i) {

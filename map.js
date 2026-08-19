@@ -92,7 +92,7 @@ for (const n of d.querySelectorAll('#__dbgov-list > *')) {
 
 /* Derived from the same hooks.js audit.js enforces — the hand-written version
    of these tables was wrong twice. ARCHITECTURE.md is the prose companion. */
-const { SURFACES, registered, bandsOf } = require('./hooks.js');
+const { SURFACES, FACETS, registered, bandsOf } = require('./hooks.js');
 const tools = registered('tools');
 
 /* THE PIPELINE, and the matrix under it. Vocabulary from hooks.js bandsOf:
@@ -117,6 +117,10 @@ for (const t of inBand('COMPONENT')) {
     (has('report') ? '✓' : '·').padEnd(10) +
     (has('options') ? 'own' : uses ? 'via ' + uses.toLowerCase() : '·'));
 }
+console.log('\nBADGE FACETS   three kinds of content on one line\n');
+for (const f of FACETS.badge)
+  console.log('    ' + f.key.padEnd(16) + f.example.padEnd(10) + f.means.padEnd(38) + f.via);
+
 console.log('\nINPUT SIDE     never takes effect through a service\n');
 for (const t of inBand('SOURCE'))
   console.log('  SOURCE  ' + t.id + ' — your clicks become pins and groups(); ' +

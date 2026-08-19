@@ -94,4 +94,23 @@ const bandsOf = (t) => {
   return out;
 };
 
-module.exports = { SRC, HOOKS, SURFACES, strip, calls, walk, registered, bandsOf };
+/**
+ * SERVICE FAMILIES. A service can carry more than one KIND of content, and the
+ * badge is the first with a named family. The facet is not a new mechanism —
+ * CURRENT and ISSUE are what badge/compact and annotate already were, and
+ * RECOMMENDATION is content inside the same lens, shipped WITH its first
+ * producer (grid's `suggest` toggle) because nothing here is created for a
+ * consumer that is not there.
+ */
+const FACETS = {
+  badge: [
+    { key: 'CURRENT', example: 'p 7', means: "the component's own fields",
+      via: 'badge / compact' },
+    { key: 'ISSUE', example: 'p 7⚠', means: 'a lens marking a value that fails',
+      via: 'annotate' },
+    { key: 'RECOMMENDATION', example: 'p 7⚠→8', means: 'what would pass — off by default',
+      via: "annotate + the lens's suggest option" },
+  ],
+};
+
+module.exports = { SRC, HOOKS, SURFACES, FACETS, strip, calls, walk, registered, bandsOf };

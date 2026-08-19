@@ -80,6 +80,32 @@ Two of those lines carry deliberate asymmetries:
   right-click menu can show them. "Grid step" is grid's setting to anyone
   holding grid; that `scale` owns it is an internal matter.
 
+## Service families — the badge carries three kinds of content
+
+| facet | looks like | means | produced through |
+|---|---|---|---|
+| **CURRENT** | `p 7` | the component's own fields | `badge` / `compact` |
+| **ISSUE** | `p 7⚠` | a lens marking a value that fails | `annotate` |
+| **RECOMMENDATION** | `p 7⚠→8` | what would pass | `annotate`, behind the lens's `suggest` option |
+
+A facet is a NAME, not a mechanism — CURRENT and ISSUE are what the hooks
+already were, and RECOMMENDATION is content inside the same lens. Three rules
+hold it together:
+
+- **A facet ships WITH its first producer.** RECOMMENDATION arrived with
+  grid's "Suggest nearest step" toggle, not before — nothing here is created
+  for a consumer that is not there.
+- **RECOMMENDATION is opt-in.** A suggestion doubles every marked number, so
+  it must be asked for (`affects: 'inspect'`, default off).
+- **Both answers come from the subject.** `Scale.judges(n)` says what fails
+  and `Scale.nearest(n)` says what would pass, so the ⚠ and the →8 can never
+  disagree about one number — the same one-place rule that put `judges` on the
+  subject in the first place.
+
+Other services can grow families the same way, when a producer exists: the
+findings list already distinguishes fail from `review` (a verdict vs the
+absence of one), which is its own two-facet family in all but name.
+
 ## The source's output is consumed, not shown
 
 select publishes `groups()`; measure asks `Tools.groups()` and draws dimension

@@ -1550,6 +1550,45 @@ console.log('\nEVERY RULE SHOWS WHERE');
   });
 }
 
+console.log('\nBADGE FACETS');
+/**
+ * The badge's three kinds of content: CURRENT (the component's fields), ISSUE
+ * (the lens's ⚠), RECOMMENDATION (the fix — off by default, because a
+ * suggestion doubles every marked number). ⚠ and →8 both come from the Scale
+ * subject, so they cannot disagree about one number.
+ */
+{
+  const opts = { url: 'https://example.test/', pretendToBeVisual: true,
+                 runScripts: 'outside-only', virtualConsole: new VirtualConsole() };
+  const facet = (settings, done) => {
+    const d = new JSDOM('<!doctype html><html><body>' +
+      '<div id="a" style="padding:7px">seven</div></body></html>', opts);
+    const w = d.window;
+    w.localStorage.setItem('__dbgov_tools', '["measure","grid"]');
+    w.localStorage.setItem('__dbgov_seen', JSON.stringify(idsOnDisk));
+    if (settings) w.localStorage.setItem('__dbgov_settings', JSON.stringify(settings));
+    w.eval(source);
+    w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+    const el = w.document.getElementById('a');
+    w.document.elementFromPoint = () => el;
+    el.dispatchEvent(new w.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
+    pendingChecks.push(() => {
+      const b = w.document.querySelector('#__dbgov-root .dbgov-badge');
+      done((b || {}).textContent || '(no badge)');
+      w.close();
+    });
+  };
+  facet(null, (text) => {
+    ok('the ISSUE facet is on by default', /7⚠/.test(text), text);
+    ok('and the RECOMMENDATION facet is not', !/→/.test(text),
+      text + ' — a suggestion has to be asked for');
+  });
+  facet({ grid: { suggest: true } }, (text) => {
+    ok('asked for, the fix appears after the mark', /7⚠→8/.test(text),
+      text + ' — Scale.nearest(7) on a 2px step is 8, half away from zero');
+  });
+}
+
 // ---- the sections that need a painted frame ---------------------------------
 // Marks and badges only exist after the renderer runs, which is an animation
 // frame away. Everything above is synchronous; these are not, so they go last

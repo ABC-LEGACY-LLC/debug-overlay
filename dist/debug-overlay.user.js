@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.58
+// @version      3.8.59
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -80,7 +80,10 @@ HOW TO USE
                  line you did not want costs nothing and the one you did costs
                  a round trip.
     ▦ grid       marks any number another tool prints that is off the
-                 spacing step (⚠ — 2px by default, change it under ⚙). In ⌕ it
+                 spacing step (⚠ — 2px by default, change it under ⚙). Its
+                 "Suggest nearest step" option adds the fix after each mark:
+                 p 7⚠ becomes p 7⚠→8. Off by default — a suggestion doubles
+                 every marked number. In ⌕ it
                  judges AUTHORED spacing only — padding, margin, gap — never
                  width or height, which layout produces rather than anyone
                  choosing, and nothing above CONFIG.GRID_MAX, where
@@ -278,7 +281,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: '3.8.58',
+    VERSION: '3.8.59',
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -1234,6 +1237,20 @@ HOW TO USE
     },
 
     /**
+     * The nearest value that WOULD pass — the RECOMMENDATION facet's answer.
+     *
+     * On the subject, not in the lens, for the same reason judges() is: the
+     * ⚠ and the →8 must come from one place or they could disagree about the
+     * same number. Half away from zero, matching U.px, so 7 on a 2px step
+     * suggests 8 and -7 suggests -8 — a margin and its mirror image get
+     * mirror advice.
+     */
+    nearest(n) {
+      const step = this.step();
+      return Math.sign(n) * Math.round(Math.abs(n) / step) * step;
+    },
+
+    /**
      * Off-grid numbers on one element, as [name, value] pairs. `boxes` adds
      * width and height — true when somebody pointed at this element and asked,
      * false when a sweep is judging the page.
@@ -1492,6 +1509,18 @@ HOW TO USE
       startsOn: true,      // the ⚠ on a badge is what makes the read-out useful
       uses: [Scale],   // its settings are Scale's, and belong on its own menu
 
+      /**
+       * The lens's display preference — the RECOMMENDATION facet. Off by
+       * default: a suggestion doubles every marked number, so it has to be
+       * asked for. It lives here and not on the scale subject because "show me
+       * the fix" is about this lens's ink, not a fact about the project.
+       */
+      options() {
+        return [
+          { key: 'suggest', label: 'Suggest nearest step', def: false, type: 'toggle', affects: 'inspect' },
+        ];
+      },
+
       rules: {
         'grid-off': {
           help: 'Spacing should be a multiple of the grid step — change which ' +
@@ -1535,7 +1564,11 @@ HOW TO USE
        * split: the rule below reaches the same verdict through the same call.
        */
       annotate(html, n) {
-        return Scale.judges(n) ? `<span class="warn">${html}⚠</span>` : html;
+        if (!Scale.judges(n)) return html;
+        // ISSUE always; RECOMMENDATION only when asked. Both answers come from
+        // the subject, so the mark and the suggestion cannot disagree.
+        const fix = Tools.setting(this, 'suggest') ? `→${Scale.nearest(n)}` : '';
+        return `<span class="warn">${html}⚠${fix}</span>`;
       },
 
       report(i) {

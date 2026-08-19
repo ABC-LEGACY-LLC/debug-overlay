@@ -59,6 +59,20 @@
     },
 
     /**
+     * The nearest value that WOULD pass — the RECOMMENDATION facet's answer.
+     *
+     * On the subject, not in the lens, for the same reason judges() is: the
+     * ⚠ and the →8 must come from one place or they could disagree about the
+     * same number. Half away from zero, matching U.px, so 7 on a 2px step
+     * suggests 8 and -7 suggests -8 — a margin and its mirror image get
+     * mirror advice.
+     */
+    nearest(n) {
+      const step = this.step();
+      return Math.sign(n) * Math.round(Math.abs(n) / step) * step;
+    },
+
+    /**
      * Off-grid numbers on one element, as [name, value] pairs. `boxes` adds
      * width and height — true when somebody pointed at this element and asked,
      * false when a sweep is judging the page.
