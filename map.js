@@ -90,12 +90,34 @@ for (const n of d.querySelectorAll('#__dbgov-list > *')) {
               `${n.querySelector('.lbl').textContent.padEnd(22)}${shown}`);
 }
 
-/* THE SURFACES. Written by hand twice and wrong twice: `select` looked like it
-   owned the pin chip because it is the only tool touching that surface, when
-   the renderer draws the outline AND the number for every pin and select only
-   appends the "…". Derived now, from the same hooks.js audit.js enforces. */
-const { SURFACES, registered } = require('./hooks.js');
+/* Derived from the same hooks.js audit.js enforces — the hand-written version
+   of these tables was wrong twice. ARCHITECTURE.md is the prose companion. */
+const { SURFACES, registered, bandsOf } = require('./hooks.js');
 const tools = registered('tools');
+
+/* THE THREE SPECIES. A flat component list put select and measure in one
+   rowset and every matrix over it felt wrong; the bands are what the hooks
+   say. Describers get the four-channel table because those are the channels
+   a describer fills from inside its own file. */
+console.log('\nBANDS          three species of component, derived from hooks\n');
+const inBand = (b) => tools.filter((t) => bandsOf(t).includes(b));
+console.log('  DESCRIBER — says something about elements');
+console.log('    ' + 'component'.padEnd(11) + 'badge'.padEnd(14) + '⌕ findings'.padEnd(13) +
+            '⧉ report'.padEnd(11) + '⚙ settings');
+for (const t of inBand('DESCRIBER')) {
+  const has = (h) => t.hooks.includes(h);
+  const uses = (t.s.match(/uses: \[(\w+)\]/) || [])[1];
+  console.log('    ' + t.id.padEnd(11) +
+    ((has('badge') ? '✓' : '·') + (has('annotate') ? ' +⚠ lens' : '')).padEnd(14) +
+    ((has('audit') || has('auditPage')) ? '✓' : '·').padEnd(12) +
+    (has('report') ? '✓' : '·').padEnd(10) +
+    (has('options') ? 'own' : uses ? 'via ' + uses.toLowerCase() : '·'));
+}
+for (const t of inBand('SELECTOR'))
+  console.log('  SELECTOR  — ' + t.id + ': publishes groups() for whoever measures; ' +
+              'pair rows; the … on a waiting pin');
+for (const t of inBand('ACTOR'))
+  console.log('  ACTOR     — ' + t.id + ': claims input via intercept');
 
 console.log('\nSURFACES       every one exists with no tool armed; a tool ADDS to it\n');
 console.log('  ' + 'surface'.padEnd(14) + 'there anyway (core)'.padEnd(46) + 'tools that add to it');
@@ -115,11 +137,15 @@ for (const t of tools) {
 }
 
 console.log(`
-WHERE A NEW FILE GOES
-  tools/    a capability the user can arm    → its own button, and its rows
-                                               under ⚙, both automatically
-  ui/       a surface or a widget            → the panel is made of these
-  app/      a page-level operation, or glue  → what the panel's buttons DO
-  core/     something everything shares      → no user surface at all
+WHERE A NEW FILE GOES — every file is exactly one of these
+
+  COMPONENT  tools/     something you can ARM        → its own button, and its
+                                                       rows under ⚙, both free
+  SUBJECT    subjects/  shared measurement + its     → no button, no surface;
+                        settings                       consulted, never shows
+  SURFACE    ui/        where output APPEARS         → the panel is made of these
+  GLUE       core/      what connects them           → no user surface at all
+             app/                                      (app/ is the page-level
+                                                        half of the same job)
 `);
 dom.window.close();

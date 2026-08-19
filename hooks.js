@@ -69,4 +69,28 @@ const SURFACES = [
     fills: ['intercept'] },
 ];
 
-module.exports = { SRC, HOOKS, SURFACES, strip, calls, walk, registered };
+/**
+ * THE THREE SPECIES, derived from hooks — the same derivation the registry's
+ * ROLES make at runtime. A flat component list forced select and measure into
+ * one rowset and every map drawn over it felt wrong; the bands are what the
+ * hooks actually say.
+ *
+ *   DESCRIBER — speaks ABOUT elements: badge/compact/annotate, audit/auditPage
+ *   SELECTOR  — decides WHICH elements: groups/listRows/pendingIndex
+ *   ACTOR     — takes the user's input: intercept
+ *
+ * Plural on purpose (grid is Inspect+Detect, both describer duties). A tool in
+ * two bands would be listed in both — none is today, and if one appears the
+ * map shows it rather than hiding it.
+ */
+const bandsOf = (t) => {
+  const has = (h) => t.hooks.includes(h);
+  const out = [];
+  if (has('badge') || has('compact') || has('annotate') ||
+      has('audit') || has('auditPage')) out.push('DESCRIBER');
+  if (has('groups') || has('listRows') || has('pendingIndex')) out.push('SELECTOR');
+  if (has('intercept')) out.push('ACTOR');
+  return out;
+};
+
+module.exports = { SRC, HOOKS, SURFACES, strip, calls, walk, registered, bandsOf };
