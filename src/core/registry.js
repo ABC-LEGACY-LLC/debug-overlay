@@ -92,7 +92,7 @@ import { State } from './state.js';
    * memoised colour cache underneath it — a page has tens of colours and
    * thousands of nodes, and resolving them twice is real work done twice.
    *
-   * A subject is not a component: no icon in the bar, no arming, no hooks. It
+   * A subject is not a tool: no icon in the bar, no arming, no hooks. It
    * is called BY components and never calls back — the same one-way rule the
    * core files live under. That is what lets two components share a
    * measurement without naming each other.

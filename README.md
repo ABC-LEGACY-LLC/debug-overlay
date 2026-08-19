@@ -169,7 +169,7 @@ src/
                        · report · options
     pick/              index · act
     select/            index · service · rows
-  services/            the four collectors — never edited for a new component
+  services/            the four collectors — never edited for a new tool
     badge/  findings/  report/  settings/
   subjects/            a backend shared by TWO components (empty today)
   core/                config · state+Store · utils · geometry · registry
@@ -185,7 +185,7 @@ and nothing else. The migration that produced this tree was verified phase by
 phase with `node compare.js <old> <new>` — one scripted session, 24
 observation groups, zero behavioural differences end to end.
 
-## Adding a component
+## Adding a tool
 
 Make `src/tools/zindex/` with an `index.js`:
 

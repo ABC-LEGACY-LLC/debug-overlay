@@ -81,7 +81,7 @@ function glob(dir) {
 }
 
 function genManifest() {
-  // components register through their index; a shared subject (none today —
+  // tools register through their index; a shared subject (none today —
   // both current backends have a single consumer and live inside it) would
   // land in subjects/ and be picked up here the day it exists
   const files = [...glob('subjects'),

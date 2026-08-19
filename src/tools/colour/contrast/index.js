@@ -5,9 +5,9 @@ import { rules, audit } from './rule.js';
 import { draw } from './draw.js';
 import { Colour } from './service.js';
 
-/* index — REGISTRATION ONLY. The component's behaviour lives in the files
+/* index — REGISTRATION ONLY. The tool's behaviour lives in the files
    beside this one; what is declared here is identity, appearance and wiring.
-   One defineTool per component folder, which the audit counts. */
+   One defineTool per tool folder, which the audit counts. */
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `

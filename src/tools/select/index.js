@@ -5,9 +5,9 @@ import { CONFIG } from '../../core/config.js';
 import { State } from '../../core/state.js';
 import { Tools } from '../../core/registry.js';
 
-/* index — REGISTRATION ONLY. The component's behaviour lives in the files
+/* index — REGISTRATION ONLY. The tool's behaviour lives in the files
    beside this one; what is declared here is identity, appearance and wiring.
-   One defineTool per component folder, which the audit counts. */
+   One defineTool per tool folder, which the audit counts. */
   defineTool({
       id: 'select',
       // `mode` was measure's option before the select/measure split, so anyone

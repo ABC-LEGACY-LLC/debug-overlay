@@ -154,12 +154,12 @@ exactly what the `kind` field died of.
   hardcode a tool id such as `'measure'`. Use hooks and `CONFIG.PIN_KIND`.
   The banned ids are derived from what is registered, so a fourth tool is
   guarded the day it lands.
-- A component is the nearest folder holding an `index.js`, so domain folders
+- A tool is the nearest folder holding an `index.js`, so domain folders
   (`tools/colour/contrast/` beside `…/palette/`) already work — grouped
-  and judged correctly, proven by probe. A backend two components want is a
+  and judged correctly, proven by probe. A backend two tools want is a
   SUBJECT: the import audit fails the cross-import with the promotion steps in
   the message. A file under `tools/` that no index claims fails loudly.
-- `src/tools/*` — no component names another. No `Tools.byId('grid')`, no
+- `src/tools/*` — no tool names another. No `Tools.byId('grid')`, no
   `t.id === 'grid'`. Ask the registry a question with no id in it; a lens
   reaches the tools, the tools never reach back.
 - A tool declares nothing about what it IS. Its hooks are the declaration,

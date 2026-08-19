@@ -161,7 +161,7 @@ section are all views of that one snapshot — it is not live, and re-running it
 is one click. "Audit" therefore never appears as a column or a folder: it is
 the flow that fills specific cells of the surfaces above.
 
-## Subjects — what two components must agree about
+## Subjects — what two tools must agree about
 
 `tools/grid/service.js` (the Scale subject) owns the spacing step and the
 off-grid test; `tools/contrast/service.js` (Colour) owns the WCAG level,
@@ -192,7 +192,7 @@ The day a second colour component ships (palette, colour-blindness, …):
    to colour" reaches the user through the shared ◐ ⚙ rows and menus, not
    through bar hierarchy.
 
-Nobody has to remember this: reaching for another component's `service.js`
+Nobody has to remember this: reaching for another tool's `service.js`
 fails the import audit with this exact promotion named in the message. The
 trigger enforces itself.
 
@@ -201,14 +201,14 @@ trigger enforces itself.
 | folder | what it is |
 |---|---|
 | `tools/<name>/` | one component per folder — `index.js` registers; `badge` / `rule` / `draw` / `report` / `options` beside it; `service.js` is its backend when it has one of its own. A DOMAIN folder (`colour/`, `geometry/`) has no `index.js` — it only groups a family; a component is the nearest folder that has one |
-| `subjects/` | a backend SHARED by two components — empty today; a sole-consumer backend lives inside its component, and is promoted here the day a second consumer appears |
+| `subjects/` | a backend SHARED by two tools — empty today; a sole-consumer backend lives inside its tool, and is promoted here the day a second consumer appears |
 | `services/` | the four collectors — `badge/`, `findings/`, `report/`, `settings/` — never edited when a component is added |
 | `ui/` | the panel machinery: bar, popover, controls, renderer, placement, styles, dom |
 | `core/`, `app/` | glue — state, config, utils, geometry, the registry; interactions, controller, boot |
 
 `src/` is real ES modules: execution order is the import graph, `boot.js` is
 the entry, and `build.js` (esbuild) generates `src/manifest.js` — side-effect
-imports of every `components/*/index.js`, so a new component is one new folder
+imports of every `tools/*/index.js`, so a new tool is one new folder
 that nothing else names. `banner.js` is not a module: its guard must abort
 before any module evaluates, so the build injects it around esbuild's output.
 
@@ -217,8 +217,8 @@ before any module evaluates, so the build injects it around esbuild's output.
 `audit.js`, on every `npm run check` — judged by exit code, never by reading
 output. A component is judged as a FOLDER (its files' concatenation), through
 the same `hooks.js` reading the map prints from. Five import-graph rules hold
-the layers: a component imports only core/, subjects/ and its own folder;
-nothing but the manifest names a component; core imports only core; services
+the layers: a tool imports only core/, subjects/ and its own folder;
+nothing but the manifest names a tool; core imports only core; services
 never import app; ui never imports app. What a component cannot import it
 receives — capabilities like `redraw` and `toClipboard` ride in through the
 hook ctx, the way `draw()` receives `layer` and `Place`. The rules that guard this document's claims: no tool names another

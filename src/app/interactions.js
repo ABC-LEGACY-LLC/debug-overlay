@@ -37,7 +37,7 @@ import { Render } from '../ui/renderer.js';
     claimed(type, ev, el) {
       /* Capabilities ride IN through the ctx, the way draw() receives layer
          and Place. pick used to import Render and Report directly — a
-         component naming a surface and a service — and the import-boundary
+         tool naming a surface and a service — and the import-boundary
          audit caught it the day the rule landed. This file is app/: it may
          know both, and handing them over is exactly its job as the door. */
       const ctx = { type, ev, el,

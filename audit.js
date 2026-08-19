@@ -36,7 +36,7 @@ let fail = 0;
    flat forever; discovering them with readdirSync would mean the day someone
    subdivides it, every tool in a subfolder silently stops being audited — no
    id check, no icon check, no cross-tool check, and a green run saying so. */
-/* One COMPONENT = one FOLDER under src/components/. Its behaviour is spread
+/* One TOOL = one FOLDER under src/tools/. Its behaviour is spread
    over the files beside its index, so every check below runs against the
    folder's concatenation — id, icon, hooks, option counts are folder facts.
    hooks.js owns that reading; this file only judges it. */
@@ -227,19 +227,19 @@ for (const t of tools) {
 console.log('\nIMPORT BOUNDARIES');
 const { importsOf } = require('./hooks.js');
 const IMPORT_RULES = [
-  ['components stay behind the registry',
+  ['tools stay behind the registry',
    (f, to) => f.startsWith('tools/') &&
      !(to.startsWith('core/') || to.startsWith('subjects/') ||
        to.split('/').slice(0, 2).join('/') === f.split('/').slice(0, 2).join('/')),
-   'a component imports only core/, subjects/ and its own folder — anything ' +
+   'a tool imports only core/, subjects/ and its own folder — anything ' +
    'else it wants, it asks the registry. If what you want is another ' +
-   "component's service.js, that backend now has two consumers: PROMOTE it " +
+   "tool's service.js, that backend now has two consumers: PROMOTE it " +
    'to subjects/ (keep its id, declare uses: in both) — a fact two ' +
-   'components consult is a subject, not private property'],
-  ['nothing names a component but the manifest',
+   'tools consult is a subject, not private property'],
+  ['nothing names a tool but the manifest',
    (f, to) => to.startsWith('tools/') && !f.startsWith('tools/') &&
      f !== 'manifest.js',
-   'components are reached through hooks; importing one couples to its name'],
+   'tools are reached through hooks; importing one couples to its name'],
   ['core imports only core',
    (f, to) => f.startsWith('core/') && !to.startsWith('core/'),
    'core is under everything, so it may depend on nothing above itself'],
@@ -253,7 +253,7 @@ const IMPORT_RULES = [
 for (const [name, bad, why] of IMPORT_RULES) {
   const hits = [];
   for (const f of walk()) {
-    if (f === 'manifest.js' && name !== 'nothing names a component but the manifest') continue;
+    if (f === 'manifest.js' && name !== 'nothing names a tool but the manifest') continue;
     for (const to of importsOf(f)) if (bad(f, to)) hits.push(`${f} → ${to}`);
   }
   if (hits.length) { console.log(`  ✗ ${name} — ${why}\n      ${hits.join('\n      ')}`); fail++; }
@@ -292,8 +292,8 @@ const LAYERS = [
    'UI fires callbacks; APP decides what they mean'],
   ['ui/', /defineTool\(/, 'UI draws the panel — a capability is a tool, in tools/'],
   ['app/', /defineTool\(/, 'APP is glue and page-level work — a capability is a tool'],
-  // A subject is called BY components and never calls back. Without this it
-  // would drift into being a component that simply has no button.
+  // A subject is called BY tools and never calls back. Without this it
+  // would drift into being a tool that simply has no button.
   ['subjects/', /\bPanel\.|\bList\.|\bRender\.|\bController\.|\bSettings\.|defineTool\(/,
    'A SUBJECT is measurement plus settings — it is called, and calls nothing back'],
 ];

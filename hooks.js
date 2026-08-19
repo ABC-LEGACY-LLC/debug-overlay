@@ -34,13 +34,13 @@ const walk = (dir = SRC, base = '') => {
 };
 
 /**
- * The registered COMPONENTS — one folder each under src/components/, read as a
- * unit: a component's behaviour is spread over the files beside its index, so
+ * The registered TOOLS — one folder each under src/tools/, read as a
+ * unit: a tool's behaviour is spread over the files beside its index, so
  * id, hooks and options are properties of the folder's concatenation, not of
  * any single file. (`registered('tools')` was the flat-file era's version.)
  */
 const registered = () => {
-  /* A component is THE FOLDER THAT HOLDS AN index.js — not the first path
+  /* A tool is THE FOLDER THAT HOLDS AN index.js — not the first path
      segment. That is what lets tools/ grow domain folders the day a
      subject gains a second consumer (tools/colour/contrast/ beside
      tools/colour/palette/) without this file changing again: the domain
