@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.72
+// @version      3.8.73
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -88,7 +88,9 @@ HOW TO USE
                  width or height, which layout produces rather than anyone
                  choosing, and nothing above CONFIG.GRID_MAX, where
                  margin:auto lands.
-    ◐ contrast   WCAG text contrast ratio, against AA or AAA (⚙)
+    🎨 colour    the colour family — one button; click it and its members
+                 slide out sideways:
+       ◐ contrast  WCAG text contrast ratio, against AA or AAA (⚙)
     ⌗ dupid      the same id used more than once — a page-wide question
     ⌖ pick       Ctrl+click (⌘+click) copies what you clicked — its selector,
                  or its text (⚙). Off by default: it takes a click over, and
@@ -426,6 +428,13 @@ HOW TO USE
      *  tooltip note — per tool, where the fact lives. */
     feedsAudit: (t) => role("detect").has(t),
     /**
+     * The family's MARK — the subject wearing the family's id. A family earns
+     * a bar presence of its own only when its head exists to carry the mark;
+     * geometry has no subject (its backend is core), so measure stays a direct
+     * button until that day.
+     */
+    familyMark: (name) => SUBJECTS.find((su) => su.id === name)?.icon || null,
+    /**
      * What one of a tool's own options is currently set to.
      *
      * A tool asks with `this`, never with an id, so this stays as id-free as
@@ -520,7 +529,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.72",
+    VERSION: "3.8.73",
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -1902,6 +1911,29 @@ HOW TO USE
     #__dbgov-bar .whenOn { display: none; }
     #__dbgov-bar.on .whenOn { display: flex; align-items: center; justify-content: center; }
     #__dbgov-bar.on .cnt.whenOn { display: block; }
+    /* the family flyout: the mark sits in the bar, the members slide out
+       sideways — toward the open side of the screen, read off data-side */
+    #__dbgov-bar .fam, #__dbgov-bar .fam-btn { display: none; }
+    #__dbgov-bar.on .fam { position: relative; display: flex; }
+    #__dbgov-bar.on .fam-btn { width: 34px; height: 34px; border-radius: 50%; border: 0;
+      cursor: pointer; background: #2c2c31; color: #eaeaea; font-size: 15px;
+      display: flex; align-items: center; justify-content: center; position: relative; }
+    #__dbgov-bar .fam-btn:hover { background: #3a3a41; }
+    #__dbgov-bar .fam-btn.armed { background: #58c4ff; color: #10151a; }
+    #__dbgov-bar .fam-btn.checks::after { content: ''; position: absolute;
+      right: 1px; bottom: 1px; width: 7px; height: 7px; border-radius: 50%;
+      background: #b5e853; border: 2px solid rgba(18,18,20,.96); }
+    #__dbgov-bar .fam .flyout { position: absolute; top: 50%;
+      transform: translateY(-50%) scale(.9); display: flex; gap: 6px;
+      padding: 6px; border-radius: 999px; background: rgba(18,18,20,.96);
+      box-shadow: 0 4px 18px rgba(0,0,0,.55); opacity: 0; pointer-events: none;
+      transition: opacity .15s ease, transform .15s ease; }
+    #__dbgov-bar .fam.open .flyout { opacity: 1; pointer-events: auto;
+      transform: translateY(-50%) scale(1); }
+    #__dbgov-bar[data-side="right"] .fam .flyout { right: calc(100% + 12px); }
+    #__dbgov-bar[data-side="left"] .fam .flyout,
+    #__dbgov-bar[data-side="top"] .fam .flyout,
+    #__dbgov-bar[data-side="bottom"] .fam .flyout { left: calc(100% + 12px); }
     #__dbgov-bar hr.sep { width: 20px; height: 1px; border: 0; margin: 1px 0;
       background: rgba(255,255,255,.14); }
     #__dbgov-bar .cnt { font-size: 11px; font-weight: 700; color: #ff8a65;
@@ -2147,14 +2179,27 @@ HOW TO USE
     Panel = (() => {
       const el = document.createElement("div");
       el.id = "__dbgov-bar";
-      const toolRuns = Tools.runs().map((run) => run.tools.map((t) => (
-        // The roles go in the tooltip, not in the grouping: a button sits in one
-        // place and most tools fill two, so this is where it can say both. The
-        // ⌕ dot is per TOOL (feedsAudit), not per band — the band means pipeline
-        // position now.
-        `<button class="tool whenOn ${Tools.feedsAudit(t) ? "checks" : ""}" data-tool="${t.id}" title="${t.family ? t.family[0].toUpperCase() + t.family.slice(1) + " › " : ""}${t.title}
-${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the page audit" : ""}${t.options || t.uses ? "\nright-click for its options" : ""}">${t.icon}</button>`
-      )).join("")).join('<hr class="sep whenOn">');
+      const toolBtn = (t) => `<button class="tool whenOn ${Tools.feedsAudit(t) ? "checks" : ""}" data-tool="${t.id}" title="${t.family ? t.family[0].toUpperCase() + t.family.slice(1) + " › " : ""}${t.title}
+${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the page audit" : ""}${t.options || t.uses ? "\nright-click for its options" : ""}">${t.icon}</button>`;
+      const toolRuns = Tools.runs().map((run) => {
+        const out = [];
+        const done = /* @__PURE__ */ new Set();
+        for (const t of run.tools) {
+          const mark = t.family && Tools.familyMark(t.family);
+          if (!mark) {
+            out.push(toolBtn(t));
+            continue;
+          }
+          if (done.has(t.family)) continue;
+          done.add(t.family);
+          const kin = run.tools.filter((x) => x.family === t.family);
+          const famName = t.family[0].toUpperCase() + t.family.slice(1);
+          out.push(
+            `<span class="fam whenOn"><button class="fam-btn whenOn ${kin.some(Tools.feedsAudit) ? "checks" : ""}" aria-expanded="false" title="${famName} family — ${kin.map((x) => x.id).join(", ")}; click to open">${mark}</button><span class="flyout">${kin.map(toolBtn).join("")}</span></span>`
+          );
+        }
+        return out.join("");
+      }).join('<hr class="sep whenOn">');
       el.innerHTML = `
       <span class="grip" title="Drag to move — snaps to the nearest edge">⋮⋮</span>
       <button class="pwr" title="Power (Alt+Shift+D) · v${CONFIG.VERSION}">⏻</button>
@@ -2209,6 +2254,8 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           const b = el.querySelector(`[data-tool="${id}"]`);
           b?.classList.toggle("armed", v);
           b?.setAttribute("aria-pressed", String(!!v));
+          const fam = b?.closest(".fam");
+          if (fam) fam.querySelector(".fam-btn").classList.toggle("armed", !!fam.querySelector(".tool.armed"));
         },
         setDetail(v) {
           const b = el.querySelector("[data-detail]");
@@ -2290,6 +2337,25 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       });
       el.querySelectorAll("[data-tool], [data-detail], [data-view]").forEach((b) => b.setAttribute("aria-pressed", "false"));
       el.querySelector(".pwr").addEventListener("click", () => api.onToggle?.());
+      el.querySelectorAll(".fam-btn").forEach((b) => {
+        b.addEventListener("click", () => {
+          const fam = b.parentElement;
+          const open = !fam.classList.contains("open");
+          el.querySelectorAll(".fam.open").forEach((f) => {
+            f.classList.remove("open");
+            f.querySelector(".fam-btn").setAttribute("aria-expanded", "false");
+          });
+          fam.classList.toggle("open", open);
+          b.setAttribute("aria-expanded", String(open));
+        });
+      });
+      document.addEventListener("pointerdown", (e) => {
+        if (e.target.closest && e.target.closest(".fam")) return;
+        el.querySelectorAll(".fam.open").forEach((f) => {
+          f.classList.remove("open");
+          f.querySelector(".fam-btn").setAttribute("aria-expanded", "false");
+        });
+      }, true);
       el.querySelectorAll("[data-tool]").forEach((b) => {
         b.addEventListener("click", () => api.onTool?.(b.dataset.tool));
         b.addEventListener("contextmenu", (e) => {
@@ -2305,6 +2371,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       el.querySelector("[data-clear]").addEventListener("click", () => api.onClear?.());
       let side = "right";
       function applyPos(x, y) {
+        el.dataset.side = side;
         const r = el.getBoundingClientRect();
         x = Math.max(4, Math.min(x, innerWidth - r.width - 4));
         y = Math.max(4, Math.min(y, innerHeight - r.height - 4));

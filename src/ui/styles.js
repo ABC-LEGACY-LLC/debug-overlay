@@ -161,6 +161,29 @@ import { CONFIG } from '../core/config.js';
     #__dbgov-bar .whenOn { display: none; }
     #__dbgov-bar.on .whenOn { display: flex; align-items: center; justify-content: center; }
     #__dbgov-bar.on .cnt.whenOn { display: block; }
+    /* the family flyout: the mark sits in the bar, the members slide out
+       sideways — toward the open side of the screen, read off data-side */
+    #__dbgov-bar .fam, #__dbgov-bar .fam-btn { display: none; }
+    #__dbgov-bar.on .fam { position: relative; display: flex; }
+    #__dbgov-bar.on .fam-btn { width: 34px; height: 34px; border-radius: 50%; border: 0;
+      cursor: pointer; background: #2c2c31; color: #eaeaea; font-size: 15px;
+      display: flex; align-items: center; justify-content: center; position: relative; }
+    #__dbgov-bar .fam-btn:hover { background: #3a3a41; }
+    #__dbgov-bar .fam-btn.armed { background: #58c4ff; color: #10151a; }
+    #__dbgov-bar .fam-btn.checks::after { content: ''; position: absolute;
+      right: 1px; bottom: 1px; width: 7px; height: 7px; border-radius: 50%;
+      background: #b5e853; border: 2px solid rgba(18,18,20,.96); }
+    #__dbgov-bar .fam .flyout { position: absolute; top: 50%;
+      transform: translateY(-50%) scale(.9); display: flex; gap: 6px;
+      padding: 6px; border-radius: 999px; background: rgba(18,18,20,.96);
+      box-shadow: 0 4px 18px rgba(0,0,0,.55); opacity: 0; pointer-events: none;
+      transition: opacity .15s ease, transform .15s ease; }
+    #__dbgov-bar .fam.open .flyout { opacity: 1; pointer-events: auto;
+      transform: translateY(-50%) scale(1); }
+    #__dbgov-bar[data-side="right"] .fam .flyout { right: calc(100% + 12px); }
+    #__dbgov-bar[data-side="left"] .fam .flyout,
+    #__dbgov-bar[data-side="top"] .fam .flyout,
+    #__dbgov-bar[data-side="bottom"] .fam .flyout { left: calc(100% + 12px); }
     #__dbgov-bar hr.sep { width: 20px; height: 1px; border: 0; margin: 1px 0;
       background: rgba(255,255,255,.14); }
     #__dbgov-bar .cnt { font-size: 11px; font-weight: 700; color: #ff8a65;

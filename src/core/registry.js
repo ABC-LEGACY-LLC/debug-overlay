@@ -174,6 +174,14 @@ import { State } from './state.js';
     feedsAudit: (t) => role('detect').has(t),
 
     /**
+     * The family's MARK — the subject wearing the family's id. A family earns
+     * a bar presence of its own only when its head exists to carry the mark;
+     * geometry has no subject (its backend is core), so measure stays a direct
+     * button until that day.
+     */
+    familyMark: (name) => SUBJECTS.find((su) => su.id === name)?.icon || null,
+
+    /**
      * What one of a tool's own options is currently set to.
      *
      * A tool asks with `this`, never with an id, so this stays as id-free as

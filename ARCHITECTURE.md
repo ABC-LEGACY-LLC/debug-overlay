@@ -198,8 +198,13 @@ any declaration that does not equal the folder it sits in. The family shows
 where it costs nothing: the tooltip (`Colour › Contrast`) and the right-click
 menu's title. A family's SUBJECT carries the family's own mark (🎨), never a
 member tool's glyph — the "WCAG level" row wearing contrast's ◐ made the
-subject look like one of its tools. Visible bar chips wait for a family's
-second member, where they would first disambiguate anything.
+subject look like one of its tools. A family whose subject carries a
+mark renders as ONE bar button (🎨) whose members slide out sideways — toward
+the open side of the screen, read off the bar's snap side — with the ordinary
+tool buttons inside: same arming, same right-click menu. One button per
+family, so a family that grows shrinks the bar. Geometry has no subject to
+carry a mark, so measure stays a direct button until that family's head
+exists.
 
 Nobody has to remember this: reaching for another tool's `service.js`
 fails the import audit with this exact promotion named in the message. The

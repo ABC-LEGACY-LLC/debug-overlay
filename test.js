@@ -1650,6 +1650,45 @@ console.log('\nPICK');
   });
 }
 
+console.log('\nFAMILY FLYOUT');
+/**
+ * A family with a MARK (a subject wearing the family id) renders as one bar
+ * button whose members slide out sideways. The members are ordinary tool
+ * buttons — same arming, same right-click — just housed in the flyout, so a
+ * family that grows shrinks the bar instead of growing it.
+ */
+{
+  const d = new JSDOM('<!doctype html><html><body><div id="x">x</div></body></html>',
+    { url: 'https://example.test/', pretendToBeVisual: true,
+      runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
+  const w = d.window;
+  w.eval(source);
+  const bar = w.document.getElementById('__dbgov-bar');
+  const fam = bar.querySelector('.fam');
+  const btn = fam && fam.querySelector('.fam-btn');
+  ok('the colour family is one mark on the bar',
+    !!btn && btn.textContent === '🎨' && !!fam.querySelector('[data-tool="contrast"]'),
+    'the mark comes from the family subject; contrast lives in its flyout');
+  ok('and geometry stays a direct button — no subject, no mark',
+    !bar.querySelector('[data-tool="measure"]')?.closest('.fam'),
+    'a family earns a bar presence only when its head exists to carry it');
+  w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  btn.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  ok('clicking the mark opens the flyout',
+    fam.classList.contains('open') && btn.getAttribute('aria-expanded') === 'true',
+    fam.className);
+  fam.querySelector('[data-tool="contrast"]')
+    .dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  ok('a member arms from the flyout, and the mark shows it',
+    btn.classList.contains('armed'),
+    'the family mark reflects any armed member');
+  w.document.body.dispatchEvent(new w.PointerEvent('pointerdown', { bubbles: true }));
+  ok('clicking anywhere else closes it',
+    !fam.classList.contains('open') && btn.getAttribute('aria-expanded') === 'false',
+    fam.className);
+  w.close();
+}
+
 // ---- the sections that need a painted frame ---------------------------------
 // Marks and badges only exist after the renderer runs, which is an animation
 // frame away. Everything above is synchronous; these are not, so they go last

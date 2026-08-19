@@ -72,7 +72,9 @@ HOW TO USE
                  width or height, which layout produces rather than anyone
                  choosing, and nothing above CONFIG.GRID_MAX, where
                  margin:auto lands.
-    ◐ contrast   WCAG text contrast ratio, against AA or AAA (⚙)
+    🎨 colour    the colour family — one button; click it and its members
+                 slide out sideways:
+       ◐ contrast  WCAG text contrast ratio, against AA or AAA (⚙)
     ⌗ dupid      the same id used more than once — a page-wide question
     ⌖ pick       Ctrl+click (⌘+click) copies what you clicked — its selector,
                  or its text (⚙). Off by default: it takes a click over, and

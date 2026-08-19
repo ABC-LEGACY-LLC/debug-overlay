@@ -16,19 +16,39 @@ import { List } from './list.js';
     // grouping. This file draws the runs it is handed, in order, with a rule
     // between them; what puts a tool in one run rather than another is not
     // its business.
-    const toolRuns = Tools.runs().map((run) => run.tools.map((t) =>
-      // The roles go in the tooltip, not in the grouping: a button sits in one
-      // place and most tools fill two, so this is where it can say both. The
-      // ⌕ dot is per TOOL (feedsAudit), not per band — the band means pipeline
-      // position now.
+    /**
+     * A tool whose family has a MARK renders as a family button (🎨) whose
+     * members slide out sideways — toward the open side of the screen, read
+     * off data-side. The member buttons are the ordinary tool buttons, just
+     * housed in the flyout: same [data-tool], same click and right-click
+     * wiring, so arming and menus need no second code path. One button per
+     * family, so a family that grows shrinks the bar rather than growing it.
+     */
+    const toolBtn = (t) =>
       `<button class="tool whenOn ${Tools.feedsAudit(t) ? 'checks' : ''}" data-tool="${t.id}"` +
       ` title="${t.family ? t.family[0].toUpperCase() + t.family.slice(1) + ' › ' : ''}` +
       `${t.title}\n${Tools.rolesOf(t).join(' · ')}` +
       `${Tools.feedsAudit(t) ? ' · also runs in the page audit' : ''}` +
-      // the tool says so itself, so a tool with nothing to configure does not
-      // advertise a menu that would open empty
-      `${t.options || t.uses ? '\nright-click for its options' : ''}">${t.icon}</button>`).join(''))
-      .join('<hr class="sep whenOn">');
+      `${t.options || t.uses ? '\nright-click for its options' : ''}">${t.icon}</button>`;
+    const toolRuns = Tools.runs().map((run) => {
+      const out = [];
+      const done = new Set();
+      for (const t of run.tools) {
+        const mark = t.family && Tools.familyMark(t.family);
+        if (!mark) { out.push(toolBtn(t)); continue; }
+        if (done.has(t.family)) continue;
+        done.add(t.family);
+        const kin = run.tools.filter((x) => x.family === t.family);
+        const famName = t.family[0].toUpperCase() + t.family.slice(1);
+        out.push(
+          `<span class="fam whenOn">` +
+          `<button class="fam-btn whenOn ${kin.some(Tools.feedsAudit) ? 'checks' : ''}"` +
+          ` aria-expanded="false" title="${famName} family — ${kin.map((x) => x.id).join(', ')};` +
+          ` click to open">${mark}</button>` +
+          `<span class="flyout">${kin.map(toolBtn).join('')}</span></span>`);
+      }
+      return out.join('');
+    }).join('<hr class="sep whenOn">');
     el.innerHTML = `
       <span class="grip" title="Drag to move — snaps to the nearest edge">⋮⋮</span>
       <button class="pwr" title="Power (Alt+Shift+D) · v${CONFIG.VERSION}">⏻</button>
@@ -87,6 +107,10 @@ import { List } from './list.js';
         const b = el.querySelector(`[data-tool="${id}"]`);
         b?.classList.toggle('armed', v);
         b?.setAttribute('aria-pressed', String(!!v));
+        // the family mark shows armed when ANY member is armed
+        const fam = b?.closest('.fam');
+        if (fam) fam.querySelector('.fam-btn')
+          .classList.toggle('armed', !!fam.querySelector('.tool.armed'));
       },
       setDetail(v) {
         const b = el.querySelector('[data-detail]');
@@ -179,6 +203,29 @@ import { List } from './list.js';
       .forEach((b) => b.setAttribute('aria-pressed', 'false'));
 
     el.querySelector('.pwr').addEventListener('click', () => api.onToggle?.());
+    /* The family flyout: click the mark to slide the members out; click it
+       again, pick a member, press Escape via the panel path, or click
+       anywhere else to close. Only ever one open. */
+    el.querySelectorAll('.fam-btn').forEach((b) => {
+      b.addEventListener('click', () => {
+        const fam = b.parentElement;
+        const open = !fam.classList.contains('open');
+        el.querySelectorAll('.fam.open').forEach((f) => {
+          f.classList.remove('open');
+          f.querySelector('.fam-btn').setAttribute('aria-expanded', 'false');
+        });
+        fam.classList.toggle('open', open);
+        b.setAttribute('aria-expanded', String(open));
+      });
+    });
+    document.addEventListener('pointerdown', (e) => {
+      if (e.target.closest && e.target.closest('.fam')) return;
+      el.querySelectorAll('.fam.open').forEach((f) => {
+        f.classList.remove('open');
+        f.querySelector('.fam-btn').setAttribute('aria-expanded', 'false');
+      });
+    }, true);
+
     el.querySelectorAll('[data-tool]').forEach((b) => {
       b.addEventListener('click', () => api.onTool?.(b.dataset.tool));
       /* Right-click opens THIS tool's options and nothing else. The view name
@@ -201,6 +248,7 @@ import { List } from './list.js';
     // --- position: restore / clamp / snap / persist
     let side = 'right';
     function applyPos(x, y) {
+      el.dataset.side = side;
       const r = el.getBoundingClientRect();
       x = Math.max(4, Math.min(x, innerWidth - r.width - 4));
       y = Math.max(4, Math.min(y, innerHeight - r.height - 4));
