@@ -12,7 +12,7 @@ updates by itself after a `git push`.
 ## Everyday use
 
 ```bash
-npm install            # once — jsdom, for the smoke test
+npm install            # once — jsdom (tests) + esbuild (bundler)
 npm run dev            # local page + rebuild on save — look at it first
 npm run check          # rebuild (no bump) + architecture rules + fake-DOM boot
 node build.js          # patch bump + bundle + syntax check
@@ -157,150 +157,57 @@ the living version from the same shared definition (`hooks.js`).
 
 ```
 src/
-  banner.js            opens the closure + single-instance guard
-  core/
-    config.js          every tunable number and key
-    state.js           State, plus Store — the part that outlives the page
-    utils.js           pure helpers (no DOM, no state)
-    geometry.js        dimension-line geometry, tool-agnostic
-    registry.js        defineTool(), the Tools helpers, the four ROLES
-  subjects/            ← auto-discovered; shared measurement + its settings
-    colour.js          colour resolution, the cache, and the WCAG level
-    scale.js           what counts as on-grid, and step/max/boxes
-  tools/               ← auto-discovered; one file per capability
-    contrast.js        WCAG contrast ratio
-    dupid.js           duplicate ids — a whole-page question
-    grid.js            off-grid value warnings
-    measure.js         sizes, spacing, distances  ← copy this as a template
-    pick.js            Ctrl+click copies a selector
-    select.js          how pinned elements group up
-  ui/
-    styles.js          core CSS (tools carry their own)
-    dom.js             root + drawing layer
-    controls.js        one widget from a description of it
-    list.js            the popover the panel opens
-    panel.js           the bar: buttons, drag, snap, tuck
-    placement.js       collision-free badge positioning
-    badges.js          composes badges from active tools
-    renderer.js        draws one frame from state
-  app/
-    report.js          structured text export
-    interactions.js    page-level mouse and keyboard
-    controller.js      the only glue between modules
-    settings.js        the ⚙ view, and what a tool's options mean
-    sweep.js           runs every rule over every visible element
-  boot.js              wiring, start, and the closing brace
+  banner.js            the guard — injected by build.js around the bundle
+  boot.js              the entry module: init order + wiring
+  components/          ← one FOLDER per capability, auto-discovered
+    contrast/          index · service (Colour) · badge · rule · draw · report
+    dupid/             index · badge · rule · draw · report
+    grid/              index · service (Scale) · badge · lens · rule · draw
+                       · report · options
+    measure/           index · badge · report · draw
+    pick/              index · act
+    select/            index · service · rows
+  services/            the four collectors — never edited for a new component
+    badge/  findings/  report/  settings/
+  subjects/            a backend shared by TWO components (empty today)
+  core/                config · state+Store · utils · geometry · registry
+  ui/                  styles · dom · controls · list · panel · placement
+                       · renderer
+  app/                 interactions · controller
 ```
 
-The bundle is **one IIFE with no imports**, so load order is a real dependency:
-`banner.js` opens the closure, `boot.js` closes it, and a file evaluated too
-early is a `ReferenceError` at boot — a blank overlay on every site.
+Real ES modules, bundled by esbuild into the same single userscript. Execution
+order is the import graph; `build.js` generates `src/manifest.js` (gitignored)
+importing every `components/*/index.js`, so a new component is one new folder
+and nothing else. The migration that produced this tree was verified phase by
+phase with `node compare.js <old> <new>` — one scripted session, 24
+observation groups, zero behavioural differences end to end.
 
-That order lives in **`ORDER` in `build.js`**, and nowhere else. It used to be
-encoded in numeric filename prefixes, which made renaming dangerous, meant the
-same convention said *load order* in `src/` and *display order* in
-`src/tools/`, and left folders unusable for anything ordered.
+## Adding a component
 
-Adding a core file means putting it in `core/`, `ui/` or `app/` **and** into
-`ORDER` at the point its dependencies allow. The build fails if it is in one
-and not the other, in either direction — a file that exists but ships in no
-bundle is exactly the kind of silence this project keeps designing out.
-
-`tools/*` is still globbed, so **a new tool is one new file and nothing else**.
-No filename anywhere carries a number now. Where a tool appears in the bar is
-derived from the first ROLE it fills, then by id — so the order is a fact about
-what a component does, not about how it was spelled, and it cannot go stale
-against the thing it describes.
-
-## Adding a tool
-
-Create `src/tools/40-yourtool.js`:
+Make `src/components/zindex/` with an `index.js`:
 
 ```js
+import { defineTool } from '../../core/registry.js';
+import { badge } from './badge.js';
+
 defineTool({
   id: 'zindex',
-  icon: '⧉',
+  icon: '≡',
   title: 'Stacking — z-index & position',
-  css: `
-    .dbgov-badge .zi { color: #ffb86c; }
-  `,
-  badge:   (i) => `<span class="zi">z ${i.cs.zIndex}</span>`,
-  compact: (i) => (i.cs.zIndex === 'auto' ? null : `<span class="zi">z ${i.cs.zIndex}</span>`),
-  report:  (i) => [`  z-index: ${i.cs.zIndex} | position: ${i.cs.position}`],
+  badge,
 });
 ```
 
-Then `node build.js`. The panel button, persistence, badge composition and
-report inclusion all follow from the registry — no other file changes.
-
-A tool declares no type. The hooks it implements are what it is, and it may
-have any combination of them — `grid` decorates the numbers other tools print
-*and* produces findings, which one label per tool could never express.
-
-A `rule`'s `audit(info)` returns `{ el, verdict, severity, rule, message, key }`
-and says nothing when the element is fine. `verdict` is `fail` or `review` —
-a rule that could not measure something has to say so, or an unreadable page
-reports clean. Findings are grouped by `key` and ranked worst-first, reviews
-last, so a nav of 40 identical links is one line, not forty.
-
-The ⌕ button audits the whole page. It runs every rule that exists, armed or
-not: arming decides what is drawn on screen, never what is checked.
-
-Available hooks, all optional: `badge`, `compact`, `report`, `reportTail`,
-`draw`, `listRows`, `pendingIndex`, `annotate`, `audit`, `auditPage`,
-`options`, `intercept`, `css`.
-
-`startsOn: true` arms the tool on a fresh install. It is a field on the tool
-rather than a list in `CONFIG`, so shipping a tool never means editing a core
-file to name it.
-
-`intercept({ type, ev, el })` is the only hook that **acts** on the page rather
-than describing it. Armed tools are offered each click before it becomes a pin;
-returning true means the click was yours and no pin lands underneath. Claim
-narrowly — `pick.js` takes only Ctrl/⌘+clicks — because a tool that swallows
-every click has taken the overlay away from everything else.
-
-`options()` makes a tool adjustable without a rebuild — one row each under the
-panel's ⚙, read back with `Tools.setting(this, 'key')`:
-
-```js
-options() {
-  return [{ key: 'step', label: 'Grid step', def: CONFIG.GRID,
-            values: [1, 2, 4, 8], suffix: 'px', affects: 'detect' }];
-}
-```
-
-`affects` is the one category in this codebase that is declared rather than
-derived — `select`, `inspect`, `detect` or `act`. A tool's own **roles** come
-from its hooks and are never written down; no hook, though, can tell you
-whether a knob is a detection threshold or a display preference. The ⚙ view
-groups on it, and the audit fails an option that omits it. Options also come in
-three shapes: `values:` for a picker, `type: 'number'` with `min`/`max`/`step`,
-and `type: 'toggle'`.
-
-`def` belongs in `CONFIG`, so that file still says what a fresh install does
-while the panel says what this one is doing now. Never state the value in a
-`title` or a rule's `help` — those are built once and would go on claiming the
-old number. Changing an option clears the last sweep, because those findings
-were judged under the previous value.
-
-Three kinds of option, so a setting is not forced into a list it does not fit:
-
-| declared | control |
-|---|---|
-| `values: [1, 2, 4, 8]` | a picker |
-| `type: 'number', min, max, step` | a threshold you type |
-| `type: 'toggle'` | on or off |
-
-`audit(info)` judges one element; `auditPage(all)` runs once per sweep with
-every visible element, for questions no single element can answer. A tool's
-`rules` map documents each rule it owns — the report prints that under every
-finding, so a copied report explains itself.
+and put `badge()` in `badge.js` beside it. That is everything — the button,
+⚙ rows, right-click menu and report arrive through the registry. Grow it by
+adding files to the folder (`rule.js`, `draw.js`, `service.js` for its
+backend), never by editing anything outside it.
 
 ## Rules the audit enforces
 
 - `core/utils.js` is pure — it never reads state, builds DOM, or owns markup.
-- No file in `src/tools/` names another tool — no `Tools.byId('grid')`, no
+- No component imports or names another — no `Tools.byId('grid')`, no
   `t.id === 'grid'`. A lens reaches the tools; the tools never reach back.
 - Every name in `HOOKS` is consumed by some file — no hook exists that
   nothing would ever call.

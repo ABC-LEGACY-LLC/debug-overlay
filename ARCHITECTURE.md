@@ -38,7 +38,8 @@ effect.
 
 ## Three species, not one list
 
-Every file in `src/tools/` is a component, but they are not one kind of thing.
+Every folder under `src/components/` is a component, but they are not one kind
+of thing.
 The bands are DERIVED from the hooks a file implements — nothing declares its
 species, so the label cannot drift from the behaviour:
 
@@ -158,8 +159,9 @@ the flow that fills specific cells of the surfaces above.
 
 ## Subjects — what two components must agree about
 
-`subjects/scale.js` owns the spacing step and the off-grid test;
-`subjects/colour.js` owns the WCAG level, colour resolution and the memoised
+`components/grid/service.js` (the Scale subject) owns the spacing step and the
+off-grid test; `components/contrast/service.js` (Colour) owns the WCAG level,
+colour resolution and the memoised
 cache. They moved out of the tools because a badge saying a value passes over
 a finding saying it fails is the one contradiction this design exists to rule
 out. A subject has no button, no hooks, no surface: it is called and never
@@ -169,18 +171,28 @@ calls back, under the same one-way rule as `core/`.
 
 | folder | what it is |
 |---|---|
-| `tools/` | a component — something you can arm |
-| `subjects/` | shared measurement + its settings |
-| `ui/` | a surface — where output appears |
-| `core/`, `app/` | glue — what connects them |
+| `components/<name>/` | one component per folder — `index.js` registers; `badge` / `rule` / `draw` / `report` / `options` beside it; `service.js` is its backend when it has one of its own |
+| `subjects/` | a backend SHARED by two components — empty today; a sole-consumer backend lives inside its component, and is promoted here the day a second consumer appears |
+| `services/` | the four collectors — `badge/`, `findings/`, `report/`, `settings/` — never edited when a component is added |
+| `ui/` | the panel machinery: bar, popover, controls, renderer, placement, styles, dom |
+| `core/`, `app/` | glue — state, config, utils, geometry, the registry; interactions, controller, boot |
 
-Load order lives in `ORDER` in `build.js` and nowhere else. `tools/` and
-`subjects/` are globbed, so a new component or subject is one new file.
+`src/` is real ES modules: execution order is the import graph, `boot.js` is
+the entry, and `build.js` (esbuild) generates `src/manifest.js` — side-effect
+imports of every `components/*/index.js`, so a new component is one new folder
+that nothing else names. `banner.js` is not a module: its guard must abort
+before any module evaluates, so the build injects it around esbuild's output.
 
 ## What enforces all of this
 
 `audit.js`, on every `npm run check` — judged by exit code, never by reading
-output. The rules that guard this document's claims: no tool names another
+output. A component is judged as a FOLDER (its files' concatenation), through
+the same `hooks.js` reading the map prints from. Five import-graph rules hold
+the layers: a component imports only core/, subjects/ and its own folder;
+nothing but the manifest names a component; core imports only core; services
+never import app; ui never imports app. What a component cannot import it
+receives — capabilities like `redraw` and `toClipboard` ride in through the
+hook ctx, the way `draw()` receives `layer` and `Place`. The rules that guard this document's claims: no tool names another
 tool; a tool must be worth arming alone (one of `badge`/`compact`/`draw`/
 `listRows`/`intercept`); a rule must `draw` where its findings are; every
 option declares `affects:` as a quoted literal; subjects never call back;

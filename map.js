@@ -155,6 +155,8 @@ WHERE A NEW FILE GOES — every file is exactly one of these
                        ⚙ rows arrive free.
   SUBJECT    subjects/  a backend SHARED by two components — none today; a
                         component's sole-consumer backend is its service.js
+  SERVICE    services/  the four collectors (badge, findings, report,
+                        settings) — never edited when a component is added
   SURFACE    ui/        where output APPEARS         → the panel is made of these
   GLUE       core/      what connects them           → no user surface at all
              app/                                      (app/ is the page-level

@@ -119,35 +119,19 @@ HOW TO USE
   SCRIPT, not for the site — set them once and every other site already agrees,
   and Tampermonkey's own sync carries them to a new machine.
 
-  ARCHITECTURE — each file is independent; edit one to change one behaviour.
-  They are concatenated into a single closure in the order listed by ORDER in
-  build.js, which is the one place that order is written down. Filenames carry
-  no numbers, because a filename should say what a thing IS, not when it loads.
+  ARCHITECTURE — real ES modules, one folder per component, bundled by
+  esbuild into this single file. Execution order is the import graph, and a
+  new capability is one new folder that nothing else has to name.
 
-    banner.js        opens the closure everything else lives in
-    core/config      every tunable number/key
-    core/state       single source of truth, plus STORE, the part of it
-                     that outlives the page
-    core/utils       pure functions — no DOM writes, no State reads
-    core/geometry    dimension-line geometry & drawing (tool-agnostic)
-    core/registry    ⭐ the plugin registry, and the four ROLES
-    subjects/*       shared measurement plus the settings that govern it —
-                     called by components, never calls back
-    tools/*          ⭐ one file per debug capability, auto-discovered
-    ui/styles        core CSS (tools carry their own)
-    ui/dom           root & drawing layer
-    ui/controls      one widget from a description of it
-    ui/list          the popover the panel opens
-    ui/panel         the bar: buttons, drag, snap, auto-tuck
-    ui/placement     collision-free badge positioning
-    ui/badges        composes badge HTML from the ACTIVE tools
-    ui/renderer      draws one frame from STATE
-    app/report       structured text export, composed from tools
-    app/interactions page-level mouse & keyboard
-    app/controller   the only glue between modules
-    app/settings     the ⚙ view, and what a tool's options mean
-    app/sweep        runs the rules over the whole page
-    boot.js          wires it together, starts it, closes the closure
+    banner.js          the guard, injected by the build around the bundle
+    boot.js            entry: init order and wiring
+    components/<n>/    ⭐ one folder per capability — index registers, the
+                       hook files sit beside it, service.js is its backend
+    services/          badge, findings, report, settings — the collectors
+    subjects/          a backend shared by two components (none today)
+    core/              config, state+Store, utils, geometry, registry
+    ui/                styles, dom, controls, list, panel, placement, renderer
+    app/               interactions, controller
 
   RULES that keep it from turning to mush:
     · UTILS is pure. It never reads State and never asks "is tool X on?" —

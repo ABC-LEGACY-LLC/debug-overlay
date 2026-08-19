@@ -41,9 +41,12 @@ a failing contrast ratio, boxes to measure between. Open it in a real browser
 tab: the bundle skips frames, so an embedded editor preview shows nothing.
 
 ## Where things go
-- A new debug capability is a NEW FILE in `src/tools/`, never an edit to the
-  renderer, panel or controller. If you feel the urge to edit those to add a
-  tool, the tool needs a new hook instead — add the hook generically.
+- A new debug capability is a NEW FOLDER under `src/components/` — an
+  `index.js` that registers, hook files beside it — never an edit to the
+  renderer, panel, controller or any `services/` folder. If you feel that
+  urge, the component needs a new hook instead — add the hook generically.
+  What a component cannot import (see the import boundaries), it receives:
+  capabilities ride in through the hook ctx, like intercept's `redraw`.
 - Files split when they grow two jobs, and the split keeps the caller's
   surface identical: `ui/controls.js` and `ui/list.js` came out of the panel,
   `app/settings.js` out of the controller, and `Panel.setList` / `Panel.view`
@@ -57,10 +60,11 @@ tab: the bundle skips frames, so an embedded editor preview shows nothing.
   injects its text at the top of the wrapper IIFE. `ui/dom.js`, `ui/list.js`
   and `ui/panel.js` build DOM, so they export `init*()` called from boot in
   order rather than constructing at import time.
-- `tools/contrast.js` is over the 220-line advisory and staying there. The
-  only way to shrink it is to move the colour helpers into a core file, and
-  they live in the tool deliberately (see below). A line count is not worth
-  trading a boundary for.
+- The 220-line advisory is per FILE, and the folder split dissolved the one
+  standing exception: contrast is now index/badge/rule/draw/report plus
+  `service.js` (Colour), every file under the line. A component whose single
+  file grows past it splits by CONCERN inside its folder, never into a second
+  component.
 - A rule's bounds have two sides. `v <= max` let every negative through, so a
   page reported `-1127px` as a spacing decision while ignoring `+1127px`.
 - `U.info`'s `r` is a getter. **Never destructure it in a parameter list** —
@@ -150,7 +154,7 @@ exactly what the `kind` field died of.
   hardcode a tool id such as `'measure'`. Use hooks and `CONFIG.PIN_KIND`.
   The banned ids are derived from what is registered, so a fourth tool is
   guarded the day it lands.
-- `src/tools/*` — no tool names another tool. No `Tools.byId('grid')`, no
+- `src/components/*` — no component names another. No `Tools.byId('grid')`, no
   `t.id === 'grid'`. Ask the registry a question with no id in it; a lens
   reaches the tools, the tools never reach back.
 - A tool declares nothing about what it IS. Its hooks are the declaration,
