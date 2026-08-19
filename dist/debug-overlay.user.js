@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.62
+// @version      3.8.63
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -269,82 +269,6 @@ HOW TO USE
   window.__DBG_OVERLAY__ = true;
 
 (() => {
-  // src/core/config.js
-  var CONFIG = {
-    // Substituted by build.js at bundle time. A userscript with @grant none
-    // cannot read GM_info, and an overlay that cannot say which version it is
-    // makes a stale install look exactly like a current one — which is the
-    // failure this project has already had once, from the other end.
-    VERSION: "3.8.62",
-    Z: 2147483647,
-    // The step the "grid" tool checks against. 2, not 4, because that is what
-    // the scale in front of us actually is: Tailwind's default spacing has
-    // half-steps (0.5 = 2px, 1.5 = 6px, 2.5 = 10px) and a real page used them
-    // 2,681 times. A rule has to check the scale a project HAS; making the
-    // project match the rule is the wrong way round. Set it to 4 or 8 for a
-    // project that keeps to whole steps.
-    GRID: 2,
-    // Above this, a margin or padding is layout arithmetic rather than a
-    // spacing token. getComputedStyle resolves `margin: auto` to the pixels it
-    // worked out — 1127px on a real page — and nothing distinguishes that from
-    // a value somebody typed. Nobody types 1127px; nobody types past this.
-    GRID_MAX: 96,
-    PEEK: 10,
-    // px of panel visible when tucked
-    TUCK_DELAY: 2200,
-    // ms idle before the panel tucks away
-    EDGE_MARGIN: 8,
-    BADGE_MARGIN: 6,
-    POS_KEY: "__dbgov_pos",
-    TOOLS_KEY: "__dbgov_tools",
-    SETTINGS_KEY: "__dbgov_settings",
-    // Which tool ids this install has already met. Without it a saved armed
-    // set answers for tools that no longer exist and stays silent about ones
-    // shipped since — so a new capability arrives switched off and invisible.
-    SEEN_KEY: "__dbgov_seen",
-    FLASH_MS: 1200,
-    // how long a button shows a transient message
-    LIST_GAP: 10,
-    // px between the bar and the popover it opens
-    LIST_PAD: 6,
-    // px the popover keeps from the viewport edge
-    // No DEFAULT_TOOLS list here any more. It named tool ids in a core file,
-    // so shipping a tool that should start armed meant editing this — the one
-    // place "a new tool is one new file" was not literally true. A tool says
-    // `startsOn: true` about itself instead, and nothing central has to know
-    // the name of anything.
-    // 'pairs' = every measurement takes two clicks (from → to) and the next
-    //           click starts a fresh pair, so a pin is never reused silently.
-    // 'chain' = old behaviour: each pin measures to the previous one.
-    PAIR_MODE: "pairs",
-    // A pin's "kind" names which tool consumes it. Defined once here so the
-    // input layer, controller and renderer never hardcode a tool's id.
-    PIN_KIND: { PLAIN: "note", SHIFT: "measure" },
-    PICK_FLASH: 700,
-    // ms an element stays outlined after being picked
-    LANE_SEP: 16,
-    // px between parallel dimension lines
-    HOTKEY: { alt: true, shift: true, ctrl: false, code: "KeyD" },
-    REMOVE_KEY: "KeyX",
-    // hold to reveal ✕ on pins and click one to remove
-    // `level` is the default the panel starts on; `levels` is what it offers.
-    // The two thresholds move together — a rule that checked AAA for body text
-    // and AA for headings would be neither.
-    CONTRAST: {
-      largePx: 24,
-      largeBoldPx: 18.66,
-      level: "AA",
-      levels: { AA: { normal: 4.5, large: 3 }, AAA: { normal: 7, large: 4.5 } }
-    },
-    // Findings vocabulary, shared by every 'rule' tool. The number is only a
-    // rank, so a list of findings reads worst-first.
-    SEVERITY: { error: 3, warn: 2, info: 1 },
-    // Marks drawn per tool per frame. A page can return thousands of findings
-    // and this runs at 60fps, so it is a ceiling on cost, not on truth — the
-    // list and the report still carry every one of them.
-    MARK_LIMIT: 200
-  };
-
   // src/core/state.js
   var Store = {
     /**
@@ -559,7 +483,83 @@ HOW TO USE
     }
   };
 
-  // src/subjects/colour.js
+  // src/core/config.js
+  var CONFIG = {
+    // Substituted by build.js at bundle time. A userscript with @grant none
+    // cannot read GM_info, and an overlay that cannot say which version it is
+    // makes a stale install look exactly like a current one — which is the
+    // failure this project has already had once, from the other end.
+    VERSION: "3.8.63",
+    Z: 2147483647,
+    // The step the "grid" tool checks against. 2, not 4, because that is what
+    // the scale in front of us actually is: Tailwind's default spacing has
+    // half-steps (0.5 = 2px, 1.5 = 6px, 2.5 = 10px) and a real page used them
+    // 2,681 times. A rule has to check the scale a project HAS; making the
+    // project match the rule is the wrong way round. Set it to 4 or 8 for a
+    // project that keeps to whole steps.
+    GRID: 2,
+    // Above this, a margin or padding is layout arithmetic rather than a
+    // spacing token. getComputedStyle resolves `margin: auto` to the pixels it
+    // worked out — 1127px on a real page — and nothing distinguishes that from
+    // a value somebody typed. Nobody types 1127px; nobody types past this.
+    GRID_MAX: 96,
+    PEEK: 10,
+    // px of panel visible when tucked
+    TUCK_DELAY: 2200,
+    // ms idle before the panel tucks away
+    EDGE_MARGIN: 8,
+    BADGE_MARGIN: 6,
+    POS_KEY: "__dbgov_pos",
+    TOOLS_KEY: "__dbgov_tools",
+    SETTINGS_KEY: "__dbgov_settings",
+    // Which tool ids this install has already met. Without it a saved armed
+    // set answers for tools that no longer exist and stays silent about ones
+    // shipped since — so a new capability arrives switched off and invisible.
+    SEEN_KEY: "__dbgov_seen",
+    FLASH_MS: 1200,
+    // how long a button shows a transient message
+    LIST_GAP: 10,
+    // px between the bar and the popover it opens
+    LIST_PAD: 6,
+    // px the popover keeps from the viewport edge
+    // No DEFAULT_TOOLS list here any more. It named tool ids in a core file,
+    // so shipping a tool that should start armed meant editing this — the one
+    // place "a new tool is one new file" was not literally true. A tool says
+    // `startsOn: true` about itself instead, and nothing central has to know
+    // the name of anything.
+    // 'pairs' = every measurement takes two clicks (from → to) and the next
+    //           click starts a fresh pair, so a pin is never reused silently.
+    // 'chain' = old behaviour: each pin measures to the previous one.
+    PAIR_MODE: "pairs",
+    // A pin's "kind" names which tool consumes it. Defined once here so the
+    // input layer, controller and renderer never hardcode a tool's id.
+    PIN_KIND: { PLAIN: "note", SHIFT: "measure" },
+    PICK_FLASH: 700,
+    // ms an element stays outlined after being picked
+    LANE_SEP: 16,
+    // px between parallel dimension lines
+    HOTKEY: { alt: true, shift: true, ctrl: false, code: "KeyD" },
+    REMOVE_KEY: "KeyX",
+    // hold to reveal ✕ on pins and click one to remove
+    // `level` is the default the panel starts on; `levels` is what it offers.
+    // The two thresholds move together — a rule that checked AAA for body text
+    // and AA for headings would be neither.
+    CONTRAST: {
+      largePx: 24,
+      largeBoldPx: 18.66,
+      level: "AA",
+      levels: { AA: { normal: 4.5, large: 3 }, AAA: { normal: 7, large: 4.5 } }
+    },
+    // Findings vocabulary, shared by every 'rule' tool. The number is only a
+    // rank, so a list of findings reads worst-first.
+    SEVERITY: { error: 3, warn: 2, info: 1 },
+    // Marks drawn per tool per frame. A page can return thousands of findings
+    // and this runs at 60fps, so it is a ceiling on cost, not on truth — the
+    // list and the report still carry every one of them.
+    MARK_LIMIT: 200
+  };
+
+  // src/components/contrast/service.js
   var Colour = defineSubject({
     id: "colour",
     was: "contrast",
@@ -739,6 +739,185 @@ HOW TO USE
     rgb: (c) => `${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)}`
   });
 
+  // src/components/contrast/badge.js
+  function badge(i) {
+    const c = Colour.measure(i);
+    if (!c) return null;
+    if (c.unknown) return `<span class="unk">contrast ?</span>`;
+    const cls = c.pass ? "ok" : "bad";
+    return `<span class="${cls}">${c.ratio.toFixed(2)}:1 ${c.level}${c.pass ? "✓" : "✗"}</span>`;
+  }
+  function compact(i) {
+    const c = Colour.measure(i);
+    if (!c || c.unknown || c.pass) return null;
+    return `<span class="bad">${c.ratio.toFixed(1)}:1 ✗</span>`;
+  }
+
+  // src/components/contrast/report.js
+  function report(i) {
+    const c = Colour.measure(i);
+    if (!c) return [];
+    if (c.unknown) return [`  contrast: not measured — ${Colour.why[c.unknown]}`];
+    return [`  contrast: ${c.ratio.toFixed(2)}:1 vs required ${c.need} (${c.isLarge ? "large" : "normal"} text) → ${c.pass ? "PASS" : "FAIL"}`];
+  }
+
+  // src/components/contrast/rule.js
+  var rules = {
+    "contrast-aa": {
+      help: "Body text needs 4.5:1 against its background, or 7:1 at AAA; 3:1 once it is 24px or 18.66px bold, or 4.5:1 at AAA. Which level this checks is in the panel under ⚙.",
+      why: "Below that, text stops being readable in bright light, on a bad screen, or to anyone with reduced contrast sensitivity — which is most people eventually.",
+      docs: "https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum"
+    }
+  };
+  function audit(i) {
+    const c = Colour.measure(i);
+    if (!c) return [];
+    if (c.unknown) return [{
+      el: i.el,
+      // Not a failure: a failure is a fact, this is an absence of one. It
+      // used to be folded into the same empty array as "passed", so a page
+      // of gradient-backed text audited clean. Whatever else this tool
+      // gets wrong, it must not report a verdict it never reached.
+      verdict: "review",
+      severity: "info",
+      rule: "contrast-aa",
+      message: `not measured — ${Colour.why[c.unknown]}`,
+      // one row per reason, page-wide: 200 elements over one gradient are
+      // one thing to go and look at, not 200
+      key: `contrast-aa|review|${c.unknown}`
+    }];
+    if (c.pass) return [];
+    return [{
+      el: i.el,
+      verdict: "fail",
+      // below the large-text floor nobody can read it; above it, a near
+      // miss that a size or weight change might fix
+      severity: c.ratio < c.want.large ? "error" : "warn",
+      rule: "contrast-aa",
+      message: `${c.ratio.toFixed(2)}:1 — ${c.level} needs ${c.need} for ${c.isLarge ? "large" : "normal"} text`,
+      // one line per colour pair, not per element: a 40-link nav is ONE
+      // problem. Only the rule knows what "the same problem" means.
+      key: `contrast-aa|${Colour.rgb(c.fg)}|${Colour.rgb(c.bg)}|${c.isLarge}`
+    }];
+  }
+
+  // src/components/contrast/draw.js
+  function draw({ layer: layer2, Place: Place2, found }) {
+    for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
+      if (!document.contains(f.el)) continue;
+      const r = f.el.getBoundingClientRect();
+      const box = document.createElement("div");
+      box.className = "dbgov-box dbgov-flag " + (f.verdict === "review" ? "review" : f.severity);
+      Place2.put(box, r.left, r.top, r.width, r.height);
+      layer2.append(box);
+    }
+  }
+
+  // src/components/contrast/index.js
+  defineTool({
+    // visuals owned by this tool — appended to the stylesheet at boot
+    css: `
+    .dbgov-badge .ok  { color: #b5e853; }
+    .dbgov-badge .bad { color: #ff6b6b; font-weight: 700; }
+    .dbgov-badge .unk { color: #8ab4f8; font-style: italic; }
+    `,
+    id: "contrast",
+    icon: "◐",
+    // the level is the user's choice now, so it cannot be stated here
+    title: "Contrast — WCAG text contrast ratio",
+    uses: [Colour],
+    // its settings are Colour's, and belong on its own menu
+    badge,
+    compact,
+    report,
+    rules,
+    audit,
+    draw
+  });
+
+  // src/components/dupid/badge.js
+  function badge2({ el }) {
+    if (!el.id) return null;
+    const n = document.querySelectorAll(
+      `[id="${CSS.escape ? CSS.escape(el.id) : el.id}"]`
+    ).length;
+    return n > 1 ? `<span class="dup">⌗ id ×${n}</span>` : null;
+  }
+  function compact2(i) {
+    return this.badge(i);
+  }
+
+  // src/components/dupid/report.js
+  function report2({ el }) {
+    if (!el.id) return [];
+    const n = document.querySelectorAll(`[id="${CSS.escape ? CSS.escape(el.id) : el.id}"]`).length;
+    return n > 1 ? [`  ⧉ id "${el.id}" is used ${n} times on this page`] : [];
+  }
+
+  // src/components/dupid/rule.js
+  var rules2 = {
+    "dup-id": {
+      help: "An id must be unique in a document.",
+      why: "getElementById, label[for], aria-labelledby and every #anchor resolve to the first match and silently ignore the rest, so the bug shows up as a control that does nothing rather than an error.",
+      docs: "https://developer.mozilla.org/docs/Web/HTML/Global_attributes/id"
+    }
+  };
+  function auditPage(all) {
+    const by = /* @__PURE__ */ new Map();
+    for (const i of all) {
+      const id = i.el.id;
+      if (!id) continue;
+      (by.get(id) || by.set(id, []).get(id)).push(i.el);
+    }
+    const out = [];
+    for (const [id, els] of by) {
+      if (els.length < 2) continue;
+      out.push({
+        el: els[0],
+        verdict: "fail",
+        // a broken label or anchor is a control that does nothing, and
+        // nothing on screen says so
+        severity: "error",
+        rule: "dup-id",
+        message: `id "${id}" is used ${els.length} times`,
+        // by id, not by element: the duplicates are one mistake
+        key: `dup-id|${id}`
+      });
+    }
+    return out;
+  }
+
+  // src/components/dupid/draw.js
+  function draw2({ layer: layer2, Place: Place2, found }) {
+    for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
+      if (!document.contains(f.el)) continue;
+      const r = f.el.getBoundingClientRect();
+      const box = document.createElement("div");
+      box.className = "dbgov-box dbgov-flag " + f.severity;
+      Place2.put(box, r.left, r.top, r.width, r.height);
+      layer2.append(box);
+    }
+  }
+
+  // src/components/dupid/index.js
+  defineTool({
+    // visuals owned by this tool — appended to the stylesheet at boot
+    css: `
+    .dbgov-badge .dup { color: #ff8a65; font-weight: 700; }
+    `,
+    id: "dupid",
+    // not ⧉ — the copy button already uses that glyph, and two identical
+    // icons in one bar is a bar you have to read twice
+    icon: "⌗",
+    title: "Duplicate ids — the same id used more than once",
+    badge: badge2,
+    compact: compact2,
+    report: report2,
+    rules: rules2,
+    auditPage,
+    draw: draw2
+  });
+
   // src/core/utils.js
   var U = {
     /**
@@ -846,7 +1025,7 @@ HOW TO USE
     overlap: (a, b) => Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) * Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t))
   };
 
-  // src/subjects/scale.js
+  // src/components/grid/service.js
   var Scale = defineSubject({
     id: "scale",
     was: "grid",
@@ -968,189 +1147,75 @@ HOW TO USE
     }
   });
 
-  // src/tools/contrast.js
-  defineTool({
-    // visuals owned by this tool — appended to the stylesheet at boot
-    css: `
-    .dbgov-badge .ok  { color: #b5e853; }
-    .dbgov-badge .bad { color: #ff6b6b; font-weight: 700; }
-    .dbgov-badge .unk { color: #8ab4f8; font-style: italic; }
-    `,
-    id: "contrast",
-    icon: "◐",
-    // the level is the user's choice now, so it cannot be stated here
-    title: "Contrast — WCAG text contrast ratio",
-    uses: [Colour],
-    // its settings are Colour's, and belong on its own menu
-    // What each rule IS, separate from what any one element measured. The
-    // instance message says 2.76:1; this says why, and what to do.
-    rules: {
-      "contrast-aa": {
-        help: "Body text needs 4.5:1 against its background, or 7:1 at AAA; 3:1 once it is 24px or 18.66px bold, or 4.5:1 at AAA. Which level this checks is in the panel under ⚙.",
-        why: "Below that, text stops being readable in bright light, on a bad screen, or to anyone with reduced contrast sensitivity — which is most people eventually.",
-        docs: "https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum"
-      }
-    },
-    // RULE hook: the verdict badge() shows, as data instead of prose. A
-    // passing element produces nothing — a findings list is a list of
-    // problems, which is what lets the same hook run over a whole page.
-    audit(i) {
-      const c = Colour.measure(i);
-      if (!c) return [];
-      if (c.unknown) return [{
-        el: i.el,
-        // Not a failure: a failure is a fact, this is an absence of one. It
-        // used to be folded into the same empty array as "passed", so a page
-        // of gradient-backed text audited clean. Whatever else this tool
-        // gets wrong, it must not report a verdict it never reached.
-        verdict: "review",
-        severity: "info",
-        rule: "contrast-aa",
-        message: `not measured — ${Colour.why[c.unknown]}`,
-        // one row per reason, page-wide: 200 elements over one gradient are
-        // one thing to go and look at, not 200
-        key: `contrast-aa|review|${c.unknown}`
-      }];
-      if (c.pass) return [];
-      return [{
-        el: i.el,
-        verdict: "fail",
-        // below the large-text floor nobody can read it; above it, a near
-        // miss that a size or weight change might fix
-        severity: c.ratio < c.want.large ? "error" : "warn",
-        rule: "contrast-aa",
-        message: `${c.ratio.toFixed(2)}:1 — ${c.level} needs ${c.need} for ${c.isLarge ? "large" : "normal"} text`,
-        // one line per colour pair, not per element: a 40-link nav is ONE
-        // problem. Only the rule knows what "the same problem" means.
-        key: `contrast-aa|${Colour.rgb(c.fg)}|${Colour.rgb(c.bg)}|${c.isLarge}`
-      }];
-    },
-    // Findings become places on the page, not just rows in a list. `found`
-    // is this tool's own, handed over by the renderer; the layer is cleared
-    // every frame, so there is nothing to undo and nothing of anyone else's
-    // to step on.
-    draw({ layer: layer2, Place: Place2, found }) {
-      for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
-        if (!document.contains(f.el)) continue;
-        const r = f.el.getBoundingClientRect();
-        const box = document.createElement("div");
-        box.className = "dbgov-box dbgov-flag " + (f.verdict === "review" ? "review" : f.severity);
-        Place2.put(box, r.left, r.top, r.width, r.height);
-        layer2.append(box);
-      }
-    },
-    badge(i) {
-      const c = Colour.measure(i);
-      if (!c) return null;
-      if (c.unknown) return `<span class="unk">contrast ?</span>`;
-      const cls = c.pass ? "ok" : "bad";
-      return `<span class="${cls}">${c.ratio.toFixed(2)}:1 ${c.level}${c.pass ? "✓" : "✗"}</span>`;
-    },
-    compact(i) {
-      const c = Colour.measure(i);
-      if (!c || c.unknown || c.pass) return null;
-      return `<span class="bad">${c.ratio.toFixed(1)}:1 ✗</span>`;
-    },
-    report(i) {
-      const c = Colour.measure(i);
-      if (!c) return [];
-      if (c.unknown) return [`  contrast: not measured — ${Colour.why[c.unknown]}`];
-      return [`  contrast: ${c.ratio.toFixed(2)}:1 vs required ${c.need} (${c.isLarge ? "large" : "normal"} text) → ${c.pass ? "PASS" : "FAIL"}`];
-    }
-  });
+  // src/components/grid/badge.js
+  function badge3(i) {
+    const bad = Scale.scan(i, true);
+    if (!bad.length) return null;
+    const vals = [...new Set(bad.map(([, v]) => v))];
+    return `<span class="warn">⚠ ${vals.join(" ")} off ${Scale.step()}px</span>`;
+  }
+  function compact3(i) {
+    const bad = Scale.scan(i, true);
+    return bad.length ? `<span class="warn">⚠${bad.length}</span>` : null;
+  }
 
-  // src/tools/dupid.js
-  defineTool({
-    // visuals owned by this tool — appended to the stylesheet at boot
-    css: `
-    .dbgov-badge .dup { color: #ff8a65; font-weight: 700; }
-    `,
-    id: "dupid",
-    // not ⧉ — the copy button already uses that glyph, and two identical
-    // icons in one bar is a bar you have to read twice
-    icon: "⌗",
-    title: "Duplicate ids — the same id used more than once",
-    rules: {
-      "dup-id": {
-        help: "An id must be unique in a document.",
-        why: "getElementById, label[for], aria-labelledby and every #anchor resolve to the first match and silently ignore the rest, so the bug shows up as a control that does nothing rather than an error.",
-        docs: "https://developer.mozilla.org/docs/Web/HTML/Global_attributes/id"
-      }
-    },
-    /**
-     * PAGE hook. This is the shape of question audit(info) cannot ask: an
-     * element with a duplicated id looks perfectly correct on its own, and
-     * only the second one makes either of them wrong. Nothing about the
-     * element is the problem — the page is.
-     */
-    auditPage(all) {
-      const by = /* @__PURE__ */ new Map();
-      for (const i of all) {
-        const id = i.el.id;
-        if (!id) continue;
-        (by.get(id) || by.set(id, []).get(id)).push(i.el);
-      }
-      const out = [];
-      for (const [id, els] of by) {
-        if (els.length < 2) continue;
-        out.push({
-          el: els[0],
-          verdict: "fail",
-          // a broken label or anchor is a control that does nothing, and
-          // nothing on screen says so
-          severity: "error",
-          rule: "dup-id",
-          message: `id "${id}" is used ${els.length} times`,
-          // by id, not by element: the duplicates are one mistake
-          key: `dup-id|${id}`
-        });
-      }
-      return out;
-    },
-    /**
-     * What it has to say about the element you are pointing AT. It knew this
-     * all along and only ever said it in the copied report — hover a element
-     * whose id is used three times and the badge was silent, which is the
-     * one place you were looking.
-     */
-    badge({ el }) {
-      if (!el.id) return null;
-      const n = document.querySelectorAll(
-        `[id="${CSS.escape ? CSS.escape(el.id) : el.id}"]`
-      ).length;
-      return n > 1 ? `<span class="dup">⌗ id ×${n}</span>` : null;
-    },
-    compact(i) {
-      return this.badge(i);
-    },
-    /**
-     * ITS OWN SURFACE. Findings reach the ⌕ list whether a rule is armed or
-     * not, so a rule with no draw() changed nothing at all when you switched
-     * it on — measured: armed alone, zero badges, zero marks, zero lines. A
-     * toggle that does nothing is worse than no toggle.
-     *
-     * `found` is this tool's own findings, handed over by the renderer. The
-     * mark classes are core: more than one rule paints them, so they cannot
-     * belong to whichever tool needed them first.
-     */
-    draw({ layer: layer2, Place: Place2, found }) {
-      for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
-        if (!document.contains(f.el)) continue;
-        const r = f.el.getBoundingClientRect();
-        const box = document.createElement("div");
-        box.className = "dbgov-box dbgov-flag " + f.severity;
-        Place2.put(box, r.left, r.top, r.width, r.height);
-        layer2.append(box);
-      }
-    },
-    report({ el }) {
-      if (!el.id) return [];
-      const n = document.querySelectorAll(`[id="${CSS.escape ? CSS.escape(el.id) : el.id}"]`).length;
-      return n > 1 ? [`  ⧉ id "${el.id}" is used ${n} times on this page`] : [];
-    }
-  });
+  // src/components/grid/lens.js
+  function annotate(html, n) {
+    if (!Scale.judges(n)) return html;
+    const fix = Tools.setting(this, "suggest") ? `→${Scale.nearest(n)}` : "";
+    return `<span class="warn">${html}⚠${fix}</span>`;
+  }
 
-  // src/tools/grid.js
+  // src/components/grid/report.js
+  function report3(i) {
+    const bad = Scale.scan(i, true);
+    return bad.length ? [`  ⚠ off ${Scale.step()}px grid: ${bad.map(([n, v]) => `${n}:${v}`).join(", ")}`] : [];
+  }
+
+  // src/components/grid/rule.js
+  var rules3 = {
+    "grid-off": {
+      help: "Spacing should be a multiple of the grid step — change which step this checks in the panel under ⚙.",
+      why: "One-off values are how a spacing scale erodes: each looks harmless alone, and together they are why nothing lines up."
+    }
+  };
+  function audit2(i) {
+    if (!(i.el instanceof HTMLElement)) return [];
+    return Scale.scan(i, Scale.boxes()).map(([n, v]) => ({
+      el: i.el,
+      verdict: "fail",
+      // a spacing system is a convention, not a rule anyone can be hurt
+      // by breaking — it ranks below anything a reader actually suffers
+      severity: "info",
+      rule: "grid-off",
+      // the VALUE, not the side it appeared on: these group by value, and
+      // "pad-t ×24" would read as 24 top paddings when it is one number
+      // used in twenty-four places. The sides are in the per-pin report.
+      message: `${v}px is off the ${Scale.step()}px grid`,
+      key: `grid-off|${v}`
+    }));
+  }
+
+  // src/components/grid/draw.js
+  function draw3({ layer: layer2, Place: Place2, found }) {
+    for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
+      if (!document.contains(f.el)) continue;
+      const r = f.el.getBoundingClientRect();
+      const box = document.createElement("div");
+      box.className = "dbgov-box dbgov-flag " + f.severity;
+      Place2.put(box, r.left, r.top, r.width, r.height);
+      layer2.append(box);
+    }
+  }
+
+  // src/components/grid/options.js
+  function options() {
+    return [
+      { key: "suggest", label: "Suggest nearest step", def: false, type: "toggle", affects: "inspect" }
+    ];
+  }
+
+  // src/components/grid/index.js
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `
@@ -1165,110 +1230,70 @@ HOW TO USE
     // the ⚠ on a badge is what makes the read-out useful
     uses: [Scale],
     // its settings are Scale's, and belong on its own menu
-    /**
-     * The lens's display preference — the RECOMMENDATION facet. Off by
-     * default: a suggestion doubles every marked number, so it has to be
-     * asked for. It lives here and not on the scale subject because "show me
-     * the fix" is about this lens's ink, not a fact about the project.
-     */
-    options() {
-      return [
-        { key: "suggest", label: "Suggest nearest step", def: false, type: "toggle", affects: "inspect" }
-      ];
-    },
-    rules: {
-      "grid-off": {
-        help: "Spacing should be a multiple of the grid step — change which step this checks in the panel under ⚙.",
-        why: "One-off values are how a spacing scale erodes: each looks harmless alone, and together they are why nothing lines up."
-      }
-    },
-    /**
-     * ITS OWN SURFACE — the thing this tool was missing.
-     *
-     * annotate() below is a LENS: it decorates numbers other tools print, so
-     * with nothing else armed it had nothing to decorate and this tool showed
-     * absolutely nothing. Correct, silent and indistinguishable from broken —
-     * a measured fact: armed alone it produced zero badges and zero ⚠.
-     *
-     * A component has to be worth arming by itself. This says what is off the
-     * grid without needing anyone else to have printed it first, and stays
-     * useful next to measure because it summarises where measure enumerates.
-     */
-    badge(i) {
-      const bad = Scale.scan(i, true);
-      if (!bad.length) return null;
-      const vals = [...new Set(bad.map(([, v]) => v))];
-      return `<span class="warn">⚠ ${vals.join(" ")} off ${Scale.step()}px</span>`;
-    },
-    compact(i) {
-      const bad = Scale.scan(i, true);
-      return bad.length ? `<span class="warn">⚠${bad.length}</span>` : null;
-    },
-    /**
-     * LENS hook: every number another tool prints comes through here first.
-     * `html` is what earlier lenses made of it, so we wrap rather than
-     * replace, and the ⚠ markup sits next to the .warn rule for it.
-     *
-     * The judgement itself is the subject's — this decides how to SHOW an
-     * off-grid number, not what one is. That is the whole point of the
-     * split: the rule below reaches the same verdict through the same call.
-     */
-    annotate(html, n) {
-      if (!Scale.judges(n)) return html;
-      const fix = Tools.setting(this, "suggest") ? `→${Scale.nearest(n)}` : "";
-      return `<span class="warn">${html}⚠${fix}</span>`;
-    },
-    report(i) {
-      const bad = Scale.scan(i, true);
-      return bad.length ? [`  ⚠ off ${Scale.step()}px grid: ${bad.map(([n, v]) => `${n}:${v}`).join(", ")}`] : [];
-    },
-    /**
-     * RULE hook. This tool decorates other tools' numbers AND produces
-     * findings — two roles at once, which the old one-label-per-tool
-     * taxonomy made impossible for no reason but the shape of the label.
-     *
-     * Keyed by VALUE, not by element: one 13px used in forty places is one
-     * decision someone made, not forty mistakes. That is the page-wide
-     * pattern a per-element read-out could never show you — it is why this
-     * belongs in a sweep and not only on a badge.
-     */
-    /**
-     * WHERE the off-grid spacing is. grid was the only rule that produced
-     * findings and drew nothing — set the step to 4px on a Tailwind page and
-     * the list filled with thousands while the page stayed blank, so every
-     * row had to be clicked to find out where it was. contrast and dupid
-     * both marked theirs; this was the odd one out.
-     *
-     * `found` is this tool's own findings, handed over by the renderer. The
-     * mark classes are core, because more than one rule paints them.
-     */
-    draw({ layer: layer2, Place: Place2, found }) {
-      for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
-        if (!document.contains(f.el)) continue;
-        const r = f.el.getBoundingClientRect();
-        const box = document.createElement("div");
-        box.className = "dbgov-box dbgov-flag " + f.severity;
-        Place2.put(box, r.left, r.top, r.width, r.height);
-        layer2.append(box);
-      }
-    },
-    audit(i) {
-      if (!(i.el instanceof HTMLElement)) return [];
-      return Scale.scan(i, Scale.boxes()).map(([n, v]) => ({
-        el: i.el,
-        verdict: "fail",
-        // a spacing system is a convention, not a rule anyone can be hurt
-        // by breaking — it ranks below anything a reader actually suffers
-        severity: "info",
-        rule: "grid-off",
-        // the VALUE, not the side it appeared on: these group by value, and
-        // "pad-t ×24" would read as 24 top paddings when it is one number
-        // used in twenty-four places. The sides are in the per-pin report.
-        message: `${v}px is off the ${Scale.step()}px grid`,
-        key: `grid-off|${v}`
-      }));
-    }
+    badge: badge3,
+    compact: compact3,
+    annotate,
+    report: report3,
+    rules: rules3,
+    audit: audit2,
+    draw: draw3,
+    options
   });
+
+  // src/components/measure/badge.js
+  function badge4(i) {
+    const { el, r, cs } = i;
+    const dec = Tools.annotator(i);
+    const on = (k) => Tools.setting(this, k);
+    const bits = [];
+    if (on("size")) bits.push(`<span class="sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`);
+    if (on("radius")) {
+      const rad = U.radius(cs);
+      if (rad) bits.push(`<span class="rad">r ${rad}</span>`);
+    }
+    if (on("padding")) {
+      const p = U.four(cs, "padding", dec);
+      if (p) bits.push(`<span class="sp">p ${p.join(" ")}</span>`);
+    }
+    if (on("margin")) {
+      const m = U.four(cs, "margin", dec);
+      if (m) bits.push(`<span class="sp">m ${m.join(" ")}</span>`);
+    }
+    if (on("layout") && (cs.display.includes("flex") || cs.display.includes("grid"))) {
+      const g = U.px(cs.columnGap) || U.px(cs.gap);
+      bits.push(`<span class="sp">${U.esc(cs.display)}${g ? " gap " + U.mark(g, dec) : ""}</span>`);
+    }
+    if (on("font")) bits.push(`<span class="fnt">${U.px(cs.fontSize)}/${U.px(cs.lineHeight) || "–"} ${cs.fontWeight}</span>`);
+    if (on("tag")) bits.push(`<span class="tag">${el.tagName.toLowerCase()}${el.id ? "#" + U.esc(el.id) : ""}</span>`);
+    return bits.join(" · ");
+  }
+  function compact4(i) {
+    const { r, cs } = i;
+    const dec = Tools.annotator(i);
+    const on = (k) => Tools.setting(this, k);
+    const bits = [];
+    if (on("size")) bits.push(`<span class="sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`);
+    if (on("radius")) {
+      const rad = U.radius(cs);
+      if (rad) bits.push(`<span class="rad">r ${rad}</span>`);
+    }
+    if (on("padding")) {
+      const p = U.four(cs, "padding", dec);
+      if (p) bits.push(`<span class="sp">p ${p.join(" ")}</span>`);
+    }
+    return bits.join(" · ");
+  }
+  function options2() {
+    return [
+      { key: "size", label: "Size", def: true, type: "toggle", affects: "inspect" },
+      { key: "radius", label: "Radius", def: true, type: "toggle", affects: "inspect" },
+      { key: "padding", label: "Padding", def: true, type: "toggle", affects: "inspect" },
+      { key: "margin", label: "Margin", def: true, type: "toggle", affects: "inspect" },
+      { key: "layout", label: "Display & gap", def: true, type: "toggle", affects: "inspect" },
+      { key: "font", label: "Font", def: true, type: "toggle", affects: "inspect" },
+      { key: "tag", label: "Tag & id", def: true, type: "toggle", affects: "inspect" }
+    ];
+  }
 
   // src/core/geometry.js
   var Measure = {
@@ -1458,7 +1483,41 @@ HOW TO USE
     }
   };
 
-  // src/tools/measure.js
+  // src/components/measure/report.js
+  function report4({ r, cs }) {
+    const pad = U.fourPlain(cs, "padding"), mar = U.fourPlain(cs, "margin");
+    return [
+      `  box: ${Math.round(r.width)}×${Math.round(r.height)} @ (${Math.round(r.left)}, ${Math.round(r.top)})`,
+      `  padding: ${pad.t} ${pad.r} ${pad.b} ${pad.l} | margin: ${mar.t} ${mar.r} ${mar.b} ${mar.l} | radius: ${U.radius(cs) || 0}`,
+      `  display: ${cs.display}${U.px(cs.gap) ? " gap:" + U.px(cs.gap) : ""} | position: ${cs.position} | overflow: ${cs.overflow}`,
+      `  font: ${U.px(cs.fontSize)}px/${U.px(cs.lineHeight) || "normal"} ${cs.fontWeight} ${cs.fontFamily.split(",")[0]}`,
+      `  color: ${cs.color} | bg: ${cs.backgroundColor}`
+    ];
+  }
+  function reportTail() {
+    return this._pairs().map(([A, B]) => {
+      const ra = A.el.getBoundingClientRect(), rb = B.el.getBoundingClientRect();
+      const g = U.gap(ra, rb);
+      const axis = Measure.axisOf(ra, rb);
+      return `[#${A.id} → #${B.id}] ${axis.label}: ` + (axis.kind === "overlap" ? "elements overlap" : axis.kind === "diagonal" ? `horizontal ${g.dx}px + vertical ${g.dy}px` : `${axis.kind === "vertical" ? g.dy : g.dx}px`);
+    });
+  }
+
+  // src/components/measure/draw.js
+  function draw4({ layer: layer2, Place: Place2 }) {
+    Measure.resetLanes();
+    for (const [A, B] of this._pairs()) {
+      Measure.dimension(
+        layer2,
+        Place2,
+        A.el.getBoundingClientRect(),
+        B.el.getBoundingClientRect(),
+        `#${A.id}→#${B.id}`
+      );
+    }
+  }
+
+  // src/components/measure/index.js
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `
@@ -1493,196 +1552,31 @@ HOW TO USE
     startsOn: true,
     // the read-out is what the overlay is FOR
     /**
-     * INSPECT, and only INSPECT. The pairing that used to live here is a
-     * SELECT tool now; this asks the registry what is grouped and measures
-     * between whatever comes back. Drawing the gap between two elements is a
-     * measurement — deciding WHICH two is not, and keeping both here is what
-     * made this tool two things at once.
-     */
-    /**
-     * WHICH FIELDS THE BADGE SHOWS. A full badge reads
-     * `92×4 · r 9999 · p 6 8 · m 0 · flex gap 8 · 14/20 500 · div#hero`,
-     * which is a lot of ink over the page when you came to look at one
-     * number. These decide what is on it.
-     *
-     * They govern the BADGES only, never `report()`. A badge sits on top of
-     * what you are reading, so density costs you something; the copied
-     * report is text you paste into a chat, where a line you do not need
-     * costs nothing and a line you do need costs a round trip.
-     */
-    options() {
-      return [
-        { key: "size", label: "Size", def: true, type: "toggle", affects: "inspect" },
-        { key: "radius", label: "Radius", def: true, type: "toggle", affects: "inspect" },
-        { key: "padding", label: "Padding", def: true, type: "toggle", affects: "inspect" },
-        { key: "margin", label: "Margin", def: true, type: "toggle", affects: "inspect" },
-        { key: "layout", label: "Display & gap", def: true, type: "toggle", affects: "inspect" },
-        { key: "font", label: "Font", def: true, type: "toggle", affects: "inspect" },
-        { key: "tag", label: "Tag & id", def: true, type: "toggle", affects: "inspect" }
-      ];
-    },
-    badge(i) {
-      const { el, r, cs } = i;
-      const dec = Tools.annotator(i);
-      const on = (k) => Tools.setting(this, k);
-      const bits = [];
-      if (on("size")) bits.push(`<span class="sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`);
-      if (on("radius")) {
-        const rad = U.radius(cs);
-        if (rad) bits.push(`<span class="rad">r ${rad}</span>`);
-      }
-      if (on("padding")) {
-        const p = U.four(cs, "padding", dec);
-        if (p) bits.push(`<span class="sp">p ${p.join(" ")}</span>`);
-      }
-      if (on("margin")) {
-        const m = U.four(cs, "margin", dec);
-        if (m) bits.push(`<span class="sp">m ${m.join(" ")}</span>`);
-      }
-      if (on("layout") && (cs.display.includes("flex") || cs.display.includes("grid"))) {
-        const g = U.px(cs.columnGap) || U.px(cs.gap);
-        bits.push(`<span class="sp">${U.esc(cs.display)}${g ? " gap " + U.mark(g, dec) : ""}</span>`);
-      }
-      if (on("font")) bits.push(`<span class="fnt">${U.px(cs.fontSize)}/${U.px(cs.lineHeight) || "–"} ${cs.fontWeight}</span>`);
-      if (on("tag")) bits.push(`<span class="tag">${el.tagName.toLowerCase()}${el.id ? "#" + U.esc(el.id) : ""}</span>`);
-      return bits.join(" · ");
-    },
-    compact(i) {
-      const { r, cs } = i;
-      const dec = Tools.annotator(i);
-      const on = (k) => Tools.setting(this, k);
-      const bits = [];
-      if (on("size")) bits.push(`<span class="sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`);
-      if (on("radius")) {
-        const rad = U.radius(cs);
-        if (rad) bits.push(`<span class="rad">r ${rad}</span>`);
-      }
-      if (on("padding")) {
-        const p = U.four(cs, "padding", dec);
-        if (p) bits.push(`<span class="sp">p ${p.join(" ")}</span>`);
-      }
-      return bits.join(" · ");
-    },
-    report({ r, cs }) {
-      const pad = U.fourPlain(cs, "padding"), mar = U.fourPlain(cs, "margin");
-      return [
-        `  box: ${Math.round(r.width)}×${Math.round(r.height)} @ (${Math.round(r.left)}, ${Math.round(r.top)})`,
-        `  padding: ${pad.t} ${pad.r} ${pad.b} ${pad.l} | margin: ${mar.t} ${mar.r} ${mar.b} ${mar.l} | radius: ${U.radius(cs) || 0}`,
-        `  display: ${cs.display}${U.px(cs.gap) ? " gap:" + U.px(cs.gap) : ""} | position: ${cs.position} | overflow: ${cs.overflow}`,
-        `  font: ${U.px(cs.fontSize)}px/${U.px(cs.lineHeight) || "normal"} ${cs.fontWeight} ${cs.fontFamily.split(",")[0]}`,
-        `  color: ${cs.color} | bg: ${cs.backgroundColor}`
-      ];
-    },
-    /**
      * A pair has a distance; a group of five does not have one distance.
      * Anything that is not two elements is something this tool has nothing
      * to say about, and it says so by drawing nothing rather than guessing
      * which two of them were meant.
      */
     _pairs: () => Tools.groups().filter((g) => g.length === 2),
-    // dimension lines between grouped pins
-    draw({ layer: layer2, Place: Place2 }) {
-      Measure.resetLanes();
-      for (const [A, B] of this._pairs()) {
-        Measure.dimension(
-          layer2,
-          Place2,
-          A.el.getBoundingClientRect(),
-          B.el.getBoundingClientRect(),
-          `#${A.id}→#${B.id}`
-        );
-      }
-    },
-    reportTail() {
-      return this._pairs().map(([A, B]) => {
-        const ra = A.el.getBoundingClientRect(), rb = B.el.getBoundingClientRect();
-        const g = U.gap(ra, rb);
-        const axis = Measure.axisOf(ra, rb);
-        return `[#${A.id} → #${B.id}] ${axis.label}: ` + (axis.kind === "overlap" ? "elements overlap" : axis.kind === "diagonal" ? `horizontal ${g.dx}px + vertical ${g.dy}px` : `${axis.kind === "vertical" ? g.dy : g.dx}px`);
-      });
-    }
+    badge: badge4,
+    compact: compact4,
+    options: options2,
+    report: report4,
+    reportTail,
+    draw: draw4
   });
 
-  // src/services/findings/index.js
-  var Sweep = {
-    /**
-     * One read-only pass. Rules only speak when something is wrong, so what
-     * comes back is a list of problems, not a list of elements.
-     *
-     * The overlay's root is appended to documentElement, so walking body's
-     * subtree already excludes it — no per-element containment check.
-     *
-     * EVERY tool that can judge runs, armed or not. Arming decides what is
-     * drawn on screen and nothing else. Tying the two together meant one
-     * control carried two meanings, and the failure was silent in the worst
-     * direction: with the only rule disarmed, a page full of problems audited
-     * clean. You can always narrow a list of findings; you can never find
-     * what was not checked.
-     */
-    /**
-     * Call one hook across some tools and stamp the producer onto whatever
-     * comes back, so no rule has to name itself and no consumer has to guess.
-     * It is what lets draw() be handed only its own findings — and the report
-     * look up the rule's own documentation.
-     */
-    collect(tools, hook, arg) {
-      const out = [];
-      for (const t of tools) {
-        const f = t[hook]?.call(t, arg);
-        if (!f || !f.length) continue;
-        for (const one of f) one.tool = t.id;
-        out.push(...f);
+  // src/services/badge/index.js
+  var Badges = {
+    build(info, compact5) {
+      const parts = [];
+      for (const t of Tools.active()) {
+        const fn = compact5 ? t.compact || null : t.badge || null;
+        if (!fn) continue;
+        const html = fn.call(t, info);
+        if (html) parts.push(html);
       }
-      return out;
-    },
-    run() {
-      const perEl = Tools.withHook("audit");
-      const perPage = Tools.withHook("auditPage");
-      const all = [.../* @__PURE__ */ new Set([...perEl, ...perPage])];
-      const result = { findings: [], rules: all.length, elements: 0, byTool: {} };
-      if (!all.length || !document.body) return result;
-      for (const t of all) result.byTool[t.id] = [];
-      const seen = perPage.length ? [] : null;
-      for (const el of document.body.querySelectorAll("*")) {
-        const cs = getComputedStyle(el);
-        if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") continue;
-        result.elements++;
-        const i = U.info(el, cs);
-        if (seen) seen.push(i);
-        for (const f of Sweep.collect(perEl, "audit", i)) {
-          result.findings.push(f);
-          result.byTool[f.tool].push(f);
-        }
-      }
-      for (const f of Sweep.collect(perPage, "auditPage", seen || [])) {
-        result.findings.push(f);
-        result.byTool[f.tool].push(f);
-      }
-      return result;
-    },
-    /**
-     * Collapse repeats, then rank worst-first. `key` says which findings are
-     * the same problem; only the rule that produced them knows, so it supplies
-     * it and this falls back to rule + message when it does not.
-     *
-     * This is not cosmetic. A page can hand back thousands of findings that
-     * are one problem repeated — a nav of identical links, a table of
-     * identical cells — and a list nobody can read is a list nobody uses.
-     */
-    group(findings) {
-      const by = /* @__PURE__ */ new Map();
-      findings.forEach((f, seq) => {
-        const k = f.key || `${f.rule}|${f.message}`;
-        const g = by.get(k);
-        if (g) {
-          g.n++;
-          return;
-        }
-        by.set(k, { ...f, n: 1, seq });
-      });
-      const said = (g) => g.verdict === "review" ? 0 : 1;
-      const rank = (g) => CONFIG.SEVERITY[g.severity] ?? 0;
-      return [...by.values()].sort((a, b) => said(b) - said(a) || rank(b) - rank(a) || a.seq - b.seq);
+      return parts.join(" · ");
     }
   };
 
@@ -2338,101 +2232,6 @@ ${Tools.rolesOf(t).join(" · ")}${run.note}${t.options || t.uses ? "\nright-clic
     })();
   }
 
-  // src/services/report/index.js
-  var Report = {
-    text() {
-      const active = Tools.active();
-      const L = [
-        `# UI debug report`,
-        `url: ${location.href}`,
-        `viewport: ${innerWidth}×${innerHeight} @ dpr ${devicePixelRatio}`,
-        `tools: ${active.map((t) => t.id).join(", ") || "none"}`,
-        ""
-      ];
-      const found = [];
-      State.pins.forEach((p) => {
-        const i = U.info(p.el);
-        L.push(`[#${p.id}] (${p.kind}) ${U.selectorOf(i.el)}`);
-        for (const t of active) L.push(...t.report?.call(t, i) || []);
-        found.push(...Sweep.collect(active, "audit", i));
-        L.push("");
-      });
-      for (const t of active) {
-        const tail = t.reportTail?.call(t) || [];
-        if (tail.length) L.push(...tail);
-      }
-      const list = State.sweep ? State.sweep.findings : found;
-      const groups = Sweep.group(list);
-      if (State.sweep || groups.length) {
-        L.push("", `## findings — ${groups.length} problem${groups.length === 1 ? "" : "s"} · ${list.length} occurrence${list.length === 1 ? "" : "s"}${Report.scope()}`);
-        for (const g of groups) {
-          const tag = g.verdict === "review" ? "review" : g.severity;
-          L.push(`[${tag}] ${g.rule}${g.n > 1 ? ` ×${g.n}` : ""}: ${g.message}`);
-          L.push(`    ${U.selectorOf(g.el)}`);
-        }
-        if (!groups.length) L.push("(none)");
-        const docs = /* @__PURE__ */ new Map();
-        for (const g of groups) {
-          const d = Tools.byId(g.tool)?.rules?.[g.rule];
-          if (d && !docs.has(g.rule)) docs.set(g.rule, d);
-        }
-        if (docs.size) {
-          L.push("", "## rules");
-          for (const [id, d] of docs) {
-            L.push(id);
-            if (d.help) L.push(`  ${d.help}`);
-            if (d.why) L.push(`  ${d.why}`);
-            if (d.docs) L.push(`  ${d.docs}`);
-          }
-        }
-      }
-      return L.join("\n");
-    },
-    /** What the findings above cover, so a zero among them can be read. */
-    scope() {
-      const s = State.sweep;
-      if (!s) return " · pinned elements only";
-      return ` · whole page · ${s.rules} rule${s.rules === 1 ? "" : "s"} · ${s.elements} elements` + // the page could not show them all; this text can
-      (Object.values(s.byTool).some((f) => f.length > CONFIG.MARK_LIMIT) ? ` · outlines capped at ${CONFIG.MARK_LIMIT} per rule` : "");
-    },
-    /**
-     * Put text on the clipboard. Separate from copy() because it is not only
-     * the report that ever wants this — a tool that picks something off the
-     * page needs the same two-step, and a second copy of the fallback is a
-     * second thing to get wrong.
-     */
-    async toClipboard(txt) {
-      try {
-        await navigator.clipboard.writeText(txt);
-      } catch {
-        const t = document.createElement("textarea");
-        t.value = txt;
-        document.body.append(t);
-        t.select();
-        document.execCommand("copy");
-        t.remove();
-      }
-    },
-    async copy() {
-      await Report.toClipboard(Report.text());
-      Panel.flash("✓");
-    }
-  };
-
-  // src/services/badge/index.js
-  var Badges = {
-    build(info, compact) {
-      const parts = [];
-      for (const t of Tools.active()) {
-        const fn = compact ? t.compact || null : t.badge || null;
-        if (!fn) continue;
-        const html = fn.call(t, info);
-        if (html) parts.push(html);
-      }
-      return parts.join(" · ");
-    }
-  };
-
   // src/ui/placement.js
   var Place = /* @__PURE__ */ (() => {
     let taken = [];
@@ -2609,7 +2408,213 @@ ${Tools.rolesOf(t).join(" · ")}${run.note}${t.options || t.uses ? "\nright-clic
     };
   })();
 
-  // src/tools/pick.js
+  // src/services/findings/index.js
+  var Sweep = {
+    /**
+     * One read-only pass. Rules only speak when something is wrong, so what
+     * comes back is a list of problems, not a list of elements.
+     *
+     * The overlay's root is appended to documentElement, so walking body's
+     * subtree already excludes it — no per-element containment check.
+     *
+     * EVERY tool that can judge runs, armed or not. Arming decides what is
+     * drawn on screen and nothing else. Tying the two together meant one
+     * control carried two meanings, and the failure was silent in the worst
+     * direction: with the only rule disarmed, a page full of problems audited
+     * clean. You can always narrow a list of findings; you can never find
+     * what was not checked.
+     */
+    /**
+     * Call one hook across some tools and stamp the producer onto whatever
+     * comes back, so no rule has to name itself and no consumer has to guess.
+     * It is what lets draw() be handed only its own findings — and the report
+     * look up the rule's own documentation.
+     */
+    collect(tools, hook, arg) {
+      const out = [];
+      for (const t of tools) {
+        const f = t[hook]?.call(t, arg);
+        if (!f || !f.length) continue;
+        for (const one of f) one.tool = t.id;
+        out.push(...f);
+      }
+      return out;
+    },
+    run() {
+      const perEl = Tools.withHook("audit");
+      const perPage = Tools.withHook("auditPage");
+      const all = [.../* @__PURE__ */ new Set([...perEl, ...perPage])];
+      const result = { findings: [], rules: all.length, elements: 0, byTool: {} };
+      if (!all.length || !document.body) return result;
+      for (const t of all) result.byTool[t.id] = [];
+      const seen = perPage.length ? [] : null;
+      for (const el of document.body.querySelectorAll("*")) {
+        const cs = getComputedStyle(el);
+        if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") continue;
+        result.elements++;
+        const i = U.info(el, cs);
+        if (seen) seen.push(i);
+        for (const f of Sweep.collect(perEl, "audit", i)) {
+          result.findings.push(f);
+          result.byTool[f.tool].push(f);
+        }
+      }
+      for (const f of Sweep.collect(perPage, "auditPage", seen || [])) {
+        result.findings.push(f);
+        result.byTool[f.tool].push(f);
+      }
+      return result;
+    },
+    /**
+     * Collapse repeats, then rank worst-first. `key` says which findings are
+     * the same problem; only the rule that produced them knows, so it supplies
+     * it and this falls back to rule + message when it does not.
+     *
+     * This is not cosmetic. A page can hand back thousands of findings that
+     * are one problem repeated — a nav of identical links, a table of
+     * identical cells — and a list nobody can read is a list nobody uses.
+     */
+    group(findings) {
+      const by = /* @__PURE__ */ new Map();
+      findings.forEach((f, seq) => {
+        const k = f.key || `${f.rule}|${f.message}`;
+        const g = by.get(k);
+        if (g) {
+          g.n++;
+          return;
+        }
+        by.set(k, { ...f, n: 1, seq });
+      });
+      const said = (g) => g.verdict === "review" ? 0 : 1;
+      const rank = (g) => CONFIG.SEVERITY[g.severity] ?? 0;
+      return [...by.values()].sort((a, b) => said(b) - said(a) || rank(b) - rank(a) || a.seq - b.seq);
+    }
+  };
+
+  // src/services/report/index.js
+  var Report = {
+    text() {
+      const active = Tools.active();
+      const L = [
+        `# UI debug report`,
+        `url: ${location.href}`,
+        `viewport: ${innerWidth}×${innerHeight} @ dpr ${devicePixelRatio}`,
+        `tools: ${active.map((t) => t.id).join(", ") || "none"}`,
+        ""
+      ];
+      const found = [];
+      State.pins.forEach((p) => {
+        const i = U.info(p.el);
+        L.push(`[#${p.id}] (${p.kind}) ${U.selectorOf(i.el)}`);
+        for (const t of active) L.push(...t.report?.call(t, i) || []);
+        found.push(...Sweep.collect(active, "audit", i));
+        L.push("");
+      });
+      for (const t of active) {
+        const tail = t.reportTail?.call(t) || [];
+        if (tail.length) L.push(...tail);
+      }
+      const list = State.sweep ? State.sweep.findings : found;
+      const groups2 = Sweep.group(list);
+      if (State.sweep || groups2.length) {
+        L.push("", `## findings — ${groups2.length} problem${groups2.length === 1 ? "" : "s"} · ${list.length} occurrence${list.length === 1 ? "" : "s"}${Report.scope()}`);
+        for (const g of groups2) {
+          const tag = g.verdict === "review" ? "review" : g.severity;
+          L.push(`[${tag}] ${g.rule}${g.n > 1 ? ` ×${g.n}` : ""}: ${g.message}`);
+          L.push(`    ${U.selectorOf(g.el)}`);
+        }
+        if (!groups2.length) L.push("(none)");
+        const docs = /* @__PURE__ */ new Map();
+        for (const g of groups2) {
+          const d = Tools.byId(g.tool)?.rules?.[g.rule];
+          if (d && !docs.has(g.rule)) docs.set(g.rule, d);
+        }
+        if (docs.size) {
+          L.push("", "## rules");
+          for (const [id, d] of docs) {
+            L.push(id);
+            if (d.help) L.push(`  ${d.help}`);
+            if (d.why) L.push(`  ${d.why}`);
+            if (d.docs) L.push(`  ${d.docs}`);
+          }
+        }
+      }
+      return L.join("\n");
+    },
+    /** What the findings above cover, so a zero among them can be read. */
+    scope() {
+      const s = State.sweep;
+      if (!s) return " · pinned elements only";
+      return ` · whole page · ${s.rules} rule${s.rules === 1 ? "" : "s"} · ${s.elements} elements` + // the page could not show them all; this text can
+      (Object.values(s.byTool).some((f) => f.length > CONFIG.MARK_LIMIT) ? ` · outlines capped at ${CONFIG.MARK_LIMIT} per rule` : "");
+    },
+    /**
+     * Put text on the clipboard. Separate from copy() because it is not only
+     * the report that ever wants this — a tool that picks something off the
+     * page needs the same two-step, and a second copy of the fallback is a
+     * second thing to get wrong.
+     */
+    async toClipboard(txt) {
+      try {
+        await navigator.clipboard.writeText(txt);
+      } catch {
+        const t = document.createElement("textarea");
+        t.value = txt;
+        document.body.append(t);
+        t.select();
+        document.execCommand("copy");
+        t.remove();
+      }
+    },
+    async copy() {
+      await Report.toClipboard(Report.text());
+      Panel.flash("✓");
+    }
+  };
+
+  // src/components/pick/act.js
+  function intercept({ type, ev, el }) {
+    if (type !== "click" || !(ev.ctrlKey || ev.metaKey)) return false;
+    const txt = Tools.setting(this, "what") === "text" ? (el.textContent || "").trim() : U.selectorOf(el);
+    if (!txt) return false;
+    Report.toClipboard(txt);
+    this._hit = el;
+    clearTimeout(this._timer);
+    this._timer = setTimeout(
+      () => {
+        this._hit = null;
+        Render.schedule();
+      },
+      CONFIG.PICK_FLASH
+    );
+    Render.schedule();
+    return true;
+  }
+  function draw5({ layer: layer2, Place: Place2 }) {
+    if (!this._hit || !document.contains(this._hit)) return;
+    const r = this._hit.getBoundingClientRect();
+    const box = document.createElement("div");
+    box.className = "dbgov-box dbgov-picked";
+    Place2.put(box, r.left, r.top, r.width, r.height);
+    layer2.append(box);
+  }
+  function report5({ el }) {
+    return [`  selector: ${U.selectorOf(el)}`];
+  }
+  function options3() {
+    return [{
+      key: "what",
+      label: "Ctrl+click copies",
+      def: "selector",
+      values: ["selector", "text"],
+      affects: "act"
+    }];
+  }
+  function gestures() {
+    return [{ keys: "Ctrl/⌘+click", does: "copy what you clicked" }];
+  }
+
+  // src/components/pick/index.js
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `
@@ -2621,65 +2626,60 @@ ${Tools.rolesOf(t).join(" · ")}${run.note}${t.options || t.uses ? "\nright-clic
     title: "Pick — Ctrl+click (⌘+click) copies what you clicked",
     // OFF by default: it takes over a click, and a tool that changes what
     // clicking does should be something you asked for.
-    /**
-     * What Ctrl+click puts on the clipboard. A selector is the address you
-     * paste into a chat or a test; the text is what you paste into a bug
-     * report or a translation file. Both are things you would otherwise
-     * select by hand and get wrong at the edges.
-     */
-    /** Its own gesture, declared where the gesture lives. */
-    gestures() {
-      return [{ keys: "Ctrl/⌘+click", does: "copy what you clicked" }];
-    },
-    options() {
-      return [{
-        key: "what",
-        label: "Ctrl+click copies",
-        def: "selector",
-        values: ["selector", "text"],
-        affects: "act"
-      }];
-    },
-    /**
-     * INPUT hook — the only one that acts on the page rather than describing
-     * it. Returning true means this click was ours: the pin that would
-     * normally follow does not happen, because landing a pin under an action
-     * is the overlay doing two things for one click.
-     *
-     * Meta as well as Ctrl: Ctrl+click is the context menu on macOS, so the
-     * modifier that means "modified click" there is ⌘.
-     */
-    intercept({ type, ev, el }) {
-      if (type !== "click" || !(ev.ctrlKey || ev.metaKey)) return false;
-      const txt = Tools.setting(this, "what") === "text" ? (el.textContent || "").trim() : U.selectorOf(el);
-      if (!txt) return false;
-      Report.toClipboard(txt);
-      this._hit = el;
-      clearTimeout(this._timer);
-      this._timer = setTimeout(
-        () => {
-          this._hit = null;
-          Render.schedule();
-        },
-        CONFIG.PICK_FLASH
-      );
-      Render.schedule();
-      return true;
-    },
-    draw({ layer: layer2, Place: Place2 }) {
-      if (!this._hit || !document.contains(this._hit)) return;
-      const r = this._hit.getBoundingClientRect();
-      const box = document.createElement("div");
-      box.className = "dbgov-box dbgov-picked";
-      Place2.put(box, r.left, r.top, r.width, r.height);
-      layer2.append(box);
-    },
-    report({ el }) {
-      return [`  selector: ${U.selectorOf(el)}`];
-    }
+    intercept,
+    draw: draw5,
+    report: report5,
+    options: options3,
+    gestures
   });
 
-  // src/tools/select.js
+  // src/components/select/service.js
+  function options4() {
+    return [{
+      key: "mode",
+      label: "Pin grouping",
+      def: CONFIG.PAIR_MODE,
+      values: ["pairs", "chain"],
+      affects: "select"
+    }];
+  }
+  function groups() {
+    return this._form().groups;
+  }
+  function pendingIndex() {
+    const { pending } = this._form();
+    return pending ? State.pins.indexOf(pending) : -1;
+  }
+
+  // src/components/select/rows.js
+  function listRows() {
+    const { groups: groups2, pending } = this._form();
+    const rows = groups2.map(([A, B]) => {
+      const ra = A.el.getBoundingClientRect(), rb = B.el.getBoundingClientRect();
+      const g = U.gap(ra, rb);
+      const axis = Measure.axisOf(ra, rb);
+      const detail = axis.kind === "overlap" ? "overlapping" : axis.kind === "diagonal" ? `→ ${g.dx} · ↓ ${g.dy} px` : axis.kind === "vertical" ? `↕ ${g.dy} px` : `↔ ${g.dx} px`;
+      return {
+        tag: `#${A.id}→#${B.id}`,
+        label: `${U.labelOf(A.el)} ↔ ${U.labelOf(B.el)}`,
+        detail,
+        pins: [A, B]
+      };
+    });
+    if (pending) rows.push({
+      tag: `#${pending.id}…`,
+      label: U.labelOf(pending.el),
+      detail: "pick its pair",
+      pins: [pending]
+    });
+    return rows;
+  }
+  function reportTail2() {
+    const { pending } = this._form();
+    return pending ? [`[#${pending.id}] waiting for its pair`] : [];
+  }
+
+  // src/components/select/index.js
   defineTool({
     id: "select",
     // `mode` was measure's option before the select/measure split, so anyone
@@ -2689,23 +2689,6 @@ ${Tools.rolesOf(t).join(" · ")}${run.note}${t.options || t.uses ? "\nright-clic
     icon: "⬚",
     title: "Select — how pinned elements group up",
     startsOn: true,
-    /**
-     * SELECT, and only SELECT. This came out of measure, which had been the
-     * read-out AND the thing deciding what was selected — so a second way of
-     * selecting could not be added without editing the tool that draws
-     * badges. Nothing here describes an element; it decides which elements
-     * belong together, and hands that to whoever wants to say something
-     * about the pair.
-     */
-    options() {
-      return [{
-        key: "mode",
-        label: "Pin grouping",
-        def: CONFIG.PAIR_MODE,
-        values: ["pairs", "chain"],
-        affects: "select"
-      }];
-    },
     // only Shift-clicked pins take part — a plain click is "inspect this",
     // and silently roping it into a measurement is not what was asked
     _pins: () => State.pins.filter((p) => p.kind === CONFIG.PIN_KIND.SHIFT),
@@ -2725,49 +2708,11 @@ ${Tools.rolesOf(t).join(" · ")}${run.note}${t.options || t.uses ? "\nright-clic
       const pending = mode === "pairs" && mp.length % 2 ? mp[mp.length - 1] : null;
       return { groups: out, pending };
     },
-    /** Hook: what is grouped, for anything that draws or reports BETWEEN
-     *  elements. Consumers never learn who grouped them. */
-    groups() {
-      return this._form().groups;
-    },
-    /** Hook: which pin is still waiting for its partner. */
-    pendingIndex() {
-      const { pending } = this._form();
-      return pending ? State.pins.indexOf(pending) : -1;
-    },
-    /**
-     * Hook: rows for the panel's pin list. The distance in the detail column
-     * comes from core geometry, not from a read-out hook — this tool
-     * describes its own grouping, which is still selection, and implements
-     * no badge or annotate to claim otherwise.
-     */
-    listRows() {
-      const { groups, pending } = this._form();
-      const rows = groups.map(([A, B]) => {
-        const ra = A.el.getBoundingClientRect(), rb = B.el.getBoundingClientRect();
-        const g = U.gap(ra, rb);
-        const axis = Measure.axisOf(ra, rb);
-        const detail = axis.kind === "overlap" ? "overlapping" : axis.kind === "diagonal" ? `→ ${g.dx} · ↓ ${g.dy} px` : axis.kind === "vertical" ? `↕ ${g.dy} px` : `↔ ${g.dx} px`;
-        return {
-          tag: `#${A.id}→#${B.id}`,
-          label: `${U.labelOf(A.el)} ↔ ${U.labelOf(B.el)}`,
-          detail,
-          pins: [A, B]
-        };
-      });
-      if (pending) rows.push({
-        tag: `#${pending.id}…`,
-        label: U.labelOf(pending.el),
-        detail: "pick its pair",
-        pins: [pending]
-      });
-      return rows;
-    },
-    /** A half-finished selection is a fact about the report's scope. */
-    reportTail() {
-      const { pending } = this._form();
-      return pending ? [`[#${pending.id}] waiting for its pair`] : [];
-    }
+    options: options4,
+    groups,
+    pendingIndex,
+    listRows,
+    reportTail: reportTail2
   });
 
   // src/app/interactions.js
@@ -3159,10 +3104,10 @@ ${Tools.rolesOf(t).join(" · ")}${run.note}${t.options || t.uses ? "\nright-clic
       }
       const s = State.sweep;
       if (!s) return { title: "Findings", detail: "no audit has run" };
-      const groups = body.filter((r) => !r.heading && !r.title).length;
+      const groups2 = body.filter((r) => !r.heading && !r.title).length;
       return {
         title: "Findings",
-        detail: `${groups} distinct problem${groups === 1 ? "" : "s"} · ${s.findings.length} occurrence${s.findings.length === 1 ? "" : "s"}`
+        detail: `${groups2} distinct problem${groups2 === 1 ? "" : "s"} · ${s.findings.length} occurrence${s.findings.length === 1 ? "" : "s"}`
       };
     },
     /**

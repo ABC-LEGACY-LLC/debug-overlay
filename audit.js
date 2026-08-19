@@ -36,22 +36,19 @@ let fail = 0;
    flat forever; discovering them with readdirSync would mean the day someone
    subdivides it, every tool in a subfolder silently stops being audited — no
    id check, no icon check, no cross-tool check, and a green run saying so. */
-const toolFiles = walk().filter((f) => f.startsWith('tools/'));
-const tools = toolFiles.map((f) => {
-  const s = read(f);
-  return {
-    f, s,
-    id: (s.match(/id: '([a-z][a-z0-9-]*)'/) || [])[1],
-    // Quote-agnostic: grid's title is a template literal. Only presence is
-    // checked — the value is the author's business, having one is not.
-    icon: /\bicon:\s*(['"`])(.+?)\1/.test(s),
-    title: /\btitle:\s*(['"`])(.+?)\1/.test(s),
-    // the `kind:` extractor that used to sit here is gone with the field it
-    // read — it had been parsed into a variable nothing looked at for releases
-    defs: (s.match(/defineTool\(/g) || []).length,
-    lines: s.split('\n').length,
-  };
-});
+/* One COMPONENT = one FOLDER under src/components/. Its behaviour is spread
+   over the files beside its index, so every check below runs against the
+   folder's concatenation — id, icon, hooks, option counts are folder facts.
+   hooks.js owns that reading; this file only judges it. */
+const { registered } = require('./hooks.js');
+const tools = registered().map((t) => ({
+  f: t.f, s: t.s,
+  id: t.id,
+  icon: /\bicon:\s*(['"`])(.+?)\1/.test(t.s),
+  title: /\btitle:\s*(['"`])(.+?)\1/.test(t.s),
+  defs: (t.s.match(/defineTool\(/g) || []).length,
+  lines: t.s.split('\n').length,
+}));
 const ids = tools.map((t) => t.id).filter(Boolean);
 
 /* Subjects are checked too. They carry no hooks and no button, so most tool
@@ -126,7 +123,7 @@ const BY_FIELD = /\.id\s*===?\s*'([a-z][\w-]*)'/g;   // the other way back in
 /* strip/calls/HOOKS come from hooks.js, which map.js reads too — one
    definition of what a hook is and who implements it, rather than two that
    agree until they quietly do not. */
-const { HOOKS, strip, calls } = require('./hooks.js');
+const { HOOKS, strip, calls } = require('./hooks.js');  // registered comes from the same file
 
 /* The category vocabulary, read out of the registry rather than repeated here
    — the same reason the banned-id list is derived from the tools themselves.
@@ -265,7 +262,7 @@ for (const [dir, pattern, why] of LAYERS) {
 console.log('\nHOOK CONTRACT');
 /* Deliberately NOT the tools: a hook honoured only by the tool that implements
    it is still a contract nobody calls. The consumer has to be core. */
-const consumers = walk().filter((f) => !f.startsWith('tools/') && !f.startsWith('subjects/')).map((f) => [f, read(f)]);
+const consumers = walk().filter((f) => !f.startsWith('components/') && !f.startsWith('subjects/')).map((f) => [f, read(f)]);
 for (const h of HOOKS) {
   const users = consumers.filter(([, s]) =>
     new RegExp(`\\.${h}\\b|\\bt\\.${h}|withHook\\('${h}'|'${h}'`).test(strip(s))).map(([f]) => f);
@@ -281,7 +278,7 @@ for (const h of HOOKS) {
    the file. Directories are for what a file IS, not for what it does. */
 const FLAT_TOOLS = 20;
 if (tools.length > FLAT_TOOLS) {
-  console.log(`\n! tools/ holds ${tools.length} files — past ${FLAT_TOOLS} a flat folder stops` +
+  console.log(`\n! components/ holds ${tools.length} folders — past ${FLAT_TOOLS} one flat level stops` +
               ` helping.\n  Subdivide by SUBJECT (layout/, a11y/, content/), never by role.` +
               `\n  build.js globs tools/ recursively, so the layout is free to change.`);
 }

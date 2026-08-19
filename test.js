@@ -32,15 +32,15 @@ const source = fs.readFileSync(bundlePath, 'utf8');
  * to edit the expectation instead of reading it — and the next real regression
  * gets edited away with it.
  */
-const noComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-const TOOLS_ON_DISK = fs.readdirSync(path.join(ROOT, 'src', 'tools'))
-  .filter((f) => f.endsWith('.js')).sort()
-  .map((f) => noComments(fs.readFileSync(path.join(ROOT, 'src', 'tools', f), 'utf8')))
-  .map((s) => ({
-    id: (s.match(/id: '([a-z][a-z0-9-]*)'/) || [])[1],
-    // the same test the panel groups by: either hook contributes findings
-    judges: /(^|[^.\w])(audit|auditPage)\s*\(/m.test(s),
-  }));
+const { registered } = require('./hooks.js');
+const TOOLS_ON_DISK = registered().map((t) => ({
+  id: t.id,
+  // the same test the panel groups by: either hook contributes findings
+  judges: t.hooks.includes('audit') || t.hooks.includes('auditPage'),
+  css: /\bcss:\s*`/.test(t.s),
+  // a class a component emits must be styled by it or by core
+  emits: [...t.s.matchAll(/class="([a-z-]+)"/g)].map((m) => m[1]),
+}));
 const idsOnDisk = TOOLS_ON_DISK.map((t) => t.id).sort();
 
 /**

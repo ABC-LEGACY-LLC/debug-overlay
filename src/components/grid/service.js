@@ -1,6 +1,6 @@
-import { CONFIG } from '../core/config.js';
-import { Tools, defineSubject } from '../core/registry.js';
-import { U } from '../core/utils.js';
+import { CONFIG } from '../../core/config.js';
+import { Tools, defineSubject } from '../../core/registry.js';
+import { U } from '../../core/utils.js';
   /**
    * THE SPACING SCALE — what counts as "on the grid", and the settings for it.
    *

@@ -33,12 +33,25 @@ const walk = (dir = SRC, base = '') => {
   return out.sort();
 };
 
-/** The registered files under one folder, with their id and their hooks. */
-const registered = (dir) => walk().filter((f) => f.startsWith(dir + '/')).map((f) => {
-  const s = fs.readFileSync(path.join(SRC, f), 'utf8');
-  return { f, s, id: (s.match(/id: '([a-z][a-z0-9-]*)'/) || [])[1],
-           hooks: HOOKS.filter((h) => calls(s, h)) };
-});
+/**
+ * The registered COMPONENTS — one folder each under src/components/, read as a
+ * unit: a component's behaviour is spread over the files beside its index, so
+ * id, hooks and options are properties of the folder's concatenation, not of
+ * any single file. (`registered('tools')` was the flat-file era's version.)
+ */
+const registered = () => {
+  const byComp = {};
+  for (const f of walk().filter((x) => x.startsWith('components/'))) {
+    const comp = f.split('/')[1];
+    (byComp[comp] = byComp[comp] || []).push(f);
+  }
+  return Object.entries(byComp).sort().map(([comp, files]) => {
+    const s = files.map((f) => fs.readFileSync(path.join(SRC, f), 'utf8')).join('\n');
+    return { f: comp, files, s,
+             id: (s.match(/id: '([a-z][a-z0-9-]*)'/) || [])[1],
+             hooks: HOOKS.filter((h) => calls(s, h)) };
+  });
+};
 
 /**
  * THE SURFACES, and the three layers every one of them has.

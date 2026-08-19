@@ -35,7 +35,7 @@ const source = fs.readFileSync(bundle, 'utf8');
 function origins() {
   const { registered } = require('./hooks.js');
   const out = {};
-  for (const t of registered('tools')) if (t.id) out[t.id] = 'src/tools/' + t.f.replace(/^tools\//, '');
+  for (const t of registered()) if (t.id) out[t.id] = 'src/components/' + t.f + '/';
   return out;
 }
 
@@ -92,7 +92,7 @@ for (const n of d.querySelectorAll('#__dbgov-list > *')) {
 /* Derived from the same hooks.js audit.js enforces — the hand-written version
    of these tables was wrong twice. ARCHITECTURE.md is the prose companion. */
 const { SURFACES, FACETS, registered, bandsOf } = require('./hooks.js');
-const tools = registered('tools');
+const tools = registered();
 
 /* THE PIPELINE, and the matrix under it. Vocabulary from hooks.js bandsOf:
    COMPONENT reads the page and fills SERVICES; SOURCE and ACTION sit on the
@@ -150,10 +150,11 @@ for (const t of tools) {
 console.log(`
 WHERE A NEW FILE GOES — every file is exactly one of these
 
-  COMPONENT  tools/     something you can ARM        → its own button, and its
-                                                       rows under ⚙, both free
-  SUBJECT    subjects/  shared measurement + its     → no button, no surface;
-                        settings                       consulted, never shows
+  COMPONENT  components/<name>/  one FOLDER each: index registers; badge/
+                       rule/report/draw/service beside it. Its own button and
+                       ⚙ rows arrive free.
+  SUBJECT    subjects/  a backend SHARED by two components — none today; a
+                        component's sole-consumer backend is its service.js
   SURFACE    ui/        where output APPEARS         → the panel is made of these
   GLUE       core/      what connects them           → no user surface at all
              app/                                      (app/ is the page-level
