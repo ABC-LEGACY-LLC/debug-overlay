@@ -70,26 +70,27 @@ const SURFACES = [
 ];
 
 /**
- * THE THREE SPECIES, derived from hooks — the same derivation the registry's
- * ROLES make at runtime. A flat component list forced select and measure into
- * one rowset and every map drawn over it felt wrong; the bands are what the
- * hooks actually say.
+ * THE THREE SPECIES, derived from hooks — named by the direction of flow.
  *
- *   DESCRIBER — speaks ABOUT elements: badge/compact/annotate, audit/auditPage
- *   SELECTOR  — decides WHICH elements: groups/listRows/pendingIndex
- *   ACTOR     — takes the user's input: intercept
+ *   COMPONENT — reads the page, produces content INTO SERVICES for your eyes:
+ *               badge/compact/annotate, audit/auditPage
+ *   SOURCE    — input side: turns your clicks into what components work ON
+ *               (pins, groups): groups/listRows/pendingIndex
+ *   ACTION    — input side: turns a click into a DIRECT effect, no component
+ *               in between: intercept
  *
- * Plural on purpose (grid is Inspect+Detect, both describer duties). A tool in
- * two bands would be listed in both — none is today, and if one appears the
- * map shows it rather than hiding it.
+ * The SERVICES are the four core-owned collectors a component fills from
+ * inside its own file: badge, ⌕ findings, ⧉ report, ⚙ settings.
+ *
+ * Plural on purpose — a tool in two bands would be listed in both.
  */
 const bandsOf = (t) => {
   const has = (h) => t.hooks.includes(h);
   const out = [];
   if (has('badge') || has('compact') || has('annotate') ||
-      has('audit') || has('auditPage')) out.push('DESCRIBER');
-  if (has('groups') || has('listRows') || has('pendingIndex')) out.push('SELECTOR');
-  if (has('intercept')) out.push('ACTOR');
+      has('audit') || has('auditPage')) out.push('COMPONENT');
+  if (has('groups') || has('listRows') || has('pendingIndex')) out.push('SOURCE');
+  if (has('intercept')) out.push('ACTION');
   return out;
 };
 

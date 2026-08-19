@@ -76,10 +76,11 @@ tab: the bundle skips frames, so an embedded editor preview shows nothing.
 - Tool-specific CSS goes in that tool's `css:` field, not `src/ui/styles.js`.
 
 ## The architecture reference
-`ARCHITECTURE.md` is the prose map: three species of component (DESCRIBER /
-SELECTOR / ACTOR, derived in `hooks.js` `bandsOf`), the four channels a
-describer fills, surfaces' three layers, and the audit as a flow rather than a
-place. Keep it and `npm run map` agreeing by editing `hooks.js`, not either
+`ARCHITECTURE.md` is the prose map, opening with the pipeline: input side
+(SOURCE select, ACTION pick) → COMPONENTS (measure, grid, contrast, dupid) →
+SERVICES (badge, findings, report, settings) → your eyes. Species are derived
+in `hooks.js` `bandsOf`; surfaces have three layers; the audit is a flow, not
+a place. Keep it and `npm run map` agreeing by editing `hooks.js`, not either
 output. A flat component list is what made every earlier matrix wrong —
 select and measure are different species, not different-shaped rows.
 

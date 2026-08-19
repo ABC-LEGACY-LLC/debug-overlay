@@ -95,16 +95,20 @@ for (const n of d.querySelectorAll('#__dbgov-list > *')) {
 const { SURFACES, registered, bandsOf } = require('./hooks.js');
 const tools = registered('tools');
 
-/* THE THREE SPECIES. A flat component list put select and measure in one
-   rowset and every matrix over it felt wrong; the bands are what the hooks
-   say. Describers get the four-channel table because those are the channels
-   a describer fills from inside its own file. */
-console.log('\nBANDS          three species of component, derived from hooks\n');
+/* THE PIPELINE, and the matrix under it. Vocabulary from hooks.js bandsOf:
+   COMPONENT reads the page and fills SERVICES; SOURCE and ACTION sit on the
+   input side and never take effect through a service. */
+console.log('\nPIPELINE       the direction of flow\n');
+console.log('  you ──click──────────▶ SOURCE  select ──▶ pins + groups()');
+console.log('      ──ctrl/⌘+click──▶ ACTION  pick   ──▶ clipboard (direct effect)');
+console.log('  pins ──▶ COMPONENTS measure·grid·contrast·dupid ──▶ SERVICES ──▶ your eyes');
+console.log('           (consulting SUBJECTS scale·colour)');
+
+console.log('\nCOMPONENTS     read the page, produce content into the four SERVICES\n');
 const inBand = (b) => tools.filter((t) => bandsOf(t).includes(b));
-console.log('  DESCRIBER — says something about elements');
 console.log('    ' + 'component'.padEnd(11) + 'badge'.padEnd(14) + '⌕ findings'.padEnd(13) +
             '⧉ report'.padEnd(11) + '⚙ settings');
-for (const t of inBand('DESCRIBER')) {
+for (const t of inBand('COMPONENT')) {
   const has = (h) => t.hooks.includes(h);
   const uses = (t.s.match(/uses: \[(\w+)\]/) || [])[1];
   console.log('    ' + t.id.padEnd(11) +
@@ -113,11 +117,15 @@ for (const t of inBand('DESCRIBER')) {
     (has('report') ? '✓' : '·').padEnd(10) +
     (has('options') ? 'own' : uses ? 'via ' + uses.toLowerCase() : '·'));
 }
-for (const t of inBand('SELECTOR'))
-  console.log('  SELECTOR  — ' + t.id + ': publishes groups() for whoever measures; ' +
-              'pair rows; the … on a waiting pin');
-for (const t of inBand('ACTOR'))
-  console.log('  ACTOR     — ' + t.id + ': claims input via intercept');
+console.log('\nINPUT SIDE     never takes effect through a service\n');
+for (const t of inBand('SOURCE'))
+  console.log('  SOURCE  ' + t.id + ' — your clicks become pins and groups(); ' +
+              'components consume them, you never see its output directly');
+for (const t of inBand('ACTION'))
+  console.log('  ACTION  ' + t.id + ' — a click becomes an effect (clipboard), ' +
+              'no component in between');
+console.log('\n  a new capability: COMPONENT if its output is for your eyes via a');
+console.log('  service · SOURCE if it is for other components · ACTION if it is an effect');
 
 console.log('\nSURFACES       every one exists with no tool armed; a tool ADDS to it\n');
 console.log('  ' + 'surface'.padEnd(14) + 'there anyway (core)'.padEnd(46) + 'tools that add to it');

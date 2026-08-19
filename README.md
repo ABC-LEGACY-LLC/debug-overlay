@@ -146,10 +146,11 @@ reset what you had.
 
 ## Architecture
 
-[ARCHITECTURE.md](ARCHITECTURE.md) is the reference: the three species of
-component (describer / selector / actor, derived from hooks), the four
-channels a describer fills from inside its own file, the three layers of
-every surface, and what `audit.js` enforces about each. `npm run map` prints
+[ARCHITECTURE.md](ARCHITECTURE.md) is the reference: the pipeline (input →
+components → services → your eyes), the three species derived from hooks
+(COMPONENT / SOURCE / ACTION), the four SERVICES a component fills from inside
+its own file, the three layers of every surface, and what `audit.js` enforces
+about each. `npm run map` prints
 the living version from the same shared definition (`hooks.js`).
 
 ## Layout

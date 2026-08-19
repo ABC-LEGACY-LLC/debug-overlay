@@ -8,6 +8,34 @@ wrong twice; run `npm run map` for the living version.
 
 ---
 
+## The pipeline
+
+```
+                YOU
+                 │  click · shift+click · ctrl+click
+                 ▼
+        ╔══════ INPUT SIDE ══════╗
+        ║ select — SOURCE        ║──▶ State.pins + groups()   (feeds components)
+        ║ pick   — ACTION        ║──▶ clipboard, directly     (bypasses them)
+        ╚═══════════╤════════════╝
+                    ▼
+        ╔══════ COMPONENTS ══════╗
+        ║ measure grid           ║ ◄── consult SUBJECTS (scale, colour)
+        ║ contrast dupid         ║
+        ╚═══════════╤════════════╝
+                    ▼
+        ╔══════ SERVICES ════════╗
+        ║ badge · findings       ║
+        ║ report · settings      ║
+        ╚═══════════╤════════════╝
+                    ▼
+               YOUR EYES
+```
+
+A new capability is a COMPONENT if its output is for your eyes via a service,
+a SOURCE if its output is for other components, an ACTION if its output is an
+effect.
+
 ## Three species, not one list
 
 Every file in `src/tools/` is a component, but they are not one kind of thing.
@@ -16,12 +44,12 @@ species, so the label cannot drift from the behaviour:
 
 | band | derived from | job |
 |---|---|---|
-| **DESCRIBER** | `badge` / `compact` / `annotate` / `audit` / `auditPage` | says something ABOUT elements |
-| **SELECTOR** | `groups` / `listRows` / `pendingIndex` | decides WHICH elements |
-| **ACTOR** | `intercept` | takes the user's input |
+| **COMPONENT** | `badge` / `compact` / `annotate` / `audit` / `auditPage` | reads the page, produces content INTO SERVICES |
+| **SOURCE** | `groups` / `listRows` / `pendingIndex` | input side: turns clicks into what components work ON |
+| **ACTION** | `intercept` | input side: a click becomes a direct effect |
 
-Today: measure, grid, contrast and dupid are describers; select is the
-selector; pick is the actor. A flat "components" list put all six in one
+Today: measure, grid, contrast and dupid are components; select is the
+source; pick is the action. A flat "components" list put all six in one
 rowset, and every matrix drawn over it felt wrong — select's row looked broken
 next to measure's because they are different species, not because the code was.
 
@@ -29,13 +57,14 @@ Bands are plural on purpose. grid is Inspect *and* Detect — both describer
 duties — and a future tool could genuinely sit in two bands; the map would
 list it in both rather than force one.
 
-## A describer fills four channels, from inside its own file
+## A component fills four services, from inside its own file
 
-The uniformity is the architecture. Each describer carries ALL of its
-contributions in its one file, and core collects them — the same registration
-pattern for every channel, so a fifth describer is one new file and four cells:
+The uniformity is the architecture. Each component carries ALL of its
+contributions in its one file, and the service collects them — the same
+registration pattern for every service, so a fifth component is one new file
+and four cells:
 
-| channel | hook | collected by |
+| service | hook | collected by |
 |---|---|---|
 | badge | `badge` / `compact` | `ui/badges.js`, from ACTIVE tools |
 | ⌕ findings | `audit` / `auditPage` | `app/sweep.js`, from ALL tools |
@@ -47,11 +76,11 @@ Two of those lines carry deliberate asymmetries:
 - **The sweep runs every rule, armed or not.** Arming decides what you SEE,
   never what is checked — a toggle you forgot must not quietly shorten an
   audit.
-- **A describer whose settings live on a subject declares `uses:`** so its
+- **A component whose settings live on a subject declares `uses:`** so its
   right-click menu can show them. "Grid step" is grid's setting to anyone
   holding grid; that `scale` owns it is an internal matter.
 
-## The selector's output is consumed, not shown
+## The source's output is consumed, not shown
 
 select publishes `groups()`; measure asks `Tools.groups()` and draws dimension
 lines between whatever comes back. Neither knows the other's name. That is why
@@ -67,7 +96,7 @@ Two capability flows exist today, and both are name-free:
 | select | `groups()` | whoever measures between elements |
 | grid | `annotate` (the ⚠ lens) | every number any badge prints |
 
-## The actor claims input, narrowly
+## The action claims input, narrowly
 
 pick takes Ctrl/⌘+click through `intercept` — the one hook that can consume a
 click before it becomes a pin. `app/interactions.js` is where input enters, so
