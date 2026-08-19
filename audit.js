@@ -123,12 +123,10 @@ const BY_FIELD = /\.id\s*===?\s*'([a-z][\w-]*)'/g;   // the other way back in
    ask this" in its own doc comment and was listed as having an audit hook it
    does not have. Only whole-line // comments go, so a URL inside a string
    keeps its slashes. */
-const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-// \b would match U.mark(…) and this.pairs(); a hook is never called through a dot
-const calls = (s, h) => new RegExp(`(^|[^.\\w])${h}\\s*\\(`, 'm').test(strip(s));
-const HOOKS = ['badge', 'compact', 'report', 'reportTail', 'draw', 'listRows',
-               'pendingIndex', 'annotate', 'audit', 'auditPage', 'options',
-               'intercept', 'groups', 'gestures'];
+/* strip/calls/HOOKS come from hooks.js, which map.js reads too — one
+   definition of what a hook is and who implements it, rather than two that
+   agree until they quietly do not. */
+const { HOOKS, strip, calls } = require('./hooks.js');
 
 /* The category vocabulary, read out of the registry rather than repeated here
    — the same reason the banned-id list is derived from the tools themselves.

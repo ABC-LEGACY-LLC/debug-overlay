@@ -112,6 +112,18 @@ When `tools/` does outgrow one directory, subdivide by **subject** — `layout/`
 recursively, so that move costs nothing; the audit prints an advisory past 20
 files so the decision gets made rather than forgotten.
 
+### Three layers, not two
+Every surface EXISTS with no tool armed — core draws it, and a tool ADDS to it.
+Miss that and the map comes out wrong: `select` looks like it owns the pin chip
+because it is the only tool touching that surface, when `ui/renderer.js` draws
+the outline AND the `#N` for every pin and select only appends the `…` through
+`pendingIndex`. The same `#N` appears on the badge, also from the renderer.
+
+`hooks.js` holds the hook vocabulary and the surface map, and BOTH `audit.js`
+(which enforces it) and `map.js` (which prints it) read it — one definition
+rather than two that agree until they quietly do not. That file exists because
+this table was written by hand twice and was wrong twice.
+
 `npm run map` boots the built bundle and prints the bar, every tool's derived
 roles with the file it came from, and the grouped ⚙ view. Use it to answer
 "where will this show up" instead of guessing — it asks the running registry

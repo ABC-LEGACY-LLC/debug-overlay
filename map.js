@@ -90,6 +90,30 @@ for (const n of d.querySelectorAll('#__dbgov-list > *')) {
               `${n.querySelector('.lbl').textContent.padEnd(22)}${shown}`);
 }
 
+/* THE SURFACES. Written by hand twice and wrong twice: `select` looked like it
+   owned the pin chip because it is the only tool touching that surface, when
+   the renderer draws the outline AND the number for every pin and select only
+   appends the "…". Derived now, from the same hooks.js audit.js enforces. */
+const { SURFACES, registered } = require('./hooks.js');
+const tools = registered('tools');
+
+console.log('\nSURFACES       every one exists with no tool armed; a tool ADDS to it\n');
+console.log('  ' + 'surface'.padEnd(14) + 'there anyway (core)'.padEnd(46) + 'tools that add to it');
+console.log('  ' + '-'.repeat(14 + 46 + 38));
+for (const s of SURFACES) {
+  const who = tools.filter((t) => s.fills.some((h) => t.hooks.includes(h))).map((t) => t.id);
+  console.log('  ' + s.key.padEnd(14) + s.core.padEnd(46) + (who.join(', ') || '— core only'));
+}
+
+console.log('\nWHAT EACH TOOL ADDS\n');
+const W = 13;
+console.log('  ' + 'tool'.padEnd(10) + SURFACES.map((s) => s.key.slice(0, 11).padEnd(W)).join(''));
+console.log('  ' + '-'.repeat(10 + SURFACES.length * W));
+for (const t of tools) {
+  console.log('  ' + t.id.padEnd(10) + SURFACES.map((s) =>
+    (s.fills.filter((h) => t.hooks.includes(h)).join('+') || '·').slice(0, 11).padEnd(W)).join(''));
+}
+
 console.log(`
 WHERE A NEW FILE GOES
   tools/    a capability the user can arm    → its own button, and its rows
