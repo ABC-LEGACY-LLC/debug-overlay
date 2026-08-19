@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.65
+// @version      3.8.66
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -427,7 +427,32 @@ HOW TO USE
      * more general fact: "the spacing step is 2px" is true of the project, and
      * what any one component does with it comes after.
      */
-    settingOwners: () => [...SUBJECTS, ...TOOLS.slice().sort(byRole)].filter((o) => o.options),
+    /**
+     * Everything that declares settings, in ONE principled order: the bar's.
+     *
+     * It used to be [...SUBJECTS, ...tools] — and SUBJECTS register in folder
+     * order, which is alphabetical, so "WCAG level" sat above "Grid step" only
+     * because contrast/ sorts before grid/. It matched the bar by luck.
+     * Now each subject is anchored to the FIRST tool (in bar order) that
+     * declares it via `uses:`, just ahead of that tool — the project's facts,
+     * then the tool's own preferences — and an orphan subject, if one ever
+     * exists, comes last rather than vanishing.
+     */
+    settingOwners: () => {
+      const out = [];
+      const seen = /* @__PURE__ */ new Set();
+      for (const t of TOOLS.slice().sort(byRole)) {
+        for (const su of t.uses || []) {
+          if (!seen.has(su)) {
+            seen.add(su);
+            out.push(su);
+          }
+        }
+        out.push(t);
+      }
+      for (const su of SUBJECTS) if (!seen.has(su)) out.push(su);
+      return out.filter((o) => o.options);
+    },
     /** Every role a tool fills, in ROLES order. Plural by construction. */
     rolesOf: (t) => ROLES.filter((r) => r.has(t)).map((r) => r.label),
     /**
@@ -473,7 +498,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.65",
+    VERSION: "3.8.66",
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -2867,7 +2892,7 @@ ${Tools.rolesOf(t).join(" · ")}${run.note}${t.options || t.uses ? "\nright-clic
     rowsFor(id) {
       const t = Tools.byId(id);
       if (!t) return [];
-      return [t, ...t.uses || []].filter((o) => o.options).flatMap((o) => o.options.call(o).map((opt) => Settings.row(o, opt)));
+      return Settings.rows(/* @__PURE__ */ new Set([t, ...t.uses || []]));
     },
     /**
      * One row per option, under a heading for what that option CHANGES.
@@ -2882,34 +2907,29 @@ ${Tools.rolesOf(t).join(" · ")}${run.note}${t.options || t.uses ? "\nright-clic
      * An empty category prints no heading. A tool that adds the first ACT
      * option makes that section appear, and nothing here changes.
      */
-    rows() {
+    /**
+     * `only`: restrict to a set of owners — that is the per-tool door. One
+     * loop builds both views, THROUGH Settings.row (the inline duplicate that
+     * used to live here is the drift the "one row builder" rule exists to
+     * prevent), so grouping, headings and ORDER cannot differ between doors.
+     * KEYS stays ⚙-only: gestures are nobody's options.
+     */
+    rows(only) {
       const out = [];
       for (const r of ROLES) {
         const rows = [];
         for (const t of Tools.settingOwners()) {
+          if (only && !only.has(t)) continue;
           for (const o of t.options.call(t)) {
             if (o.affects !== r.key) continue;
-            rows.push({
-              tag: t.icon,
-              label: o.label,
-              control: Settings.controlFor(o, Tools.setting(t, o.key)),
-              /* A tool's own option does nothing while that tool is disarmed —
-                 stored and waiting, not live. Hiding the row would be wrong,
-                 since the value applies the moment you arm it; looking active
-                 was the confusion, so it is dimmed. A SUBJECT has no armed
-                 state: its settings feed the sweep, which runs every rule
-                 either way, so those are never inert. */
-              inert: Tools.all.includes(t) && !State.tools.has(t.id),
-              tool: t,
-              opt: o
-            });
+            rows.push(Settings.row(t, o));
           }
         }
         if (!rows.length) continue;
         out.push({ heading: r.label, detail: r.note });
         out.push(...rows);
       }
-      const keys = Settings.gestureRows();
+      const keys = only ? [] : Settings.gestureRows();
       if (keys.length) {
         out.push({ heading: "Keys", detail: "the parts of this that are not buttons" });
         out.push(...keys);

@@ -1463,6 +1463,9 @@ console.log('\nPER-TOOL OPTIONS');
   ok('and shows only that tool\'s',
     mine.includes('Radius') && !mine.includes('Grid step') && !mine.includes('WCAG level'),
     mine.join(', '));
+  ok('the menu keeps ⚙\'s grouping — it is a filter, not a rebuild',
+    [...list.querySelectorAll('.head')].some((h) => /Inspect/.test(h.textContent)),
+    'the per-tool door used to flatten the rows and invert the category order');
   ok('titled with the tool, not with "Settings"',
     /Measure/.test((list.querySelector('.viewhead') || {}).textContent || ''),
     (list.querySelector('.viewhead') || {}).textContent || '(none)');

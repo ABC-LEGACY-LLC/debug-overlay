@@ -174,8 +174,29 @@ import { State } from './state.js';
      * more general fact: "the spacing step is 2px" is true of the project, and
      * what any one component does with it comes after.
      */
-    settingOwners: () => [...SUBJECTS, ...TOOLS.slice().sort(byRole)]
-      .filter((o) => o.options),
+    /**
+     * Everything that declares settings, in ONE principled order: the bar's.
+     *
+     * It used to be [...SUBJECTS, ...tools] — and SUBJECTS register in folder
+     * order, which is alphabetical, so "WCAG level" sat above "Grid step" only
+     * because contrast/ sorts before grid/. It matched the bar by luck.
+     * Now each subject is anchored to the FIRST tool (in bar order) that
+     * declares it via `uses:`, just ahead of that tool — the project's facts,
+     * then the tool's own preferences — and an orphan subject, if one ever
+     * exists, comes last rather than vanishing.
+     */
+    settingOwners: () => {
+      const out = [];
+      const seen = new Set();
+      for (const t of TOOLS.slice().sort(byRole)) {
+        for (const su of t.uses || []) {
+          if (!seen.has(su)) { seen.add(su); out.push(su); }
+        }
+        out.push(t);
+      }
+      for (const su of SUBJECTS) if (!seen.has(su)) out.push(su);
+      return out.filter((o) => o.options);
+    },
 
     /** Every role a tool fills, in ROLES order. Plural by construction. */
     rolesOf: (t) => ROLES.filter((r) => r.has(t)).map((r) => r.label),

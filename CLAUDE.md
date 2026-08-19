@@ -213,6 +213,13 @@ Settings are reachable two ways and stored once. ⚙ renders every row grouped b
 rows filtered to that owner. Both call `Settings.row(owner, option)` — the
 second is a FILTER of the first, never a copy, so they cannot drift.
 
+Both doors run through ONE loop (`Settings.rows(only?)`) and one row builder
+(`Settings.row`) — the menu is ⚙ filtered, so grouping, headings and ORDER
+cannot differ between them. The owner order is the bar's: each subject is
+anchored just ahead of the first tool that `uses:` it, so "WCAG level" sits
+above "Grid step" because ◐ sits before ▦ — a rule, where it used to be the
+accident of alphabetical folder names.
+
 Why both: "what is the grid step on this project" is a settings-screen
 question, asked once. "Take radius off this badge" is asked mid-task, about the
 tool you are already using, and making someone open a global list of everyone's

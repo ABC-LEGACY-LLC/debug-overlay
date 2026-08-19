@@ -51,11 +51,14 @@ import { State, Store } from '../../core/state.js';
      * tool, so this is not one tool naming another.
      */
     rowsFor(id) {
+      /* A FILTER in the literal sense: the same loop that builds ⚙, restricted
+         to this tool and the subjects it consults — grouping, headings and
+         ORDER are ⚙'s by construction. The old version rebuilt the list as
+         [tool, ...uses] flat, which put the tool's own preferences above the
+         project's facts and inverted the category order the other door shows. */
       const t = Tools.byId(id);
       if (!t) return [];
-      return [t, ...(t.uses || [])]
-        .filter((o) => o.options)
-        .flatMap((o) => o.options.call(o).map((opt) => Settings.row(o, opt)));
+      return Settings.rows(new Set([t, ...(t.uses || [])]));
     },
 
     /**
@@ -71,33 +74,29 @@ import { State, Store } from '../../core/state.js';
      * An empty category prints no heading. A tool that adds the first ACT
      * option makes that section appear, and nothing here changes.
      */
-    rows() {
+    /**
+     * `only`: restrict to a set of owners — that is the per-tool door. One
+     * loop builds both views, THROUGH Settings.row (the inline duplicate that
+     * used to live here is the drift the "one row builder" rule exists to
+     * prevent), so grouping, headings and ORDER cannot differ between doors.
+     * KEYS stays ⚙-only: gestures are nobody's options.
+     */
+    rows(only) {
       const out = [];
       for (const r of ROLES) {
         const rows = [];
         for (const t of Tools.settingOwners()) {
+          if (only && !only.has(t)) continue;
           for (const o of t.options.call(t)) {
             if (o.affects !== r.key) continue;
-            rows.push({
-              tag: t.icon,
-              label: o.label,
-              control: Settings.controlFor(o, Tools.setting(t, o.key)),
-              /* A tool's own option does nothing while that tool is disarmed —
-                 stored and waiting, not live. Hiding the row would be wrong,
-                 since the value applies the moment you arm it; looking active
-                 was the confusion, so it is dimmed. A SUBJECT has no armed
-                 state: its settings feed the sweep, which runs every rule
-                 either way, so those are never inert. */
-              inert: Tools.all.includes(t) && !State.tools.has(t.id),
-              tool: t, opt: o,
-            });
+            rows.push(Settings.row(t, o));
           }
         }
         if (!rows.length) continue;
         out.push({ heading: r.label, detail: r.note });
         out.push(...rows);
       }
-      const keys = Settings.gestureRows();
+      const keys = only ? [] : Settings.gestureRows();
       if (keys.length) {
         out.push({ heading: 'Keys', detail: 'the parts of this that are not buttons' });
         out.push(...keys);
