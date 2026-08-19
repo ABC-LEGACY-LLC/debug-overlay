@@ -1,9 +1,9 @@
-import { Sweep } from './sweep.js';
-import { CONFIG } from '../core/config.js';
-import { Tools } from '../core/registry.js';
-import { State } from '../core/state.js';
-import { U } from '../core/utils.js';
-import { Panel } from '../ui/panel.js';
+import { Sweep } from '../findings/index.js';
+import { CONFIG } from '../../core/config.js';
+import { Tools } from '../../core/registry.js';
+import { State } from '../../core/state.js';
+import { U } from '../../core/utils.js';
+import { Panel } from '../../ui/panel.js';
   /* ======================================================================
     REPORT — also composed from active tools
      ====================================================================== */

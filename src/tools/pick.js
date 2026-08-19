@@ -1,4 +1,4 @@
-import { Report } from '../app/report.js';
+import { Report } from '../services/report/index.js';
 import { CONFIG } from '../core/config.js';
 import { Tools, defineTool } from '../core/registry.js';
 import { U } from '../core/utils.js';

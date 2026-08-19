@@ -29,14 +29,13 @@ if (!fs.existsSync(bundle)) {
 }
 const source = fs.readFileSync(bundle, 'utf8');
 
-/** id → the file it came from, read off the build's own section markers. */
+/** id → the file it came from. Used to be read off the old concatenator's
+ *  section markers; esbuild emits none, so it comes from the same source scan
+ *  the audit uses — hooks.registered — which cannot drift from the tree. */
 function origins() {
+  const { registered } = require('./hooks.js');
   const out = {};
-  const parts = source.split(/^ {2}\/\/ ─── (src\/\S+)/m);
-  for (let i = 1; i < parts.length; i += 2) {
-    const id = (parts[i + 1].match(/\bid: '([a-z][\w-]*)'/) || [])[1];
-    if (id) out[id] = parts[i];
-  }
+  for (const t of registered('tools')) if (t.id) out[t.id] = 'src/tools/' + t.f.replace(/^tools\//, '');
   return out;
 }
 

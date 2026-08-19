@@ -1,4 +1,4 @@
-import { Tools } from '../core/registry.js';
+import { Tools } from '../../core/registry.js';
   /* ======================================================================
     BADGES — composed from ACTIVE tools only
      ====================================================================== */

@@ -1,6 +1,6 @@
-import { CONFIG } from '../core/config.js';
-import { Tools } from '../core/registry.js';
-import { U } from '../core/utils.js';
+import { CONFIG } from '../../core/config.js';
+import { Tools } from '../../core/registry.js';
+import { U } from '../../core/utils.js';
   /* ======================================================================
     SWEEP — run the rules over the whole page instead of one element
      ====================================================================== */

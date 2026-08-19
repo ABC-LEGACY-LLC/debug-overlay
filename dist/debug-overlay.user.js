@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.61
+// @version      3.8.62
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -275,7 +275,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.61",
+    VERSION: "3.8.62",
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -1603,7 +1603,7 @@ HOW TO USE
     }
   });
 
-  // src/app/sweep.js
+  // src/services/findings/index.js
   var Sweep = {
     /**
      * One read-only pass. Rules only speak when something is wrong, so what
@@ -2338,7 +2338,7 @@ ${Tools.rolesOf(t).join(" · ")}${run.note}${t.options || t.uses ? "\nright-clic
     })();
   }
 
-  // src/app/report.js
+  // src/services/report/index.js
   var Report = {
     text() {
       const active = Tools.active();
@@ -2419,7 +2419,7 @@ ${Tools.rolesOf(t).join(" · ")}${run.note}${t.options || t.uses ? "\nright-clic
     }
   };
 
-  // src/ui/badges.js
+  // src/services/badge/index.js
   var Badges = {
     build(info, compact) {
       const parts = [];
@@ -2890,7 +2890,7 @@ ${Tools.rolesOf(t).join(" · ")}${run.note}${t.options || t.uses ? "\nright-clic
     }
   };
 
-  // src/app/settings.js
+  // src/services/settings/index.js
   var Settings = {
     carried: {},
     // saved values whose owner this build does not know

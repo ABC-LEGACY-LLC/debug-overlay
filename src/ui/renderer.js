@@ -1,7 +1,7 @@
 import { Tools } from '../core/registry.js';
 import { State } from '../core/state.js';
 import { U } from '../core/utils.js';
-import { Badges } from './badges.js';
+import { Badges } from '../services/badge/index.js';
 import { layer } from './dom.js';
 import { Panel } from './panel.js';
 import { Place } from './placement.js';

@@ -1,6 +1,6 @@
-import { CONFIG } from '../core/config.js';
-import { ROLES, Tools } from '../core/registry.js';
-import { State, Store } from '../core/state.js';
+import { CONFIG } from '../../core/config.js';
+import { ROLES, Tools } from '../../core/registry.js';
+import { State, Store } from '../../core/state.js';
   /* ======================================================================
     SETTINGS — the ⚙ view, and what a tool's options mean
 

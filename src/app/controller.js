@@ -1,5 +1,5 @@
-import { Settings } from './settings.js';
-import { Sweep } from './sweep.js';
+import { Settings } from '../services/settings/index.js';
+import { Sweep } from '../services/findings/index.js';
 import { CONFIG } from '../core/config.js';
 import { TOOLS, Tools } from '../core/registry.js';
 import { State, Store } from '../core/state.js';

@@ -11,10 +11,10 @@ import { initDom } from './ui/dom.js';
 import { initList } from './ui/list.js';
 import { initPanel, Panel } from './ui/panel.js';
 import { Render } from './ui/renderer.js';
-import { Report } from './app/report.js';
+import { Report } from './services/report/index.js';
 import { Interactions } from './app/interactions.js';
 import { Controller } from './app/controller.js';
-import { Settings } from './app/settings.js';
+import { Settings } from './services/settings/index.js';
 
 initDom();
 initList();
