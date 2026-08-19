@@ -1,5 +1,5 @@
-import { CONFIG } from '../../core/config.js';
-import { Tools, defineSubject } from '../../core/registry.js';
+import { CONFIG } from '../../../core/config.js';
+import { Tools, defineSubject } from '../../../core/registry.js';
   /**
    * COLOUR — resolving a colour honestly, and the level to judge it against.
    *

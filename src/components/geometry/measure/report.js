@@ -1,5 +1,5 @@
-import { Measure } from '../../core/geometry.js';
-import { U } from '../../core/utils.js';
+import { Measure } from '../../../core/geometry.js';
+import { U } from '../../../core/utils.js';
 
 export function report({ r, cs }) {
         const pad = U.fourPlain(cs, 'padding'), mar = U.fourPlain(cs, 'margin');

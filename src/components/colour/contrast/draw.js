@@ -1,4 +1,4 @@
-import { CONFIG } from '../../core/config.js';
+import { CONFIG } from '../../../core/config.js';
 
 // Findings become places on the page, not just rows in a list. `found`
 // is this tool's own, handed over by the renderer; the layer is cleared

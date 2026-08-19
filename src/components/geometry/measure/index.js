@@ -1,9 +1,9 @@
-import { defineTool } from '../../core/registry.js';
+import { defineTool } from '../../../core/registry.js';
 import { badge, compact, options } from './badge.js';
 import { report, reportTail } from './report.js';
 import { draw } from './draw.js';
-import { Measure } from '../../core/geometry.js';
-import { Tools } from '../../core/registry.js';
+import { Measure } from '../../../core/geometry.js';
+import { Tools } from '../../../core/registry.js';
 
 /* index — REGISTRATION ONLY. The component's behaviour lives in the files
    beside this one; what is declared here is identity, appearance and wiring.

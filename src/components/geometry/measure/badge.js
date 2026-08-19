@@ -1,5 +1,5 @@
-import { Tools } from '../../core/registry.js';
-import { U } from '../../core/utils.js';
+import { Tools } from '../../../core/registry.js';
+import { U } from '../../../core/utils.js';
 
 export function badge(i) {
         const { el, r, cs } = i;

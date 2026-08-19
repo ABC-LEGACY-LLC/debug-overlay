@@ -14,7 +14,10 @@ import { Panel } from '../../ui/panel.js';
         `# UI debug report`,
         `url: ${location.href}`,
         `viewport: ${innerWidth}×${innerHeight} @ dpr ${devicePixelRatio}`,
-        `tools: ${active.map((t) => t.id).join(', ') || 'none'}`,
+        // sorted: this line is an INVENTORY, not a sequence — registration order
+        // leaked into it once (a folder rename reordered it) and role order
+        // would leak the same way. Alphabetical is immune to both.
+        `tools: ${active.map((t) => t.id).sort().join(', ') || 'none'}`,
         '',
       ];
       const found = [];

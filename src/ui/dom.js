@@ -1,4 +1,4 @@
-import { TOOLS } from '../core/registry.js';
+import { Tools } from '../core/registry.js';
 import { CSS } from './styles.js';
 
 /**
@@ -40,7 +40,7 @@ export function initDom() {
     root.append(s);
   };
   sheet(CSS);
-  for (const t of TOOLS) if (t.css) sheet(t.css, t.id);
+  for (const t of Tools.ordered()) if (t.css) sheet(t.css, t.id);
   layer = document.createElement('div');
   // everything painted onto the page is decoration: no text an AT user needs,
   // and already unclickable

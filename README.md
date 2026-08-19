@@ -160,11 +160,13 @@ src/
   banner.js            the guard — injected by build.js around the bundle
   boot.js              the entry module: init order + wiring
   components/          ← one FOLDER per capability, auto-discovered
-    contrast/          index · service (Colour) · badge · rule · draw · report
+    colour/            ← DOMAIN folder (no index.js): the colour family
+      contrast/        index · service (Colour) · badge · rule · draw · report
+    geometry/          ← DOMAIN folder: the geometry family
+      measure/         index · badge · report · draw
     dupid/             index · badge · rule · draw · report
     grid/              index · service (Scale) · badge · lens · rule · draw
                        · report · options
-    measure/           index · badge · report · draw
     pick/              index · act
     select/            index · service · rows
   services/            the four collectors — never edited for a new component

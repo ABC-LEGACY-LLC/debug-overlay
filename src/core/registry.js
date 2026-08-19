@@ -105,10 +105,19 @@ import { State } from './state.js';
   /** Register a debug tool. One call per file in src/tools/. */
   export const defineTool = (t) => { TOOLS.push(t); return t; };
 
+  /** Presentation order, everywhere: byRole, then id. Registration order is
+   *  whatever the manifest's folder glob produced — moving contrast under
+   *  colour/ reordered it, and grid's ⚠ silently moved to the END of every
+   *  badge and DOWN every report block. The import graph decides when code
+   *  runs; ROLES decide where things appear. Nothing user-facing may iterate
+   *  raw TOOLS. */
+  const ordered = () => TOOLS.slice().sort(byRole);
+
   export const Tools = {
     all: TOOLS,
+    ordered,
     byId: (id) => TOOLS.find((t) => t.id === id),
-    active: () => TOOLS.filter((t) => State.tools.has(t.id)),
+    active: () => ordered().filter((t) => State.tools.has(t.id)),
 
     /**
      * Tools are asked what they can DO, never what they are. A `kind` field
@@ -122,7 +131,7 @@ import { State } from './state.js';
      * gets CHECKED, so the caller says which it wants.
      */
     withHook: (h, armed) =>
-      TOOLS.filter((t) => t[h] && (!armed || State.tools.has(t.id))),
+      ordered().filter((t) => t[h] && (!armed || State.tools.has(t.id))),
 
     /**
      * The tools, split into runs for the panel to draw with a rule between
@@ -141,7 +150,7 @@ import { State } from './state.js';
       // yes/no question instead, which composition cannot make false, and the
       // full role list goes in the tooltip where there is room to be plural.
       const checks = role('detect').has;
-      const inOrder = TOOLS.slice().sort(byRole);
+      const inOrder = ordered();
       return [
         { cls: '', note: '', tools: inOrder.filter((t) => !checks(t)) },
         { cls: 'checks', note: ' · also runs in the page audit',

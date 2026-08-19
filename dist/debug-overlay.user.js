@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.67
+// @version      3.8.68
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -365,10 +365,12 @@ HOW TO USE
     TOOLS.push(t);
     return t;
   };
+  var ordered = () => TOOLS.slice().sort(byRole);
   var Tools = {
     all: TOOLS,
+    ordered,
     byId: (id) => TOOLS.find((t) => t.id === id),
-    active: () => TOOLS.filter((t) => State.tools.has(t.id)),
+    active: () => ordered().filter((t) => State.tools.has(t.id)),
     /**
      * Tools are asked what they can DO, never what they are. A `kind` field
      * used to answer this, and it could only ever repeat what the hooks
@@ -380,7 +382,7 @@ HOW TO USE
      * `armed` matters for anything the user SEES and not for anything that
      * gets CHECKED, so the caller says which it wants.
      */
-    withHook: (h, armed) => TOOLS.filter((t) => t[h] && (!armed || State.tools.has(t.id))),
+    withHook: (h, armed) => ordered().filter((t) => t[h] && (!armed || State.tools.has(t.id))),
     /**
      * The tools, split into runs for the panel to draw with a rule between
      * them. Two toggles that look identical and mean different things is the
@@ -393,7 +395,7 @@ HOW TO USE
      */
     runs() {
       const checks = role("detect").has;
-      const inOrder = TOOLS.slice().sort(byRole);
+      const inOrder = ordered();
       return [
         { cls: "", note: "", tools: inOrder.filter((t) => !checks(t)) },
         {
@@ -498,7 +500,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.67",
+    VERSION: "3.8.68",
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -568,7 +570,7 @@ HOW TO USE
     MARK_LIMIT: 200
   };
 
-  // src/components/contrast/service.js
+  // src/components/colour/contrast/service.js
   var Colour = defineSubject({
     id: "colour",
     was: "contrast",
@@ -748,7 +750,7 @@ HOW TO USE
     rgb: (c) => `${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)}`
   });
 
-  // src/components/contrast/badge.js
+  // src/components/colour/contrast/badge.js
   function badge(i) {
     const c = Colour.measure(i);
     if (!c) return null;
@@ -762,7 +764,7 @@ HOW TO USE
     return `<span class="bad">${c.ratio.toFixed(1)}:1 ✗</span>`;
   }
 
-  // src/components/contrast/report.js
+  // src/components/colour/contrast/report.js
   function report(i) {
     const c = Colour.measure(i);
     if (!c) return [];
@@ -770,7 +772,7 @@ HOW TO USE
     return [`  contrast: ${c.ratio.toFixed(2)}:1 vs required ${c.need} (${c.isLarge ? "large" : "normal"} text) → ${c.pass ? "PASS" : "FAIL"}`];
   }
 
-  // src/components/contrast/rule.js
+  // src/components/colour/contrast/rule.js
   var rules = {
     "contrast-aa": {
       help: "Body text needs 4.5:1 against its background, or 7:1 at AAA; 3:1 once it is 24px or 18.66px bold, or 4.5:1 at AAA. Which level this checks is in the panel under ⚙.",
@@ -810,7 +812,7 @@ HOW TO USE
     }];
   }
 
-  // src/components/contrast/draw.js
+  // src/components/colour/contrast/draw.js
   function draw({ layer: layer2, Place: Place2, found }) {
     for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
       if (!document.contains(f.el)) continue;
@@ -822,7 +824,7 @@ HOW TO USE
     }
   }
 
-  // src/components/contrast/index.js
+  // src/components/colour/contrast/index.js
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `
@@ -1034,223 +1036,8 @@ HOW TO USE
     overlap: (a, b) => Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) * Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t))
   };
 
-  // src/components/grid/service.js
-  var Scale = defineSubject({
-    id: "scale",
-    was: "grid",
-    // its settings lived under this id before the subject existed
-    icon: "▦",
-    options() {
-      return [
-        // 2, not 4, because that is what the scale in front of us actually is:
-        // Tailwind's default spacing has half-steps (0.5 = 2px, 1.5 = 6px) and
-        // a real page used them 2,681 times. A rule has to check the scale a
-        // project HAS; making the project match the rule is the wrong way round.
-        {
-          key: "step",
-          label: "Grid step",
-          def: CONFIG.GRID,
-          values: [1, 2, 4, 8],
-          suffix: "px",
-          affects: "detect"
-        },
-        // Where a spacing token stops and layout arithmetic begins.
-        // getComputedStyle resolves `margin: auto` to the pixels it worked out
-        // — 1127px on a real page — and nothing distinguishes that from a value
-        // somebody typed. Nobody types 1127px.
-        {
-          key: "max",
-          label: "Ignore above",
-          def: CONFIG.GRID_MAX,
-          type: "number",
-          min: 8,
-          max: 2e3,
-          step: 8,
-          suffix: "px",
-          affects: "detect"
-        },
-        // OFF, and it stays off by default: width and height are what layout
-        // produced, not what anyone typed, and judging them turned one real
-        // signal into 2,215 findings about icon geometry on a real page.
-        {
-          key: "boxes",
-          label: "Judge width & height",
-          def: false,
-          type: "toggle",
-          affects: "detect"
-        }
-      ];
-    },
-    step() {
-      return Tools.setting(this, "step");
-    },
-    max() {
-      return Tools.setting(this, "max");
-    },
-    boxes() {
-      return Tools.setting(this, "boxes");
-    },
-    /** 0 is never off the grid, or every padding:0 would light up. */
-    off(n) {
-      const step = this.step();
-      return n !== 0 && n % step !== 0;
-    },
-    /**
-     * Off the grid AND close enough to be something somebody typed.
-     *
-     * The ceiling used to live only in the rule, so a resolved `margin: auto`
-     * of 1127px got a ⚠ on the badge and no finding in the sweep — the badge
-     * and the audit disagreeing about one number, which is the exact
-     * contradiction this subject exists to make impossible. Every consumer
-     * asks this, so there is one answer.
-     */
-    judges(n) {
-      return this.off(n) && Math.abs(n) <= this.max();
-    },
-    /**
-     * The nearest value that WOULD pass — the RECOMMENDATION facet's answer.
-     *
-     * On the subject, not in the lens, for the same reason judges() is: the
-     * ⚠ and the →8 must come from one place or they could disagree about the
-     * same number. Half away from zero, matching U.px, so 7 on a 2px step
-     * suggests 8 and -7 suggests -8 — a margin and its mirror image get
-     * mirror advice.
-     */
-    nearest(n) {
-      const step = this.step();
-      return Math.sign(n) * Math.round(Math.abs(n) / step) * step;
-    },
-    /**
-     * Off-grid numbers on one element, as [name, value] pairs. `boxes` adds
-     * width and height — true when somebody pointed at this element and asked,
-     * false when a sweep is judging the page.
-     */
-    scan(info, boxes) {
-      const cs = info.cs;
-      const pad = U.fourPlain(cs, "padding"), mar = U.fourPlain(cs, "margin");
-      const out = [];
-      const check = (n, v) => {
-        if (this.judges(v)) out.push([n, v]);
-      };
-      if (boxes) {
-        const r = info.r;
-        const box = (n, v) => {
-          if (this.off(v)) out.push([n, v]);
-        };
-        box("w", Math.round(r.width));
-        box("h", Math.round(r.height));
-      }
-      ["t", "r", "b", "l"].forEach((k) => {
-        check("pad-" + k, pad[k]);
-        check("mar-" + k, mar[k]);
-      });
-      const row = U.px(cs.rowGap), col = U.px(cs.columnGap);
-      if (row || col) {
-        if (row) check("gap-row", row);
-        if (col) check("gap-col", col);
-      } else {
-        const gap = U.px(cs.gap);
-        if (gap) check("gap", gap);
-      }
-      return out;
-    }
-  });
-
-  // src/components/grid/badge.js
+  // src/components/geometry/measure/badge.js
   function badge3(i) {
-    const bad = Scale.scan(i, true);
-    if (!bad.length) return null;
-    const vals = [...new Set(bad.map(([, v]) => v))];
-    return `<span class="warn">⚠ ${vals.join(" ")} off ${Scale.step()}px</span>`;
-  }
-  function compact3(i) {
-    const bad = Scale.scan(i, true);
-    return bad.length ? `<span class="warn">⚠${bad.length}</span>` : null;
-  }
-
-  // src/components/grid/lens.js
-  function annotate(html, n) {
-    if (!Scale.judges(n)) return html;
-    const fix = Tools.setting(this, "suggest") ? `→${Scale.nearest(n)}` : "";
-    return `<span class="warn">${html}⚠${fix}</span>`;
-  }
-
-  // src/components/grid/report.js
-  function report3(i) {
-    const bad = Scale.scan(i, true);
-    return bad.length ? [`  ⚠ off ${Scale.step()}px grid: ${bad.map(([n, v]) => `${n}:${v}`).join(", ")}`] : [];
-  }
-
-  // src/components/grid/rule.js
-  var rules3 = {
-    "grid-off": {
-      help: "Spacing should be a multiple of the grid step — change which step this checks in the panel under ⚙.",
-      why: "One-off values are how a spacing scale erodes: each looks harmless alone, and together they are why nothing lines up."
-    }
-  };
-  function audit2(i) {
-    if (!(i.el instanceof HTMLElement)) return [];
-    return Scale.scan(i, Scale.boxes()).map(([n, v]) => ({
-      el: i.el,
-      verdict: "fail",
-      // a spacing system is a convention, not a rule anyone can be hurt
-      // by breaking — it ranks below anything a reader actually suffers
-      severity: "info",
-      rule: "grid-off",
-      // the VALUE, not the side it appeared on: these group by value, and
-      // "pad-t ×24" would read as 24 top paddings when it is one number
-      // used in twenty-four places. The sides are in the per-pin report.
-      message: `${v}px is off the ${Scale.step()}px grid`,
-      key: `grid-off|${v}`
-    }));
-  }
-
-  // src/components/grid/draw.js
-  function draw3({ layer: layer2, Place: Place2, found }) {
-    for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
-      if (!document.contains(f.el)) continue;
-      const r = f.el.getBoundingClientRect();
-      const box = document.createElement("div");
-      box.className = "dbgov-box dbgov-flag " + f.severity;
-      Place2.put(box, r.left, r.top, r.width, r.height);
-      layer2.append(box);
-    }
-  }
-
-  // src/components/grid/options.js
-  function options() {
-    return [
-      { key: "suggest", label: "Suggest nearest step", def: false, type: "toggle", affects: "inspect" }
-    ];
-  }
-
-  // src/components/grid/index.js
-  defineTool({
-    // visuals owned by this tool — appended to the stylesheet at boot
-    css: `
-    .dbgov-badge .warn{ color: #ffd54f; }
-    `,
-    id: "grid",
-    icon: "▦",
-    // No number in the title: the step is the user's now, and a title baked
-    // at boot would still be claiming 2px long after they picked 8.
-    title: "Grid — flag values off the spacing grid",
-    startsOn: true,
-    // the ⚠ on a badge is what makes the read-out useful
-    uses: [Scale],
-    // its settings are Scale's, and belong on its own menu
-    badge: badge3,
-    compact: compact3,
-    annotate,
-    report: report3,
-    rules: rules3,
-    audit: audit2,
-    draw: draw3,
-    options
-  });
-
-  // src/components/measure/badge.js
-  function badge4(i) {
     const { el, r, cs } = i;
     const dec = Tools.annotator(i);
     const on = (k) => Tools.setting(this, k);
@@ -1276,7 +1063,7 @@ HOW TO USE
     if (on("tag")) bits.push(`<span class="tag">${el.tagName.toLowerCase()}${el.id ? "#" + U.esc(el.id) : ""}</span>`);
     return bits.join(" · ");
   }
-  function compact4(i) {
+  function compact3(i) {
     const { r, cs } = i;
     const dec = Tools.annotator(i);
     const on = (k) => Tools.setting(this, k);
@@ -1292,7 +1079,7 @@ HOW TO USE
     }
     return bits.join(" · ");
   }
-  function options2() {
+  function options() {
     return [
       { key: "size", label: "Size", def: true, type: "toggle", affects: "inspect" },
       { key: "radius", label: "Radius", def: true, type: "toggle", affects: "inspect" },
@@ -1492,8 +1279,8 @@ HOW TO USE
     }
   };
 
-  // src/components/measure/report.js
-  function report4({ r, cs }) {
+  // src/components/geometry/measure/report.js
+  function report3({ r, cs }) {
     const pad = U.fourPlain(cs, "padding"), mar = U.fourPlain(cs, "margin");
     return [
       `  box: ${Math.round(r.width)}×${Math.round(r.height)} @ (${Math.round(r.left)}, ${Math.round(r.top)})`,
@@ -1512,8 +1299,8 @@ HOW TO USE
     });
   }
 
-  // src/components/measure/draw.js
-  function draw4({ layer: layer2, Place: Place2 }) {
+  // src/components/geometry/measure/draw.js
+  function draw3({ layer: layer2, Place: Place2 }) {
     Measure.resetLanes();
     for (const [A, B] of this._pairs()) {
       Measure.dimension(
@@ -1526,7 +1313,7 @@ HOW TO USE
     }
   }
 
-  // src/components/measure/index.js
+  // src/components/geometry/measure/index.js
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `
@@ -1567,12 +1354,227 @@ HOW TO USE
      * which two of them were meant.
      */
     _pairs: () => Tools.groups().filter((g) => g.length === 2),
+    badge: badge3,
+    compact: compact3,
+    options,
+    report: report3,
+    reportTail,
+    draw: draw3
+  });
+
+  // src/components/grid/service.js
+  var Scale = defineSubject({
+    id: "scale",
+    was: "grid",
+    // its settings lived under this id before the subject existed
+    icon: "▦",
+    options() {
+      return [
+        // 2, not 4, because that is what the scale in front of us actually is:
+        // Tailwind's default spacing has half-steps (0.5 = 2px, 1.5 = 6px) and
+        // a real page used them 2,681 times. A rule has to check the scale a
+        // project HAS; making the project match the rule is the wrong way round.
+        {
+          key: "step",
+          label: "Grid step",
+          def: CONFIG.GRID,
+          values: [1, 2, 4, 8],
+          suffix: "px",
+          affects: "detect"
+        },
+        // Where a spacing token stops and layout arithmetic begins.
+        // getComputedStyle resolves `margin: auto` to the pixels it worked out
+        // — 1127px on a real page — and nothing distinguishes that from a value
+        // somebody typed. Nobody types 1127px.
+        {
+          key: "max",
+          label: "Ignore above",
+          def: CONFIG.GRID_MAX,
+          type: "number",
+          min: 8,
+          max: 2e3,
+          step: 8,
+          suffix: "px",
+          affects: "detect"
+        },
+        // OFF, and it stays off by default: width and height are what layout
+        // produced, not what anyone typed, and judging them turned one real
+        // signal into 2,215 findings about icon geometry on a real page.
+        {
+          key: "boxes",
+          label: "Judge width & height",
+          def: false,
+          type: "toggle",
+          affects: "detect"
+        }
+      ];
+    },
+    step() {
+      return Tools.setting(this, "step");
+    },
+    max() {
+      return Tools.setting(this, "max");
+    },
+    boxes() {
+      return Tools.setting(this, "boxes");
+    },
+    /** 0 is never off the grid, or every padding:0 would light up. */
+    off(n) {
+      const step = this.step();
+      return n !== 0 && n % step !== 0;
+    },
+    /**
+     * Off the grid AND close enough to be something somebody typed.
+     *
+     * The ceiling used to live only in the rule, so a resolved `margin: auto`
+     * of 1127px got a ⚠ on the badge and no finding in the sweep — the badge
+     * and the audit disagreeing about one number, which is the exact
+     * contradiction this subject exists to make impossible. Every consumer
+     * asks this, so there is one answer.
+     */
+    judges(n) {
+      return this.off(n) && Math.abs(n) <= this.max();
+    },
+    /**
+     * The nearest value that WOULD pass — the RECOMMENDATION facet's answer.
+     *
+     * On the subject, not in the lens, for the same reason judges() is: the
+     * ⚠ and the →8 must come from one place or they could disagree about the
+     * same number. Half away from zero, matching U.px, so 7 on a 2px step
+     * suggests 8 and -7 suggests -8 — a margin and its mirror image get
+     * mirror advice.
+     */
+    nearest(n) {
+      const step = this.step();
+      return Math.sign(n) * Math.round(Math.abs(n) / step) * step;
+    },
+    /**
+     * Off-grid numbers on one element, as [name, value] pairs. `boxes` adds
+     * width and height — true when somebody pointed at this element and asked,
+     * false when a sweep is judging the page.
+     */
+    scan(info, boxes) {
+      const cs = info.cs;
+      const pad = U.fourPlain(cs, "padding"), mar = U.fourPlain(cs, "margin");
+      const out = [];
+      const check = (n, v) => {
+        if (this.judges(v)) out.push([n, v]);
+      };
+      if (boxes) {
+        const r = info.r;
+        const box = (n, v) => {
+          if (this.off(v)) out.push([n, v]);
+        };
+        box("w", Math.round(r.width));
+        box("h", Math.round(r.height));
+      }
+      ["t", "r", "b", "l"].forEach((k) => {
+        check("pad-" + k, pad[k]);
+        check("mar-" + k, mar[k]);
+      });
+      const row = U.px(cs.rowGap), col = U.px(cs.columnGap);
+      if (row || col) {
+        if (row) check("gap-row", row);
+        if (col) check("gap-col", col);
+      } else {
+        const gap = U.px(cs.gap);
+        if (gap) check("gap", gap);
+      }
+      return out;
+    }
+  });
+
+  // src/components/grid/badge.js
+  function badge4(i) {
+    const bad = Scale.scan(i, true);
+    if (!bad.length) return null;
+    const vals = [...new Set(bad.map(([, v]) => v))];
+    return `<span class="warn">⚠ ${vals.join(" ")} off ${Scale.step()}px</span>`;
+  }
+  function compact4(i) {
+    const bad = Scale.scan(i, true);
+    return bad.length ? `<span class="warn">⚠${bad.length}</span>` : null;
+  }
+
+  // src/components/grid/lens.js
+  function annotate(html, n) {
+    if (!Scale.judges(n)) return html;
+    const fix = Tools.setting(this, "suggest") ? `→${Scale.nearest(n)}` : "";
+    return `<span class="warn">${html}⚠${fix}</span>`;
+  }
+
+  // src/components/grid/report.js
+  function report4(i) {
+    const bad = Scale.scan(i, true);
+    return bad.length ? [`  ⚠ off ${Scale.step()}px grid: ${bad.map(([n, v]) => `${n}:${v}`).join(", ")}`] : [];
+  }
+
+  // src/components/grid/rule.js
+  var rules3 = {
+    "grid-off": {
+      help: "Spacing should be a multiple of the grid step — change which step this checks in the panel under ⚙.",
+      why: "One-off values are how a spacing scale erodes: each looks harmless alone, and together they are why nothing lines up."
+    }
+  };
+  function audit2(i) {
+    if (!(i.el instanceof HTMLElement)) return [];
+    return Scale.scan(i, Scale.boxes()).map(([n, v]) => ({
+      el: i.el,
+      verdict: "fail",
+      // a spacing system is a convention, not a rule anyone can be hurt
+      // by breaking — it ranks below anything a reader actually suffers
+      severity: "info",
+      rule: "grid-off",
+      // the VALUE, not the side it appeared on: these group by value, and
+      // "pad-t ×24" would read as 24 top paddings when it is one number
+      // used in twenty-four places. The sides are in the per-pin report.
+      message: `${v}px is off the ${Scale.step()}px grid`,
+      key: `grid-off|${v}`
+    }));
+  }
+
+  // src/components/grid/draw.js
+  function draw4({ layer: layer2, Place: Place2, found }) {
+    for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
+      if (!document.contains(f.el)) continue;
+      const r = f.el.getBoundingClientRect();
+      const box = document.createElement("div");
+      box.className = "dbgov-box dbgov-flag " + f.severity;
+      Place2.put(box, r.left, r.top, r.width, r.height);
+      layer2.append(box);
+    }
+  }
+
+  // src/components/grid/options.js
+  function options2() {
+    return [
+      { key: "suggest", label: "Suggest nearest step", def: false, type: "toggle", affects: "inspect" }
+    ];
+  }
+
+  // src/components/grid/index.js
+  defineTool({
+    // visuals owned by this tool — appended to the stylesheet at boot
+    css: `
+    .dbgov-badge .warn{ color: #ffd54f; }
+    `,
+    id: "grid",
+    icon: "▦",
+    // No number in the title: the step is the user's now, and a title baked
+    // at boot would still be claiming 2px long after they picked 8.
+    title: "Grid — flag values off the spacing grid",
+    startsOn: true,
+    // the ⚠ on a badge is what makes the read-out useful
+    uses: [Scale],
+    // its settings are Scale's, and belong on its own menu
     badge: badge4,
     compact: compact4,
-    options: options2,
+    annotate,
     report: report4,
-    reportTail,
-    draw: draw4
+    rules: rules3,
+    audit: audit2,
+    draw: draw4,
+    options: options2
   });
 
   // src/components/pick/act.js
@@ -1915,7 +1917,7 @@ HOW TO USE
       root.append(s);
     };
     sheet(CSS2);
-    for (const t of TOOLS) if (t.css) sheet(t.css, t.id);
+    for (const t of Tools.ordered()) if (t.css) sheet(t.css, t.id);
     layer = document.createElement("div");
     layer.setAttribute("aria-hidden", "true");
     root.append(layer);
@@ -2651,7 +2653,10 @@ ${Tools.rolesOf(t).join(" · ")}${run.note}${t.options || t.uses ? "\nright-clic
         `# UI debug report`,
         `url: ${location.href}`,
         `viewport: ${innerWidth}×${innerHeight} @ dpr ${devicePixelRatio}`,
-        `tools: ${active.map((t) => t.id).join(", ") || "none"}`,
+        // sorted: this line is an INVENTORY, not a sequence — registration order
+        // leaked into it once (a folder rename reordered it) and role order
+        // would leak the same way. Alphabetical is immune to both.
+        `tools: ${active.map((t) => t.id).sort().join(", ") || "none"}`,
         ""
       ];
       const found = [];
@@ -3214,7 +3219,7 @@ ${Tools.rolesOf(t).join(" · ")}${run.note}${t.options || t.uses ? "\nright-clic
         }
       } catch {
       }
-      Store.set(CONFIG.SEEN_KEY, JSON.stringify(registered));
+      Store.set(CONFIG.SEEN_KEY, JSON.stringify([...registered].sort()));
       State.tools = new Set(ids.filter((id) => Tools.byId(id)));
       TOOLS.forEach((t) => Panel.setTool(t.id, State.tools.has(t.id)));
     },

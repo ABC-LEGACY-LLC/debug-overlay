@@ -1,4 +1,4 @@
-import { defineTool } from '../../core/registry.js';
+import { defineTool } from '../../../core/registry.js';
 import { badge, compact } from './badge.js';
 import { report } from './report.js';
 import { rules, audit } from './rule.js';

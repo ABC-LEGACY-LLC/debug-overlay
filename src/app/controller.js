@@ -194,7 +194,7 @@ import { Render } from '../ui/renderer.js';
           for (const t of TOOLS) if (t.startsOn && !known.includes(t.id)) ids.push(t.id);
         }
       } catch {}
-      Store.set(CONFIG.SEEN_KEY, JSON.stringify(registered));
+      Store.set(CONFIG.SEEN_KEY, JSON.stringify([...registered].sort()));  // a SET, stored stably
       State.tools = new Set(ids.filter((id) => Tools.byId(id)));
       TOOLS.forEach((t) => Panel.setTool(t.id, State.tools.has(t.id)));
     },
