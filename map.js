@@ -35,7 +35,7 @@ const source = fs.readFileSync(bundle, 'utf8');
 function origins() {
   const { registered } = require('./hooks.js');
   const out = {};
-  for (const t of registered()) if (t.id) out[t.id] = 'src/components/' + t.f + '/';
+  for (const t of registered()) if (t.id) out[t.id] = 'src/tools/' + t.f + '/';
   return out;
 }
 
@@ -150,7 +150,8 @@ for (const t of tools) {
 console.log(`
 WHERE A NEW FILE GOES — every file is exactly one of these
 
-  COMPONENT  components/<name>/  one FOLDER each: index registers; badge/
+  TOOL       tools/<name>/  one FOLDER per armable thing, whatever its
+                       species (COMPONENT, SOURCE or ACTION); badge/
                        rule/report/draw/service beside it. Its own button and
                        ⚙ rows arrive free.
   SUBJECT    subjects/  a backend SHARED by two components — none today; a

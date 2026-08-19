@@ -41,13 +41,13 @@ const walk = (dir = SRC, base = '') => {
  */
 const registered = () => {
   /* A component is THE FOLDER THAT HOLDS AN index.js — not the first path
-     segment. That is what lets components/ grow domain folders the day a
-     subject gains a second consumer (components/colour/contrast/ beside
-     components/colour/palette/) without this file changing again: the domain
+     segment. That is what lets tools/ grow domain folders the day a
+     subject gains a second consumer (tools/colour/contrast/ beside
+     tools/colour/palette/) without this file changing again: the domain
      folder has no index.js, so it groups and is nothing. A file under
-     components/ with no index.js anywhere above it belongs to no component,
+     tools/ with no index.js anywhere above it belongs to no tool,
      and that is reported rather than silently skipped. */
-  const files = walk().filter((x) => x.startsWith('components/'));
+  const files = walk().filter((x) => x.startsWith('tools/'));
   const indexDirs = new Set(files.filter((f) => f.endsWith('/index.js'))
     .map((f) => f.slice(0, -'/index.js'.length)));
   const byComp = {};
@@ -60,7 +60,7 @@ const registered = () => {
   }
   return Object.entries(byComp).sort().map(([dir, fls]) => {
     const s = fls.map((f) => fs.readFileSync(path.join(SRC, f), 'utf8')).join('\n');
-    return { f: dir.replace(/^components\//, ''), files: fls, s, orphans,
+    return { f: dir.replace(/^tools\//, ''), files: fls, s, orphans,
              id: (s.match(/id: '([a-z][a-z0-9-]*)'/) || [])[1],
              hooks: HOOKS.filter((h) => calls(s, h)) };
   });

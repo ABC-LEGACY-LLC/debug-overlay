@@ -109,7 +109,7 @@ HOW TO USE
 
     banner.js          the guard, injected by the build around the bundle
     boot.js            entry: init order and wiring
-    components/<n>/    ⭐ one folder per capability — index registers, the
+    tools/<n>/         ⭐ one folder per armable tool — index registers, the
                        hook files sit beside it, service.js is its backend
     services/          badge, findings, report, settings — the collectors
     subjects/          a backend shared by two components (none today)

@@ -41,7 +41,7 @@ a failing contrast ratio, boxes to measure between. Open it in a real browser
 tab: the bundle skips frames, so an embedded editor preview shows nothing.
 
 ## Where things go
-- A new debug capability is a NEW FOLDER under `src/components/` — an
+- A new debug capability is a NEW FOLDER under `src/tools/` — an
   `index.js` that registers, hook files beside it — never an edit to the
   renderer, panel, controller or any `services/` folder. If you feel that
   urge, the component needs a new hook instead — add the hook generically.
@@ -155,11 +155,11 @@ exactly what the `kind` field died of.
   The banned ids are derived from what is registered, so a fourth tool is
   guarded the day it lands.
 - A component is the nearest folder holding an `index.js`, so domain folders
-  (`components/colour/contrast/` beside `…/palette/`) already work — grouped
+  (`tools/colour/contrast/` beside `…/palette/`) already work — grouped
   and judged correctly, proven by probe. A backend two components want is a
   SUBJECT: the import audit fails the cross-import with the promotion steps in
-  the message. A file under `components/` that no index claims fails loudly.
-- `src/components/*` — no component names another. No `Tools.byId('grid')`, no
+  the message. A file under `tools/` that no index claims fails loudly.
+- `src/tools/*` — no component names another. No `Tools.byId('grid')`, no
   `t.id === 'grid'`. Ask the registry a question with no id in it; a lens
   reaches the tools, the tools never reach back.
 - A tool declares nothing about what it IS. Its hooks are the declaration,

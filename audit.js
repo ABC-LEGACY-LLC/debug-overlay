@@ -107,12 +107,12 @@ for (const [file, pattern, why] of RULES) {
   else console.log(`  ✓ ${label}`);
 }
 
-/* A file under components/ that no index.js claims would be bundled by
+/* A file under tools/ that no index.js claims would be bundled by
    nothing and audited as nothing — the same silent-orphan class the old ORDER
    check guarded. registered() collects them; this makes them loud. */
 const orphanFiles = (tools[0] && tools[0].orphans) || [];
 if (orphanFiles.length) {
-  console.log(`\n✗ components/ files outside any component (no index.js above them):`);
+  console.log(`\n✗ tools/ files outside any tool (no index.js above them):`);
   orphanFiles.forEach((f) => console.log('    ' + f));
   fail++;
 }
@@ -228,7 +228,7 @@ console.log('\nIMPORT BOUNDARIES');
 const { importsOf } = require('./hooks.js');
 const IMPORT_RULES = [
   ['components stay behind the registry',
-   (f, to) => f.startsWith('components/') &&
+   (f, to) => f.startsWith('tools/') &&
      !(to.startsWith('core/') || to.startsWith('subjects/') ||
        to.split('/').slice(0, 2).join('/') === f.split('/').slice(0, 2).join('/')),
    'a component imports only core/, subjects/ and its own folder — anything ' +
@@ -237,7 +237,7 @@ const IMPORT_RULES = [
    'to subjects/ (keep its id, declare uses: in both) — a fact two ' +
    'components consult is a subject, not private property'],
   ['nothing names a component but the manifest',
-   (f, to) => to.startsWith('components/') && !f.startsWith('components/') &&
+   (f, to) => to.startsWith('tools/') && !f.startsWith('tools/') &&
      f !== 'manifest.js',
    'components are reached through hooks; importing one couples to its name'],
   ['core imports only core',
@@ -313,7 +313,7 @@ for (const [dir, pattern, why] of LAYERS) {
 console.log('\nHOOK CONTRACT');
 /* Deliberately NOT the tools: a hook honoured only by the tool that implements
    it is still a contract nobody calls. The consumer has to be core. */
-const consumers = walk().filter((f) => !f.startsWith('components/') && !f.startsWith('subjects/')).map((f) => [f, read(f)]);
+const consumers = walk().filter((f) => !f.startsWith('tools/') && !f.startsWith('subjects/')).map((f) => [f, read(f)]);
 for (const h of HOOKS) {
   const users = consumers.filter(([, s]) =>
     new RegExp(`\\.${h}\\b|\\bt\\.${h}|withHook\\('${h}'|'${h}'`).test(strip(s))).map(([f]) => f);
@@ -329,7 +329,7 @@ for (const h of HOOKS) {
    the file. Directories are for what a file IS, not for what it does. */
 const FLAT_TOOLS = 20;
 if (tools.length > FLAT_TOOLS) {
-  console.log(`\n! components/ holds ${tools.length} folders — past ${FLAT_TOOLS} one flat level stops` +
+  console.log(`\n! tools/ holds ${tools.length} folders — past ${FLAT_TOOLS} one flat level stops` +
               ` helping.\n  Subdivide by SUBJECT (layout/, a11y/, content/), never by role.` +
               `\n  build.js globs tools/ recursively, so the layout is free to change.`);
 }

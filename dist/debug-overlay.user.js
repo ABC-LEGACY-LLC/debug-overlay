@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.68
+// @version      3.8.69
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -125,7 +125,7 @@ HOW TO USE
 
     banner.js          the guard, injected by the build around the bundle
     boot.js            entry: init order and wiring
-    components/<n>/    ⭐ one folder per capability — index registers, the
+    tools/<n>/         ⭐ one folder per armable tool — index registers, the
                        hook files sit beside it, service.js is its backend
     services/          badge, findings, report, settings — the collectors
     subjects/          a backend shared by two components (none today)
@@ -500,7 +500,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.68",
+    VERSION: "3.8.69",
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -570,7 +570,7 @@ HOW TO USE
     MARK_LIMIT: 200
   };
 
-  // src/components/colour/contrast/service.js
+  // src/tools/colour/contrast/service.js
   var Colour = defineSubject({
     id: "colour",
     was: "contrast",
@@ -750,7 +750,7 @@ HOW TO USE
     rgb: (c) => `${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)}`
   });
 
-  // src/components/colour/contrast/badge.js
+  // src/tools/colour/contrast/badge.js
   function badge(i) {
     const c = Colour.measure(i);
     if (!c) return null;
@@ -764,7 +764,7 @@ HOW TO USE
     return `<span class="bad">${c.ratio.toFixed(1)}:1 ✗</span>`;
   }
 
-  // src/components/colour/contrast/report.js
+  // src/tools/colour/contrast/report.js
   function report(i) {
     const c = Colour.measure(i);
     if (!c) return [];
@@ -772,7 +772,7 @@ HOW TO USE
     return [`  contrast: ${c.ratio.toFixed(2)}:1 vs required ${c.need} (${c.isLarge ? "large" : "normal"} text) → ${c.pass ? "PASS" : "FAIL"}`];
   }
 
-  // src/components/colour/contrast/rule.js
+  // src/tools/colour/contrast/rule.js
   var rules = {
     "contrast-aa": {
       help: "Body text needs 4.5:1 against its background, or 7:1 at AAA; 3:1 once it is 24px or 18.66px bold, or 4.5:1 at AAA. Which level this checks is in the panel under ⚙.",
@@ -812,7 +812,7 @@ HOW TO USE
     }];
   }
 
-  // src/components/colour/contrast/draw.js
+  // src/tools/colour/contrast/draw.js
   function draw({ layer: layer2, Place: Place2, found }) {
     for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
       if (!document.contains(f.el)) continue;
@@ -824,7 +824,7 @@ HOW TO USE
     }
   }
 
-  // src/components/colour/contrast/index.js
+  // src/tools/colour/contrast/index.js
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `
@@ -846,7 +846,7 @@ HOW TO USE
     draw
   });
 
-  // src/components/dupid/badge.js
+  // src/tools/dupid/badge.js
   function badge2({ el }) {
     if (!el.id) return null;
     const n = document.querySelectorAll(
@@ -858,14 +858,14 @@ HOW TO USE
     return this.badge(i);
   }
 
-  // src/components/dupid/report.js
+  // src/tools/dupid/report.js
   function report2({ el }) {
     if (!el.id) return [];
     const n = document.querySelectorAll(`[id="${CSS.escape ? CSS.escape(el.id) : el.id}"]`).length;
     return n > 1 ? [`  ⧉ id "${el.id}" is used ${n} times on this page`] : [];
   }
 
-  // src/components/dupid/rule.js
+  // src/tools/dupid/rule.js
   var rules2 = {
     "dup-id": {
       help: "An id must be unique in a document.",
@@ -898,7 +898,7 @@ HOW TO USE
     return out;
   }
 
-  // src/components/dupid/draw.js
+  // src/tools/dupid/draw.js
   function draw2({ layer: layer2, Place: Place2, found }) {
     for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
       if (!document.contains(f.el)) continue;
@@ -910,7 +910,7 @@ HOW TO USE
     }
   }
 
-  // src/components/dupid/index.js
+  // src/tools/dupid/index.js
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `
@@ -1036,7 +1036,7 @@ HOW TO USE
     overlap: (a, b) => Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) * Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t))
   };
 
-  // src/components/geometry/measure/badge.js
+  // src/tools/geometry/measure/badge.js
   function badge3(i) {
     const { el, r, cs } = i;
     const dec = Tools.annotator(i);
@@ -1279,7 +1279,7 @@ HOW TO USE
     }
   };
 
-  // src/components/geometry/measure/report.js
+  // src/tools/geometry/measure/report.js
   function report3({ r, cs }) {
     const pad = U.fourPlain(cs, "padding"), mar = U.fourPlain(cs, "margin");
     return [
@@ -1299,7 +1299,7 @@ HOW TO USE
     });
   }
 
-  // src/components/geometry/measure/draw.js
+  // src/tools/geometry/measure/draw.js
   function draw3({ layer: layer2, Place: Place2 }) {
     Measure.resetLanes();
     for (const [A, B] of this._pairs()) {
@@ -1313,7 +1313,7 @@ HOW TO USE
     }
   }
 
-  // src/components/geometry/measure/index.js
+  // src/tools/geometry/measure/index.js
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `
@@ -1362,7 +1362,7 @@ HOW TO USE
     draw: draw3
   });
 
-  // src/components/grid/service.js
+  // src/tools/grid/service.js
   var Scale = defineSubject({
     id: "scale",
     was: "grid",
@@ -1484,7 +1484,7 @@ HOW TO USE
     }
   });
 
-  // src/components/grid/badge.js
+  // src/tools/grid/badge.js
   function badge4(i) {
     const bad = Scale.scan(i, true);
     if (!bad.length) return null;
@@ -1496,20 +1496,20 @@ HOW TO USE
     return bad.length ? `<span class="warn">⚠${bad.length}</span>` : null;
   }
 
-  // src/components/grid/lens.js
+  // src/tools/grid/lens.js
   function annotate(html, n) {
     if (!Scale.judges(n)) return html;
     const fix = Tools.setting(this, "suggest") ? `→${Scale.nearest(n)}` : "";
     return `<span class="warn">${html}⚠${fix}</span>`;
   }
 
-  // src/components/grid/report.js
+  // src/tools/grid/report.js
   function report4(i) {
     const bad = Scale.scan(i, true);
     return bad.length ? [`  ⚠ off ${Scale.step()}px grid: ${bad.map(([n, v]) => `${n}:${v}`).join(", ")}`] : [];
   }
 
-  // src/components/grid/rule.js
+  // src/tools/grid/rule.js
   var rules3 = {
     "grid-off": {
       help: "Spacing should be a multiple of the grid step — change which step this checks in the panel under ⚙.",
@@ -1533,7 +1533,7 @@ HOW TO USE
     }));
   }
 
-  // src/components/grid/draw.js
+  // src/tools/grid/draw.js
   function draw4({ layer: layer2, Place: Place2, found }) {
     for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
       if (!document.contains(f.el)) continue;
@@ -1545,14 +1545,14 @@ HOW TO USE
     }
   }
 
-  // src/components/grid/options.js
+  // src/tools/grid/options.js
   function options2() {
     return [
       { key: "suggest", label: "Suggest nearest step", def: false, type: "toggle", affects: "inspect" }
     ];
   }
 
-  // src/components/grid/index.js
+  // src/tools/grid/index.js
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `
@@ -1577,7 +1577,7 @@ HOW TO USE
     options: options2
   });
 
-  // src/components/pick/act.js
+  // src/tools/pick/act.js
   function intercept({ type, ev, el, redraw, toClipboard }) {
     if (type !== "click" || !(ev.ctrlKey || ev.metaKey)) return false;
     const txt = Tools.setting(this, "what") === "text" ? (el.textContent || "").trim() : U.selectorOf(el);
@@ -1619,7 +1619,7 @@ HOW TO USE
     return [{ keys: "Ctrl/⌘+click", does: "copy what you clicked" }];
   }
 
-  // src/components/pick/index.js
+  // src/tools/pick/index.js
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `
@@ -1638,7 +1638,7 @@ HOW TO USE
     gestures
   });
 
-  // src/components/select/service.js
+  // src/tools/select/service.js
   function options4() {
     return [{
       key: "mode",
@@ -1656,7 +1656,7 @@ HOW TO USE
     return pending ? State.pins.indexOf(pending) : -1;
   }
 
-  // src/components/select/rows.js
+  // src/tools/select/rows.js
   function listRows() {
     const { groups: groups2, pending } = this._form();
     const rows = groups2.map(([A, B]) => {
@@ -1684,7 +1684,7 @@ HOW TO USE
     return pending ? [`[#${pending.id}] waiting for its pair`] : [];
   }
 
-  // src/components/select/index.js
+  // src/tools/select/index.js
   defineTool({
     id: "select",
     // `mode` was measure's option before the select/measure split, so anyone

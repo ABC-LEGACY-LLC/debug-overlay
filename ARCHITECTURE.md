@@ -38,8 +38,12 @@ effect.
 
 ## Three species, not one list
 
-Every folder under `src/components/` is a component, but they are not one kind
-of thing.
+Every folder under `src/tools/` is a TOOL — something you can arm. "Tool" is
+the umbrella, and it is the registry's own word (`defineTool`, `Tools`); the
+SPECIES below says which kind each one is. The folder was briefly named
+`components/`, and that collided with COMPONENT the species — one spelling,
+two meanings — which made "select is in components/ but is not a component"
+simultaneously true and absurd. A tool is one of three species:
 The bands are DERIVED from the hooks a file implements — nothing declares its
 species, so the label cannot drift from the behaviour:
 
@@ -159,8 +163,8 @@ the flow that fills specific cells of the surfaces above.
 
 ## Subjects — what two components must agree about
 
-`components/grid/service.js` (the Scale subject) owns the spacing step and the
-off-grid test; `components/contrast/service.js` (Colour) owns the WCAG level,
+`tools/grid/service.js` (the Scale subject) owns the spacing step and the
+off-grid test; `tools/contrast/service.js` (Colour) owns the WCAG level,
 colour resolution and the memoised
 cache. They moved out of the tools because a badge saying a value passes over
 a finding saying it fails is the one contradiction this design exists to rule
@@ -172,16 +176,16 @@ calls back, under the same one-way rule as `core/`.
 Colour is the fundamental thing; contrast is a relationship BETWEEN colours,
 derived from it. The code points the way reality does: the component consults
 the subject, never the reverse. Today Colour has ONE consumer, so it lives
-inside `components/contrast/service.js` — a hierarchy is not built over one
+inside `tools/contrast/service.js` — a hierarchy is not built over one
 child.
 
 The day a second colour component ships (palette, colour-blindness, …):
 
-1. `components/contrast/service.js` → `subjects/colour.js`. The settings id is
+1. `tools/contrast/service.js` → `subjects/colour.js`. The settings id is
    already `colour`, so nobody's WCAG level resets; both components declare
    `uses: [Colour]`.
 2. Optionally group the siblings under a DOMAIN folder:
-   `components/colour/contrast/`, `components/colour/palette/`. A domain
+   `tools/colour/contrast/`, `tools/colour/palette/`. A domain
    folder has no `index.js` — a component is the nearest folder that does, so
    the tooling already understands this shape, proven with a probe.
 3. The panel stays flat: each sibling is its own armable button. "These belong
@@ -196,7 +200,7 @@ trigger enforces itself.
 
 | folder | what it is |
 |---|---|
-| `components/<name>/` | one component per folder — `index.js` registers; `badge` / `rule` / `draw` / `report` / `options` beside it; `service.js` is its backend when it has one of its own. A DOMAIN folder (`colour/`, `geometry/`) has no `index.js` — it only groups a family; a component is the nearest folder that has one |
+| `tools/<name>/` | one component per folder — `index.js` registers; `badge` / `rule` / `draw` / `report` / `options` beside it; `service.js` is its backend when it has one of its own. A DOMAIN folder (`colour/`, `geometry/`) has no `index.js` — it only groups a family; a component is the nearest folder that has one |
 | `subjects/` | a backend SHARED by two components — empty today; a sole-consumer backend lives inside its component, and is promoted here the day a second consumer appears |
 | `services/` | the four collectors — `badge/`, `findings/`, `report/`, `settings/` — never edited when a component is added |
 | `ui/` | the panel machinery: bar, popover, controls, renderer, placement, styles, dom |

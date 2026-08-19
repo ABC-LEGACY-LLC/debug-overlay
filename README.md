@@ -159,7 +159,7 @@ the living version from the same shared definition (`hooks.js`).
 src/
   banner.js            the guard — injected by build.js around the bundle
   boot.js              the entry module: init order + wiring
-  components/          ← one FOLDER per capability, auto-discovered
+  tools/               ← one FOLDER per armable TOOL, auto-discovered
     colour/            ← DOMAIN folder (no index.js): the colour family
       contrast/        index · service (Colour) · badge · rule · draw · report
     geometry/          ← DOMAIN folder: the geometry family
@@ -180,14 +180,14 @@ src/
 
 Real ES modules, bundled by esbuild into the same single userscript. Execution
 order is the import graph; `build.js` generates `src/manifest.js` (gitignored)
-importing every `components/*/index.js`, so a new component is one new folder
+importing every `tools/*/index.js`, so a new tool is one new folder
 and nothing else. The migration that produced this tree was verified phase by
 phase with `node compare.js <old> <new>` — one scripted session, 24
 observation groups, zero behavioural differences end to end.
 
 ## Adding a component
 
-Make `src/components/zindex/` with an `index.js`:
+Make `src/tools/zindex/` with an `index.js`:
 
 ```js
 import { defineTool } from '../../core/registry.js';
