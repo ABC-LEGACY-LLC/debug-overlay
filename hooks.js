@@ -40,14 +40,27 @@ const walk = (dir = SRC, base = '') => {
  * any single file. (`registered('tools')` was the flat-file era's version.)
  */
 const registered = () => {
+  /* A component is THE FOLDER THAT HOLDS AN index.js — not the first path
+     segment. That is what lets components/ grow domain folders the day a
+     subject gains a second consumer (components/colour/contrast/ beside
+     components/colour/palette/) without this file changing again: the domain
+     folder has no index.js, so it groups and is nothing. A file under
+     components/ with no index.js anywhere above it belongs to no component,
+     and that is reported rather than silently skipped. */
+  const files = walk().filter((x) => x.startsWith('components/'));
+  const indexDirs = new Set(files.filter((f) => f.endsWith('/index.js'))
+    .map((f) => f.slice(0, -'/index.js'.length)));
   const byComp = {};
-  for (const f of walk().filter((x) => x.startsWith('components/'))) {
-    const comp = f.split('/')[1];
-    (byComp[comp] = byComp[comp] || []).push(f);
+  const orphans = [];
+  for (const f of files) {
+    let dir = f.slice(0, f.lastIndexOf('/'));
+    while (dir.includes('/') && !indexDirs.has(dir)) dir = dir.slice(0, dir.lastIndexOf('/'));
+    if (!indexDirs.has(dir)) { orphans.push(f); continue; }
+    (byComp[dir] = byComp[dir] || []).push(f);
   }
-  return Object.entries(byComp).sort().map(([comp, files]) => {
-    const s = files.map((f) => fs.readFileSync(path.join(SRC, f), 'utf8')).join('\n');
-    return { f: comp, files, s,
+  return Object.entries(byComp).sort().map(([dir, fls]) => {
+    const s = fls.map((f) => fs.readFileSync(path.join(SRC, f), 'utf8')).join('\n');
+    return { f: dir.replace(/^components\//, ''), files: fls, s, orphans,
              id: (s.match(/id: '([a-z][a-z0-9-]*)'/) || [])[1],
              hooks: HOOKS.filter((h) => calls(s, h)) };
   });

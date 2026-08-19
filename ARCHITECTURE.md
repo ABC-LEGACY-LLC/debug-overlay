@@ -167,6 +167,31 @@ a finding saying it fails is the one contradiction this design exists to rule
 out. A subject has no button, no hooks, no surface: it is called and never
 calls back, under the same one-way rule as `core/`.
 
+## The colour family — the promotion, scripted for the day it happens
+
+Colour is the fundamental thing; contrast is a relationship BETWEEN colours,
+derived from it. The code points the way reality does: the component consults
+the subject, never the reverse. Today Colour has ONE consumer, so it lives
+inside `components/contrast/service.js` — a hierarchy is not built over one
+child.
+
+The day a second colour component ships (palette, colour-blindness, …):
+
+1. `components/contrast/service.js` → `subjects/colour.js`. The settings id is
+   already `colour`, so nobody's WCAG level resets; both components declare
+   `uses: [Colour]`.
+2. Optionally group the siblings under a DOMAIN folder:
+   `components/colour/contrast/`, `components/colour/palette/`. A domain
+   folder has no `index.js` — a component is the nearest folder that does, so
+   the tooling already understands this shape, proven with a probe.
+3. The panel stays flat: each sibling is its own armable button. "These belong
+   to colour" reaches the user through the shared ◐ ⚙ rows and menus, not
+   through bar hierarchy.
+
+Nobody has to remember this: reaching for another component's `service.js`
+fails the import audit with this exact promotion named in the message. The
+trigger enforces itself.
+
 ## The folders are the species of FILE, one each
 
 | folder | what it is |

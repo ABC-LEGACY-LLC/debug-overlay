@@ -42,7 +42,7 @@ let fail = 0;
    hooks.js owns that reading; this file only judges it. */
 const { registered } = require('./hooks.js');
 const tools = registered().map((t) => ({
-  f: t.f, s: t.s,
+  f: t.f, s: t.s, orphans: t.orphans,
   id: t.id,
   icon: /\bicon:\s*(['"`])(.+?)\1/.test(t.s),
   title: /\btitle:\s*(['"`])(.+?)\1/.test(t.s),
@@ -105,6 +105,16 @@ for (const [file, pattern, why] of RULES) {
   const label = `${file} — ${why}`;
   if (m) { console.log(`  ✗ ${label}\n      found: ${m[0]}`); fail++; }
   else console.log(`  ✓ ${label}`);
+}
+
+/* A file under components/ that no index.js claims would be bundled by
+   nothing and audited as nothing — the same silent-orphan class the old ORDER
+   check guarded. registered() collects them; this makes them loud. */
+const orphanFiles = (tools[0] && tools[0].orphans) || [];
+if (orphanFiles.length) {
+  console.log(`\n✗ components/ files outside any component (no index.js above them):`);
+  orphanFiles.forEach((f) => console.log('    ' + f));
+  fail++;
 }
 
 console.log('\nTOOL FILES');
@@ -222,7 +232,10 @@ const IMPORT_RULES = [
      !(to.startsWith('core/') || to.startsWith('subjects/') ||
        to.split('/').slice(0, 2).join('/') === f.split('/').slice(0, 2).join('/')),
    'a component imports only core/, subjects/ and its own folder — anything ' +
-   'else it wants, it asks the registry'],
+   'else it wants, it asks the registry. If what you want is another ' +
+   "component's service.js, that backend now has two consumers: PROMOTE it " +
+   'to subjects/ (keep its id, declare uses: in both) — a fact two ' +
+   'components consult is a subject, not private property'],
   ['nothing names a component but the manifest',
    (f, to) => to.startsWith('components/') && !f.startsWith('components/') &&
      f !== 'manifest.js',
