@@ -176,6 +176,15 @@ for (const t of tools) {
      undeclared one has nowhere to be filed. Without this the ⚙ view silently
      goes back to being one flat list ordered by filename, which is the state
      this whole category pass existed to fix. */
+  /* The FAMILY is a declared fact the runtime needs (the bundle has no
+     folders), so like `affects:` it is declared — and audited against the one
+     thing it must equal: the domain folder the tool actually sits in. */
+  const declared = (t.s.match(/\bfamily: '([a-z]+)'/) || [])[1] || null;
+  const actual = t.f.includes('/') ? t.f.split('/')[0] : null;
+  if (declared !== actual)
+    bad.push(`family: ${JSON.stringify(declared)} but the folder says ` +
+             `${JSON.stringify(actual)} — the declaration exists for the ` +
+             'runtime and must match the tree');
   bad.push(...optionProblems(t.s));
   // The four kind rules that used to live here are gone. A `kind` label could
   // only repeat what the hooks already said — this file proved it by checking

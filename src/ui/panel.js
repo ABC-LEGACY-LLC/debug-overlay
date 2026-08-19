@@ -22,7 +22,8 @@ import { List } from './list.js';
       // ⌕ dot is per TOOL (feedsAudit), not per band — the band means pipeline
       // position now.
       `<button class="tool whenOn ${Tools.feedsAudit(t) ? 'checks' : ''}" data-tool="${t.id}"` +
-      ` title="${t.title}\n${Tools.rolesOf(t).join(' · ')}` +
+      ` title="${t.family ? t.family[0].toUpperCase() + t.family.slice(1) + ' › ' : ''}` +
+      `${t.title}\n${Tools.rolesOf(t).join(' · ')}` +
       `${Tools.feedsAudit(t) ? ' · also runs in the page audit' : ''}` +
       // the tool says so itself, so a tool with nothing to configure does not
       // advertise a menu that would open empty

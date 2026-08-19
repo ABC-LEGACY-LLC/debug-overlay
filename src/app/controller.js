@@ -68,7 +68,8 @@ import { Render } from '../ui/renderer.js';
       const owned = Controller.toolOf(view);
       if (owned) {
         const t = Tools.byId(owned);
-        return t && { title: t.title.split(/[—·]/)[0].trim(),
+        return t && { title: (t.family ? t.family[0].toUpperCase() + t.family.slice(1) + ' › ' : '')
+                        + t.title.split(/[—·]/)[0].trim(),
                       detail: 'its own options — ⚙ has these and everyone else\'s' };
       }
       if (view === 'settings') return { title: 'Settings', detail: 'what each tool checks and shows' };

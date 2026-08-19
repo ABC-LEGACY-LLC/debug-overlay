@@ -16,6 +16,7 @@ import { Colour } from './service.js';
     .dbgov-badge .unk { color: #8ab4f8; font-style: italic; }
     `,
       id: 'contrast',
+      family: 'colour',   // audited: must match the domain folder this sits in
       icon: '◐',
       // the level is the user's choice now, so it cannot be stated here
       title: 'Contrast — WCAG text contrast ratio',

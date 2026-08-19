@@ -154,6 +154,10 @@ exactly what the `kind` field died of.
   hardcode a tool id such as `'measure'`. Use hooks and `CONFIG.PIN_KIND`.
   The banned ids are derived from what is registered, so a fourth tool is
   guarded the day it lands.
+- A tool in a domain folder declares `family:`, audited to equal that folder —
+  the runtime has no folders, so the declaration exists for the tooltip and
+  menu title (`Colour › Contrast`), and the audit is what stops it drifting.
+  The family subject's icon is the FAMILY's mark (🎨), never a member's glyph.
 - A tool is the nearest folder holding an `index.js`, so domain folders
   (`tools/colour/contrast/` beside `…/palette/`) already work — grouped
   and judged correctly, proven by probe. A backend two tools want is a

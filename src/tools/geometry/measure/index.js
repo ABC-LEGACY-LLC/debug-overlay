@@ -37,6 +37,7 @@ import { Tools } from '../../../core/registry.js';
     .dbgov-dist.vert { border-left: 2px solid #b5e853; }
     `,
       id: 'measure',
+      family: 'geometry',   // audited: must match the domain folder this sits in
       icon: '📐',
       title: 'Measure — size, radius, spacing, font, distances',
       startsOn: true,      // the read-out is what the overlay is FOR

@@ -16,7 +16,9 @@ import { Tools, defineSubject } from '../../../core/registry.js';
   export const Colour = defineSubject({
     id: 'colour',
     was: 'contrast',   // its settings lived under this id before the subject existed
-    icon: '◐',
+    // the FAMILY's mark, not contrast's — ◐ is the read-out's glyph, and the
+    // "WCAG level" row wearing it made the subject look like one of its tools
+    icon: '🎨',
 
     /**
      * AA is the level nearly everyone is held to; AAA is what accessibility

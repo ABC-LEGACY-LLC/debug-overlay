@@ -1477,6 +1477,17 @@ console.log('\nPER-TOOL OPTIONS');
   ok('the menu keeps ⚙\'s grouping — it is a filter, not a rebuild',
     [...list.querySelectorAll('.head')].some((h) => /Inspect/.test(h.textContent)),
     'the per-tool door used to flatten the rows and invert the category order');
+  ok('a family tool announces its family, zero pixels spent',
+    /^Colour › Contrast/.test(w.document.querySelector('#__dbgov-bar [data-tool="contrast"]')?.title || '') &&
+    /^Grid —/.test(w.document.querySelector('#__dbgov-bar [data-tool="grid"]')?.title || ''),
+    'family in the tooltip; a tool without a domain folder stays plain');
+  ok('the family mark is its own, not a member tool\'s',
+    (() => { bar.querySelector('[data-settings]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+      const r = [...list.querySelectorAll('.row')].find((x) => x.querySelector('.lbl').textContent === 'WCAG level');
+      const tag = r && r.querySelector('.tag').textContent;
+      bar.querySelector('[data-tool="measure"]').dispatchEvent(new w.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+      return tag === '🎨'; })(),
+    'the WCAG level row wore contrast\'s ◐ — the subject looked like one of its tools');
   ok('titled with the tool, not with "Settings"',
     /Measure/.test((list.querySelector('.viewhead') || {}).textContent || ''),
     (list.querySelector('.viewhead') || {}).textContent || '(none)');

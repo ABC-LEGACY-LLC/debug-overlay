@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.71
+// @version      3.8.72
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -520,7 +520,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.71",
+    VERSION: "3.8.72",
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -595,7 +595,9 @@ HOW TO USE
     id: "colour",
     was: "contrast",
     // its settings lived under this id before the subject existed
-    icon: "◐",
+    // the FAMILY's mark, not contrast's — ◐ is the read-out's glyph, and the
+    // "WCAG level" row wearing it made the subject look like one of its tools
+    icon: "🎨",
     /**
      * AA is the level nearly everyone is held to; AAA is what accessibility
      * commitments and public-sector procurement actually ask for. Both
@@ -853,6 +855,8 @@ HOW TO USE
     .dbgov-badge .unk { color: #8ab4f8; font-style: italic; }
     `,
     id: "contrast",
+    family: "colour",
+    // audited: must match the domain folder this sits in
     icon: "◐",
     // the level is the user's choice now, so it cannot be stated here
     title: "Contrast — WCAG text contrast ratio",
@@ -1363,6 +1367,8 @@ HOW TO USE
     .dbgov-dist.vert { border-left: 2px solid #b5e853; }
     `,
     id: "measure",
+    family: "geometry",
+    // audited: must match the domain folder this sits in
     icon: "📐",
     title: "Measure — size, radius, spacing, font, distances",
     startsOn: true,
@@ -2146,7 +2152,7 @@ HOW TO USE
         // place and most tools fill two, so this is where it can say both. The
         // ⌕ dot is per TOOL (feedsAudit), not per band — the band means pipeline
         // position now.
-        `<button class="tool whenOn ${Tools.feedsAudit(t) ? "checks" : ""}" data-tool="${t.id}" title="${t.title}
+        `<button class="tool whenOn ${Tools.feedsAudit(t) ? "checks" : ""}" data-tool="${t.id}" title="${t.family ? t.family[0].toUpperCase() + t.family.slice(1) + " › " : ""}${t.title}
 ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the page audit" : ""}${t.options || t.uses ? "\nright-click for its options" : ""}">${t.icon}</button>`
       )).join("")).join('<hr class="sep whenOn">');
       el.innerHTML = `
@@ -3132,7 +3138,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       if (owned) {
         const t = Tools.byId(owned);
         return t && {
-          title: t.title.split(/[—·]/)[0].trim(),
+          title: (t.family ? t.family[0].toUpperCase() + t.family.slice(1) + " › " : "") + t.title.split(/[—·]/)[0].trim(),
           detail: "its own options — ⚙ has these and everyone else's"
         };
       }
