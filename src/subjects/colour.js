@@ -1,3 +1,5 @@
+import { CONFIG } from '../core/config.js';
+import { Tools, defineSubject } from '../core/registry.js';
   /**
    * COLOUR — resolving a colour honestly, and the level to judge it against.
    *
@@ -11,7 +13,7 @@
    * It lives here rather than in UTILS because reading a colour honestly needs
    * a canvas, and UTILS may not touch the DOM.
    */
-  const Colour = defineSubject({
+  export const Colour = defineSubject({
     id: 'colour',
     was: 'contrast',   // its settings lived under this id before the subject existed
     icon: '◐',

@@ -1,3 +1,6 @@
+import { CONFIG } from '../core/config.js';
+import { Tools, defineSubject } from '../core/registry.js';
+import { U } from '../core/utils.js';
   /**
    * THE SPACING SCALE — what counts as "on the grid", and the settings for it.
    *
@@ -8,7 +11,7 @@
    * split that gave each its own copy would let a badge say a value is fine
    * while the audit says it is not.
    */
-  const Scale = defineSubject({
+  export const Scale = defineSubject({
     id: 'scale',
     was: 'grid',   // its settings lived under this id before the subject existed
     icon: '▦',

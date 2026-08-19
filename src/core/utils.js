@@ -1,7 +1,7 @@
   /* ======================================================================
      UTILS — pure helpers
      ====================================================================== */
-  const U = {
+  export const U = {
     /**
      * Math.round breaks ties toward +Infinity, so +2.5 became 3 (off a 2px
      * grid) and -2.5 became -2 (on it) — the SIGN of a half-pixel decided the

@@ -11,7 +11,7 @@
         reports what the widget produced and the row's author decides what
         that was.
      ====================================================================== */
-  const Controls = {
+  export const Controls = {
     /**
      * An unknown kind renders an empty span rather than guessing. A row asking
      * for something this cannot draw should be visibly missing, not silently

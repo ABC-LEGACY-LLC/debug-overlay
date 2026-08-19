@@ -1,3 +1,4 @@
+import { State } from './state.js';
   /* ======================================================================
      TOOLS — ⭐ the plugin registry
 
@@ -45,7 +46,7 @@
    * The order is the order the ⚙ view reads in: what you pick, what you are
    * shown about it, what is judged wrong with it, what happens when you act.
    */
-  const ROLES = [
+  export const ROLES = [
     { key: 'select', label: 'Select',
       note: 'how what you click becomes what you are looking at',
       has: (t) => !!(t.groups || t.listRows || t.pendingIndex) },
@@ -96,15 +97,15 @@
    * core files live under. That is what lets two components share a
    * measurement without naming each other.
    */
-  const SUBJECTS = [];
+  export const SUBJECTS = [];
   /** Register a shared subject. One call per file in src/subjects/. */
-  const defineSubject = (s) => { SUBJECTS.push(s); return s; };
+  export const defineSubject = (s) => { SUBJECTS.push(s); return s; };
 
-  const TOOLS = [];
+  export const TOOLS = [];
   /** Register a debug tool. One call per file in src/tools/. */
-  const defineTool = (t) => { TOOLS.push(t); return t; };
+  export const defineTool = (t) => { TOOLS.push(t); return t; };
 
-  const Tools = {
+  export const Tools = {
     all: TOOLS,
     byId: (id) => TOOLS.find((t) => t.id === id),
     active: () => TOOLS.filter((t) => State.tools.has(t.id)),

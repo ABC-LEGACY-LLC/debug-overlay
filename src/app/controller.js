@@ -1,7 +1,15 @@
+import { Settings } from './settings.js';
+import { Sweep } from './sweep.js';
+import { CONFIG } from '../core/config.js';
+import { TOOLS, Tools } from '../core/registry.js';
+import { State, Store } from '../core/state.js';
+import { U } from '../core/utils.js';
+import { Panel } from '../ui/panel.js';
+import { Render } from '../ui/renderer.js';
   /* ======================================================================
     CONTROLLER — the only glue
      ====================================================================== */
-  const Controller = {
+  export const Controller = {
     setPower(v) {
       State.enabled = v;
       if (!v) State.hoverEl = null;

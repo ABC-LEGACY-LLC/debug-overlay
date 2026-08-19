@@ -1,7 +1,11 @@
+import { CONFIG } from '../core/config.js';
+import { U } from '../core/utils.js';
+import { layer } from './dom.js';
+import { Panel } from './panel.js';
   /* ======================================================================
      PLACEMENT — collision-free positioning
      ====================================================================== */
-  const Place = (() => {
+  export const Place = (() => {
     let taken = [];
     function put(node, x, y, w, h) {
       node.style.left = x + 'px';

@@ -1,3 +1,5 @@
+import { CONFIG } from '../core/config.js';
+import { defineTool } from '../core/registry.js';
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `

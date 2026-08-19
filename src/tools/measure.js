@@ -1,3 +1,6 @@
+import { Measure } from '../core/geometry.js';
+import { Tools, defineTool } from '../core/registry.js';
+import { U } from '../core/utils.js';
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `

@@ -1,7 +1,8 @@
+import { Tools } from '../core/registry.js';
   /* ======================================================================
     BADGES — composed from ACTIVE tools only
      ====================================================================== */
-  const Badges = {
+  export const Badges = {
     build(info, compact) {
       const parts = [];
       for (const t of Tools.active()) {

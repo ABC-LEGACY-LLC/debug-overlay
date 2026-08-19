@@ -1,6 +1,6 @@
 # Working on dbgov with Claude Code
 
-`npm install` once — jsdom, for the smoke test. Nothing else is needed.
+`npm install` once — jsdom (smoke test) and esbuild (the bundler).
 
 ## Before finishing any change
 Run `npm run check` — it rebuilds, runs the architecture audit and the jsdom
@@ -48,14 +48,15 @@ tab: the bundle skips frames, so an embedded editor preview shows nothing.
   surface identical: `ui/controls.js` and `ui/list.js` came out of the panel,
   `app/settings.js` out of the controller, and `Panel.setList` / `Panel.view`
   still exist because nothing outside should have to learn that.
-- **Load order lives in `ORDER` in `build.js`, nowhere else.** Filenames used
-  to carry it as numeric prefixes; that made renaming dangerous, meant the same
-  convention said "load order" in `src/` and "display order" in `src/tools/`,
-  and made folders unusable for anything ordered. A new core file goes in
-  `core/`, `ui/` or `app/` with a plain name AND into `ORDER` at the point its
-  dependencies allow — the build fails if it is in one and not the other, in
-  either direction. `tools/*` stays auto-discovered, so a new tool is still one
-  new file and nothing else.
+- **Load order is the import graph.** src/ is real ES modules; `boot.js` is
+  the entry, esbuild bundles, and a new core file is imported by whoever needs
+  it — no ORDER list, no prefixes. `subjects/*` and `tools/*` stay
+  auto-discovered through the generated `src/manifest.js` (gitignored), so a
+  new capability is still one new file. `banner.js` is NOT a module: its guard
+  must abort before any module evaluates and imports hoist, so `build.js`
+  injects its text at the top of the wrapper IIFE. `ui/dom.js`, `ui/list.js`
+  and `ui/panel.js` build DOM, so they export `init*()` called from boot in
+  order rather than constructing at import time.
 - `tools/contrast.js` is over the 220-line advisory and staying there. The
   only way to shrink it is to move the colour helpers into a core file, and
   they live in the tool deliberately (see below). A line count is not worth
@@ -526,5 +527,5 @@ and never commit `dist/` without running the build.
 ## Escalate to the human instead of guessing
 - A change that would require relaxing an audit rule.
 - Anything touching `@match`, `@grant`, or the update URLs.
-- Reordering `ORDER` in `build.js`, or moving a file between `core/`, `ui/`
-  and `app/` — the bundle is one closure and order is a real dependency.
+- Moving a file between `core/`, `ui/` and `app/`, or anything that changes
+  when a module's side effects run relative to boot's init sequence.

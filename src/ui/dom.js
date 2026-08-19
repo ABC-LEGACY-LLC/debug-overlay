@@ -1,7 +1,19 @@
+import { TOOLS } from '../core/registry.js';
+import { CSS } from './styles.js';
+
+/**
+ * The DOM is not built at import time. Module evaluation order belongs to the
+ * import graph now, and the sheets loop below needs every tool registered —
+ * so BOOT calls initDom() after the manifest's side effects have run, exactly
+ * where the old concatenation order put this file.
+ */
+export let root;
+export let layer;
+export function initDom() {
   /* ======================================================================
      DOM
      ====================================================================== */
-  const root = document.createElement('div');
+  root = document.createElement('div');
   root.id = '__dbgov-root';
   /* NOT aria-hidden. This root holds 13 tabbable buttons, so hiding it told
      assistive tech the subtree does not exist while keyboard focus could still
@@ -29,9 +41,11 @@
   };
   sheet(CSS);
   for (const t of TOOLS) if (t.css) sheet(t.css, t.id);
-  const layer = document.createElement('div');
+  layer = document.createElement('div');
   // everything painted onto the page is decoration: no text an AT user needs,
   // and already unclickable
   layer.setAttribute('aria-hidden', 'true');
   root.append(layer);
   document.documentElement.append(root);
+
+}

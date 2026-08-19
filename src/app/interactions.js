@@ -1,7 +1,13 @@
+import { CONFIG } from '../core/config.js';
+import { Tools } from '../core/registry.js';
+import { State } from '../core/state.js';
+import { root } from '../ui/dom.js';
+import { Panel } from '../ui/panel.js';
+import { Render } from '../ui/renderer.js';
   /* ======================================================================
     INTERACTIONS
      ====================================================================== */
-  const Interactions = {
+  export const Interactions = {
     // is the user typing? then keys belong to the page, not to us
     typing(e) {
       const t = e.target;

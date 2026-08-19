@@ -1,7 +1,15 @@
+import { CONFIG } from '../core/config.js';
+import { Tools } from '../core/registry.js';
+import { Store } from '../core/state.js';
+import { root } from './dom.js';
+import { List } from './list.js';
   /* ======================================================================
      PANEL — self-contained; talks out only via callbacks
      ====================================================================== */
-  const Panel = (() => {
+  export let Panel;
+  /** Deferred: builds DOM, so it runs from BOOT, not at import. */
+  export function initPanel() {
+  Panel = (() => {
     const el = document.createElement('div');
     el.id = '__dbgov-bar';
     // Tool buttons come from the registry — never hardcoded — and so does the
@@ -270,3 +278,4 @@
 
     return api;
   })();
+  }

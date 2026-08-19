@@ -1,7 +1,10 @@
+import { CONFIG } from '../core/config.js';
+import { Tools } from '../core/registry.js';
+import { U } from '../core/utils.js';
   /* ======================================================================
     SWEEP — run the rules over the whole page instead of one element
      ====================================================================== */
-  const Sweep = {
+  export const Sweep = {
     /**
      * One read-only pass. Rules only speak when something is wrong, so what
      * comes back is a list of problems, not a list of elements.

@@ -7,7 +7,7 @@
    * does a fresh install do", and the ⚙ view answers "what is this one doing
    * now" — without a second copy of the number living anywhere.
    */
-  const CONFIG = {
+  export const CONFIG = {
     // Substituted by build.js at bundle time. A userscript with @grant none
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the

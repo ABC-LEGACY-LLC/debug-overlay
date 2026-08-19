@@ -1,7 +1,13 @@
+import { Sweep } from './sweep.js';
+import { CONFIG } from '../core/config.js';
+import { Tools } from '../core/registry.js';
+import { State } from '../core/state.js';
+import { U } from '../core/utils.js';
+import { Panel } from '../ui/panel.js';
   /* ======================================================================
     REPORT — also composed from active tools
      ====================================================================== */
-  const Report = {
+  export const Report = {
     text() {
       const active = Tools.active();
       const L = [

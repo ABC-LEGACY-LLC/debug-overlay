@@ -1,6 +1,7 @@
-(function () {
-  'use strict';
-
+/* NOT a module and NOT bundled: build.js injects this text at the very top
+   of the output IIFE, so its early returns abort the whole overlay before a
+   single module evaluates. It cannot be an import — imports hoist, so a guard
+   inside a module would run after everything it was guarding. */
   /**
    * NOT `window.top !== window.self`. With @grant the manager runs this in a
    * sandbox where `window` is a wrapper, and that comparison can be true in

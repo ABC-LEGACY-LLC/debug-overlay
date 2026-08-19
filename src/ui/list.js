@@ -1,3 +1,6 @@
+import { CONFIG } from '../core/config.js';
+import { Controls } from './controls.js';
+import { root } from './dom.js';
   /* ======================================================================
     LIST — the popover the panel opens
 
@@ -10,7 +13,10 @@
         Defined BEFORE the panel so nothing here is in scope before it exists;
         the panel attaches to it on the way up.
      ====================================================================== */
-  const List = (() => {
+  export let List;
+  /** Deferred: builds DOM, so it runs from BOOT, not at import. */
+  export function initList() {
+  List = (() => {
     const el = document.createElement('div');
     el.id = '__dbgov-list';
     root.append(el);
@@ -161,3 +167,4 @@
     };
     return api;
   })();
+  }

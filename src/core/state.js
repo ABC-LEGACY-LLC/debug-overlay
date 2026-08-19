@@ -15,7 +15,7 @@
         Both backends store the same JSON strings, so what is already in
         localStorage is readable as-is and gets adopted on first run.
      ====================================================================== */
-  const Store = {
+  export const Store = {
     /**
      * The manager only defines these when the header asks for them, and the
      * dev page, the tests and any manager without them have to keep working —
@@ -59,7 +59,7 @@
   /* ======================================================================
      STATE
      ====================================================================== */
-  const State = {
+  export const State = {
     enabled: false,      // master power
     detail: false,       // compact vs full badges
     tools: new Set(),    // active tool ids — filled by CONTROLLER on boot

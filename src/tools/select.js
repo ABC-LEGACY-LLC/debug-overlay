@@ -1,3 +1,8 @@
+import { CONFIG } from '../core/config.js';
+import { Measure } from '../core/geometry.js';
+import { Tools, defineTool } from '../core/registry.js';
+import { State } from '../core/state.js';
+import { U } from '../core/utils.js';
   defineTool({
       id: 'select',
       // `mode` was measure's option before the select/measure split, so anyone

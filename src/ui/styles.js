@@ -1,7 +1,8 @@
+import { CONFIG } from '../core/config.js';
   /* ======================================================================
      STYLES
      ====================================================================== */
-  const CSS = `
+  export const CSS = `
     #__dbgov-root { position: fixed; inset: 0; z-index: ${CONFIG.Z}; pointer-events: none;
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
     #__dbgov-root * { box-sizing: border-box; }

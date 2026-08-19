@@ -1,9 +1,11 @@
+import { CONFIG } from './config.js';
+import { U } from './utils.js';
   /* ======================================================================
      MEASURE ENGINE — how a distance between two rects is drawn.
      Pure geometry + drawing rules. Knows nothing about tools, panels or
      reports, so dimension styling can be tuned in isolation.
      ====================================================================== */
-  const Measure = {
+  export const Measure = {
     // --- lanes: keep parallel dimension lines off each other -------------
     lanes: { v: [], h: [] },
     resetLanes() { Measure.lanes = { v: [], h: [] }; },

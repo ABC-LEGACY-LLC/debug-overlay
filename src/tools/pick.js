@@ -1,3 +1,8 @@
+import { Report } from '../app/report.js';
+import { CONFIG } from '../core/config.js';
+import { Tools, defineTool } from '../core/registry.js';
+import { U } from '../core/utils.js';
+import { Render } from '../ui/renderer.js';
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `

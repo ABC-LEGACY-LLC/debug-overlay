@@ -1,3 +1,6 @@
+import { CONFIG } from '../core/config.js';
+import { ROLES, Tools } from '../core/registry.js';
+import { State, Store } from '../core/state.js';
   /* ======================================================================
     SETTINGS — the ⚙ view, and what a tool's options mean
 
@@ -11,7 +14,7 @@
         turns whatever the panel's widget produced back into the tool's own
         value.
      ====================================================================== */
-  const Settings = {
+  export const Settings = {
     carried: {},   // saved values whose owner this build does not know
     /**
      * ONE row builder, so the two doors into these settings cannot drift.
