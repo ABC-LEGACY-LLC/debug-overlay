@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.70
+// @version      3.8.71
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -110,10 +110,12 @@ HOW TO USE
   itself: a tool added tomorrow is configurable through both the moment it
   appears, with nothing installed or wired up.
 
-  The rule between the toggles is not decoration. Tools below it carry a green
-  dot and feed ⌕ — which is why ⌕ sits with them. Tools above it only draw.
-  Arming decides what you SEE; ⌕ checks every rule either way, so a toggle you
-  forgot can never quietly shorten an audit.
+  The rules between the buttons mark the PIPELINE, top to bottom: the input
+  side (⬚ select, ⌖ pick — what your clicks become), then the components
+  (what describes the page), then ⌕ and ⚙, then the pins/copy/clear band. A
+  green dot on a tool means its rule feeds ⌕. Arming decides what you SEE;
+  ⌕ checks every rule either way, so a toggle you forgot can never quietly
+  shorten an audit.
 
   Active tools, panel position and everything under ⚙ are remembered for the
   SCRIPT, not for the site — set them once and every other site already agrees,
@@ -393,18 +395,36 @@ HOW TO USE
      * is. The panel renders the runs it is handed and never learns what
      * separates them — a third run would need no panel change at all.
      */
+    /**
+     * The bar's bands, top to bottom, ARE the pipeline: the input side
+     * (SOURCE · ACTION — what turns your clicks into something), then the
+     * COMPONENTS (what describes the page). The old axis — "does it feed ⌕" —
+     * used to be the separator's meaning, which filed measure between the two
+     * input tools and said nothing the green dot was not already saying.
+     * That fact still shows, per tool, through feedsAudit(); one mark per
+     * fact, and the separator is free to mean position in the pipeline.
+     *
+     * Derived at build like everything else, so a tool that changes species
+     * moves band at next boot — being wrong costs an ordering, never a
+     * verdict.
+     */
     runs() {
-      const checks = role("detect").has;
+      const input = (t) => role("select").has(t) || role("act").has(t);
       const inOrder = ordered();
+      const comps = inOrder.filter((t) => !input(t));
       return [
-        { cls: "", note: "", tools: inOrder.filter((t) => !checks(t)) },
-        {
-          cls: "checks",
-          note: " · also runs in the page audit",
-          tools: inOrder.filter(checks)
-        }
+        { tools: inOrder.filter(input) },
+        // plain read-outs first, then the dotted ones — inside the band the
+        // dot still deserves the eye-track it always had
+        { tools: [
+          ...comps.filter((t) => !role("detect").has(t)),
+          ...comps.filter((t) => role("detect").has(t))
+        ] }
       ].filter((r) => r.tools.length);
     },
+    /** Does this tool's rule run in the page audit? The green dot, and the
+     *  tooltip note — per tool, where the fact lives. */
+    feedsAudit: (t) => role("detect").has(t),
     /**
      * What one of a tool's own options is currently set to.
      *
@@ -500,7 +520,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.70",
+    VERSION: "3.8.71",
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -1853,7 +1873,7 @@ HOW TO USE
 
     #__dbgov-bar { position: fixed; right: 14px; top: 50%;
       pointer-events: auto; display: flex; flex-direction: column; align-items: center;
-      gap: 7px; background: rgba(18,18,20,.96); border-radius: 999px; padding: 8px;
+      gap: 6px; background: rgba(18,18,20,.96); border-radius: 999px; padding: 8px;
       box-shadow: 0 4px 18px rgba(0,0,0,.55); user-select: none; touch-action: none;
       transition: transform .22s cubic-bezier(.2,.8,.3,1), opacity .22s ease; }
     #__dbgov-bar.dragging { transition: none; opacity: .9; }
@@ -2123,9 +2143,11 @@ HOW TO USE
       el.id = "__dbgov-bar";
       const toolRuns = Tools.runs().map((run) => run.tools.map((t) => (
         // The roles go in the tooltip, not in the grouping: a button sits in one
-        // place and most tools fill two, so this is where it can say both.
-        `<button class="tool whenOn ${run.cls}" data-tool="${t.id}" title="${t.title}
-${Tools.rolesOf(t).join(" · ")}${run.note}${t.options || t.uses ? "\nright-click for its options" : ""}">${t.icon}</button>`
+        // place and most tools fill two, so this is where it can say both. The
+        // ⌕ dot is per TOOL (feedsAudit), not per band — the band means pipeline
+        // position now.
+        `<button class="tool whenOn ${Tools.feedsAudit(t) ? "checks" : ""}" data-tool="${t.id}" title="${t.title}
+${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the page audit" : ""}${t.options || t.uses ? "\nright-click for its options" : ""}">${t.icon}</button>`
       )).join("")).join('<hr class="sep whenOn">');
       el.innerHTML = `
       <span class="grip" title="Drag to move — snaps to the nearest edge">⋮⋮</span>
@@ -2133,7 +2155,8 @@ ${Tools.rolesOf(t).join(" · ")}${run.note}${t.options || t.uses ? "\nright-clic
       <span class="st" data-st>OFF</span>
       <hr class="sep whenOn">
       ${toolRuns}
-      <!-- next to the run it acts on, so proximity says what it sweeps -->
+      <!-- its own band: ⌕ and ⚙ drive the services, they are not tools -->
+      <hr class="sep whenOn">
       <button class="act whenOn" data-sweep data-view="findings" title="Audit the whole page">⌕</button>
       <!-- with the tools it configures, not with the panel's own actions -->
       <button class="act whenOn" data-settings data-view="settings" title="Tool settings">⚙</button>

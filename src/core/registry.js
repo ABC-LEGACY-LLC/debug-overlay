@@ -143,20 +143,35 @@ import { State } from './state.js';
      * is. The panel renders the runs it is handed and never learns what
      * separates them — a third run would need no panel change at all.
      */
+    /**
+     * The bar's bands, top to bottom, ARE the pipeline: the input side
+     * (SOURCE · ACTION — what turns your clicks into something), then the
+     * COMPONENTS (what describes the page). The old axis — "does it feed ⌕" —
+     * used to be the separator's meaning, which filed measure between the two
+     * input tools and said nothing the green dot was not already saying.
+     * That fact still shows, per tool, through feedsAudit(); one mark per
+     * fact, and the separator is free to mean position in the pipeline.
+     *
+     * Derived at build like everything else, so a tool that changes species
+     * moves band at next boot — being wrong costs an ordering, never a
+     * verdict.
+     */
     runs() {
-      // The one axis a BUTTON can carry. A button sits in exactly one place,
-      // and most tools hold two roles — filing grid under Detect would tell
-      // you it is not also the thing putting ⚠ on your padding. This asks a
-      // yes/no question instead, which composition cannot make false, and the
-      // full role list goes in the tooltip where there is room to be plural.
-      const checks = role('detect').has;
+      const input = (t) => role('select').has(t) || role('act').has(t);
       const inOrder = ordered();
+      const comps = inOrder.filter((t) => !input(t));
       return [
-        { cls: '', note: '', tools: inOrder.filter((t) => !checks(t)) },
-        { cls: 'checks', note: ' · also runs in the page audit',
-          tools: inOrder.filter(checks) },
+        { tools: inOrder.filter(input) },
+        // plain read-outs first, then the dotted ones — inside the band the
+        // dot still deserves the eye-track it always had
+        { tools: [...comps.filter((t) => !role('detect').has(t)),
+                  ...comps.filter((t) => role('detect').has(t))] },
       ].filter((r) => r.tools.length);
     },
+
+    /** Does this tool's rule run in the page audit? The green dot, and the
+     *  tooltip note — per tool, where the fact lives. */
+    feedsAudit: (t) => role('detect').has(t),
 
     /**
      * What one of a tool's own options is currently set to.

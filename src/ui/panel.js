@@ -18,9 +18,12 @@ import { List } from './list.js';
     // its business.
     const toolRuns = Tools.runs().map((run) => run.tools.map((t) =>
       // The roles go in the tooltip, not in the grouping: a button sits in one
-      // place and most tools fill two, so this is where it can say both.
-      `<button class="tool whenOn ${run.cls}" data-tool="${t.id}"` +
-      ` title="${t.title}\n${Tools.rolesOf(t).join(' · ')}${run.note}` +
+      // place and most tools fill two, so this is where it can say both. The
+      // ⌕ dot is per TOOL (feedsAudit), not per band — the band means pipeline
+      // position now.
+      `<button class="tool whenOn ${Tools.feedsAudit(t) ? 'checks' : ''}" data-tool="${t.id}"` +
+      ` title="${t.title}\n${Tools.rolesOf(t).join(' · ')}` +
+      `${Tools.feedsAudit(t) ? ' · also runs in the page audit' : ''}` +
       // the tool says so itself, so a tool with nothing to configure does not
       // advertise a menu that would open empty
       `${t.options || t.uses ? '\nright-click for its options' : ''}">${t.icon}</button>`).join(''))
@@ -31,7 +34,8 @@ import { List } from './list.js';
       <span class="st" data-st>OFF</span>
       <hr class="sep whenOn">
       ${toolRuns}
-      <!-- next to the run it acts on, so proximity says what it sweeps -->
+      <!-- its own band: ⌕ and ⚙ drive the services, they are not tools -->
+      <hr class="sep whenOn">
       <button class="act whenOn" data-sweep data-view="findings" title="Audit the whole page">⌕</button>
       <!-- with the tools it configures, not with the panel's own actions -->
       <button class="act whenOn" data-settings data-view="settings" title="Tool settings">⚙</button>

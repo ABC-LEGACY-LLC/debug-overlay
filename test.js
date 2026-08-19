@@ -208,9 +208,20 @@ ok('the tools that feed the audit are marked as such',
 ok('and they are separated from the ones that only draw',
   bar.querySelectorAll('button.tool + hr.sep, hr.sep + button.tool').length >= 2,
   'the runs are not divided by a rule');
-ok('⌕ sits with the run it sweeps',
-  checks.includes(bar.querySelector('[data-sweep]').previousElementSibling?.dataset.tool),
-  `after ${bar.querySelector('[data-sweep]').previousElementSibling?.dataset.tool || 'nothing'}`);
+/* Was "⌕ sits with the run it sweeps" — proximity carried the feeds-⌕ fact
+   when the separator axis was that boolean. The bands are the PIPELINE now
+   (input · components · run&configure · take away), the green dot carries the
+   fact per tool, and ⌕ has a band of its own with ⚙ — so the invariant is a
+   separator before it, not a neighbour. */
+ok('⌕ and ⚙ are their own band, not filed among the tools',
+  bar.querySelector('[data-sweep]').previousElementSibling?.matches('hr.sep') &&
+  bar.querySelector('[data-settings]').previousElementSibling?.matches('[data-sweep]'),
+  `before ⌕: ${bar.querySelector('[data-sweep]').previousElementSibling?.tagName}`);
+ok('and the input side leads the bar, before the components',
+  bar.querySelector('button.tool')?.dataset.tool ===
+    [...bar.querySelectorAll('button.tool')].find((b) => !b.classList.contains('checks'))?.dataset.tool &&
+  ['select', 'pick'].includes(bar.querySelector('button.tool')?.dataset.tool),
+  `first tool: ${bar.querySelector('button.tool')?.dataset.tool}`);
 
 console.log('\nWIRING');
 // the hotkey is the one path that proves interactions → controller → panel

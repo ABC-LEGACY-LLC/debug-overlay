@@ -280,9 +280,12 @@ is exactly how the old `kind` field died. They are also plural: grid is Inspect
 of the toolset. `report` belongs to no role; every tool has it, so it
 distinguishes nothing.
 
-The bar groups on one boolean only (does it feed ⌕), because a button sits in
-one place and most tools fill two roles. The full list goes in the tooltip,
-where being plural costs nothing.
+The bar's bands are the PIPELINE, top to bottom: input side (⬚ ⌖), then the
+components (plain read-outs before the dotted ones), then ⌕ ⚙ in a band of
+their own, then review-and-take-away. "Feeds ⌕" is the green dot per tool, not
+a separator's meaning — one mark per fact. Roles stay plural in the tooltip.
+Height-neutral by construction: the fourth separator was paid for by one gap
+pixel (7→6px) across the bar's ~17 children, so the bar got slightly shorter.
 
 A **setting** is the one thing that cannot be derived: no hook distinguishes a
 detection threshold from a display preference. So every `options()` entry

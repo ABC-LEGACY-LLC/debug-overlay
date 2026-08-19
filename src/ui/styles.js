@@ -2,6 +2,10 @@ import { CONFIG } from '../core/config.js';
   /* ======================================================================
      STYLES
      ====================================================================== */
+  // gap is 6, not 7: the pipeline bands added a fourth separator (~9px) and
+  // the bar must not grow — one gap pixel across ~17 children pays for it
+  // with change, and every button keeps its 34/36px target. (Comments stay
+  // OUT of the template: this string ships to every page as a <style>.)
   export const CSS = `
     #__dbgov-root { position: fixed; inset: 0; z-index: ${CONFIG.Z}; pointer-events: none;
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
@@ -134,7 +138,7 @@ import { CONFIG } from '../core/config.js';
 
     #__dbgov-bar { position: fixed; right: 14px; top: 50%;
       pointer-events: auto; display: flex; flex-direction: column; align-items: center;
-      gap: 7px; background: rgba(18,18,20,.96); border-radius: 999px; padding: 8px;
+      gap: 6px; background: rgba(18,18,20,.96); border-radius: 999px; padding: 8px;
       box-shadow: 0 4px 18px rgba(0,0,0,.55); user-select: none; touch-action: none;
       transition: transform .22s cubic-bezier(.2,.8,.3,1), opacity .22s ease; }
     #__dbgov-bar.dragging { transition: none; opacity: .9; }
