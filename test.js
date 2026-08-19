@@ -1589,6 +1589,42 @@ console.log('\nBADGE FACETS');
   });
 }
 
+console.log('\nPICK');
+/**
+ * The one component on the input side with an effect. Refactored to receive
+ * its capabilities (toClipboard, redraw) through the intercept ctx instead of
+ * importing a service and a surface by name — this is the test that the
+ * decoupling kept the behaviour.
+ */
+{
+  const d = new JSDOM('<!doctype html><html><body><div id="t" class="target">hello</div></body></html>',
+    { url: 'https://example.test/', pretendToBeVisual: true,
+      runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
+  const w = d.window;
+  w.localStorage.setItem('__dbgov_tools', '["pick"]');
+  w.localStorage.setItem('__dbgov_seen', JSON.stringify(idsOnDisk));
+  w.eval(source);
+  let copied = null;
+  Object.defineProperty(w.navigator, 'clipboard',
+    { value: { writeText: async (t) => { copied = t; } }, configurable: true });
+  w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  const el = w.document.getElementById('t');
+  w.document.elementFromPoint = () => el;
+  el.dispatchEvent(new w.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5, ctrlKey: true }));
+  ok('Ctrl+click hands the selector to the clipboard',
+    typeof copied === 'string' && /#t|\.target/.test(copied), String(copied));
+  const bar = w.document.getElementById('__dbgov-bar');
+  ok('and the click was claimed, not pinned',
+    bar.querySelector('[data-c]').textContent === '0',
+    'pin count ' + bar.querySelector('[data-c]').textContent);
+  pendingChecks.push(() => {
+    ok('the picked element is flashed on the page',
+      w.document.querySelectorAll('#__dbgov-root .dbgov-picked').length === 1,
+      'the redraw capability did not reach the renderer');
+    w.close();
+  });
+}
+
 // ---- the sections that need a painted frame ---------------------------------
 // Marks and badges only exist after the renderer runs, which is an animation
 // frame away. Everything above is synchronous; these are not, so they go last

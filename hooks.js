@@ -126,4 +126,15 @@ const FACETS = {
   ],
 };
 
-module.exports = { SRC, HOOKS, SURFACES, FACETS, strip, calls, walk, registered, bandsOf };
+/** Every import specifier in a src file, resolved to src-relative paths. */
+const importsOf = (file) => {
+  const s = fs.readFileSync(path.join(SRC, file), 'utf8');
+  const out = [];
+  for (const m of s.matchAll(/from '([^']+)'/g)) {
+    const abs = path.normalize(path.join(path.dirname(file), m[1]));
+    out.push(abs.replace(/\\/g, '/'));
+  }
+  return out;
+};
+
+module.exports = { SRC, HOOKS, SURFACES, FACETS, strip, calls, walk, registered, bandsOf, importsOf };

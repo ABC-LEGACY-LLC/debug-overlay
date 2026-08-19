@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.63
+// @version      3.8.64
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -489,7 +489,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.63",
+    VERSION: "3.8.64",
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -1566,19 +1566,148 @@ HOW TO USE
     draw: draw4
   });
 
-  // src/services/badge/index.js
-  var Badges = {
-    build(info, compact5) {
-      const parts = [];
-      for (const t of Tools.active()) {
-        const fn = compact5 ? t.compact || null : t.badge || null;
-        if (!fn) continue;
-        const html = fn.call(t, info);
-        if (html) parts.push(html);
-      }
-      return parts.join(" · ");
-    }
-  };
+  // src/components/pick/act.js
+  function intercept({ type, ev, el, redraw, toClipboard }) {
+    if (type !== "click" || !(ev.ctrlKey || ev.metaKey)) return false;
+    const txt = Tools.setting(this, "what") === "text" ? (el.textContent || "").trim() : U.selectorOf(el);
+    if (!txt) return false;
+    toClipboard(txt);
+    this._hit = el;
+    clearTimeout(this._timer);
+    this._timer = setTimeout(
+      () => {
+        this._hit = null;
+        redraw();
+      },
+      CONFIG.PICK_FLASH
+    );
+    redraw();
+    return true;
+  }
+  function draw5({ layer: layer2, Place: Place2 }) {
+    if (!this._hit || !document.contains(this._hit)) return;
+    const r = this._hit.getBoundingClientRect();
+    const box = document.createElement("div");
+    box.className = "dbgov-box dbgov-picked";
+    Place2.put(box, r.left, r.top, r.width, r.height);
+    layer2.append(box);
+  }
+  function report5({ el }) {
+    return [`  selector: ${U.selectorOf(el)}`];
+  }
+  function options3() {
+    return [{
+      key: "what",
+      label: "Ctrl+click copies",
+      def: "selector",
+      values: ["selector", "text"],
+      affects: "act"
+    }];
+  }
+  function gestures() {
+    return [{ keys: "Ctrl/⌘+click", does: "copy what you clicked" }];
+  }
+
+  // src/components/pick/index.js
+  defineTool({
+    // visuals owned by this tool — appended to the stylesheet at boot
+    css: `
+    .dbgov-picked { outline: 2px solid #b5e853; outline-offset: 1px;
+      background: rgba(181,232,83,.12); }
+    `,
+    id: "pick",
+    icon: "⌖",
+    title: "Pick — Ctrl+click (⌘+click) copies what you clicked",
+    // OFF by default: it takes over a click, and a tool that changes what
+    // clicking does should be something you asked for.
+    intercept,
+    draw: draw5,
+    report: report5,
+    options: options3,
+    gestures
+  });
+
+  // src/components/select/service.js
+  function options4() {
+    return [{
+      key: "mode",
+      label: "Pin grouping",
+      def: CONFIG.PAIR_MODE,
+      values: ["pairs", "chain"],
+      affects: "select"
+    }];
+  }
+  function groups() {
+    return this._form().groups;
+  }
+  function pendingIndex() {
+    const { pending } = this._form();
+    return pending ? State.pins.indexOf(pending) : -1;
+  }
+
+  // src/components/select/rows.js
+  function listRows() {
+    const { groups: groups2, pending } = this._form();
+    const rows = groups2.map(([A, B]) => {
+      const ra = A.el.getBoundingClientRect(), rb = B.el.getBoundingClientRect();
+      const g = U.gap(ra, rb);
+      const axis = Measure.axisOf(ra, rb);
+      const detail = axis.kind === "overlap" ? "overlapping" : axis.kind === "diagonal" ? `→ ${g.dx} · ↓ ${g.dy} px` : axis.kind === "vertical" ? `↕ ${g.dy} px` : `↔ ${g.dx} px`;
+      return {
+        tag: `#${A.id}→#${B.id}`,
+        label: `${U.labelOf(A.el)} ↔ ${U.labelOf(B.el)}`,
+        detail,
+        pins: [A, B]
+      };
+    });
+    if (pending) rows.push({
+      tag: `#${pending.id}…`,
+      label: U.labelOf(pending.el),
+      detail: "pick its pair",
+      pins: [pending]
+    });
+    return rows;
+  }
+  function reportTail2() {
+    const { pending } = this._form();
+    return pending ? [`[#${pending.id}] waiting for its pair`] : [];
+  }
+
+  // src/components/select/index.js
+  defineTool({
+    id: "select",
+    // `mode` was measure's option before the select/measure split, so anyone
+    // who chose 'chain' had it silently reset. Same miss as scale and colour,
+    // caught one release later — an owner names its own former id.
+    was: "measure",
+    icon: "⬚",
+    title: "Select — how pinned elements group up",
+    startsOn: true,
+    // only Shift-clicked pins take part — a plain click is "inspect this",
+    // and silently roping it into a measurement is not what was asked
+    _pins: () => State.pins.filter((p) => p.kind === CONFIG.PIN_KIND.SHIFT),
+    /**
+     * The single place grouping is decided.
+     *
+     * 'pairs' — every group takes two clicks and the next starts a fresh
+     * one, so a pin is never silently reused. 'chain' — each new pin groups
+     * with the previous one.
+     */
+    _form() {
+      const mp = this._pins();
+      const mode = Tools.setting(this, "mode");
+      const step = mode === "pairs" ? 2 : 1;
+      const out = [];
+      for (let k = 0; k + 1 < mp.length; k += step) out.push([mp[k], mp[k + 1]]);
+      const pending = mode === "pairs" && mp.length % 2 ? mp[mp.length - 1] : null;
+      return { groups: out, pending };
+    },
+    options: options4,
+    groups,
+    pendingIndex,
+    listRows,
+    reportTail: reportTail2
+  });
 
   // src/ui/styles.js
   var CSS2 = `
@@ -2232,6 +2361,20 @@ ${Tools.rolesOf(t).join(" · ")}${run.note}${t.options || t.uses ? "\nright-clic
     })();
   }
 
+  // src/services/badge/index.js
+  var Badges = {
+    build(info, compact5) {
+      const parts = [];
+      for (const t of Tools.active()) {
+        const fn = compact5 ? t.compact || null : t.badge || null;
+        if (!fn) continue;
+        const html = fn.call(t, info);
+        if (html) parts.push(html);
+      }
+      return parts.join(" · ");
+    }
+  };
+
   // src/ui/placement.js
   var Place = /* @__PURE__ */ (() => {
     let taken = [];
@@ -2572,149 +2715,6 @@ ${Tools.rolesOf(t).join(" · ")}${run.note}${t.options || t.uses ? "\nright-clic
     }
   };
 
-  // src/components/pick/act.js
-  function intercept({ type, ev, el }) {
-    if (type !== "click" || !(ev.ctrlKey || ev.metaKey)) return false;
-    const txt = Tools.setting(this, "what") === "text" ? (el.textContent || "").trim() : U.selectorOf(el);
-    if (!txt) return false;
-    Report.toClipboard(txt);
-    this._hit = el;
-    clearTimeout(this._timer);
-    this._timer = setTimeout(
-      () => {
-        this._hit = null;
-        Render.schedule();
-      },
-      CONFIG.PICK_FLASH
-    );
-    Render.schedule();
-    return true;
-  }
-  function draw5({ layer: layer2, Place: Place2 }) {
-    if (!this._hit || !document.contains(this._hit)) return;
-    const r = this._hit.getBoundingClientRect();
-    const box = document.createElement("div");
-    box.className = "dbgov-box dbgov-picked";
-    Place2.put(box, r.left, r.top, r.width, r.height);
-    layer2.append(box);
-  }
-  function report5({ el }) {
-    return [`  selector: ${U.selectorOf(el)}`];
-  }
-  function options3() {
-    return [{
-      key: "what",
-      label: "Ctrl+click copies",
-      def: "selector",
-      values: ["selector", "text"],
-      affects: "act"
-    }];
-  }
-  function gestures() {
-    return [{ keys: "Ctrl/⌘+click", does: "copy what you clicked" }];
-  }
-
-  // src/components/pick/index.js
-  defineTool({
-    // visuals owned by this tool — appended to the stylesheet at boot
-    css: `
-    .dbgov-picked { outline: 2px solid #b5e853; outline-offset: 1px;
-      background: rgba(181,232,83,.12); }
-    `,
-    id: "pick",
-    icon: "⌖",
-    title: "Pick — Ctrl+click (⌘+click) copies what you clicked",
-    // OFF by default: it takes over a click, and a tool that changes what
-    // clicking does should be something you asked for.
-    intercept,
-    draw: draw5,
-    report: report5,
-    options: options3,
-    gestures
-  });
-
-  // src/components/select/service.js
-  function options4() {
-    return [{
-      key: "mode",
-      label: "Pin grouping",
-      def: CONFIG.PAIR_MODE,
-      values: ["pairs", "chain"],
-      affects: "select"
-    }];
-  }
-  function groups() {
-    return this._form().groups;
-  }
-  function pendingIndex() {
-    const { pending } = this._form();
-    return pending ? State.pins.indexOf(pending) : -1;
-  }
-
-  // src/components/select/rows.js
-  function listRows() {
-    const { groups: groups2, pending } = this._form();
-    const rows = groups2.map(([A, B]) => {
-      const ra = A.el.getBoundingClientRect(), rb = B.el.getBoundingClientRect();
-      const g = U.gap(ra, rb);
-      const axis = Measure.axisOf(ra, rb);
-      const detail = axis.kind === "overlap" ? "overlapping" : axis.kind === "diagonal" ? `→ ${g.dx} · ↓ ${g.dy} px` : axis.kind === "vertical" ? `↕ ${g.dy} px` : `↔ ${g.dx} px`;
-      return {
-        tag: `#${A.id}→#${B.id}`,
-        label: `${U.labelOf(A.el)} ↔ ${U.labelOf(B.el)}`,
-        detail,
-        pins: [A, B]
-      };
-    });
-    if (pending) rows.push({
-      tag: `#${pending.id}…`,
-      label: U.labelOf(pending.el),
-      detail: "pick its pair",
-      pins: [pending]
-    });
-    return rows;
-  }
-  function reportTail2() {
-    const { pending } = this._form();
-    return pending ? [`[#${pending.id}] waiting for its pair`] : [];
-  }
-
-  // src/components/select/index.js
-  defineTool({
-    id: "select",
-    // `mode` was measure's option before the select/measure split, so anyone
-    // who chose 'chain' had it silently reset. Same miss as scale and colour,
-    // caught one release later — an owner names its own former id.
-    was: "measure",
-    icon: "⬚",
-    title: "Select — how pinned elements group up",
-    startsOn: true,
-    // only Shift-clicked pins take part — a plain click is "inspect this",
-    // and silently roping it into a measurement is not what was asked
-    _pins: () => State.pins.filter((p) => p.kind === CONFIG.PIN_KIND.SHIFT),
-    /**
-     * The single place grouping is decided.
-     *
-     * 'pairs' — every group takes two clicks and the next starts a fresh
-     * one, so a pin is never silently reused. 'chain' — each new pin groups
-     * with the previous one.
-     */
-    _form() {
-      const mp = this._pins();
-      const mode = Tools.setting(this, "mode");
-      const step = mode === "pairs" ? 2 : 1;
-      const out = [];
-      for (let k = 0; k + 1 < mp.length; k += step) out.push([mp[k], mp[k + 1]]);
-      const pending = mode === "pairs" && mp.length % 2 ? mp[mp.length - 1] : null;
-      return { groups: out, pending };
-    },
-    options: options4,
-    groups,
-    pendingIndex,
-    listRows,
-    reportTail: reportTail2
-  });
-
   // src/app/interactions.js
   var Interactions = {
     // is the user typing? then keys belong to the page, not to us
@@ -2741,8 +2741,15 @@ ${Tools.rolesOf(t).join(" · ")}${run.note}${t.options || t.uses ? "\nright-clic
      * underneath an edit is the same bug wearing the overlay's own clothes.
      */
     claimed(type, ev, el) {
+      const ctx = {
+        type,
+        ev,
+        el,
+        redraw: Render.schedule,
+        toClipboard: Report.toClipboard
+      };
       for (const t of Tools.withHook("intercept", true))
-        if (t.intercept.call(t, { type, ev, el })) return true;
+        if (t.intercept.call(t, ctx)) return true;
       return false;
     },
     // in remove mode only pins are targetable — pick the innermost one

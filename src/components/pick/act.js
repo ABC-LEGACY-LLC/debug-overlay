@@ -1,6 +1,4 @@
 import { CONFIG } from '../../core/config.js';
-import { Render } from '../../ui/renderer.js';
-import { Report } from '../../services/report/index.js';
 import { Tools } from '../../core/registry.js';
 import { U } from '../../core/utils.js';
 
@@ -13,21 +11,21 @@ import { U } from '../../core/utils.js';
  * Meta as well as Ctrl: Ctrl+click is the context menu on macOS, so the
  * modifier that means "modified click" there is ⌘.
  */
-export function intercept({ type, ev, el }) {
+export function intercept({ type, ev, el, redraw, toClipboard }) {
         if (type !== 'click' || !(ev.ctrlKey || ev.metaKey)) return false;
         const txt = Tools.setting(this, 'what') === 'text'
           ? (el.textContent || '').trim()
           : U.selectorOf(el);
         if (!txt) return false;     // nothing to copy is not a click we took
-        Report.toClipboard(txt);
+        toClipboard(txt);
         this._hit = el;
         // The clipboard is invisible. Without this the only difference between
         // a copy that worked and one that silently did not is what turns up
         // when you paste, which is too late to notice.
         clearTimeout(this._timer);
-        this._timer = setTimeout(() => { this._hit = null; Render.schedule(); },
+        this._timer = setTimeout(() => { this._hit = null; redraw(); },
                                  CONFIG.PICK_FLASH);
-        Render.schedule();
+        redraw();
         return true;
 }
 

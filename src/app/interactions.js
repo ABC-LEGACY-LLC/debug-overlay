@@ -1,3 +1,4 @@
+import { Report } from '../services/report/index.js';
 import { CONFIG } from '../core/config.js';
 import { Tools } from '../core/registry.js';
 import { State } from '../core/state.js';
@@ -34,8 +35,15 @@ import { Render } from '../ui/renderer.js';
      * underneath an edit is the same bug wearing the overlay's own clothes.
      */
     claimed(type, ev, el) {
+      /* Capabilities ride IN through the ctx, the way draw() receives layer
+         and Place. pick used to import Render and Report directly — a
+         component naming a surface and a service — and the import-boundary
+         audit caught it the day the rule landed. This file is app/: it may
+         know both, and handing them over is exactly its job as the door. */
+      const ctx = { type, ev, el,
+                    redraw: Render.schedule, toClipboard: Report.toClipboard };
       for (const t of Tools.withHook('intercept', true))
-        if (t.intercept.call(t, { type, ev, el })) return true;
+        if (t.intercept.call(t, ctx)) return true;
       return false;
     },
 

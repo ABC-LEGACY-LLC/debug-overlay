@@ -209,6 +209,44 @@ for (const t of tools) {
   bad.forEach((b) => console.log(`      ${b}`));
 }
 
+/* ---- import boundaries ---------------------------------------------------
+   The regex layer rules above catch NAMES; these catch the graph itself. Each
+   is the structural version of a rule this project already lives by, and the
+   set was verified against the real graph before it was written down — every
+   rule below held on the day it landed. */
+console.log('\nIMPORT BOUNDARIES');
+const { importsOf } = require('./hooks.js');
+const IMPORT_RULES = [
+  ['components stay behind the registry',
+   (f, to) => f.startsWith('components/') &&
+     !(to.startsWith('core/') || to.startsWith('subjects/') ||
+       to.split('/').slice(0, 2).join('/') === f.split('/').slice(0, 2).join('/')),
+   'a component imports only core/, subjects/ and its own folder — anything ' +
+   'else it wants, it asks the registry'],
+  ['nothing names a component but the manifest',
+   (f, to) => to.startsWith('components/') && !f.startsWith('components/') &&
+     f !== 'manifest.js',
+   'components are reached through hooks; importing one couples to its name'],
+  ['core imports only core',
+   (f, to) => f.startsWith('core/') && !to.startsWith('core/'),
+   'core is under everything, so it may depend on nothing above itself'],
+  ['services never import app',
+   (f, to) => f.startsWith('services/') && to.startsWith('app/'),
+   'a service collects and renders; deciding is app/'],
+  ['ui never imports app',
+   (f, to) => f.startsWith('ui/') && to.startsWith('app/'),
+   'ui fires callbacks; app decides what they mean'],
+];
+for (const [name, bad, why] of IMPORT_RULES) {
+  const hits = [];
+  for (const f of walk()) {
+    if (f === 'manifest.js' && name !== 'nothing names a component but the manifest') continue;
+    for (const to of importsOf(f)) if (bad(f, to)) hits.push(`${f} → ${to}`);
+  }
+  if (hits.length) { console.log(`  ✗ ${name} — ${why}\n      ${hits.join('\n      ')}`); fail++; }
+  else console.log(`  ✓ ${name}`);
+}
+
 console.log('\nSUBJECTS');
 const subjectIds = subjects.map((x) => x.id).filter(Boolean);
 for (const x of subjects) {
