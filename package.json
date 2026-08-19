@@ -11,7 +11,8 @@
     "watch": "node build.js --watch",
     "audit": "node audit.js",
     "test": "node test.js",
-    "map": "node map.js"
+    "map": "node map.js",
+    "compare": "node compare.js"
   },
   "devDependencies": {
     "jsdom": "^30.0.1"
