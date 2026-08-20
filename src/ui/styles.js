@@ -201,6 +201,11 @@ import { CONFIG } from '../core/config.js';
     #__dbgov-bar button.tool:hover, #__dbgov-bar button.act:hover { background: #3a3a40; }
     #__dbgov-bar button.tool.armed,
     #__dbgov-bar button.bctl.armed { background: #58c4ff; color: #0d1b24; }
+    /* an OPEN axis head is a drawer pulled out, not a value in force —
+       a ring, not the armed fill, so the two states cannot be confused */
+    #__dbgov-bar button.bctl.axis.open { box-shadow: inset 0 0 0 2px #58c4ff; }
+    /* a fixed member is information: always on, takes no click */
+    #__dbgov-bar button.bctl.fixed { opacity: .55; cursor: default; }
     /* A tool in the run that feeds ⌕ carries a dot. Armed or not, it is still
        swept — the dot says "this contributes findings", the fill says "this
        is drawn". They are different questions and used to look the same. */

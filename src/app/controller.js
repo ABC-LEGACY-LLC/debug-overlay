@@ -360,29 +360,13 @@ import { Render } from '../ui/renderer.js';
       Controller.pinsChanged();
     },
     /**
-     * The 🏷 flyout's members — DERIVED from the badge face's own options()
-     * so the flyout and the ⚙ rows come from one declaration and cannot
-     * drift. A values option becomes a radio (one member per value, the live
-     * one armed); a toggle becomes one member that flips. Both write through
-     * Settings.apply — the same store the ⚙ row writes — so the two surfaces
-     * re-read one value and can never disagree.
+     * The 🏷 flyout's axes and members come from the face itself (it derives
+     * them from its own options(), one declaration for flyout and ⚙ alike);
+     * this is only the hand-over. Writes still go through Settings.apply —
+     * the same store the ⚙ row writes — so the two surfaces re-read one
+     * value and can never disagree.
      */
-    badgeControls() {
-      const rows = [];
-      for (const o of BadgeFace.options()) {
-        const live = Tools.setting(BadgeFace, o.key);
-        if (o.values) {
-          for (const v of o.values)
-            rows.push({ key: `${o.key}:${v}`, glyph: (o.glyphs || {})[v] || String(v),
-                        title: `${o.label} — ${v}`, armed: live === v });
-        } else {
-          rows.push({ key: o.key, glyph: o.glyph || o.label,
-                      title: o.label, armed: !!live });
-        }
-      }
-      return rows;
-    },
-    refreshBadge() { Panel.setBadgeControls(Controller.badgeControls()); },
+    refreshBadge() { Panel.setBadgeControls(BadgeFace.groups()); },
     badgeControl(key) {
       const [k, v] = key.split(':');
       const opt = BadgeFace.options().find((o) => o.key === k);

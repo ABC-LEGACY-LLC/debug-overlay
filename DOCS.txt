@@ -29,12 +29,15 @@ HOW TO USE
                         mode, then pins and the selection. It never powers the
                         tool off — that is
                         the ⏻ button and Alt+Shift+D, both of which say so.
-  🏷 ................... the badge's own controls, in a flyout: the VIEW
-                        (▬ compact / ▤ full — remembered, where ≡ used to
-                        forget on reload) and the FACETS — ⚠ issue marks
-                        on/off, → recommendations on/off. Facets gate badge
-                        ink ONLY: the copied report always carries
-                        everything, and ⌕ findings are untouched.
+  🏷 ................... the badge's own controls, two levels: press it and
+                        the two AXES slide out — ◫ VIEW and ◈ FACETS — and
+                        pressing an axis reveals its members. View: ▬ compact
+                        / ▤ full (remembered, where ≡ used to forget on
+                        reload). Facets: ＝ current (always on — it IS the
+                        badge), ⚠ issue marks on/off, → recommendations
+                        on/off. Facets gate badge ink ONLY: the copied report
+                        always carries everything, and ⌕ findings are
+                        untouched.
   ⌕ ................... audit the WHOLE page — every active rule runs over every
                         visible element, and the button shows how many distinct
                         problems came back. Repeats collapse: a nav of 40

@@ -1555,8 +1555,10 @@ console.log('\nEVERY RULE SHOWS WHERE');
   const el = w.document.getElementById('dup');
   w.document.elementFromPoint = () => el;
   el.dispatchEvent(new w.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
-  // full badges via the 🏷 flyout — the member is found by its title, not its
-  // position, so a fourth control cannot silently retarget this click
+  // full badges via the 🏷 flyout — two levels: open the View axis, then its
+  // member, each found by title so a new control cannot silently retarget this
+  [...bar.querySelectorAll('[data-badge-fly] button')].find((b) => /^View/.test(b.title))
+    .dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   [...bar.querySelectorAll('[data-badge-fly] button')].find((b) => /full/.test(b.title))
     .dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   bar.querySelector('[data-sweep]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
@@ -1649,15 +1651,29 @@ console.log('\nBADGE FACETS');
     w.eval(source);
     w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
     const fly = (win) => [...win.document.querySelectorAll('[data-badge-fly] button')];
+    const openAxis = (win, re) => fly(win).find((b) => re.test(b.title))
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    // two levels: at rest the flyout is the two AXES and nothing else
+    ok('🏷 opens to two axes, not a soup of members',
+      fly(w).length === 2 && /^View/.test(fly(w)[0].title) && /^Facets/.test(fly(w)[1].title),
+      fly(w).map((b) => b.title.split(' — ')[0]).join(', '));
+    openAxis(w, /^View/);
     fly(w).find((b) => /full/.test(b.title))
       .dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
     const blob = w.localStorage.getItem('__dbgov_settings') || '';
     ok('choosing a badge view writes the store', /"view":"full"/.test(blob), blob);
+    // the Facets axis: CURRENT is listed, armed, and not a control
+    openAxis(w, /^Facets/);
+    const cur = fly(w).find((b) => /^Current/.test(b.title));
+    ok('Facets lists Current — armed, fixed, information not a control',
+      !!cur && cur.classList.contains('armed') && cur.getAttribute('aria-disabled') === 'true',
+      fly(w).map((b) => b.title.split(' — ')[0]).join(', '));
     // a second boot over the same store wakes up already in that view
     const d2 = new JSDOM('<!doctype html><html><body><div id="a">a</div></body></html>', opts);
     const w2 = d2.window;
     w2.localStorage.setItem('__dbgov_settings', blob);
     w2.eval(source);
+    openAxis(w2, /^View/);
     ok('and a reload remembers it',
       fly(w2).find((b) => /full/.test(b.title))?.classList.contains('armed'),
       fly(w2).map((b) => `${b.textContent}${b.classList.contains('armed') ? '*' : ''}`).join(' '));
@@ -1893,6 +1909,8 @@ w3.document.body.append(evil);
 w3.eval(source);
 const bar3 = w3.document.getElementById('__dbgov-bar');
 w3.dispatchEvent(new w3.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+[...bar3.querySelectorAll('[data-badge-fly] button')].find((b) => /^View/.test(b.title))
+  .dispatchEvent(new w3.MouseEvent('click', { bubbles: true }));
 [...bar3.querySelectorAll('[data-badge-fly] button')].find((b) => /full/.test(b.title))
   .dispatchEvent(new w3.MouseEvent('click', { bubbles: true }));
 w3.document.elementFromPoint = () => evil;

@@ -90,6 +90,43 @@ import { List } from './list.js';
     // button -> { original, timer } while a transient message is showing
     const flashing = new Map();
 
+    // the 🏷 flyout's groups, kept so a settings change can re-render with
+    // the axis the user had open still open
+    let badgeGroups = [];
+    function renderBadgeFly() {
+      const fly = el.querySelector('[data-badge-fly]');
+      const open = fly.dataset.open || '';
+      fly.textContent = '';
+      for (const g of badgeGroups) {
+        const h = document.createElement('button');
+        // bctl, not tool: these are the badge service's controls, and every
+        // test and map that enumerates button.tool means REGISTRY tools
+        h.className = 'bctl whenOn axis' + (open === g.key ? ' open' : '');
+        h.textContent = g.glyph;
+        h.title = g.title;
+        h.setAttribute('aria-expanded', String(open === g.key));
+        h.addEventListener('click', () => {
+          fly.dataset.open = open === g.key ? '' : g.key;
+          renderBadgeFly();
+        });
+        fly.append(h);
+        if (open !== g.key) continue;
+        for (const r of g.rows) {
+          const b = document.createElement('button');
+          b.className = 'bctl whenOn' + (r.armed ? ' armed' : '') +
+                        (r.fixed ? ' fixed' : '');
+          b.textContent = r.glyph;
+          b.title = r.title;
+          b.setAttribute('aria-pressed', String(!!r.armed));
+          // a fixed member is information, not a control — it says the axis
+          // has this face and that it is always on, and it takes no click
+          if (r.fixed) b.setAttribute('aria-disabled', 'true');
+          else b.addEventListener('click', () => api.onBadgeControl?.(r.key));
+          fly.append(b);
+        }
+      }
+    }
+
     const api = {
       el,
       onToggle: null, onTool: null, onBadgeControl: null, onCopy: null,
@@ -120,26 +157,20 @@ import { List } from './list.js';
           .classList.toggle('armed', !!fam.querySelector('.tool.armed'));
       },
       /**
-       * The 🏷 flyout's members, rendered from whatever the controller hands
-       * over: { key, glyph, title, armed } each. This file never learns what
-       * a view or a facet IS — key goes straight back through the callback,
-       * the way data-view names do. Re-rendered on every change so armed
-       * always shows the value in force.
+       * The 🏷 flyout, two levels: AXIS heads at rest, and only the pressed
+       * axis shows its members — four flat buttons made two different axes
+       * read as one soup. Rendered from whatever the controller hands over:
+       * groups of { key, glyph, title, rows: [{ key, glyph, title, armed,
+       * fixed }] }. This file never learns what a view or a facet IS — keys
+       * go straight back through the callback, the way data-view names do.
+       *
+       * Which axis is open lives on the flyout element, so re-rendering
+       * after a change (armed must show the value in force) does not slam
+       * the drawer shut; reopening 🏷 starts collapsed again.
        */
-      setBadgeControls(rows) {
-        const fly = el.querySelector('[data-badge-fly]');
-        fly.textContent = '';
-        for (const r of rows) {
-          const b = document.createElement('button');
-          // bctl, not tool: these are the badge service's controls, and every
-          // test and map that enumerates button.tool means REGISTRY tools
-          b.className = 'bctl whenOn' + (r.armed ? ' armed' : '');
-          b.textContent = r.glyph;
-          b.title = r.title;
-          b.setAttribute('aria-pressed', String(!!r.armed));
-          b.addEventListener('click', () => api.onBadgeControl?.(r.key));
-          fly.append(b);
-        }
+      setBadgeControls(groups) {
+        badgeGroups = groups;
+        renderBadgeFly();
       },
       /**
        * Whether an audit is currently showing on the page. The ⌕ flash is
@@ -262,6 +293,13 @@ import { List } from './list.js';
         api.toggleList(undefined, `tool:${b.dataset.tool}`);
       });
     });
+    // reopening 🏷 starts at the axis level again — the drawer position is
+    // session furniture, not a choice worth remembering
+    el.querySelector('[data-badge] .fam-btn').addEventListener('click', () => {
+      const fly = el.querySelector('[data-badge-fly]');
+      if (fly.dataset.open) { fly.dataset.open = ''; renderBadgeFly(); }
+    });
+
     el.querySelector('[data-c]').addEventListener('click', () => api.toggleList(undefined, 'pins'));
     el.querySelector('[data-settings]').addEventListener('click', () => api.toggleList(undefined, 'settings'));
     el.querySelector('[data-sweep]').addEventListener('click', () => api.onSweep?.());

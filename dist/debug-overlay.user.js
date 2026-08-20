@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.75
+// @version      3.8.76
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -45,12 +45,15 @@ HOW TO USE
                         mode, then pins and the selection. It never powers the
                         tool off — that is
                         the ⏻ button and Alt+Shift+D, both of which say so.
-  🏷 ................... the badge's own controls, in a flyout: the VIEW
-                        (▬ compact / ▤ full — remembered, where ≡ used to
-                        forget on reload) and the FACETS — ⚠ issue marks
-                        on/off, → recommendations on/off. Facets gate badge
-                        ink ONLY: the copied report always carries
-                        everything, and ⌕ findings are untouched.
+  🏷 ................... the badge's own controls, two levels: press it and
+                        the two AXES slide out — ◫ VIEW and ◈ FACETS — and
+                        pressing an axis reveals its members. View: ▬ compact
+                        / ▤ full (remembered, where ≡ used to forget on
+                        reload). Facets: ＝ current (always on — it IS the
+                        badge), ⚠ issue marks on/off, → recommendations
+                        on/off. Facets gate badge ink ONLY: the copied report
+                        always carries everything, and ⌕ findings are
+                        untouched.
   ⌕ ................... audit the WHOLE page — every active rule runs over every
                         visible element, and the button shows how many distinct
                         problems came back. Repeats collapse: a nav of 40
@@ -290,7 +293,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.75",
+    VERSION: "3.8.76",
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -2010,6 +2013,11 @@ HOW TO USE
     #__dbgov-bar button.tool:hover, #__dbgov-bar button.act:hover { background: #3a3a40; }
     #__dbgov-bar button.tool.armed,
     #__dbgov-bar button.bctl.armed { background: #58c4ff; color: #0d1b24; }
+    /* an OPEN axis head is a drawer pulled out, not a value in force —
+       a ring, not the armed fill, so the two states cannot be confused */
+    #__dbgov-bar button.bctl.axis.open { box-shadow: inset 0 0 0 2px #58c4ff; }
+    /* a fixed member is information: always on, takes no click */
+    #__dbgov-bar button.bctl.fixed { opacity: .55; cursor: default; }
     /* A tool in the run that feeds ⌕ carries a dot. Armed or not, it is still
        swept — the dot says "this contributes findings", the fill says "this
        is drawn". They are different questions and used to look the same. */
@@ -2299,6 +2307,35 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         )
       });
       const flashing = /* @__PURE__ */ new Map();
+      let badgeGroups = [];
+      function renderBadgeFly() {
+        const fly = el.querySelector("[data-badge-fly]");
+        const open = fly.dataset.open || "";
+        fly.textContent = "";
+        for (const g of badgeGroups) {
+          const h = document.createElement("button");
+          h.className = "bctl whenOn axis" + (open === g.key ? " open" : "");
+          h.textContent = g.glyph;
+          h.title = g.title;
+          h.setAttribute("aria-expanded", String(open === g.key));
+          h.addEventListener("click", () => {
+            fly.dataset.open = open === g.key ? "" : g.key;
+            renderBadgeFly();
+          });
+          fly.append(h);
+          if (open !== g.key) continue;
+          for (const r of g.rows) {
+            const b = document.createElement("button");
+            b.className = "bctl whenOn" + (r.armed ? " armed" : "") + (r.fixed ? " fixed" : "");
+            b.textContent = r.glyph;
+            b.title = r.title;
+            b.setAttribute("aria-pressed", String(!!r.armed));
+            if (r.fixed) b.setAttribute("aria-disabled", "true");
+            else b.addEventListener("click", () => api.onBadgeControl?.(r.key));
+            fly.append(b);
+          }
+        }
+      }
       const api = {
         el,
         onToggle: null,
@@ -2328,24 +2365,20 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           if (fam) fam.querySelector(".fam-btn").classList.toggle("armed", !!fam.querySelector(".tool.armed"));
         },
         /**
-         * The 🏷 flyout's members, rendered from whatever the controller hands
-         * over: { key, glyph, title, armed } each. This file never learns what
-         * a view or a facet IS — key goes straight back through the callback,
-         * the way data-view names do. Re-rendered on every change so armed
-         * always shows the value in force.
+         * The 🏷 flyout, two levels: AXIS heads at rest, and only the pressed
+         * axis shows its members — four flat buttons made two different axes
+         * read as one soup. Rendered from whatever the controller hands over:
+         * groups of { key, glyph, title, rows: [{ key, glyph, title, armed,
+         * fixed }] }. This file never learns what a view or a facet IS — keys
+         * go straight back through the callback, the way data-view names do.
+         *
+         * Which axis is open lives on the flyout element, so re-rendering
+         * after a change (armed must show the value in force) does not slam
+         * the drawer shut; reopening 🏷 starts collapsed again.
          */
-        setBadgeControls(rows) {
-          const fly = el.querySelector("[data-badge-fly]");
-          fly.textContent = "";
-          for (const r of rows) {
-            const b = document.createElement("button");
-            b.className = "bctl whenOn" + (r.armed ? " armed" : "");
-            b.textContent = r.glyph;
-            b.title = r.title;
-            b.setAttribute("aria-pressed", String(!!r.armed));
-            b.addEventListener("click", () => api.onBadgeControl?.(r.key));
-            fly.append(b);
-          }
+        setBadgeControls(groups2) {
+          badgeGroups = groups2;
+          renderBadgeFly();
         },
         /**
          * Whether an audit is currently showing on the page. The ⌕ flash is
@@ -2447,6 +2480,13 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           e.preventDefault();
           api.toggleList(void 0, `tool:${b.dataset.tool}`);
         });
+      });
+      el.querySelector("[data-badge] .fam-btn").addEventListener("click", () => {
+        const fly = el.querySelector("[data-badge-fly]");
+        if (fly.dataset.open) {
+          fly.dataset.open = "";
+          renderBadgeFly();
+        }
       });
       el.querySelector("[data-c]").addEventListener("click", () => api.toggleList(void 0, "pins"));
       el.querySelector("[data-settings]").addEventListener("click", () => api.toggleList(void 0, "settings"));
@@ -2583,6 +2623,54 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           type: "toggle",
           glyph: "→",
           affects: "inspect"
+        }
+      ];
+    },
+    /**
+     * The 🏷 flyout, two levels deep: press the mark and you get the two
+     * AXES — ◫ View and ◈ Facets — and only pressing an axis reveals its
+     * members. Four flat buttons made the two axes read as one soup.
+     *
+     * DERIVED from options() in this same file, so the flyout and the ⚙
+     * rows come from one declaration: the values option is the View
+     * axis's radio, every toggle is a Facets member. CURRENT is the one
+     * member with no option behind it — it is listed because the family
+     * has three facets, and FIXED because switching it off would leave
+     * 🏷 controlling nothing: it IS the badge.
+     */
+    groups() {
+      const opts = this.options();
+      const view = opts.find((o) => o.values);
+      return [
+        {
+          key: "view",
+          glyph: "◫",
+          title: "View — how much ink; press to choose",
+          rows: view.values.map((v) => ({
+            key: `${view.key}:${v}`,
+            glyph: (view.glyphs || {})[v] || String(v),
+            title: `${view.label} — ${v}`,
+            armed: Tools.setting(this, view.key) === v
+          }))
+        },
+        {
+          key: "facets",
+          glyph: "◈",
+          title: "Facets — which kinds of content render; press to choose",
+          rows: [
+            {
+              fixed: true,
+              glyph: "＝",
+              armed: true,
+              title: "Current — the component's own fields. Always on: this is the badge itself"
+            },
+            ...opts.filter((o) => o.type === "toggle").map((o) => ({
+              key: o.key,
+              glyph: o.glyph || o.label,
+              title: o.label,
+              armed: !!Tools.setting(this, o.key)
+            }))
+          ]
         }
       ];
     }
@@ -3640,38 +3728,14 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       Controller.pinsChanged();
     },
     /**
-     * The 🏷 flyout's members — DERIVED from the badge face's own options()
-     * so the flyout and the ⚙ rows come from one declaration and cannot
-     * drift. A values option becomes a radio (one member per value, the live
-     * one armed); a toggle becomes one member that flips. Both write through
-     * Settings.apply — the same store the ⚙ row writes — so the two surfaces
-     * re-read one value and can never disagree.
+     * The 🏷 flyout's axes and members come from the face itself (it derives
+     * them from its own options(), one declaration for flyout and ⚙ alike);
+     * this is only the hand-over. Writes still go through Settings.apply —
+     * the same store the ⚙ row writes — so the two surfaces re-read one
+     * value and can never disagree.
      */
-    badgeControls() {
-      const rows = [];
-      for (const o of BadgeFace.options()) {
-        const live = Tools.setting(BadgeFace, o.key);
-        if (o.values) {
-          for (const v of o.values)
-            rows.push({
-              key: `${o.key}:${v}`,
-              glyph: (o.glyphs || {})[v] || String(v),
-              title: `${o.label} — ${v}`,
-              armed: live === v
-            });
-        } else {
-          rows.push({
-            key: o.key,
-            glyph: o.glyph || o.label,
-            title: o.label,
-            armed: !!live
-          });
-        }
-      }
-      return rows;
-    },
     refreshBadge() {
-      Panel.setBadgeControls(Controller.badgeControls());
+      Panel.setBadgeControls(BadgeFace.groups());
     },
     badgeControl(key) {
       const [k, v] = key.split(":");
