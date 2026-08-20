@@ -1253,8 +1253,8 @@ console.log('\nSTANDS ALONE');
   wn.document.getElementById('__dbgov-bar').querySelector('[data-copy]')
     .dispatchEvent(new wn.MouseEvent('click', { bubbles: true }));
   ok('no grouping armed, so a shift-click is simply a pin',
-    !/\(measure\)/.test(copiedN || '') && /\(note\)/.test(copiedN || ''),
-    (copiedN || '').match(/\((note|measure)\)/g)?.join(' ') || 'no pins');
+    !/\(pair\)/.test(copiedN || '') && /\(note\)/.test(copiedN || ''),
+    (copiedN || '').match(/\((note|pair)\)/g)?.join(' ') || 'no pins');
   wn.close();
 
   // and with a grouping armed it means what it always meant
@@ -1267,8 +1267,8 @@ console.log('\nSTANDS ALONE');
   wy.document.getElementById('__dbgov-bar').querySelector('[data-copy]')
     .dispatchEvent(new wy.MouseEvent('click', { bubbles: true }));
   ok('with a grouping armed, a shift-click still joins one',
-    /\(measure\)/.test(copiedY || ''),
-    (copiedY || '').match(/\((note|measure)\)/g)?.join(' ') || 'no pins');
+    /\(pair\)/.test(copiedY || ''),
+    (copiedY || '').match(/\((note|pair)\)/g)?.join(' ') || 'no pins');
   wy.close();
 }
 

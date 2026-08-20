@@ -20,13 +20,14 @@ HOW TO USE
   Hover ............... live badge for the element under the cursor
   Click ............... INSPECT one element (orange, dashed). Its badge freezes
                         in place. No measuring, no green line.
-  Shift+Click ......... MEASURE (lime, solid). These pin in PAIRS: the 1st is
-                        "from" (cyan, marked 1…), the 2nd is "to" and draws the
-                        dimension. The 3rd starts a brand new pair — nothing is
-                        ever chained off your previous selection.
+  Shift+Click ......... PAIR (lime, solid): a selection pin. These group in
+                        PAIRS: the 1st is "from" (cyan, marked 1…), the 2nd is
+                        "to" — and whatever measures (📐) draws the dimension
+                        between them. The 3rd starts a brand new pair — nothing
+                        is ever chained off your previous selection.
                         Set Pin grouping to 'chain' under ⚙ for the old behaviour.
   Click again ......... unpin (or click with the other modifier to switch the
-                        pin between inspect and measure)
+                        pin between note and pair)
   Hold X .............. REMOVE mode: a red ✕ appears on every pin and only pins
                         are clickable — click one to delete it. Works even for
                         pins whose element is hard to hit again. Release to exit.
@@ -307,9 +308,11 @@ HOW TO USE
     //           click starts a fresh pair, so a pin is never reused silently.
     // 'chain' = old behaviour: each pin measures to the previous one.
     PAIR_MODE: "pairs",
-    // A pin's "kind" names which tool consumes it. Defined once here so the
-    // input layer, controller and renderer never hardcode a tool's id.
-    PIN_KIND: { PLAIN: "note", SHIFT: "measure" },
+    // A pin's "kind" names the SELECTION the user made, never a consumer —
+    // 'pair' used to be 'measure', which claimed one tool owned selection's
+    // pins and leaked that id into a CSS class and the report text. Defined
+    // once here so the input layer, controller and renderer share one word.
+    PIN_KIND: { PLAIN: "note", SHIFT: "pair" },
     PICK_FLASH: 700,
     // ms an element stays outlined after being picked
     LANE_SEP: 16,
@@ -1769,7 +1772,7 @@ HOW TO USE
     .dbgov-hover  { outline: 1.5px solid #58c4ff; outline-offset: -1px; background: rgba(88,196,255,.06); }
     /* note pin = plain click (inspect only) · measure pin = Shift+click */
     .dbgov-pinbox { outline: 1.5px dashed #ff8a65; outline-offset: -1px; }
-    .dbgov-pinbox.measure { outline-style: solid; outline-color: #b5e853; }
+    .dbgov-pinbox.pair { outline-style: solid; outline-color: #b5e853; }
     .dbgov-pinbox.waiting { outline-color: #58c4ff; }
     .dbgov-pinbox.rmtarget { outline: 2px solid #ff5c5c; background: rgba(255,92,92,.10); }
     .dbgov-pinbox.flash { outline: 2.5px solid #58c4ff;
@@ -1878,7 +1881,7 @@ HOW TO USE
       background: #ff8a65; color: #1a1a1a; font-size: 12px; font-weight: 800;
       display: flex; align-items: center; justify-content: center;
       box-shadow: 0 2px 8px rgba(0,0,0,.5); }
-    .dbgov-pin-num.measure { background: #b5e853; color: #16200a; }
+    .dbgov-pin-num.pair { background: #b5e853; color: #16200a; }
     .dbgov-pin-num.waiting { background: #58c4ff; color: #0d1b24; }
     .dbgov-pin-num.rmtarget { background: #ff5c5c; color: #fff; }
 
@@ -3362,8 +3365,8 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     pinsPruned() {
       Controller.refreshList();
     },
-    // kind: CONFIG.PIN_KIND.PLAIN → inspect only, no measuring
-    //       CONFIG.PIN_KIND.SHIFT → joins the pairing queue and draws lines
+    // kind: CONFIG.PIN_KIND.PLAIN → a note: inspect only, groups with nothing
+    //       CONFIG.PIN_KIND.SHIFT → a pair pin: joins whatever grouping is armed
     togglePin(el, kind = CONFIG.PIN_KIND.PLAIN) {
       const i = State.pins.findIndex((p) => p.el === el);
       if (i >= 0) {

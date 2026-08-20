@@ -4,13 +4,14 @@ HOW TO USE
   Hover ............... live badge for the element under the cursor
   Click ............... INSPECT one element (orange, dashed). Its badge freezes
                         in place. No measuring, no green line.
-  Shift+Click ......... MEASURE (lime, solid). These pin in PAIRS: the 1st is
-                        "from" (cyan, marked 1…), the 2nd is "to" and draws the
-                        dimension. The 3rd starts a brand new pair — nothing is
-                        ever chained off your previous selection.
+  Shift+Click ......... PAIR (lime, solid): a selection pin. These group in
+                        PAIRS: the 1st is "from" (cyan, marked 1…), the 2nd is
+                        "to" — and whatever measures (📐) draws the dimension
+                        between them. The 3rd starts a brand new pair — nothing
+                        is ever chained off your previous selection.
                         Set Pin grouping to 'chain' under ⚙ for the old behaviour.
   Click again ......... unpin (or click with the other modifier to switch the
-                        pin between inspect and measure)
+                        pin between note and pair)
   Hold X .............. REMOVE mode: a red ✕ appears on every pin and only pins
                         are clickable — click one to delete it. Works even for
                         pins whose element is hard to hit again. Release to exit.

@@ -242,8 +242,8 @@ import { Render } from '../ui/renderer.js';
       Controller.refreshList();
     },
 
-    // kind: CONFIG.PIN_KIND.PLAIN → inspect only, no measuring
-    //       CONFIG.PIN_KIND.SHIFT → joins the pairing queue and draws lines
+    // kind: CONFIG.PIN_KIND.PLAIN → a note: inspect only, groups with nothing
+    //       CONFIG.PIN_KIND.SHIFT → a pair pin: joins whatever grouping is armed
     togglePin(el, kind = CONFIG.PIN_KIND.PLAIN) {
       const i = State.pins.findIndex((p) => p.el === el);
       if (i >= 0) {

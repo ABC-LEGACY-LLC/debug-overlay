@@ -49,9 +49,11 @@
     //           click starts a fresh pair, so a pin is never reused silently.
     // 'chain' = old behaviour: each pin measures to the previous one.
     PAIR_MODE: 'pairs',
-    // A pin's "kind" names which tool consumes it. Defined once here so the
-    // input layer, controller and renderer never hardcode a tool's id.
-    PIN_KIND: { PLAIN: 'note', SHIFT: 'measure' },
+    // A pin's "kind" names the SELECTION the user made, never a consumer —
+    // 'pair' used to be 'measure', which claimed one tool owned selection's
+    // pins and leaked that id into a CSS class and the report text. Defined
+    // once here so the input layer, controller and renderer share one word.
+    PIN_KIND: { PLAIN: 'note', SHIFT: 'pair' },
     PICK_FLASH: 700,          // ms an element stays outlined after being picked
     LANE_SEP: 16,             // px between parallel dimension lines
     HOTKEY: { alt: true, shift: true, ctrl: false, code: 'KeyD' },

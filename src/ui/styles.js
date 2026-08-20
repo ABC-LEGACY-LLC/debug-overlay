@@ -15,7 +15,7 @@ import { CONFIG } from '../core/config.js';
     .dbgov-hover  { outline: 1.5px solid #58c4ff; outline-offset: -1px; background: rgba(88,196,255,.06); }
     /* note pin = plain click (inspect only) · measure pin = Shift+click */
     .dbgov-pinbox { outline: 1.5px dashed #ff8a65; outline-offset: -1px; }
-    .dbgov-pinbox.measure { outline-style: solid; outline-color: #b5e853; }
+    .dbgov-pinbox.pair { outline-style: solid; outline-color: #b5e853; }
     .dbgov-pinbox.waiting { outline-color: #58c4ff; }
     .dbgov-pinbox.rmtarget { outline: 2px solid #ff5c5c; background: rgba(255,92,92,.10); }
     .dbgov-pinbox.flash { outline: 2.5px solid #58c4ff;
@@ -124,7 +124,7 @@ import { CONFIG } from '../core/config.js';
       background: #ff8a65; color: #1a1a1a; font-size: 12px; font-weight: 800;
       display: flex; align-items: center; justify-content: center;
       box-shadow: 0 2px 8px rgba(0,0,0,.5); }
-    .dbgov-pin-num.measure { background: #b5e853; color: #16200a; }
+    .dbgov-pin-num.pair { background: #b5e853; color: #16200a; }
     .dbgov-pin-num.waiting { background: #58c4ff; color: #0d1b24; }
     .dbgov-pin-num.rmtarget { background: #ff5c5c; color: #fff; }
 
