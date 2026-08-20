@@ -75,7 +75,7 @@ export function options() {
  */
 export function legend() {
         return [
-          { mark: '92x24', means: 'width x height, rounded' },
+          { mark: '92\u00d724', means: 'width \u00d7 height, rounded' },
           { mark: 'r 13', means: 'border-radius' },
           { mark: 'p / m', means: 'padding / margin - top right bottom left, collapsed when equal' },
           { mark: 'gap 12', means: 'flex or grid gap' },

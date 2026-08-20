@@ -69,7 +69,7 @@ import { Place } from './placement.js';
         // remove mode: a ✕ chip on every pin, enlarged on the one under the cursor
         if (State.removeMode) {
           const rm = document.createElement('div');
-          rm.className = 'dbgov-rm' + (isTarget ? ' dbgov-target' : '');
+          rm.className = 'dbgov-rmchip' + (isTarget ? ' dbgov-target' : '');
           rm.textContent = '✕';
           layer.append(rm);
           const rx = Math.min(innerWidth - 20, Math.max(2, i.r.right - 9));
@@ -124,34 +124,55 @@ import { Place } from './placement.js';
          produce ten findings for one element, which used to stack ten
          identical outlines on it. Coalescing happens INSIDE the cap, never
          before it, so "outlines capped at N per rule" stays true. */
+      /* ONE label per element per FRAME, not per tool: two armed rules
+         flagging the same element used to paint two tips at identical
+         coordinates, and the later one covered the earlier completely. The
+         map lives out here so a second tool ADDS its rule to the label the
+         first one made. */
+      const marked = new Map();
       const marks = (found) => {
-        const seen = new Map();
         for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
           if (!document.contains(f.el)) continue;
-          const at = seen.get(f.el);
-          if (at) { at.n++; at.rules.add(f.rule); continue; }
+          const at = marked.get(f.el);
+          if (at) {
+            at.n++; at.rules.add(f.rule);
+            /* One element, two rules: it must read as the WORSE of them. The
+               outlines used to stack and whichever painted last decided the
+               colour by accident; now the severity decides it. */
+            const cls = f.verdict === 'review' ? 'review' : f.severity;
+            if ((CONFIG.SEVERITY[cls] || 0) > (CONFIG.SEVERITY[at.cls] || 0)) {
+              at.box.className = 'dbgov-box dbgov-flag dbgov-' + cls;
+              if (at.tip) at.tip.className = 'dbgov-tip dbgov-' + cls;
+              at.cls = cls;
+            }
+            if (at.tip) at.tip.textContent = label(at);
+            continue;
+          }
           const r = f.el.getBoundingClientRect();
           const cls = f.verdict === 'review' ? 'review' : f.severity;
           const box = document.createElement('div');
           box.className = 'dbgov-box dbgov-flag dbgov-' + cls;
           Place.put(box, r.left, r.top, r.width, r.height);
           layer.append(box);
-          seen.set(f.el, { r, cls, n: 1, rules: new Set([f.rule]) });
-        }
-        for (const [, m] of seen) {
-          if (m.r.bottom < 0 || m.r.top > innerHeight ||
-              m.r.right < 0 || m.r.left > innerWidth) continue;
+          const m = { r, cls, n: 1, rules: new Set([f.rule]), tip: null, box };
+          marked.set(f.el, m);
+          if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue;
           const tip = document.createElement('div');
-          tip.className = 'dbgov-tip dbgov-' + m.cls;
+          tip.className = 'dbgov-tip dbgov-' + cls;
           // textContent: a rule id is ours, but a message is not — dupid's
           // carries a page-authored id straight from the document
-          tip.textContent = [...m.rules].join(' ') + (m.n > 1 ? ` ×${m.n}` : '');
+          tip.textContent = label(m);
+          m.tip = tip;
           layer.append(tip);
-          const tx = Math.max(2, m.r.left), ty = Math.max(2, m.r.top - 13);
-          Place.put(tip, tx, ty);
-          Place.claim(tx, ty, 8 * tip.textContent.length, 12);
+          /* smart, not put: labels used to sit at a fixed offset from every
+             element, so nested findings — the shape of every real page —
+             stacked their labels on one another and on the pin numbers that
+             were claimed before them. */
+          Place.smart(tip, r, { avoid: r });
         }
       };
+      const label = (m) => [...m.rules].join(' ') + (m.n > 1 ? ` ×${m.n}` : '');
+
       const ctx = { layer, Place, State, U, marks, found: [] };
       for (const t of Tools.active()) {
         ctx.found = (State.sweep && State.sweep.byTool[t.id]) || [];

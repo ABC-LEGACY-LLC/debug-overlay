@@ -164,7 +164,7 @@ import { List } from './list.js';
            order and the accessibility tree by itself. */
         el.classList.toggle('dbgov-on', v);
         el.querySelector('[data-st]').textContent = v ? 'ON' : 'OFF';
-        if (!v) api.toggleList(false);
+        if (!v) { api.toggleList(false); api.closeFlyouts(); }
         if (v) { clearTimeout(tuckTimer); untuck(); } else scheduleTuck();
       },
       /**

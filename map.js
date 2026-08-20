@@ -61,10 +61,9 @@ console.log('BAR');
 console.log('  ' + [...bar.children]
   .map((c) => {
     if (c.tagName === 'HR') return '│';
-    const b = c.matches('button, .dbgov-fam') ? c : c;
-    const btn = b.tagName === 'BUTTON' ? b : b.querySelector('button');
-    const name = (btn?.dataset.tool) || (btn?.title || b.title || '').split(/[\n·—(]/)[0].trim();
-    return (c.textContent.trim() || name || b.className).slice(0, 22);
+    const btn = c.tagName === 'BUTTON' ? c : c.querySelector('button');
+    const name = (btn?.dataset.tool) || (btn?.title || c.title || '').split(/[\n·—(]/)[0].trim();
+    return (c.textContent.trim() || name || c.className).slice(0, 22);
   }).join(' '));
 
 console.log('\nTOOLS          roles are derived from hooks, so they can be plural');

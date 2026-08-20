@@ -38,8 +38,7 @@ const TOOLS_ON_DISK = registered().map((t) => ({
   // the same test the panel groups by: either hook contributes findings
   judges: t.hooks.includes('audit') || t.hooks.includes('auditPage'),
   css: /\bcss:\s*`/.test(t.s),
-  // a class a component emits must be styled by it or by core
-  emits: [...t.s.matchAll(/class="([a-z-]+)"/g)].map((m) => m[1]),
+
 }));
 const idsOnDisk = TOOLS_ON_DISK.map((t) => t.id).sort();
 
@@ -145,7 +144,7 @@ ok('each tool ships its own sheet',
   sheets.map((s) => s.dataset.tool || 'core').join(', '));
 ok('tool CSS reached its sheet', cssOf('measure').includes('.dbgov-line'),
   'measure tool css missing');
-// the lens emits <span class="warn"> itself, so its markup and the rule that
+// the lens emits <span class="dbgov-warn"> itself, so its markup and the rule that
 // colours it have to ship from the same file
 ok('lens CSS reached its sheet', cssOf('grid').includes('.dbgov-badge .dbgov-warn'),
   'grid lens css missing');
@@ -176,7 +175,22 @@ console.log('\nHOST CSS CANNOT REACH IN');
     'whenOn', 'box', 'badge', 'line', 'cap', 'arrow', 'dist', 'ext', 'leader', 'pinbox', 'flag'];
   const HOSTILE = BARE.map((c) =>
     `.${c}{position:fixed!important;display:none!important;margin:-15px!important;` +
-    `font-size:99px!important;float:left!important;opacity:.01!important}`).join('\n');
+    `font-size:99px!important;float:left!important;opacity:.01!important}`).join('\n') +
+    /* THE OTHER AXIS, and the one that actually reached us. A namespace only
+       defends class selectors; these match our elements whatever we call them,
+       and every one is real: Bootstrap 5 Reboot's hr and Tailwind Preflight's
+       svg verbatim, the standard visually-hidden-checkbox pattern, and an
+       inherited property on <html>, which the root is a child of. No
+       !important here — none of those frameworks use it, and nothing could
+       defend against a host that did. */
+    `
+    html{letter-spacing:4px;text-transform:uppercase;line-height:3;font-style:italic}
+    hr{margin:1rem 0;color:inherit;border:0;border-top:1px solid;opacity:.25}
+    img,svg,video,canvas{display:block;vertical-align:middle}
+    input[type="checkbox"]{position:absolute;opacity:0;width:1px;height:1px;margin:-1px}
+    select{width:100%;appearance:none;padding:12px;text-transform:uppercase}
+    button{text-transform:uppercase;letter-spacing:2px;margin:4px}
+    div,span{float:left}`;
   const PAGE = '<div id="ha" style="padding:7px">alpha</div><div id="hb">beta</div>';
   // this section runs before WIRING defines `hot`
   const HOTKEY = cfg.hotkey || { altKey: true, shiftKey: true, ctrlKey: false, code: 'KeyD' };
@@ -1469,10 +1483,10 @@ console.log('\nPANEL AUDIT FIXES');
   barC.querySelector('[data-sweep]').dispatchEvent(new wc.MouseEvent('click', { bubbles: true }));
   barC.querySelector('[data-copy]').dispatchEvent(new wc.MouseEvent('click', { bubbles: true }));
   ok('the findings list says the page could not show them all',
-    /shows the first 200/.test((listC.querySelector('.dbgov-head') || {}).textContent || ''),
+    /marks the first 200 findings/.test((listC.querySelector('.dbgov-head') || {}).textContent || ''),
     (listC.querySelector('.dbgov-head') || {}).textContent || '(no heading)');
   ok('and so does the copied report',
-    /outlines capped at 200 per rule/.test(copiedC || ''),
+    /marks from the first 200 findings per rule/.test(copiedC || ''),
     (/## findings[^\n]*/.exec(copiedC || '') || ['none'])[0]);
   wc.close();
 
@@ -2007,15 +2021,34 @@ console.log('\nWHAT A LIVE UX AUDIT FOUND');
   el2.dispatchEvent(new w2.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
   bar2.querySelector('[data-c]').dispatchEvent(new w2.MouseEvent('click', { bubbles: true }));
   const pinRow = w2.document.querySelector('#__dbgov-list .dbgov-row');
+  /* The ROW is not the button — its CONTENT is. A pin row carries its own ✕,
+     and a real <button> inside a [role=button] is the same nesting violation
+     as one inside a <button>: the ancestor's keydown swallows Enter meant for
+     the ✕ and runs the row's action instead. Two siblings, two jobs. */
   ok('a pin row is keyboard-operable and says what it is',
-    pinRow?.getAttribute('role') === 'button' && pinRow?.tabIndex === 0,
-    `role=${pinRow?.getAttribute('role')} tabindex=${pinRow?.tabIndex}`);
+    !!pinRow?.querySelector('button.dbgov-go') && !pinRow.getAttribute('role'),
+    `go=${!!pinRow?.querySelector('.dbgov-go')} role=${pinRow?.getAttribute('role')}`);
+  ok('and its ✕ is a sibling of that button, not inside it',
+    !!pinRow?.querySelector(':scope > button.dbgov-rm') &&
+    !pinRow?.querySelector('.dbgov-go .dbgov-rm'),
+    'the remove button nests inside the row action');
   ok('and it carries both halves for the hover the ellipsis needs',
     (pinRow?.title || '').includes('\n'), JSON.stringify(pinRow?.title));
   // Enter activates it — the click path, reached without a mouse
-  pinRow.dispatchEvent(new w2.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-  ok('Enter on a row does what clicking it does',
-    w2.document.querySelectorAll('#__dbgov-root .dbgov-pinbox.dbgov-flash').length >= 0, 'no throw');
+  // Enter on the row's BUTTON does what clicking it does — proven by the
+  // flash it schedules, not by an assertion that is true of any DOM.
+  // jsdom implements no scrollIntoView, so reveal would throw before it got
+  // there; the overlay only ever calls it on a page element.
+  el2.scrollIntoView = () => {};
+  pinRow.querySelector('.dbgov-go').dispatchEvent(
+    new w2.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  pinRow.querySelector('.dbgov-go').dispatchEvent(new w2.MouseEvent('click', { bubbles: true }));
+  pendingChecks.push(() => {
+    ok('activating a row flashes the element it points at',
+      w2.document.querySelectorAll('#__dbgov-root .dbgov-pinbox.dbgov-flash').length === 1,
+      `${w2.document.querySelectorAll('#__dbgov-root .dbgov-pinbox.dbgov-flash').length} flashed`);
+    w2.close();
+  });
   bar2.querySelector('[data-settings]').dispatchEvent(new w2.MouseEvent('click', { bubbles: true }));
   const setRow = [...w2.document.querySelectorAll('#__dbgov-list .dbgov-row')]
     .find((r) => r.querySelector('.dbgov-opt'));
@@ -2026,7 +2059,7 @@ console.log('\nWHAT A LIVE UX AUDIT FOUND');
     !w2.document.querySelector('#__dbgov-list button button, #__dbgov-list [role="button"] button, ' +
                                '#__dbgov-list [role="button"] select, #__dbgov-list [role="button"] input'),
     'a control inside a control is invalid and breaks the keyboard');
-  w2.close();
+  // (w2 is closed by the pendingCheck above, once its frame has landed)
 
   // 3) a closed flyout is not in the tab order
   const w3 = boot('<div id="a">a</div>');
@@ -2098,6 +2131,47 @@ console.log('\nWHAT A LIVE UX AUDIT FOUND');
   ok('and two members never share one name',
     new Set(names7).size === names7.length, names7.join(' | '));
   w7.close();
+
+  // 6b) what the verification pass caught — each of these shipped for an hour
+  const w8 = boot('<div id="a" style="padding:7px;color:#eee;background:#fff">text</div>' +
+                  '<div id="dup">x</div><div id="dup">y</div>', ['grid', 'dupid', 'contrast', 'pin']);
+  const bar8 = w8.document.getElementById('__dbgov-bar');
+  const el8 = w8.document.getElementById('a');
+  w8.document.elementFromPoint = () => el8;
+  el8.dispatchEvent(new w8.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
+  bar8.querySelector('[data-c]').dispatchEvent(new w8.MouseEvent('click', { bubbles: true }));
+  // the popover's ✕ and the remove-mode page chip are two components; when they
+  // shared one class the chip's pointer-events:none made every ✕ dead to the mouse
+  const rowX = w8.document.querySelector('#__dbgov-list .dbgov-row .dbgov-rm');
+  ok('the popover\'s ✕ can actually be clicked',
+    rowX && w8.getComputedStyle(rowX).pointerEvents !== 'none' &&
+    w8.getComputedStyle(rowX).position !== 'fixed',
+    `pointer-events=${rowX && w8.getComputedStyle(rowX).pointerEvents} position=${rowX && w8.getComputedStyle(rowX).position}`);
+  // Escape closes the NEWEST layer: a tool's options are opened FROM a flyout
+  bar8.querySelector('.dbgov-fam[data-fam] .dbgov-fam-btn')
+    .dispatchEvent(new w8.MouseEvent('click', { bubbles: true }));
+  bar8.querySelector('[data-settings]').dispatchEvent(new w8.MouseEvent('click', { bubbles: true }));
+  w8.dispatchEvent(new w8.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  ok('Escape closes the popover before the flyout under it',
+    !w8.document.getElementById('__dbgov-list').classList.contains('dbgov-open') &&
+    !!bar8.querySelector('.dbgov-fam.dbgov-open'),
+    'the flyout went first and left the popover stranded above nothing');
+  // powering off must take every overlay with it — the ladder is gated on
+  // State.enabled, so anything still open can never be closed again
+  w8.dispatchEvent(new w8.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  ok('power off closes the flyouts too',
+    !bar8.querySelector('.dbgov-fam.dbgov-open'), 'a flyout survived the power cycle');
+  w8.dispatchEvent(new w8.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  bar8.querySelector('[data-sweep]').dispatchEvent(new w8.MouseEvent('click', { bubbles: true }));
+  pendingChecks.push(() => {
+    const tips8 = [...w8.document.querySelectorAll('#__dbgov-root .dbgov-tip')];
+    const many = tips8.find((x) => /\s/.test(x.textContent));
+    ok('two rules on one element make ONE label, not two stacked on each other',
+      !!many && many.textContent.split(' ').length > 1, tips8.map((x) => x.textContent).join(' | '));
+    ok('and the outline reads as the worse of them',
+      !!many && many.classList.contains('dbgov-error'), many?.className);
+    w8.close();
+  });
 
   // 7) the armed count chip must survive being hovered — it is 1.25:1 without
   const w5 = boot('<div id="a">a</div>');

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.82
+// @version      3.8.83
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -208,7 +208,7 @@ HOW TO USE
       id: 'zindex',
       icon: '⧉', title: 'Stacking — z-index & position',
       startsOn: false,             // optional, armed on a fresh install?
-      badge:   (i) => `<span class="sp">z ${i.cs.zIndex}</span>`,  // optional
+      badge:   (i) => `<span class="dbgov-sp">z ${i.cs.zIndex}</span>`,  // optional
       compact: (i) => null,                                       // optional
       report:  (i) => [`  z-index: ${i.cs.zIndex}`],              // optional
       draw:    (ctx) => {},                                       // optional
@@ -316,7 +316,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.82",
+    VERSION: "3.8.83",
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -1171,9 +1171,9 @@ HOW TO USE
   }
   function legend() {
     return [
-      { mark: "4.5:1 AA✓", means: "green: meets the level set under the settings button" },
-      { mark: "2.8:1 AA✗", means: "red: below it" },
-      { mark: "contrast ?", means: "grey: not measurable - a gradient, an image, an unreadable colour space" }
+      { mark: "ratio ✓", means: "green: meets the WCAG level set above" },
+      { mark: "ratio ✗", means: "red: below it" },
+      { mark: "contrast ?", means: "blue italic: not measurable - a gradient, an image, an unreadable colour space" }
     ];
   }
 
@@ -1393,7 +1393,7 @@ HOW TO USE
   }
   function legend3() {
     return [
-      { mark: "92x24", means: "width x height, rounded" },
+      { mark: "92×24", means: "width × height, rounded" },
       { mark: "r 13", means: "border-radius" },
       { mark: "p / m", means: "padding / margin - top right bottom left, collapsed when equal" },
       { mark: "gap 12", means: "flex or grid gap" },
@@ -1798,9 +1798,26 @@ HOW TO USE
 
   // src/ui/styles.js
   var CSS2 = `
+    /* NAMESPACING DEFENDS THE CLASS AXIS ONLY. A host rule on a TAG or an
+       attribute — Bootstrap Reboot's hr, Tailwind Preflight's svg, the usual
+       input[type=checkbox] visually-hidden trick — matches our elements no
+       matter what we call them, and an INHERITED property set on <html> flows
+       straight into us: the root is a child of documentElement. Specificity is
+       not the defence; declaring the property is. So the root stops every
+       inherited property we rely on, and each element type below re-asserts
+       what a host most commonly sets on it. */
     #__dbgov-root { position: fixed; inset: 0; z-index: ${CONFIG.Z}; pointer-events: none;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    #__dbgov-root * { box-sizing: border-box; }
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px; font-style: normal; font-variant: normal; font-weight: 400;
+      line-height: normal; letter-spacing: normal; word-spacing: normal;
+      text-transform: none; text-indent: 0; text-shadow: none; text-align: left;
+      white-space: normal; direction: ltr; visibility: visible; float: none; }
+    #__dbgov-root * { box-sizing: border-box; float: none; }
+    /* form controls take their own tag rules — a host styling the button TAG reaches
+       every button we draw, whatever we called it */
+    #__dbgov-root button, #__dbgov-root input, #__dbgov-root select {
+      margin: 0; text-transform: none; letter-spacing: normal;
+      word-spacing: normal; text-indent: 0; }
 
     .dbgov-box { position: fixed; pointer-events: none; }
     .dbgov-hover  { outline: 1.5px solid #58c4ff; outline-offset: -1px; background: rgba(88,196,255,.06); }
@@ -1875,7 +1892,9 @@ HOW TO USE
        look the same wherever it is injected. */
     #__dbgov-list .dbgov-opt { flex: none; cursor: pointer; font: inherit;
       background: #2c2c31; color: #b5e853; font-weight: 700; border: 0;
-      border-radius: 6px; padding: 3px 6px; }
+      border-radius: 6px; padding: 3px 6px;
+      width: auto; height: auto; margin: 0; position: static;
+      opacity: 1; appearance: auto; text-transform: none; }
     #__dbgov-list .dbgov-opt:hover { background: #3a3a41; }
     /* what the settings under it change — the category, not the owning tool */
     /* which of the three screens this is — one slot showed findings, pins and
@@ -1891,13 +1910,27 @@ HOW TO USE
     #__dbgov-list .dbgov-head .dbgov-note { display: block; margin-top: 2px;
       font-size: 10px; font-weight: 400; letter-spacing: 0; text-transform: none; }
     /* stored and waiting — the tool that reads it is switched off */
-    #__dbgov-list .dbgov-row.dbgov-inert .dbgov-lbl, #__dbgov-list .dbgov-row.dbgov-inert .dbgov-tag { opacity: .45; }
+    /* .45 put the label at 2.53:1 against the popover — a permanent state,
+       not a transient one, and unreadable in exactly the tool that ships a
+       contrast checker. Dimmed enough to read as inactive, light enough to
+       read at all. */
+    #__dbgov-list .dbgov-row.dbgov-inert .dbgov-lbl, #__dbgov-list .dbgov-row.dbgov-inert .dbgov-tag { opacity: .7; }
     #__dbgov-list .dbgov-num { flex: none; display: flex; align-items: center; gap: 4px; }
     #__dbgov-list .dbgov-num .dbgov-opt { width: 68px; text-align: right; }
     #__dbgov-list .dbgov-unit { color: #8f8f96; font-weight: 400; }
     /* accent-color rather than a hand-built switch: the native control already
        knows focus, keyboard and the platform's own hit target */
-    #__dbgov-list .dbgov-tick { width: 15px; height: 15px; padding: 0; accent-color: #b5e853; }
+    /* Declared, not defaulted: the common host pattern for hiding a native
+       checkbox behind a custom one is input[type=checkbox]{position:absolute;
+       opacity:0;width:1px}, and a TAG+ATTRIBUTE selector reaches straight past
+       a class namespace. Unopposed is what loses, so this opposes it. */
+    #__dbgov-list .dbgov-tick { width: 15px; height: 15px; padding: 0; margin: 0;
+      position: static; opacity: 1; appearance: auto; accent-color: #b5e853; }
+    /* the row's action, when it has one: the CONTENT is the button, so the
+       row's ✕ stays a sibling and no interactive element nests in another */
+    #__dbgov-list .dbgov-go { flex: 1 1 auto; min-width: 0; display: flex;
+      align-items: center; gap: 8px; padding: 0; border: 0; background: none;
+      color: inherit; font: inherit; text-align: left; cursor: pointer; }
     #__dbgov-list .dbgov-rm { flex: none; width: 20px; height: 20px; border: 0; cursor: pointer;
       border-radius: 50%; background: #2c2c31; color: #ff8a8a; font-size: 11px;
       display: flex; align-items: center; justify-content: center; }
@@ -1958,12 +1991,12 @@ HOW TO USE
     .dbgov-pin-num.dbgov-rmtarget { background: #ff5c5c; color: #fff; }
 
     /* remove mode: ✕ chips appear only while the remove key is held */
-    .dbgov-rm { position: fixed; pointer-events: none;
+    .dbgov-rmchip { position: fixed; pointer-events: none;
       width: 18px; height: 18px; border-radius: 50%; background: #ff5c5c; color: #fff;
       font-size: 11px; font-weight: 800; line-height: 1;
       display: flex; align-items: center; justify-content: center;
       box-shadow: 0 2px 6px rgba(0,0,0,.5); transition: transform .1s ease; }
-    .dbgov-rm.dbgov-target { transform: scale(1.3); background: #ff2f2f; }
+    .dbgov-rmchip.dbgov-target { transform: scale(1.3); background: #ff2f2f; }
 
     #__dbgov-bar { position: fixed; right: 14px; top: 50%;
       pointer-events: auto; display: flex; flex-direction: column; align-items: center;
@@ -2039,6 +2072,7 @@ HOW TO USE
     #__dbgov-bar[data-side="top"] .dbgov-fam .dbgov-flyout,
     #__dbgov-bar[data-side="bottom"] .dbgov-fam .dbgov-flyout { left: calc(100% + 12px); }
     #__dbgov-bar hr.dbgov-sep { width: 20px; height: 1px; border: 0; margin: 1px 0;
+      opacity: 1; overflow: visible; color: inherit;
       background: rgba(255,255,255,.14); }
     #__dbgov-bar .dbgov-cnt { font-size: 11px; font-weight: 700; color: #ff8a65;
       border: 0; background: transparent; cursor: pointer; padding: 2px 6px;
@@ -2060,6 +2094,9 @@ HOW TO USE
        a more specific display on the buttons out-guns the hider — the exact
        mistake the fam flyout already made once. One icon set (lucide, ISC),
        one size; the .dbgov-whenOn / .dbgov-pwr / .dbgov-fam-btn flex does the centring. */
+    /* every svg we own, not just the bar's: Preflight sets display on the
+       TAG, so a rule scoped to one container leaves the rest of them to it */
+    #__dbgov-root svg { display: inline-block; vertical-align: middle; }
     #__dbgov-bar button svg { width: 16px; height: 16px; pointer-events: none; }
     #__dbgov-bar .dbgov-grip svg { width: 14px; height: 14px; display: block; }
     #__dbgov-list .dbgov-tag svg { width: 14px; height: 14px; vertical-align: -3px; }
@@ -2113,9 +2150,17 @@ HOW TO USE
      * for something this cannot draw should be visibly missing, not silently
      * approximated by whichever branch happened to fall through.
      */
-    build(c, onChange) {
+    /* `name` is the row's own label, handed down so every control has an
+       ACCESSIBLE NAME. These are built on every re-render, long after the
+       panel's init-time labelling pass — the same gap the badge flyout's
+       buttons had. Without it a screen reader announces a bare combo box:
+       the label sits in a sibling span, which no native association reaches. */
+    build(c, onChange, name) {
       const fn = Controls[c.kind];
-      return fn ? fn(c, onChange) : document.createElement("span");
+      const el2 = fn ? fn(c, onChange) : document.createElement("span");
+      const field = el2.matches?.("select, input") ? el2 : el2.querySelector?.("select, input");
+      if (field && name) field.setAttribute("aria-label", name);
+      return el2;
     },
     choice(c, onChange) {
       const sel = document.createElement("select");
@@ -2235,8 +2280,15 @@ HOW TO USE
          * its value has, and so cannot start deciding any of that.
          */
         set(rows, empty = "") {
-          const focusedRow = document.activeElement && [...el2.children].indexOf(document.activeElement.closest?.(".dbgov-row"));
+          const live = document.activeElement;
+          const owner = live && el2.contains(live) ? live.closest(".dbgov-row") : null;
+          const focus = owner ? { at: [...el2.children].indexOf(owner), cls: live.className.split(" ")[0] } : null;
           el2.textContent = "";
+          const restore = () => {
+            if (!focus || focus.at < 0) return;
+            const row = el2.children[focus.at];
+            (row?.querySelector?.("." + focus.cls) || row?.querySelector?.(".dbgov-go"))?.focus?.();
+          };
           if (!rows.length) {
             const e = document.createElement("div");
             e.className = "dbgov-empty";
@@ -2281,25 +2333,32 @@ HOW TO USE
             lbl.textContent = row.label;
             if (row.accent) r.dataset.accent = row.accent;
             if (row.inert) r.classList.add("dbgov-inert");
-            if (row.activatable) {
-              r.setAttribute("role", "button");
-              r.tabIndex = 0;
-              r.addEventListener("click", () => api.onRowActivate?.(i));
-              r.addEventListener("keydown", (e) => {
-                if (e.key !== "Enter" && e.key !== " ") return;
-                e.preventDefault();
-                api.onRowActivate?.(i);
-              });
+            if (row.label || row.detail) {
+              r.title = [row.label, row.detail].filter(Boolean).join("\n");
             }
             if (row.control) {
-              r.append(tag, lbl, Controls.build(row.control, (raw) => api.onRowChange?.(i, raw)));
+              r.append(tag, lbl, Controls.build(
+                row.control,
+                (raw) => api.onRowChange?.(i, raw),
+                row.label
+              ));
             } else {
               const det = document.createElement("span");
               det.className = "dbgov-det";
               det.textContent = row.detail || "";
-              if (row.detail) r.title = `${row.label}
-${row.detail}`;
-              r.append(tag, lbl, det);
+              if (row.activatable) {
+                const go = document.createElement("button");
+                go.className = "dbgov-go";
+                go.append(tag, lbl, det);
+                go.addEventListener("click", (e) => {
+                  e.stopPropagation();
+                  api.onRowActivate?.(i);
+                });
+                r.addEventListener("click", () => api.onRowActivate?.(i));
+                r.append(go);
+              } else {
+                r.append(tag, lbl, det);
+              }
             }
             if (row.removable) {
               const rm = document.createElement("button");
@@ -2314,7 +2373,7 @@ ${row.detail}`;
             }
             el2.append(r);
           });
-          if (focusedRow >= 0) el2.children[focusedRow]?.focus?.();
+          restore();
           place();
         }
       };
@@ -2476,7 +2535,10 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         setOn(v) {
           el2.classList.toggle("dbgov-on", v);
           el2.querySelector("[data-st]").textContent = v ? "ON" : "OFF";
-          if (!v) api.toggleList(false);
+          if (!v) {
+            api.toggleList(false);
+            api.closeFlyouts();
+          }
           if (v) {
             clearTimeout(tuckTimer);
             untuck();
@@ -2980,7 +3042,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         }
         if (State.removeMode) {
           const rm = document.createElement("div");
-          rm.className = "dbgov-rm" + (isTarget ? " dbgov-target" : "");
+          rm.className = "dbgov-rmchip" + (isTarget ? " dbgov-target" : "");
           rm.textContent = "✕";
           layer.append(rm);
           const rx = Math.min(innerWidth - 20, Math.max(2, i.r.right - 9));
@@ -3007,14 +3069,21 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         Place.put(box, i.r.left, i.r.top, i.r.width, i.r.height);
         layer.append(box);
       }
+      const marked = /* @__PURE__ */ new Map();
       const marks = (found) => {
-        const seen = /* @__PURE__ */ new Map();
         for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
           if (!document.contains(f.el)) continue;
-          const at = seen.get(f.el);
+          const at = marked.get(f.el);
           if (at) {
             at.n++;
             at.rules.add(f.rule);
+            const cls2 = f.verdict === "review" ? "review" : f.severity;
+            if ((CONFIG.SEVERITY[cls2] || 0) > (CONFIG.SEVERITY[at.cls] || 0)) {
+              at.box.className = "dbgov-box dbgov-flag dbgov-" + cls2;
+              if (at.tip) at.tip.className = "dbgov-tip dbgov-" + cls2;
+              at.cls = cls2;
+            }
+            if (at.tip) at.tip.textContent = label(at);
             continue;
           }
           const r = f.el.getBoundingClientRect();
@@ -3023,19 +3092,18 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           box.className = "dbgov-box dbgov-flag dbgov-" + cls;
           Place.put(box, r.left, r.top, r.width, r.height);
           layer.append(box);
-          seen.set(f.el, { r, cls, n: 1, rules: /* @__PURE__ */ new Set([f.rule]) });
-        }
-        for (const [, m] of seen) {
-          if (m.r.bottom < 0 || m.r.top > innerHeight || m.r.right < 0 || m.r.left > innerWidth) continue;
+          const m = { r, cls, n: 1, rules: /* @__PURE__ */ new Set([f.rule]), tip: null, box };
+          marked.set(f.el, m);
+          if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue;
           const tip = document.createElement("div");
-          tip.className = "dbgov-tip dbgov-" + m.cls;
-          tip.textContent = [...m.rules].join(" ") + (m.n > 1 ? ` ×${m.n}` : "");
+          tip.className = "dbgov-tip dbgov-" + cls;
+          tip.textContent = label(m);
+          m.tip = tip;
           layer.append(tip);
-          const tx = Math.max(2, m.r.left), ty = Math.max(2, m.r.top - 13);
-          Place.put(tip, tx, ty);
-          Place.claim(tx, ty, 8 * tip.textContent.length, 12);
+          Place.smart(tip, r, { avoid: r });
         }
       };
+      const label = (m) => [...m.rules].join(" ") + (m.n > 1 ? ` ×${m.n}` : "");
       const ctx = { layer, Place, State, U, marks, found: [] };
       for (const t of Tools.active()) {
         ctx.found = State.sweep && State.sweep.byTool[t.id] || [];
@@ -3237,7 +3305,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       const s = State.sweep;
       if (!s) return " · pinned elements only";
       return ` · whole page · ${s.rules} rule${s.rules === 1 ? "" : "s"} · ${s.elements} elements` + // the page could not show them all; this text can
-      (Object.values(s.byTool).some((f) => f.length > CONFIG.MARK_LIMIT) ? ` · outlines capped at ${CONFIG.MARK_LIMIT} per rule` : "");
+      (Object.values(s.byTool).some((f) => f.length > CONFIG.MARK_LIMIT) ? ` · marks from the first ${CONFIG.MARK_LIMIT} findings per rule` : "");
     },
     /**
      * Put text on the clipboard. Separate from copy() because it is not only
@@ -3371,9 +3439,9 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         }
         if (e.key === "Escape" && State.enabled && !Interactions.typing(e)) {
           if (Menu.isOpen()) Menu.close();
-          else if (Panel.isFlyoutOpen()) Panel.closeFlyouts();
           else if (State.removeMode) ctl.setRemoveMode(false);
           else if (Panel.isListOpen()) Panel.toggleList(false);
+          else if (Panel.isFlyoutOpen()) Panel.closeFlyouts();
           else if (State.pins.length || State.current) ctl.clearPins();
         }
       }, true);
@@ -3676,6 +3744,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
   var Controller = {
     setPower(v) {
       State.enabled = v;
+      if (!v) Menu.close();
       if (!v) State.hoverEl = null;
       if (v) {
         try {
@@ -3793,7 +3862,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       if (capped.length) {
         rows.unshift({
           heading: `${Math.max(...capped)} found by one rule`,
-          detail: `the page shows the first ${CONFIG.MARK_LIMIT} of each — this list is complete`
+          detail: `the page marks the first ${CONFIG.MARK_LIMIT} findings of each — this list is complete`
         });
       }
       return rows;

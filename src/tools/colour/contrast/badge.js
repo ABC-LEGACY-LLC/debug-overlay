@@ -18,9 +18,13 @@ export function compact(i) {
 
 /** Three answers, three colours - pass, fail, and could-not-measure. */
 export function legend() {
+        /* No level and no ratio in these marks: the level is a SETTING, and a
+           legend that spelled "4.5:1 AA" would go on saying it after the user
+           chose AAA — the same lie a title claiming "2px" told about the grid
+           step. The shape is what a legend is for; the number is on the badge. */
         return [
-          { mark: '4.5:1 AA\u2713', means: 'green: meets the level set under the settings button' },
-          { mark: '2.8:1 AA\u2717', means: 'red: below it' },
-          { mark: 'contrast ?', means: 'grey: not measurable - a gradient, an image, an unreadable colour space' },
+          { mark: 'ratio \u2713', means: 'green: meets the WCAG level set above' },
+          { mark: 'ratio \u2717', means: 'red: below it' },
+          { mark: 'contrast ?', means: 'blue italic: not measurable - a gradient, an image, an unreadable colour space' },
         ];
 }

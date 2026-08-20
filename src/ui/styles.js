@@ -7,9 +7,26 @@ import { CONFIG } from '../core/config.js';
   // with change, and every button keeps its 34/36px target. (Comments stay
   // OUT of the template: this string ships to every page as a <style>.)
   export const CSS = `
+    /* NAMESPACING DEFENDS THE CLASS AXIS ONLY. A host rule on a TAG or an
+       attribute — Bootstrap Reboot's hr, Tailwind Preflight's svg, the usual
+       input[type=checkbox] visually-hidden trick — matches our elements no
+       matter what we call them, and an INHERITED property set on <html> flows
+       straight into us: the root is a child of documentElement. Specificity is
+       not the defence; declaring the property is. So the root stops every
+       inherited property we rely on, and each element type below re-asserts
+       what a host most commonly sets on it. */
     #__dbgov-root { position: fixed; inset: 0; z-index: ${CONFIG.Z}; pointer-events: none;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    #__dbgov-root * { box-sizing: border-box; }
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px; font-style: normal; font-variant: normal; font-weight: 400;
+      line-height: normal; letter-spacing: normal; word-spacing: normal;
+      text-transform: none; text-indent: 0; text-shadow: none; text-align: left;
+      white-space: normal; direction: ltr; visibility: visible; float: none; }
+    #__dbgov-root * { box-sizing: border-box; float: none; }
+    /* form controls take their own tag rules — a host styling the button TAG reaches
+       every button we draw, whatever we called it */
+    #__dbgov-root button, #__dbgov-root input, #__dbgov-root select {
+      margin: 0; text-transform: none; letter-spacing: normal;
+      word-spacing: normal; text-indent: 0; }
 
     .dbgov-box { position: fixed; pointer-events: none; }
     .dbgov-hover  { outline: 1.5px solid #58c4ff; outline-offset: -1px; background: rgba(88,196,255,.06); }
@@ -84,7 +101,9 @@ import { CONFIG } from '../core/config.js';
        look the same wherever it is injected. */
     #__dbgov-list .dbgov-opt { flex: none; cursor: pointer; font: inherit;
       background: #2c2c31; color: #b5e853; font-weight: 700; border: 0;
-      border-radius: 6px; padding: 3px 6px; }
+      border-radius: 6px; padding: 3px 6px;
+      width: auto; height: auto; margin: 0; position: static;
+      opacity: 1; appearance: auto; text-transform: none; }
     #__dbgov-list .dbgov-opt:hover { background: #3a3a41; }
     /* what the settings under it change — the category, not the owning tool */
     /* which of the three screens this is — one slot showed findings, pins and
@@ -100,13 +119,27 @@ import { CONFIG } from '../core/config.js';
     #__dbgov-list .dbgov-head .dbgov-note { display: block; margin-top: 2px;
       font-size: 10px; font-weight: 400; letter-spacing: 0; text-transform: none; }
     /* stored and waiting — the tool that reads it is switched off */
-    #__dbgov-list .dbgov-row.dbgov-inert .dbgov-lbl, #__dbgov-list .dbgov-row.dbgov-inert .dbgov-tag { opacity: .45; }
+    /* .45 put the label at 2.53:1 against the popover — a permanent state,
+       not a transient one, and unreadable in exactly the tool that ships a
+       contrast checker. Dimmed enough to read as inactive, light enough to
+       read at all. */
+    #__dbgov-list .dbgov-row.dbgov-inert .dbgov-lbl, #__dbgov-list .dbgov-row.dbgov-inert .dbgov-tag { opacity: .7; }
     #__dbgov-list .dbgov-num { flex: none; display: flex; align-items: center; gap: 4px; }
     #__dbgov-list .dbgov-num .dbgov-opt { width: 68px; text-align: right; }
     #__dbgov-list .dbgov-unit { color: #8f8f96; font-weight: 400; }
     /* accent-color rather than a hand-built switch: the native control already
        knows focus, keyboard and the platform's own hit target */
-    #__dbgov-list .dbgov-tick { width: 15px; height: 15px; padding: 0; accent-color: #b5e853; }
+    /* Declared, not defaulted: the common host pattern for hiding a native
+       checkbox behind a custom one is input[type=checkbox]{position:absolute;
+       opacity:0;width:1px}, and a TAG+ATTRIBUTE selector reaches straight past
+       a class namespace. Unopposed is what loses, so this opposes it. */
+    #__dbgov-list .dbgov-tick { width: 15px; height: 15px; padding: 0; margin: 0;
+      position: static; opacity: 1; appearance: auto; accent-color: #b5e853; }
+    /* the row's action, when it has one: the CONTENT is the button, so the
+       row's ✕ stays a sibling and no interactive element nests in another */
+    #__dbgov-list .dbgov-go { flex: 1 1 auto; min-width: 0; display: flex;
+      align-items: center; gap: 8px; padding: 0; border: 0; background: none;
+      color: inherit; font: inherit; text-align: left; cursor: pointer; }
     #__dbgov-list .dbgov-rm { flex: none; width: 20px; height: 20px; border: 0; cursor: pointer;
       border-radius: 50%; background: #2c2c31; color: #ff8a8a; font-size: 11px;
       display: flex; align-items: center; justify-content: center; }
@@ -167,12 +200,12 @@ import { CONFIG } from '../core/config.js';
     .dbgov-pin-num.dbgov-rmtarget { background: #ff5c5c; color: #fff; }
 
     /* remove mode: ✕ chips appear only while the remove key is held */
-    .dbgov-rm { position: fixed; pointer-events: none;
+    .dbgov-rmchip { position: fixed; pointer-events: none;
       width: 18px; height: 18px; border-radius: 50%; background: #ff5c5c; color: #fff;
       font-size: 11px; font-weight: 800; line-height: 1;
       display: flex; align-items: center; justify-content: center;
       box-shadow: 0 2px 6px rgba(0,0,0,.5); transition: transform .1s ease; }
-    .dbgov-rm.dbgov-target { transform: scale(1.3); background: #ff2f2f; }
+    .dbgov-rmchip.dbgov-target { transform: scale(1.3); background: #ff2f2f; }
 
     #__dbgov-bar { position: fixed; right: 14px; top: 50%;
       pointer-events: auto; display: flex; flex-direction: column; align-items: center;
@@ -248,6 +281,7 @@ import { CONFIG } from '../core/config.js';
     #__dbgov-bar[data-side="top"] .dbgov-fam .dbgov-flyout,
     #__dbgov-bar[data-side="bottom"] .dbgov-fam .dbgov-flyout { left: calc(100% + 12px); }
     #__dbgov-bar hr.dbgov-sep { width: 20px; height: 1px; border: 0; margin: 1px 0;
+      opacity: 1; overflow: visible; color: inherit;
       background: rgba(255,255,255,.14); }
     #__dbgov-bar .dbgov-cnt { font-size: 11px; font-weight: 700; color: #ff8a65;
       border: 0; background: transparent; cursor: pointer; padding: 2px 6px;
@@ -269,6 +303,9 @@ import { CONFIG } from '../core/config.js';
        a more specific display on the buttons out-guns the hider — the exact
        mistake the fam flyout already made once. One icon set (lucide, ISC),
        one size; the .dbgov-whenOn / .dbgov-pwr / .dbgov-fam-btn flex does the centring. */
+    /* every svg we own, not just the bar's: Preflight sets display on the
+       TAG, so a rule scoped to one container leaves the rest of them to it */
+    #__dbgov-root svg { display: inline-block; vertical-align: middle; }
     #__dbgov-bar button svg { width: 16px; height: 16px; pointer-events: none; }
     #__dbgov-bar .dbgov-grip svg { width: 14px; height: 14px; display: block; }
     #__dbgov-list .dbgov-tag svg { width: 14px; height: 14px; vertical-align: -3px; }

@@ -105,9 +105,19 @@ import { root } from './dom.js';
            this element — so a row the KEYBOARD was standing on sent focus to
            <body> the moment it was used, and the next Tab started from the top
            of the page. Remember where focus was by index and put it back. */
-        const focusedRow = document.activeElement &&
-          [...el.children].indexOf(document.activeElement.closest?.('.dbgov-row'));
+        const live = document.activeElement;
+        const owner = live && el.contains(live) ? live.closest('.dbgov-row') : null;
+        const focus = owner
+          ? { at: [...el.children].indexOf(owner), cls: live.className.split(' ')[0] }
+          : null;
         el.textContent = '';
+        const restore = () => {
+          if (!focus || focus.at < 0) return;
+          const row = el.children[focus.at];
+          // the same KIND of control in the same position, or the row's own
+          // action if that control is gone; never silently somewhere else
+          (row?.querySelector?.('.' + focus.cls) || row?.querySelector?.('.dbgov-go'))?.focus?.();
+        };
         if (!rows.length) {
           const e = document.createElement('div');
           e.className = 'dbgov-empty';
@@ -172,28 +182,37 @@ import { root } from './dom.js';
              guarding, since it cannot cancel a button's own activation.
              `activatable` is the controller's word: only it knows which rows
              resolve to something on the page. */
-          if (row.activatable) {
-            r.setAttribute('role', 'button');
-            r.tabIndex = 0;
-            r.addEventListener('click', () => api.onRowActivate?.(i));
-            r.addEventListener('keydown', (e) => {
-              if (e.key !== 'Enter' && e.key !== ' ') return;
-              e.preventDefault();        // Space must not scroll the page
-              api.onRowActivate?.(i);
-            });
+          /* The detail is the cell that truncates now, so the whole of it has
+             to be somewhere: a selector you cannot read is not an address. */
+          if (row.label || row.detail) {
+            r.title = [row.label, row.detail].filter(Boolean).join('\n');
           }
           if (row.control) {
-            r.append(tag, lbl, Controls.build(row.control, (raw) => api.onRowChange?.(i, raw)));
+            r.append(tag, lbl, Controls.build(row.control, (raw) => api.onRowChange?.(i, raw),
+                                              row.label));
           } else {
             const det = document.createElement('span');
             det.className = 'dbgov-det';
             det.textContent = row.detail || '';
-            /* The detail is the cell that truncates now, so the whole of it
-               has to be somewhere: a selector you cannot read is not an
-               address. Both halves, on the row, for the hover that the
-               ellipsis makes necessary. */
-            if (row.detail) r.title = `${row.label}\n${row.detail}`;
-            r.append(tag, lbl, det);
+            /* A row that DOES something wraps its CONTENT in the button —
+               never the row itself. The row also carries a ✕, and interactive
+               content may not nest: a real <button> inside a [role=button]
+               is the same violation as one inside a <button>, and the
+               ancestor's keydown swallowed Enter on the ✕ and ran the row's
+               action instead. Two siblings, two jobs, both reachable. */
+            if (row.activatable) {
+              const go = document.createElement('button');
+              go.className = 'dbgov-go';
+              go.append(tag, lbl, det);
+              // the button is the keyboard's and the screen reader's; the whole
+              // ROW stays clickable for the mouse, which is the target it has
+              // always been. stopPropagation so one click is not two.
+              go.addEventListener('click', (e) => { e.stopPropagation(); api.onRowActivate?.(i); });
+              r.addEventListener('click', () => api.onRowActivate?.(i));
+              r.append(go);
+            } else {
+              r.append(tag, lbl, det);
+            }
           }
           // Only rows that own something can drop it. A finding is a fact
           // about the page; there is nothing there for a ✕ to remove.
@@ -207,8 +226,7 @@ import { root } from './dom.js';
           }
           el.append(r);
         });
-        // put the keyboard back where it was, now that the rows exist again
-        if (focusedRow >= 0) el.children[focusedRow]?.focus?.();
+        restore();   // put the keyboard back where it was
         place();
       },
     };

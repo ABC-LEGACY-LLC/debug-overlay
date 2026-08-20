@@ -5,6 +5,7 @@ import { CONFIG } from '../core/config.js';
 import { TOOLS, Tools } from '../core/registry.js';
 import { State, Store } from '../core/state.js';
 import { U } from '../core/utils.js';
+import { Menu } from '../ui/menu.js';
 import { Panel } from '../ui/panel.js';
 import { Render } from '../ui/renderer.js';
   /* ======================================================================
@@ -13,6 +14,9 @@ import { Render } from '../ui/renderer.js';
   export const Controller = {
     setPower(v) {
       State.enabled = v;
+      // every overlay goes with the session: Escape is gated on State.enabled,
+      // so anything left open when the power goes off can never be closed
+      if (!v) Menu.close();
       if (!v) State.hoverEl = null;
       // A selection the page already had would be extended by the first
       // shift-click instead of measured from, so start the session clean.
@@ -154,7 +158,7 @@ import { Render } from '../ui/renderer.js';
       if (capped.length) {
         rows.unshift({
           heading: `${Math.max(...capped)} found by one rule`,
-          detail: `the page shows the first ${CONFIG.MARK_LIMIT} of each — this list is complete`,
+          detail: `the page marks the first ${CONFIG.MARK_LIMIT} findings of each — this list is complete`,
         });
       }
       return rows;

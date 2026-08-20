@@ -112,9 +112,12 @@ import { Render } from '../ui/renderer.js';
              one key whose universal meaning is "close this", walked straight
              past an open flyout and cleared the pins behind it. */
           if (Menu.isOpen()) Menu.close();   // the newest top layer
-          else if (Panel.isFlyoutOpen()) Panel.closeFlyouts();
           else if (State.removeMode) ctl.setRemoveMode(false);
+          /* the popover BEFORE the flyout: a tool's options are opened by
+             right-clicking a flyout member, so they sit on top of it, and
+             closing the flyout first left the popover stranded above nothing */
           else if (Panel.isListOpen()) Panel.toggleList(false);
+          else if (Panel.isFlyoutOpen()) Panel.closeFlyouts();
           else if (State.pins.length || State.current) ctl.clearPins();
         }
       }, true);

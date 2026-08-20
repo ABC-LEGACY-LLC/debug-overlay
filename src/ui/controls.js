@@ -17,9 +17,17 @@
      * for something this cannot draw should be visibly missing, not silently
      * approximated by whichever branch happened to fall through.
      */
-    build(c, onChange) {
+    /* `name` is the row's own label, handed down so every control has an
+       ACCESSIBLE NAME. These are built on every re-render, long after the
+       panel's init-time labelling pass — the same gap the badge flyout's
+       buttons had. Without it a screen reader announces a bare combo box:
+       the label sits in a sibling span, which no native association reaches. */
+    build(c, onChange, name) {
       const fn = Controls[c.kind];
-      return fn ? fn(c, onChange) : document.createElement('span');
+      const el = fn ? fn(c, onChange) : document.createElement('span');
+      const field = el.matches?.('select, input') ? el : el.querySelector?.('select, input');
+      if (field && name) field.setAttribute('aria-label', name);
+      return el;
     },
 
     choice(c, onChange) {

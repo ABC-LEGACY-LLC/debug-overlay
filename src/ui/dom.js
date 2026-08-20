@@ -19,7 +19,7 @@ export function initDom() {
      assistive tech the subtree does not exist while keyboard focus could still
      land inside it — axe's aria-hidden-focus, WCAG 4.1.2. The decorative
      layers get it instead (see the layer below and .dbgov-box/.dbgov-badge/
-     .dbgov-flag, all pointer-events:none), and the whole root goes `inert`
+     .dbgov-flag, all pointer-events:none). The root is NEVER made inert
      while powered off, which hides it from AT AND takes it out of the tab
      order — the thing aria-hidden alone could never do. */
   root.setAttribute('role', 'region');
