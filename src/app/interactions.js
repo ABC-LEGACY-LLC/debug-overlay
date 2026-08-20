@@ -2,7 +2,9 @@ import { Report } from '../services/report/index.js';
 import { CONFIG } from '../core/config.js';
 import { Tools } from '../core/registry.js';
 import { State } from '../core/state.js';
+import { U } from '../core/utils.js';
 import { root } from '../ui/dom.js';
+import { Menu } from '../ui/menu.js';
 import { Panel } from '../ui/panel.js';
 import { Render } from '../ui/renderer.js';
   /* ======================================================================
@@ -82,6 +84,22 @@ import { Render } from '../ui/renderer.js';
            the guard swallowed Escape in the single most common path — open the
            panel with the mouse, press Escape, nothing happens. It silenced
            exactly the gesture the KEYS legend advertises. */
+        /* Ctrl/⌘+C copies the TARGET's selector — the universal copy key
+           doing the obvious thing, instead of a gesture nobody would guess.
+           Free to take because the overlay already swallows text selection
+           while ON, so there is nothing native left for it to copy — except
+           inside a ⚙ field, where typing() keeps it the page's. The target
+           is what you are pointing at, else the current selection. */
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey &&
+            e.code === 'KeyC' && State.enabled && !Interactions.typing(e)) {
+          const t = State.hoverEl || State.current;
+          if (t && document.contains(t)) {
+            e.preventDefault();
+            Report.toClipboard(U.selectorOf(t));
+            Panel.flash('✓');
+          }
+          return;
+        }
         if (e.key === 'Escape' && State.enabled && !Interactions.typing(e)) {
           /* Escape closes the TOP LAYER, and never the session. It used to
              fall through to setPower(false) whenever nothing was pinned, so
@@ -89,7 +107,8 @@ import { Render } from '../ui/renderer.js';
              took the panel, the audit and the session with it — for a key
              whose universal meaning is "close this". Power stays on the button
              and on Alt+Shift+D, both of which say so. */
-          if (State.removeMode) ctl.setRemoveMode(false);
+          if (Menu.isOpen()) Menu.close();   // the newest top layer
+          else if (State.removeMode) ctl.setRemoveMode(false);
           else if (Panel.isListOpen()) Panel.toggleList(false);
           else if (State.pins.length || State.current) ctl.clearPins();
         }
@@ -167,6 +186,23 @@ import { Render } from '../ui/renderer.js';
           : (e.ctrlKey || e.metaKey) ? CONFIG.PIN_KIND.CHAIN
           : CONFIG.PIN_KIND.SHIFT;
         ctl.togglePin(el, kind);
+      }, true);
+
+      /* Right-click on a target: ITS menu — the take-away actions Report
+         owns, on the surface core draws. This file is the door that knows
+         both sides, so the hand-over happens here. ours() already spells
+         the exits: overlay OFF, Alt held, or the panel itself under the
+         cursor all leave the page's own context menu untouched — Alt is
+         the same escape hatch it is for every click. */
+      addEventListener('contextmenu', (e) => {
+        if (!Interactions.ours(e)) return;
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        if (!el || root.contains(el)) return;
+        const rows = Report.targetActions(el);
+        if (!rows.length) return;
+        e.preventDefault();
+        e.stopPropagation();
+        Menu.open(e.clientX, e.clientY, rows);
       }, true);
 
       addEventListener('scroll', Render.schedule, true);

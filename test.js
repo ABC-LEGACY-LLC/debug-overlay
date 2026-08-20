@@ -828,15 +828,17 @@ console.log('\nSTORAGE');
   [d7, d8, d9, d10].forEach((d) => d.window.close());
 }
 
-console.log('\nINPUT');
+console.log('\nTHE TARGET MENU');
 /**
- * Every other hook describes the page or draws over it. This is the one that
- * ACTS on it, so the thing to prove is the handover: an armed tool gets the
- * click, and the pin that would otherwise follow does not also happen.
+ * Copy is a take-away action, not a tool: there is no arming, the way ⧉ has
+ * none. Right-click a target and Report's rows open on core's menu surface;
+ * Ctrl/⌘+C copies the hovered target's selector. The `pick` tool that
+ * armoured this behind a button and a Ctrl+click is gone — and Ctrl+click
+ * is a plain pin click again.
  */
 {
   const d11 = new JSDOM(
-    `<!doctype html><html><body><div id="q" class="card">hello</div></body></html>`,
+    `<!doctype html><html><body><div id="q" class="card">hello</div><input id="f"></body></html>`,
     { url: 'https://example.test/', pretendToBeVisual: true,
       runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
   const w = d11.window;
@@ -846,6 +848,7 @@ console.log('\nINPUT');
   w.eval(source);
   const bar11 = w.document.getElementById('__dbgov-bar');
   const list11 = w.document.getElementById('__dbgov-list');
+  const menu = () => w.document.getElementById('__dbgov-menu');
   const el = w.document.getElementById('q');
   w.document.elementFromPoint = () => el;
   w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
@@ -854,32 +857,65 @@ console.log('\nINPUT');
     .dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   // the count chip is painted a frame later; the list is rebuilt synchronously
   const pins = () => { chip(); const n = list11.querySelectorAll('.row').length; chip(); return n; };
-  const clickEl = (opt) => el.dispatchEvent(
-    new w.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5, ...opt }));
+  const rclick = (opt) => {
+    const ev = new w.MouseEvent('contextmenu',
+      { bubbles: true, cancelable: true, clientX: 8, clientY: 8, ...opt });
+    el.dispatchEvent(ev);
+    return ev;
+  };
 
-  clickEl({ ctrlKey: true });
-  ok('a tool that is off intercepts nothing', picked === null && pins() === 1,
-    `copied ${JSON.stringify(picked)}, ${pins()} pins — arming is what turns it on`);
+  rclick({});
+  ok('right-click opens the target menu', menu().classList.contains('open'),
+    'no menu \u2014 the surface never opened');
+  const labels = [...menu().querySelectorAll('button')].map((b) => b.textContent);
+  ok('with the two copy rows', labels.join(' \u00b7 ') === 'Copy selector \u00b7 Copy text',
+    labels.join(' \u00b7 ') || '(empty menu)');
+  menu().querySelectorAll('button')[0]
+    .dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  ok('Copy selector copies the selector', picked === '#q', JSON.stringify(picked));
+  ok('and the menu closed on use', !menu().classList.contains('open'), 'still open');
+  ok('and no pin landed under any of it', pins() === 0, `${pins()} pins`);
 
+  // Escape closes the menu FIRST — the newest top layer, never the pins
+  el.dispatchEvent(new w.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
+  rclick({});
+  w.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  ok('Escape closes the menu and only the menu',
+    !menu().classList.contains('open') && pins() === 1,
+    `menu ${menu().classList.contains('open') ? 'open' : 'closed'}, ${pins()} pins`);
+
+  // Alt is the same escape hatch it is for every click
+  const evAlt = rclick({ altKey: true });
+  ok("Alt+right-click stays the page's own menu",
+    !menu().classList.contains('open') && !evAlt.defaultPrevented,
+    'the overlay took a gesture Alt reserves for the page');
+
+  // powered OFF, right-click is nobody's business but the page's
+  w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  const evOff = rclick({});
+  ok('powered off, right-click is untouched',
+    !menu().classList.contains('open') && !evOff.defaultPrevented, 'not off enough');
+  w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+
+  // Ctrl/⌘+C copies the HOVERED target's selector — the universal key
+  picked = null;
+  el.dispatchEvent(new w.MouseEvent('mousemove', { bubbles: true, clientX: 5, clientY: 5 }));
+  w.dispatchEvent(new w.KeyboardEvent('keydown', { ctrlKey: true, code: 'KeyC', bubbles: true }));
+  ok("Ctrl+C copies the hovered target's selector", picked === '#q', JSON.stringify(picked));
+
+  // …but never inside a field: typing() keeps copy native there
+  picked = null;
+  w.document.getElementById('f').dispatchEvent(
+    new w.KeyboardEvent('keydown', { ctrlKey: true, code: 'KeyC', bubbles: true }));
+  ok('Ctrl+C inside a field stays native', picked === null, JSON.stringify(picked));
+
+  // with pick gone, Ctrl+click is a plain pin click again
+  picked = null;
   bar11.querySelector('[data-clear]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
-  bar11.querySelector('[data-tool="pick"]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
-  clickEl({ ctrlKey: true });
-  ok('an armed tool receives the click', picked === '#q', JSON.stringify(picked));
-  ok('and consuming it means no pin lands underneath', pins() === 0,
-    `${pins()} pins — the overlay did two things for one click`);
-
-  clickEl({});
-  ok('an unclaimed click still pins', pins() === 1, `${pins()} pins`);
-
-  // the option changes what the same click does, through the same ⚙ view
-  bar11.querySelector('[data-settings]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
-  const what = [...list11.querySelectorAll('.row')]
-    .find((r) => r.querySelector('.lbl').textContent === 'Ctrl+click copies')
-    .querySelector('select');
-  what.selectedIndex = [...what.options].findIndex((o) => o.textContent === 'text');
-  what.dispatchEvent(new w.Event('change'));
-  clickEl({ ctrlKey: true });
-  ok('and its own setting changes what it copies', picked === 'hello', JSON.stringify(picked));
+  el.dispatchEvent(new w.MouseEvent('click',
+    { bubbles: true, clientX: 5, clientY: 5, ctrlKey: true }));
+  ok('Ctrl+click pins \u2014 the gesture is free again',
+    picked === null && pins() === 1, `copied ${JSON.stringify(picked)}, ${pins()} pins`);
 
   d11.window.close();
 }
@@ -909,11 +945,12 @@ console.log('\nCATEGORIES');
   // ---- the ⚙ view, filed by what each setting changes ---------------------
   hit('[data-settings]');
   const heads = [...list.querySelectorAll('.head')].map((h) => h.childNodes[0].textContent);
-  // No Select heading since 'Pin grouping' retired: a technique is a gesture
-  // now, and a heading with no settings under it would be furniture. It comes
-  // back the day some tool declares an affects:'select' option.
+  // No Select heading since 'Pin grouping' retired (a technique is a gesture
+  // now), and no Act heading since pick retired with its option (copy is a
+  // take-away action, not a tool) — a heading with no settings under it would
+  // be furniture. Each comes back the day something declares one.
   ok('the ⚙ view is grouped by what a setting changes',
-    heads.join(' → ') === 'Inspect → Detect → Act → Keys',
+    heads.join(' → ') === 'Inspect → Detect → Keys',
     heads.join(' → ') || '(no headings)');
   // the grid rows are not adjacent to each other because they own the tool —
   // they are adjacent because all three change what counts as a problem
@@ -1679,55 +1716,6 @@ console.log('\nBADGE FACETS');
       fly(w2).map((b) => `${b.textContent}${b.classList.contains('armed') ? '*' : ''}`).join(' '));
     w.close(); w2.close();
   }
-}
-
-console.log('\nPICK');
-/**
- * The one component on the input side with an effect. Refactored to receive
- * its capabilities (toClipboard, redraw) through the intercept ctx instead of
- * importing a service and a surface by name — this is the test that the
- * decoupling kept the behaviour.
- */
-{
-  const d = new JSDOM('<!doctype html><html><body><div id="t" class="target">hello</div></body></html>',
-    { url: 'https://example.test/', pretendToBeVisual: true,
-      runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
-  const w = d.window;
-  w.localStorage.setItem('__dbgov_tools', '["pick","pin"]');
-  w.localStorage.setItem('__dbgov_seen', JSON.stringify(idsOnDisk));
-  w.eval(source);
-  let copied = null;
-  Object.defineProperty(w.navigator, 'clipboard',
-    { value: { writeText: async (t) => { copied = t; } }, configurable: true });
-  w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
-  const el = w.document.getElementById('t');
-  w.document.elementFromPoint = () => el;
-  el.dispatchEvent(new w.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5, ctrlKey: true }));
-  ok('Ctrl+click hands the selector to the clipboard',
-    typeof copied === 'string' && /#t|\.target/.test(copied), String(copied));
-  const bar = w.document.getElementById('__dbgov-bar');
-  ok('and the click was claimed, not pinned',
-    bar.querySelector('[data-c]').textContent === '0',
-    'pin count ' + bar.querySelector('[data-c]').textContent);
-  // Claim narrowly: Ctrl+Shift+click is selection's gesture, not pick's.
-  // `ctrlKey || metaKey` alone would swallow it — armed pick must let it pass.
-  copied = null;
-  el.dispatchEvent(new w.MouseEvent('click',
-    { bubbles: true, clientX: 5, clientY: 5, ctrlKey: true, shiftKey: true }));
-  ok('Ctrl+Shift+click passes pick by — nothing copied',
-    copied === null, JSON.stringify(copied));
-  pendingChecks.push(() => {
-    // the count chip is painted by the renderer, so it is a frame behind
-    ok('and it reaches the overlay as a pin instead',
-      bar.querySelector('[data-c]').textContent === '1',
-      'pin count ' + bar.querySelector('[data-c]').textContent);
-  });
-  pendingChecks.push(() => {
-    ok('the picked element is flashed on the page',
-      w.document.querySelectorAll('#__dbgov-root .dbgov-picked').length === 1,
-      'the redraw capability did not reach the renderer');
-    w.close();
-  });
 }
 
 console.log('\nSELECTION CHOOSES, PIN KEEPS');

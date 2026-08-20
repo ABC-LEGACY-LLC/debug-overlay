@@ -167,7 +167,6 @@ src/
     dupid/             index · badge · rule · draw · report
     grid/              index · service (Scale) · badge · lens · rule · draw
                        · report · options
-    pick/              index · act
     pin/               index · keep — SELECTION chooses, this KEEPS the choice
     select/            index · service · form · rows
   services/            the four collectors — never edited for a new tool

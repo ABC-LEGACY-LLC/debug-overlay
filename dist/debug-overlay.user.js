@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.77
+// @version      3.8.78
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -40,6 +40,17 @@ HOW TO USE
   Hold X .............. REMOVE mode: a red ✕ appears on every pin and only pins
                         are clickable — click one to delete it. Works even for
                         pins whose element is hard to hit again. Release to exit.
+  Right-click ......... the TARGET's menu: Copy selector / Copy text. Copy is
+                        a take-away action like ⧉, so there is nothing to arm
+                        and no button — it always works. (There used to be a
+                        ⌖ pick tool guarding this behind Ctrl+click; an on/off
+                        switch for "copy" guards nothing.)
+                        Alt+right-click keeps the page's own context menu.
+  Ctrl+C (⌘+C) ........ copy the hovered target's selector — the universal
+                        copy key doing the obvious thing. Free to take while
+                        the overlay is on (it already owns the mouse, so no
+                        page text can be selected); inside a ⚙ field copy
+                        stays the field's.
   Hold Alt ............ pass clicks through to the page (links keep working)
   Esc ................. closes the top layer: an open panel first, then remove
                         mode, then pins and the selection. It never powers the
@@ -125,9 +136,6 @@ HOW TO USE
                  slide out sideways:
        ◐ contrast  WCAG text contrast ratio, against AA or AAA (⚙)
     ⌗ dupid      the same id used more than once — a page-wide question
-    ⌖ pick       Ctrl+click (⌘+click) copies what you clicked — its selector,
-                 or its text (⚙). Off by default: it takes a click over, and
-                 that should be something you asked for.
 
   Every tool fills one or more of four ROLES, derived from the hooks it
   implements and shown in its tooltip: Select (what you are looking at),
@@ -146,7 +154,7 @@ HOW TO USE
   appears, with nothing installed or wired up.
 
   The rules between the buttons mark the PIPELINE, top to bottom: the input
-  side (📌 pin, ⬚ select, ⌖ pick — what your clicks become), then the components
+  side (📌 pin, ⬚ select — what your clicks become), then the components
   (what describes the page), then ⌕ and ⚙, then the copy/clear band — the pin
   count sits up with 📌, whose home it is. A
   green dot on a tool means its rule feeds ⌕. Arming decides what you SEE;
@@ -297,7 +305,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.77",
+    VERSION: "3.8.78",
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -430,7 +438,7 @@ HOW TO USE
      * a colon is not legal in one unescaped, so nobody typed it.
      */
     stableId: (id) => /^[A-Za-z][\w-]*$/.test(id),
-    selectorOf(el) {
+    selectorOf(el2) {
       const part = (e2) => {
         if (e2.id && U.stableId(e2.id)) return "#" + e2.id;
         let s = e2.tagName.toLowerCase();
@@ -444,7 +452,7 @@ HOW TO USE
         return s;
       };
       const chain = [];
-      let e = el;
+      let e = el2;
       while (e && e.tagName && chain.length < 3) {
         chain.unshift(part(e));
         if (e.id && U.stableId(e.id)) break;
@@ -453,24 +461,24 @@ HOW TO USE
       return chain.join(" > ");
     },
     // human-readable name for a pin row: the element's own text, else a selector
-    labelOf(el) {
-      const t = (el.innerText || el.textContent || "").trim().replace(/\s+/g, " ");
+    labelOf(el2) {
+      const t = (el2.innerText || el2.textContent || "").trim().replace(/\s+/g, " ");
       if (t) return t.length <= 34 ? t : t.slice(0, 31) + "…";
-      const cls = [...el.classList].filter((c) => !c.startsWith("__dbgov"))[0];
-      return el.tagName.toLowerCase() + (el.id ? "#" + el.id : cls ? "." + cls : "");
+      const cls = [...el2.classList].filter((c) => !c.startsWith("__dbgov"))[0];
+      return el2.tagName.toLowerCase() + (el2.id ? "#" + el2.id : cls ? "." + cls : "");
     },
     /**
      * `r` is a getter: a rule that only reads colours never pays for a
      * layout read, which over a whole page is thousands of them. `cs` can be
      * handed in by a caller that has already read it.
      */
-    info(el, cs) {
+    info(el2, cs) {
       let r = null;
       return {
-        el,
-        cs: cs || getComputedStyle(el),
+        el: el2,
+        cs: cs || getComputedStyle(el2),
         get r() {
-          return r || (r = el.getBoundingClientRect());
+          return r || (r = el2.getBoundingClientRect());
         }
       };
     },
@@ -1051,9 +1059,9 @@ HOW TO USE
      * taken as if opaque — the first layer over 5% alpha used to be returned
      * outright, which is a different colour from what a reader sees.
      */
-    bg(el) {
+    bg(el2) {
       const layers = [];
-      let e = el;
+      let e = el2;
       while (e && e.nodeType === 1) {
         const cs = getComputedStyle(e);
         if (cs.backgroundImage && cs.backgroundImage !== "none") return { unknown: "bg-image" };
@@ -1093,8 +1101,8 @@ HOW TO USE
     // Walked rather than spread: this is the first thing asked of every
     // element in a page sweep, and [...childNodes] allocates an array for
     // each one only to look at the first text node.
-    ownText(el) {
-      for (let n = el.firstChild; n; n = n.nextSibling)
+    ownText(el2) {
+      for (let n = el2.firstChild; n; n = n.nextSibling)
         if (n.nodeType === 3 && n.nodeValue.trim()) return true;
       return false;
     },
@@ -1106,13 +1114,13 @@ HOW TO USE
       "bg-image": "it sits on an image or gradient, so the pixel under the text is unknown",
       "no-canvas": "no canvas is available to resolve colours"
     },
-    measure({ el, cs }) {
-      if (!this.ownText(el)) return null;
+    measure({ el: el2, cs }) {
+      if (!this.ownText(el2)) return null;
       const fg = this.colour(cs.color);
       if (!fg) return { unknown: this.paint() ? "fg-colour" : "no-canvas" };
-      const bg = this.bg(el);
+      const bg = this.bg(el2);
       if (bg.unknown) return bg;
-      const faded = { ...fg, a: (fg.a == null ? 1 : fg.a) * this.opacityOf(el) };
+      const faded = { ...fg, a: (fg.a == null ? 1 : fg.a) * this.opacityOf(el2) };
       const ratio = this.ratio(faded, bg);
       const size = parseFloat(cs.fontSize);
       const bold = parseInt(cs.fontWeight, 10) >= 700;
@@ -1123,9 +1131,9 @@ HOW TO USE
       return { ratio, need, pass: ratio >= need, isLarge, fg: faded, bg, level, want };
     },
     /** Cumulative CSS opacity: every ancestor multiplies what is painted. */
-    opacityOf(el) {
+    opacityOf(el2) {
       let o = 1;
-      for (let e = el; e && e.nodeType === 1; e = e.parentElement) {
+      for (let e = el2; e && e.nodeType === 1; e = e.parentElement) {
         const v = parseFloat(getComputedStyle(e).opacity);
         if (Number.isFinite(v) && v < 1) o *= Math.max(0, v);
         if (o === 0) break;
@@ -1234,10 +1242,10 @@ HOW TO USE
   });
 
   // src/tools/dupid/badge.js
-  function badge2({ el }) {
-    if (!el.id) return null;
+  function badge2({ el: el2 }) {
+    if (!el2.id) return null;
     const n = document.querySelectorAll(
-      `[id="${CSS.escape ? CSS.escape(el.id) : el.id}"]`
+      `[id="${CSS.escape ? CSS.escape(el2.id) : el2.id}"]`
     ).length;
     return n > 1 ? `<span class="dup">⌗ id ×${n}</span>` : null;
   }
@@ -1246,10 +1254,10 @@ HOW TO USE
   }
 
   // src/tools/dupid/report.js
-  function report2({ el }) {
-    if (!el.id) return [];
-    const n = document.querySelectorAll(`[id="${CSS.escape ? CSS.escape(el.id) : el.id}"]`).length;
-    return n > 1 ? [`  ⧉ id "${el.id}" is used ${n} times on this page`] : [];
+  function report2({ el: el2 }) {
+    if (!el2.id) return [];
+    const n = document.querySelectorAll(`[id="${CSS.escape ? CSS.escape(el2.id) : el2.id}"]`).length;
+    return n > 1 ? [`  ⧉ id "${el2.id}" is used ${n} times on this page`] : [];
   }
 
   // src/tools/dupid/rule.js
@@ -1318,7 +1326,7 @@ HOW TO USE
 
   // src/tools/geometry/measure/badge.js
   function badge3(i) {
-    const { el, r, cs } = i;
+    const { el: el2, r, cs } = i;
     const dec = Tools.annotator(i);
     const on = (k) => Tools.setting(this, k);
     const bits = [];
@@ -1340,7 +1348,7 @@ HOW TO USE
       bits.push(`<span class="sp">${U.esc(cs.display)}${g ? " gap " + U.mark(g, dec) : ""}</span>`);
     }
     if (on("font")) bits.push(`<span class="fnt">${U.px(cs.fontSize)}/${U.px(cs.lineHeight) || "–"} ${cs.fontWeight}</span>`);
-    if (on("tag")) bits.push(`<span class="tag">${el.tagName.toLowerCase()}${el.id ? "#" + U.esc(el.id) : ""}</span>`);
+    if (on("tag")) bits.push(`<span class="tag">${el2.tagName.toLowerCase()}${el2.id ? "#" + U.esc(el2.id) : ""}</span>`);
     return bits.join(" · ");
   }
   function compact3(i) {
@@ -1668,67 +1676,6 @@ HOW TO USE
     // through uses: above.
   });
 
-  // src/tools/pick/act.js
-  function intercept({ type, ev, el, redraw, toClipboard }) {
-    if (type !== "click" || ev.shiftKey || !(ev.ctrlKey || ev.metaKey)) return false;
-    const txt = Tools.setting(this, "what") === "text" ? (el.textContent || "").trim() : U.selectorOf(el);
-    if (!txt) return false;
-    toClipboard(txt);
-    this._hit = el;
-    clearTimeout(this._timer);
-    this._timer = setTimeout(
-      () => {
-        this._hit = null;
-        redraw();
-      },
-      CONFIG.PICK_FLASH
-    );
-    redraw();
-    return true;
-  }
-  function draw5({ layer: layer2, Place: Place2 }) {
-    if (!this._hit || !document.contains(this._hit)) return;
-    const r = this._hit.getBoundingClientRect();
-    const box = document.createElement("div");
-    box.className = "dbgov-box dbgov-picked";
-    Place2.put(box, r.left, r.top, r.width, r.height);
-    layer2.append(box);
-  }
-  function report5({ el }) {
-    return [`  selector: ${U.selectorOf(el)}`];
-  }
-  function options2() {
-    return [{
-      key: "what",
-      label: "Ctrl+click copies",
-      def: "selector",
-      values: ["selector", "text"],
-      affects: "act"
-    }];
-  }
-  function gestures() {
-    return [{ keys: "Ctrl/⌘+click", does: "copy what you clicked" }];
-  }
-
-  // src/tools/pick/index.js
-  defineTool({
-    // visuals owned by this tool — appended to the stylesheet at boot
-    css: `
-    .dbgov-picked { outline: 2px solid #b5e853; outline-offset: 1px;
-      background: rgba(181,232,83,.12); }
-    `,
-    id: "pick",
-    icon: "⌖",
-    title: "Pick — Ctrl+click (⌘+click) copies what you clicked",
-    // OFF by default: it takes over a click, and a tool that changes what
-    // clicking does should be something you asked for.
-    intercept,
-    draw: draw5,
-    report: report5,
-    options: options2,
-    gestures
-  });
-
   // src/tools/pin/keep.js
   function keeps() {
     return true;
@@ -1751,7 +1698,7 @@ HOW TO USE
     const { pending } = this._form();
     return pending ? State.pins.indexOf(pending) : -1;
   }
-  function gestures2() {
+  function gestures() {
     return [{
       keys: "Ctrl/⌘+Shift+click",
       does: "chain to the previous pin — repeat for ①─②─③"
@@ -1816,7 +1763,7 @@ HOW TO USE
     },
     groups,
     pendingIndex,
-    gestures: gestures2,
+    gestures,
     listRows,
     reportTail: reportTail2
   });
@@ -1846,6 +1793,16 @@ HOW TO USE
       100% { box-shadow: 0 0 0 16px rgba(88,196,255,0); } }
 
     /* pin list popover — opened from the count chip, closed for screenshots */
+    /* the target menu — right-click's "what can you do with this element" */
+    #__dbgov-menu { position: fixed; display: none; pointer-events: auto;
+      min-width: 150px; background: rgba(18,18,20,.97); border-radius: 10px;
+      padding: 4px; box-shadow: 0 6px 24px rgba(0,0,0,.6); color: #fff;
+      font-size: 12px; }
+    #__dbgov-menu.open { display: block; }
+    #__dbgov-menu button { display: block; width: 100%; text-align: left;
+      padding: 7px 12px; background: transparent; border: 0; border-radius: 6px;
+      color: inherit; font: inherit; cursor: pointer; }
+    #__dbgov-menu button:hover { background: #3a3a41; }
     #__dbgov-list { position: fixed; display: none; pointer-events: auto;
       min-width: 250px; max-width: 460px; max-height: 60vh; overflow-y: auto;
       background: rgba(18,18,20,.97); border-radius: 12px; padding: 6px;
@@ -2118,16 +2075,16 @@ HOW TO USE
   var List;
   function initList() {
     List = (() => {
-      const el = document.createElement("div");
-      el.id = "__dbgov-list";
-      root.append(el);
+      const el2 = document.createElement("div");
+      el2.id = "__dbgov-list";
+      root.append(el2);
       let open = false;
       let view = null;
       let anchor = null;
       function place() {
         if (!anchor) return;
         const r = anchor.el.getBoundingClientRect();
-        const w = el.offsetWidth, h = el.offsetHeight;
+        const w = el2.offsetWidth, h = el2.offsetHeight;
         const G = CONFIG.LIST_GAP, P = CONFIG.LIST_PAD;
         const at = (x, y) => ({
           x: Math.max(P, Math.min(x, innerWidth - w - P)),
@@ -2144,8 +2101,8 @@ HOW TO USE
         const clears = (c) => c.x + w <= r.left || c.x >= r.right || c.y + h <= r.top || c.y >= r.bottom;
         const tried = order.map((k) => beside[k]());
         const pick = tried.find(clears) || tried[0];
-        el.style.left = pick.x + "px";
-        el.style.top = pick.y + "px";
+        el2.style.left = pick.x + "px";
+        el2.style.top = pick.y + "px";
       }
       const api = {
         onOpen: null,
@@ -2168,7 +2125,7 @@ HOW TO USE
           const same = open && view === name;
           open = v === void 0 ? !same : !!v;
           view = open ? name : null;
-          el.classList.toggle("open", open);
+          el2.classList.toggle("open", open);
           anchor?.mark(view);
           if (open) {
             api.onOpen?.(view);
@@ -2186,12 +2143,12 @@ HOW TO USE
          * its value has, and so cannot start deciding any of that.
          */
         set(rows, empty = "") {
-          el.textContent = "";
+          el2.textContent = "";
           if (!rows.length) {
             const e = document.createElement("div");
             e.className = "empty";
             e.textContent = empty;
-            el.append(e);
+            el2.append(e);
             place();
             return;
           }
@@ -2206,7 +2163,7 @@ HOW TO USE
                 n.textContent = row.detail;
                 h.append(n);
               }
-              el.append(h);
+              el2.append(h);
               return;
             }
             const r = document.createElement("div");
@@ -2239,7 +2196,7 @@ HOW TO USE
               });
               r.append(rm);
             }
-            el.append(r);
+            el2.append(r);
           });
           place();
         }
@@ -2248,12 +2205,49 @@ HOW TO USE
     })();
   }
 
+  // src/ui/menu.js
+  var el = null;
+  function initMenu() {
+    el = document.createElement("div");
+    el.id = "__dbgov-menu";
+    root.append(el);
+    document.addEventListener("pointerdown", (e) => {
+      if (Menu.isOpen() && !(e.target.closest && e.target.closest("#__dbgov-menu")))
+        Menu.close();
+    }, true);
+  }
+  var Menu = {
+    isOpen: () => !!el && el.classList.contains("open"),
+    /** rows: [{ label, run }] — label is all this file reads of them. */
+    open(x, y, rows) {
+      el.textContent = "";
+      for (const r of rows) {
+        const b = document.createElement("button");
+        b.textContent = r.label;
+        b.addEventListener("click", () => {
+          Menu.close();
+          r.run();
+        });
+        el.append(b);
+      }
+      el.classList.add("open");
+      const w = el.offsetWidth, h = el.offsetHeight;
+      el.style.left = Math.max(4, Math.min(x, innerWidth - w - 4)) + "px";
+      el.style.top = Math.max(4, Math.min(y, innerHeight - h - 4)) + "px";
+    },
+    close() {
+      if (!el) return;
+      el.classList.remove("open");
+      el.textContent = "";
+    }
+  };
+
   // src/ui/panel.js
   var Panel;
   function initPanel() {
     Panel = (() => {
-      const el = document.createElement("div");
-      el.id = "__dbgov-bar";
+      const el2 = document.createElement("div");
+      el2.id = "__dbgov-bar";
       const toolBtn = (t) => `<button class="tool whenOn ${Tools.feedsAudit(t) ? "checks" : ""}" data-tool="${t.id}" title="${t.family ? t.family[0].toUpperCase() + t.family.slice(1) + " › " : ""}${t.title}
 ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the page audit" : ""}${t.options || t.uses ? "\nright-click for its options" : ""}">${t.icon}</button>`;
       const toolRuns = Tools.runs().map((run) => {
@@ -2275,7 +2269,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         }
         return out.join("");
       }).join('<hr class="sep whenOn">');
-      el.innerHTML = `
+      el2.innerHTML = `
       <span class="grip" title="Drag to move — snaps to the nearest edge">⋮⋮</span>
       <button class="pwr" title="Power (Alt+Shift+D) · v${CONFIG.VERSION}">⏻</button>
       <span class="st" data-st>OFF</span>
@@ -2298,11 +2292,11 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       </span>
       <button class="act whenOn" data-copy title="Copy report">⧉</button>
       <button class="act whenOn" data-clear title="Clear pins and the audit's marks">✕</button>`;
-      root.append(el);
+      root.append(el2);
       List.attach({
-        el,
+        el: el2,
         side: () => side,
-        mark: (view) => el.querySelectorAll("[data-view]").forEach(
+        mark: (view) => el2.querySelectorAll("[data-view]").forEach(
           (b) => {
             const on = !!view && b.dataset.view === view;
             b.classList.toggle("armed", on);
@@ -2313,7 +2307,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       const flashing = /* @__PURE__ */ new Map();
       let badgeGroups = [];
       function renderBadgeFly() {
-        const fly = el.querySelector("[data-badge-fly]");
+        const fly = el2.querySelector("[data-badge-fly]");
         const open = fly.dataset.open || "";
         fly.textContent = "";
         for (const g of badgeGroups) {
@@ -2341,7 +2335,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         }
       }
       const api = {
-        el,
+        el: el2,
         onToggle: null,
         onTool: null,
         onBadgeControl: null,
@@ -2353,8 +2347,8 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         onSweep: null,
         onRowChange: null,
         setOn(v) {
-          el.classList.toggle("on", v);
-          el.querySelector("[data-st]").textContent = v ? "ON" : "OFF";
+          el2.classList.toggle("on", v);
+          el2.querySelector("[data-st]").textContent = v ? "ON" : "OFF";
           if (!v) api.toggleList(false);
           if (v) {
             clearTimeout(tuckTimer);
@@ -2368,11 +2362,11 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
          * the chip where the template put it, so this cannot strand it.
          */
         attachCount(toolId) {
-          const t = toolId && el.querySelector(`[data-tool="${toolId}"]`);
-          if (t) t.insertAdjacentElement("afterend", el.querySelector("[data-c]"));
+          const t = toolId && el2.querySelector(`[data-tool="${toolId}"]`);
+          if (t) t.insertAdjacentElement("afterend", el2.querySelector("[data-c]"));
         },
         setTool(id, v) {
-          const b = el.querySelector(`[data-tool="${id}"]`);
+          const b = el2.querySelector(`[data-tool="${id}"]`);
           b?.classList.toggle("armed", v);
           b?.setAttribute("aria-pressed", String(!!v));
           const fam = b?.closest(".fam");
@@ -2413,7 +2407,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
          * complaint, and the label is what fixed it, not hiding one of them.
          */
         setSwept(v, n) {
-          const b = el.querySelector("[data-sweep]");
+          const b = el2.querySelector("[data-sweep]");
           b.classList.toggle("swept", !!v);
           b.textContent = v ? String(n) : "⌕";
           const what = v ? `Audit: ${n} distinct problem${n === 1 ? "" : "s"} — click to re-run` : "Audit the whole page";
@@ -2421,12 +2415,12 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           b.setAttribute("aria-label", what);
         },
         setRemoveMode(v) {
-          el.classList.toggle("removing", v);
-          const st = el.querySelector("[data-st]");
+          el2.classList.toggle("removing", v);
+          const st = el2.querySelector("[data-st]");
           st.textContent = v ? "DEL" : api.isOn() ? "ON" : "OFF";
         },
         setCount(n) {
-          el.querySelector("[data-c]").textContent = String(n);
+          el2.querySelector("[data-c]").textContent = String(n);
         },
         // The popover's own surface, forwarded so CONTROLLER and BOOT still have
         // one thing to talk to. What it renders is LIST's business, not this
@@ -2442,7 +2436,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
          * and the button then read "0" forever.
          */
         flash(msg, sel = "[data-copy]") {
-          const b = el.querySelector(sel);
+          const b = el2.querySelector(sel);
           if (!b) return;
           const live = flashing.get(b);
           const original = live ? live.original : b.textContent;
@@ -2456,24 +2450,24 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
             }, CONFIG.FLASH_MS)
           });
         },
-        rect: () => el.getBoundingClientRect(),
-        isOn: () => el.classList.contains("on")
+        rect: () => el2.getBoundingClientRect(),
+        isOn: () => el2.classList.contains("on")
       };
       List.onOpen = (v) => api.onListOpen?.(v);
       List.onRowActivate = (i) => api.onRowActivate?.(i);
       List.onRowRemove = (i) => api.onRowRemove?.(i);
       List.onRowChange = (i, raw) => api.onRowChange?.(i, raw);
-      el.querySelectorAll("button").forEach((b) => {
+      el2.querySelectorAll("button").forEach((b) => {
         const name = (b.title || "").split(/[\n·—]/)[0].trim();
         if (name) b.setAttribute("aria-label", name);
       });
-      el.querySelectorAll("[data-tool], [data-view]").forEach((b) => b.setAttribute("aria-pressed", "false"));
-      el.querySelector(".pwr").addEventListener("click", () => api.onToggle?.());
-      el.querySelectorAll(".fam-btn").forEach((b) => {
+      el2.querySelectorAll("[data-tool], [data-view]").forEach((b) => b.setAttribute("aria-pressed", "false"));
+      el2.querySelector(".pwr").addEventListener("click", () => api.onToggle?.());
+      el2.querySelectorAll(".fam-btn").forEach((b) => {
         b.addEventListener("click", () => {
           const fam = b.parentElement;
           const open = !fam.classList.contains("open");
-          el.querySelectorAll(".fam.open").forEach((f) => {
+          el2.querySelectorAll(".fam.open").forEach((f) => {
             f.classList.remove("open");
             f.querySelector(".fam-btn").setAttribute("aria-expanded", "false");
           });
@@ -2483,43 +2477,43 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       });
       document.addEventListener("pointerdown", (e) => {
         if (e.target.closest && e.target.closest(".fam")) return;
-        el.querySelectorAll(".fam.open").forEach((f) => {
+        el2.querySelectorAll(".fam.open").forEach((f) => {
           f.classList.remove("open");
           f.querySelector(".fam-btn").setAttribute("aria-expanded", "false");
         });
       }, true);
-      el.querySelectorAll("[data-tool]").forEach((b) => {
+      el2.querySelectorAll("[data-tool]").forEach((b) => {
         b.addEventListener("click", () => api.onTool?.(b.dataset.tool));
         b.addEventListener("contextmenu", (e) => {
           e.preventDefault();
           api.toggleList(void 0, `tool:${b.dataset.tool}`);
         });
       });
-      el.querySelector("[data-badge] .fam-btn").addEventListener("click", () => {
-        const fly = el.querySelector("[data-badge-fly]");
+      el2.querySelector("[data-badge] .fam-btn").addEventListener("click", () => {
+        const fly = el2.querySelector("[data-badge-fly]");
         if (fly.dataset.open) {
           fly.dataset.open = "";
           renderBadgeFly();
         }
       });
-      el.querySelector("[data-c]").addEventListener("click", () => api.toggleList(void 0, "pins"));
-      el.querySelector("[data-settings]").addEventListener("click", () => api.toggleList(void 0, "settings"));
-      el.querySelector("[data-sweep]").addEventListener("click", () => api.onSweep?.());
-      el.querySelector("[data-copy]").addEventListener("click", () => api.onCopy?.());
-      el.querySelector("[data-clear]").addEventListener("click", () => api.onClear?.());
+      el2.querySelector("[data-c]").addEventListener("click", () => api.toggleList(void 0, "pins"));
+      el2.querySelector("[data-settings]").addEventListener("click", () => api.toggleList(void 0, "settings"));
+      el2.querySelector("[data-sweep]").addEventListener("click", () => api.onSweep?.());
+      el2.querySelector("[data-copy]").addEventListener("click", () => api.onCopy?.());
+      el2.querySelector("[data-clear]").addEventListener("click", () => api.onClear?.());
       let side = "right";
       function applyPos(x, y) {
-        el.dataset.side = side;
-        const r = el.getBoundingClientRect();
+        el2.dataset.side = side;
+        const r = el2.getBoundingClientRect();
         x = Math.max(4, Math.min(x, innerWidth - r.width - 4));
         y = Math.max(4, Math.min(y, innerHeight - r.height - 4));
-        el.style.left = x + "px";
-        el.style.top = y + "px";
-        el.style.right = "auto";
+        el2.style.left = x + "px";
+        el2.style.top = y + "px";
+        el2.style.right = "auto";
         return { x, y };
       }
       function snap() {
-        const r = el.getBoundingClientRect();
+        const r = el2.getBoundingClientRect();
         const d = { left: r.left, right: innerWidth - r.right, top: r.top, bottom: innerHeight - r.bottom };
         side = Object.keys(d).reduce((a, b) => d[a] <= d[b] ? a : b);
         let x = r.left, y = r.top;
@@ -2544,19 +2538,19 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       })();
       let tuckTimer = 0;
       function untuck() {
-        el.classList.remove("tucked");
-        el.style.transform = "";
+        el2.classList.remove("tucked");
+        el2.style.transform = "";
       }
       function tuck() {
         untuck();
-        const r = el.getBoundingClientRect();
+        const r = el2.getBoundingClientRect();
         let t = "";
         if (side === "right") t = `translateX(${Math.round(innerWidth - CONFIG.PEEK - r.left)}px)`;
         if (side === "left") t = `translateX(${Math.round(CONFIG.PEEK - r.right)}px)`;
         if (side === "bottom") t = `translateY(${Math.round(innerHeight - CONFIG.PEEK - r.top)}px)`;
         if (side === "top") t = `translateY(${Math.round(CONFIG.PEEK - r.bottom)}px)`;
-        el.classList.add("tucked");
-        el.style.transform = t;
+        el2.classList.add("tucked");
+        el2.style.transform = t;
       }
       function scheduleTuck() {
         clearTimeout(tuckTimer);
@@ -2565,39 +2559,39 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           return;
         }
         tuckTimer = setTimeout(() => {
-          if (!api.isOn() && !el.matches(":hover")) tuck();
+          if (!api.isOn() && !el2.matches(":hover")) tuck();
         }, CONFIG.TUCK_DELAY);
       }
-      el.addEventListener("pointerenter", () => {
+      el2.addEventListener("pointerenter", () => {
         clearTimeout(tuckTimer);
         untuck();
       });
-      el.addEventListener("pointerleave", scheduleTuck);
+      el2.addEventListener("pointerleave", scheduleTuck);
       let drag = null;
-      el.addEventListener("pointerdown", (e) => {
+      el2.addEventListener("pointerdown", (e) => {
         if (e.target.closest("button")) return;
-        const r = el.getBoundingClientRect();
+        const r = el2.getBoundingClientRect();
         drag = { dx: e.clientX - r.left, dy: e.clientY - r.top };
         untuck();
-        el.setPointerCapture(e.pointerId);
+        el2.setPointerCapture(e.pointerId);
         e.preventDefault();
       });
-      el.addEventListener("pointermove", (e) => {
+      el2.addEventListener("pointermove", (e) => {
         if (!drag) return;
-        el.classList.add("dragging");
+        el2.classList.add("dragging");
         applyPos(e.clientX - drag.dx, e.clientY - drag.dy);
         if (List.isOpen()) List.place();
       });
       const endDrag = () => {
         if (!drag) return;
         drag = null;
-        el.classList.remove("dragging");
+        el2.classList.remove("dragging");
         snap();
         scheduleTuck();
         if (List.isOpen()) List.place();
       };
-      el.addEventListener("pointerup", endDrag);
-      el.addEventListener("pointercancel", endDrag);
+      el2.addEventListener("pointerup", endDrag);
+      el2.addEventListener("pointercancel", endDrag);
       addEventListener("resize", () => {
         snap();
         if (List.isOpen()) List.place();
@@ -2953,11 +2947,11 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       if (!all.length || !document.body) return result;
       for (const t of all) result.byTool[t.id] = [];
       const seen = perPage.length ? [] : null;
-      for (const el of document.body.querySelectorAll("*")) {
-        const cs = getComputedStyle(el);
+      for (const el2 of document.body.querySelectorAll("*")) {
+        const cs = getComputedStyle(el2);
         if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") continue;
         result.elements++;
-        const i = U.info(el, cs);
+        const i = U.info(el2, cs);
         if (seen) seen.push(i);
         for (const f of Sweep.collect(perEl, "audit", i)) {
           result.findings.push(f);
@@ -3084,6 +3078,38 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     async copy() {
       await Report.toClipboard(Report.text());
       Panel.flash("✓");
+    },
+    /**
+     * The take-away actions for ONE element — what the target menu offers.
+     *
+     * They live HERE because copying is this service's capability, always
+     * on the way ⧉ is: there used to be a `pick` tool armouring exactly
+     * this behind a button and a Ctrl+click, and an on/off switch for
+     * "copy" guards nothing — the menu takes no click away from anyone.
+     * The surface (ui/menu.js) is handed these rows by the door (app/) and
+     * never learns what one does.
+     *
+     * Copy text only exists when there IS text — a row that copies an
+     * empty string is a control that does nothing, which is worse than
+     * no control.
+     */
+    targetActions(el2) {
+      const rows = [{
+        label: "Copy selector",
+        run: async () => {
+          await Report.toClipboard(U.selectorOf(el2));
+          Panel.flash("✓");
+        }
+      }];
+      const txt = (el2.textContent || "").trim();
+      if (txt) rows.push({
+        label: "Copy text",
+        run: async () => {
+          await Report.toClipboard(txt);
+          Panel.flash("✓");
+        }
+      });
+      return rows;
     }
   };
 
@@ -3112,11 +3138,11 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
      * one click is a page doing two things nobody asked for, and a pin landing
      * underneath an edit is the same bug wearing the overlay's own clothes.
      */
-    claimed(type, ev, el) {
+    claimed(type, ev, el2) {
       const ctx = {
         type,
         ev,
-        el,
+        el: el2,
         redraw: Render.schedule,
         toClipboard: Report.toClipboard
       };
@@ -3152,8 +3178,18 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           ctl.setRemoveMode(true);
           return;
         }
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.code === "KeyC" && State.enabled && !Interactions.typing(e)) {
+          const t = State.hoverEl || State.current;
+          if (t && document.contains(t)) {
+            e.preventDefault();
+            Report.toClipboard(U.selectorOf(t));
+            Panel.flash("✓");
+          }
+          return;
+        }
         if (e.key === "Escape" && State.enabled && !Interactions.typing(e)) {
-          if (State.removeMode) ctl.setRemoveMode(false);
+          if (Menu.isOpen()) Menu.close();
+          else if (State.removeMode) ctl.setRemoveMode(false);
           else if (Panel.isListOpen()) Panel.toggleList(false);
           else if (State.pins.length || State.current) ctl.clearPins();
         }
@@ -3174,16 +3210,16 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           }
           return;
         }
-        const el = document.elementFromPoint(e.clientX, e.clientY);
-        if (!el || root.contains(el)) {
+        const el2 = document.elementFromPoint(e.clientX, e.clientY);
+        if (!el2 || root.contains(el2)) {
           if (State.hoverEl) {
             State.hoverEl = null;
             Render.schedule();
           }
           return;
         }
-        if (el !== State.hoverEl) {
-          State.hoverEl = el;
+        if (el2 !== State.hoverEl) {
+          State.hoverEl = el2;
           Render.schedule();
         }
       }, true);
@@ -3203,16 +3239,26 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           if (p) ctl.removePin(p);
           return;
         }
-        const el = document.elementFromPoint(e.clientX, e.clientY);
-        if (!el || root.contains(el)) return;
-        if (Interactions.claimed("click", e, el)) return;
+        const el2 = document.elementFromPoint(e.clientX, e.clientY);
+        if (!el2 || root.contains(el2)) return;
+        if (Interactions.claimed("click", e, el2)) return;
         if (!Tools.withHook("keeps", true).length) {
-          ctl.setCurrent(el);
+          ctl.setCurrent(el2);
           return;
         }
         const grouped = e.shiftKey && Tools.withHook("groups", true).length > 0;
         const kind = !grouped ? CONFIG.PIN_KIND.PLAIN : e.ctrlKey || e.metaKey ? CONFIG.PIN_KIND.CHAIN : CONFIG.PIN_KIND.SHIFT;
-        ctl.togglePin(el, kind);
+        ctl.togglePin(el2, kind);
+      }, true);
+      addEventListener("contextmenu", (e) => {
+        if (!Interactions.ours(e)) return;
+        const el2 = document.elementFromPoint(e.clientX, e.clientY);
+        if (!el2 || root.contains(el2)) return;
+        const rows = Report.targetActions(el2);
+        if (!rows.length) return;
+        e.preventDefault();
+        e.stopPropagation();
+        Menu.open(e.clientX, e.clientY, rows);
       }, true);
       addEventListener("scroll", Render.schedule, true);
       addEventListener("resize", Render.schedule);
@@ -3325,7 +3371,10 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       const rows = [
         ["Click", "select an element — 📌 armed, it is kept as a pin"],
         ["Shift+click", "pair it with your next Shift+click"],
+        ["Right-click a target", "its menu — copy its selector or text"],
+        ["Ctrl/⌘+C", "copy the hovered target's selector"],
         ["Alt+click", "let the click through to the page"],
+        ["Alt+right-click", "the page's own context menu"],
         [`Hold ${CONFIG.REMOVE_KEY.replace("Key", "")}`, "show ✕ on every pin"],
         ["Esc", "close the panel, then the pins"],
         ["Right-click a tool", "its own options, without the others"],
@@ -3628,14 +3677,14 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     },
     // kind: CONFIG.PIN_KIND.PLAIN → a note: inspect only, groups with nothing
     //       CONFIG.PIN_KIND.SHIFT → a pair pin: joins whatever grouping is armed
-    togglePin(el, kind = CONFIG.PIN_KIND.PLAIN) {
+    togglePin(el2, kind = CONFIG.PIN_KIND.PLAIN) {
       State.current = null;
-      const i = State.pins.findIndex((p) => p.el === el);
+      const i = State.pins.findIndex((p) => p.el === el2);
       if (i >= 0) {
         if (State.pins[i].kind === kind) State.pins.splice(i, 1);
         else State.pins[i].kind = kind;
       } else {
-        State.pins.push({ el, id: Controller.nextPinId(), kind });
+        State.pins.push({ el: el2, id: Controller.nextPinId(), kind });
       }
       Controller.pinsChanged();
     },
@@ -3646,8 +3695,8 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
      * Clicking the selected element again deselects it. The page never
      * accumulates anything; only an armed keeper turns choices into pins.
      */
-    setCurrent(el) {
-      State.current = State.current === el ? null : el;
+    setCurrent(el2) {
+      State.current = State.current === el2 ? null : el2;
       Render.schedule();
     },
     setRemoveMode(v) {
@@ -3709,8 +3758,8 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         if (!had) Controller.togglePin(row.el, CONFIG.PIN_KIND.PLAIN);
         pins = [State.pins.find((p) => p.el === row.el)];
       }
-      const el = pins[0].el;
-      el.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+      const el2 = pins[0].el;
+      el2.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
       State.flashPins = pins;
       Render.schedule();
       clearTimeout(Controller._flash);
@@ -3767,6 +3816,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
   // src/boot.js
   initDom();
   initList();
+  initMenu();
   initPanel();
   Panel.onToggle = Controller.togglePower;
   Panel.onTool = Controller.toggleTool;

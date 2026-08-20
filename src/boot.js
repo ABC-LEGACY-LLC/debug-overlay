@@ -9,6 +9,7 @@
 import './manifest.js';
 import { initDom } from './ui/dom.js';
 import { initList } from './ui/list.js';
+import { initMenu } from './ui/menu.js';
 import { initPanel, Panel } from './ui/panel.js';
 import { Render } from './ui/renderer.js';
 import { Report } from './services/report/index.js';
@@ -18,6 +19,7 @@ import { Settings } from './services/settings/index.js';
 
 initDom();
 initList();
+initMenu();
 initPanel();
 
 Panel.onToggle = Controller.togglePower;

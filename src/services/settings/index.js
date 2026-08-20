@@ -121,7 +121,10 @@ import { State, Store } from '../../core/state.js';
       const rows = [
         ['Click', 'select an element — 📌 armed, it is kept as a pin'],
         ['Shift+click', 'pair it with your next Shift+click'],
+        ['Right-click a target', 'its menu — copy its selector or text'],
+        ['Ctrl/⌘+C', "copy the hovered target's selector"],
         ['Alt+click', 'let the click through to the page'],
+        ['Alt+right-click', "the page's own context menu"],
         [`Hold ${CONFIG.REMOVE_KEY.replace('Key', '')}`, 'show ✕ on every pin'],
         ['Esc', 'close the panel, then the pins'],
         ['Right-click a tool', 'its own options, without the others'],

@@ -30,6 +30,16 @@ import { CONFIG } from '../core/config.js';
       100% { box-shadow: 0 0 0 16px rgba(88,196,255,0); } }
 
     /* pin list popover — opened from the count chip, closed for screenshots */
+    /* the target menu — right-click's "what can you do with this element" */
+    #__dbgov-menu { position: fixed; display: none; pointer-events: auto;
+      min-width: 150px; background: rgba(18,18,20,.97); border-radius: 10px;
+      padding: 4px; box-shadow: 0 6px 24px rgba(0,0,0,.6); color: #fff;
+      font-size: 12px; }
+    #__dbgov-menu.open { display: block; }
+    #__dbgov-menu button { display: block; width: 100%; text-align: left;
+      padding: 7px 12px; background: transparent; border: 0; border-radius: 6px;
+      color: inherit; font: inherit; cursor: pointer; }
+    #__dbgov-menu button:hover { background: #3a3a41; }
     #__dbgov-list { position: fixed; display: none; pointer-events: auto;
       min-width: 250px; max-width: 460px; max-height: 60vh; overflow-y: auto;
       background: rgba(18,18,20,.97); border-radius: 12px; padding: 6px;

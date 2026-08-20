@@ -124,4 +124,30 @@ import { Panel } from '../../ui/panel.js';
       await Report.toClipboard(Report.text());
       Panel.flash('✓');
     },
+    /**
+     * The take-away actions for ONE element — what the target menu offers.
+     *
+     * They live HERE because copying is this service's capability, always
+     * on the way ⧉ is: there used to be a `pick` tool armouring exactly
+     * this behind a button and a Ctrl+click, and an on/off switch for
+     * "copy" guards nothing — the menu takes no click away from anyone.
+     * The surface (ui/menu.js) is handed these rows by the door (app/) and
+     * never learns what one does.
+     *
+     * Copy text only exists when there IS text — a row that copies an
+     * empty string is a control that does nothing, which is worse than
+     * no control.
+     */
+    targetActions(el) {
+      const rows = [{
+        label: 'Copy selector',
+        run: async () => { await Report.toClipboard(U.selectorOf(el)); Panel.flash('✓'); },
+      }];
+      const txt = (el.textContent || '').trim();
+      if (txt) rows.push({
+        label: 'Copy text',
+        run: async () => { await Report.toClipboard(txt); Panel.flash('✓'); },
+      });
+      return rows;
+    },
   };

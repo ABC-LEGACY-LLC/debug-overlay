@@ -12,13 +12,14 @@ wrong twice; run `npm run map` for the living version.
 
 ```
                 YOU
-                 │  click · shift+click · ctrl+shift+click · ctrl+click
+                 │  click · shift+click · ctrl+shift+click · right-click · ctrl+C
                  ▼
         ╔══════ INPUT SIDE ══════╗
         ║ pin    — SOURCE        ║──▶ keeps() — selections persist as pins
         ║ select — SOURCE        ║──▶ State.pins + groups()   (feeds components)
-        ║ pick   — ACTION        ║──▶ clipboard, directly     (bypasses them)
         ╚═══════════╤════════════╝
+        (right-click and Ctrl+C go straight to Report's copy actions —
+         a take-away like ⧉, owned by a service, so no tool and no arming)
                     ▼
         ╔══════ COMPONENTS ══════╗
         ║ measure grid           ║ ◄── consult SUBJECTS (scale, colour)
@@ -55,7 +56,10 @@ species, so the label cannot drift from the behaviour:
 | **ACTION** | `intercept` | input side: a click becomes a direct effect |
 
 Today: measure, grid, contrast and dupid are components; select and pin are
-the sources; pick is the action. A flat "components" list put all six in one
+the sources. The ACTION band is empty: pick, its one resident, turned out to
+be Report's copy capability wearing a button — an on/off switch for "copy"
+guards nothing — and retired into the target menu. `intercept` stays in the
+vocabulary, consumed by the door, ready for the next real actor. A flat "components" list put all six in one
 rowset, and every matrix drawn over it felt wrong — select's row looked broken
 next to measure's because they are different species, not because the code was.
 
@@ -153,13 +157,24 @@ Three capability flows exist today, and all are name-free:
 | select | `groups()` | whoever measures between elements |
 | grid | `annotate` (the ⚠ lens) | every number any badge prints |
 
-## The action claims input, narrowly
+## The action door stays open; the copy actions are Report's
 
-pick takes Ctrl/⌘+click through `intercept` — the one hook that can consume a
-click before it becomes a pin. `app/interactions.js` is where input enters, so
-it is the only file that can hand it on, and it does so by hook with no tool
-named. Claim narrowly: a tool that swallows every click has taken the overlay
-away from everything else.
+`intercept` — the one hook that can consume a click before it becomes a pin —
+remains in the vocabulary, consumed by `app/interactions.js` (input's one
+door), though no tool implements it today. When one does: claim narrowly — a
+tool that swallows every click has taken the overlay away from everything
+else. pick, the door's first resident, retired: its whole behaviour was
+Report's `toClipboard` behind a modifier, and copy is a take-away action like
+⧉ — always on, nothing to arm.
+
+Where it went: right-click on a target opens the TARGET MENU — the box is
+core's (`ui/menu.js`, dumb: rows handed in, Escape or a click elsewhere
+closes), the rows are `Report.targetActions(el)` (Copy selector · Copy text),
+and `app/` is the door that knows both sides and hands one to the other.
+Ctrl/⌘+C copies the hovered target's selector directly. Alt+right-click, like
+Alt+click, belongs to the page. The day a tool wants to add a row, a `menu`
+hook is a small addition — it is not declared now because nothing would
+implement it, and nothing here is created for a consumer that is not there.
 
 ## Every surface has three layers
 
@@ -178,7 +193,8 @@ pin and select appends only the `…`.
 | findings | grouping, sort, `×N` | the findings themselves |
 | report | header, scope, `## rules` | each tool's lines |
 | ⚙ | grouping by `affects`, KEYS | each owner's rows |
-| input | hover, click, the current selection, hotkeys | pick's claim; pin's keeping |
+| target menu | the box, position, dismissal — rows from Report | nothing yet — a `menu` hook the day a tool wants a row |
+| input | hover, click, right-click, Ctrl+C, the current selection, hotkeys | pin's keeping; `intercept` stays the door |
 
 ## The audit is a flow, not a place
 
