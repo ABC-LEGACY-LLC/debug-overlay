@@ -37,9 +37,13 @@ export const BadgeFace = defineService({
               glyphs: { compact: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M5 12h14" /></svg>',
                         full: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M3 5h18" /><path d="M3 12h18" /><path d="M3 19h18" /></svg>' },   // lucide minus / align-justify
               affects: 'inspect' },
-            { key: 'issues', label: 'Issue marks (⚠)', def: true,
+            /* Labels LEAD with the facet's family name — CURRENT · ISSUE ·
+               RECOMMENDATION — because that vocabulary is how the docs and
+               the architecture talk about them, and a member that does not
+               say its own name sent a real user hunting for it. */
+            { key: 'issues', label: 'Issue — mark what fails (⚠)', def: true,
               type: 'toggle', glyph: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>', affects: 'inspect' },   // lucide triangle-alert
-            { key: 'suggest', label: 'Suggest what would pass (→)', def: false,
+            { key: 'suggest', label: 'Recommendation — what would pass (→)', def: false,
               type: 'toggle', glyph: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>', affects: 'inspect' },   // lucide arrow-right
           ];
         },

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.81
+// @version      3.8.82
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -312,7 +312,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.81",
+    VERSION: "3.8.82",
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -2683,9 +2683,13 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           // lucide minus / align-justify
           affects: "inspect"
         },
+        /* Labels LEAD with the facet's family name — CURRENT · ISSUE ·
+           RECOMMENDATION — because that vocabulary is how the docs and
+           the architecture talk about them, and a member that does not
+           say its own name sent a real user hunting for it. */
         {
           key: "issues",
-          label: "Issue marks (⚠)",
+          label: "Issue — mark what fails (⚠)",
           def: true,
           type: "toggle",
           glyph: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>',
@@ -2694,7 +2698,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         // lucide triangle-alert
         {
           key: "suggest",
-          label: "Suggest what would pass (→)",
+          label: "Recommendation — what would pass (→)",
           def: false,
           type: "toggle",
           glyph: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>',
