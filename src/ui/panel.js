@@ -41,7 +41,7 @@ import { List } from './list.js';
         const kin = run.tools.filter((x) => x.family === t.family);
         const famName = t.family[0].toUpperCase() + t.family.slice(1);
         out.push(
-          `<span class="fam whenOn">` +
+          `<span class="fam whenOn" data-fam="${t.family}">` +
           `<button class="fam-btn whenOn ${kin.some(Tools.feedsAudit) ? 'checks' : ''}"` +
           ` aria-expanded="false" title="${famName} family — ${kin.map((x) => x.id).join(', ')};` +
           ` click to open">${mark}</button>` +
@@ -49,17 +49,19 @@ import { List } from './list.js';
       }
       return out.join('');
     }).join('<hr class="sep whenOn">');
+    // the sweep button's face, a const because setSwept puts it back after a resting count
+    const SWEEP_ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="m21 21-4.34-4.34" /><circle cx="11" cy="11" r="8" /></svg>';   // lucide 'search' (ISC)
     el.innerHTML = `
-      <span class="grip" title="Drag to move — snaps to the nearest edge">⋮⋮</span>
-      <button class="pwr" title="Power (Alt+Shift+D) · v${CONFIG.VERSION}">⏻</button>
+      <span class="grip" title="Drag to move — snaps to the nearest edge"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><circle cx="9" cy="12" r="1" /><circle cx="9" cy="5" r="1" /><circle cx="9" cy="19" r="1" /><circle cx="15" cy="12" r="1" /><circle cx="15" cy="5" r="1" /><circle cx="15" cy="19" r="1" /></svg></span>
+      <button class="pwr" title="Power (Alt+Shift+D) · v${CONFIG.VERSION}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 2v10" /><path d="M18.4 6.6a9 9 0 1 1-12.77.04" /></svg></button>
       <span class="st" data-st>OFF</span>
       <hr class="sep whenOn">
       ${toolRuns}
       <!-- its own band: ⌕ and ⚙ drive the services, they are not tools -->
       <hr class="sep whenOn">
-      <button class="act whenOn" data-sweep data-view="findings" title="Audit the whole page">⌕</button>
+      <button class="act whenOn" data-sweep data-view="findings" title="Audit the whole page">${SWEEP_ICON}</button>
       <!-- with the tools it configures, not with the panel's own actions -->
-      <button class="act whenOn" data-settings data-view="settings" title="Tool settings">⚙</button>
+      <button class="act whenOn" data-settings data-view="settings" title="Tool settings"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></svg></button>
       <hr class="sep whenOn">
       <button class="cnt whenOn" data-c data-view="pins" title="Pinned elements — click for the list">0</button>
       <!-- 🏷 replaces ≡: same fam flyout the domain families use, members
@@ -67,11 +69,11 @@ import { List } from './list.js';
            what it is given and never learns what a view or a facet is -->
       <span class="fam whenOn" data-badge>
         <button class="fam-btn act" title="Badge — view and facets; click to open"
-                aria-haspopup="true" aria-expanded="false">🏷</button>
+                aria-haspopup="true" aria-expanded="false"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></svg></button>
         <span class="flyout" data-badge-fly></span>
       </span>
-      <button class="act whenOn" data-copy title="Copy report">⧉</button>
-      <button class="act whenOn" data-clear title="Clear pins and the audit's marks">✕</button>`;
+      <button class="act whenOn" data-copy title="Copy report"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /><path d="M16 4h2a2 2 0 0 1 2 2v4" /><path d="M21 14H11" /><path d="m15 10-4 4 4 4" /></svg></button>
+      <button class="act whenOn" data-clear title="Clear pins and the audit's marks"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>`;
     root.append(el);
 
     // The popover is LIST's; this says where it hangs and lights up whichever
@@ -102,7 +104,7 @@ import { List } from './list.js';
         // bctl, not tool: these are the badge service's controls, and every
         // test and map that enumerates button.tool means REGISTRY tools
         h.className = 'bctl whenOn axis' + (open === g.key ? ' open' : '');
-        h.textContent = g.glyph;
+        h.innerHTML = g.glyph;   // our own icon constant, never page text
         h.title = g.title;
         h.setAttribute('aria-expanded', String(open === g.key));
         h.addEventListener('click', () => {
@@ -115,7 +117,7 @@ import { List } from './list.js';
           const b = document.createElement('button');
           b.className = 'bctl whenOn' + (r.armed ? ' armed' : '') +
                         (r.fixed ? ' fixed' : '');
-          b.textContent = r.glyph;
+          b.innerHTML = r.glyph;   // our own icon constant, never page text
           b.title = r.title;
           b.setAttribute('aria-pressed', String(!!r.armed));
           // a fixed member is information, not a control — it says the axis
@@ -203,7 +205,9 @@ import { List } from './list.js';
       setSwept(v, n) {
         const b = el.querySelector('[data-sweep]');
         b.classList.toggle('swept', !!v);
-        b.textContent = v ? String(n) : '⌕';
+        // the resting count replaces the icon; clearing puts the icon back
+        if (v) b.textContent = String(n);
+        else b.innerHTML = SWEEP_ICON;
         const what = v ? `Audit: ${n} distinct problem${n === 1 ? '' : 's'} — click to re-run`
           : 'Audit the whole page';
         b.title = what;
@@ -234,13 +238,15 @@ import { List } from './list.js';
         const b = el.querySelector(sel);
         if (!b) return;
         const live = flashing.get(b);
-        const original = live ? live.original : b.textContent;
+        // innerHTML, not textContent: the resting face of a button is an
+        // inline SVG now, and saving only its text restored an empty button
+        const original = live ? live.original : b.innerHTML;
         if (live) clearTimeout(live.timer);
         b.textContent = msg;
         flashing.set(b, {
           original,
           timer: setTimeout(() => {
-            b.textContent = original;
+            b.innerHTML = original;
             flashing.delete(b);
           }, CONFIG.FLASH_MS),
         });

@@ -14,7 +14,7 @@ import { U } from '../../core/utils.js';
   export const Scale = defineSubject({
     id: 'scale',
     was: 'grid',   // its settings lived under this id before the subject existed
-    icon: '▦',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="m18 8 4 4-4 4" /><path d="M2 12h20" /><path d="m6 8-4 4 4 4" /></svg>',   // lucide 'move-horizontal' (ISC) — scale is spacing, not the grid tool
 
     options() {
       return [

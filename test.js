@@ -1514,10 +1514,13 @@ console.log('\nPER-TOOL OPTIONS');
   ok('the family mark is its own, not a member tool\'s',
     (() => { bar.querySelector('[data-settings]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
       const r = [...list.querySelectorAll('.row')].find((x) => x.querySelector('.lbl').textContent === 'WCAG level');
-      const tag = r && r.querySelector('.tag').textContent;
+      // icons are inline SVGs now — compare markup against the family
+      // subject's own declared icon, taken from the fam-btn that wears it
+      const tag = r && r.querySelector('.tag').innerHTML;
+      const mark = bar.querySelector('.fam[data-fam="colour"] .fam-btn').innerHTML;
       bar.querySelector('[data-tool="measure"]').dispatchEvent(new w.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-      return tag === '🎨'; })(),
-    'the WCAG level row wore contrast\'s ◐ — the subject looked like one of its tools');
+      return !!tag && tag === mark; })(),
+    'the WCAG level row wore a member\'s icon — the subject looked like one of its tools');
   ok('titled with the tool, not with "Settings"',
     /Measure/.test((list.querySelector('.viewhead') || {}).textContent || ''),
     (list.querySelector('.viewhead') || {}).textContent || '(none)');
@@ -1881,15 +1884,16 @@ console.log('\nFAMILY FLYOUT');
   const w = d.window;
   w.eval(source);
   const bar = w.document.getElementById('__dbgov-bar');
-  const famOf = (mark) => [...bar.querySelectorAll('.fam')]
-    .find((f) => f.querySelector('.fam-btn').textContent === mark);
-  const fam = famOf('🎨');
+  // icons are SVGs (no textContent), so families are found by the name the
+  // panel stamps on the wrapper — the family declaration, not the picture
+  const famOf = (name) => bar.querySelector(`.fam[data-fam="${name}"]`);
+  const fam = famOf('colour');
   const btn = fam && fam.querySelector('.fam-btn');
   ok('the colour family is one mark on the bar',
     !!btn && !!fam.querySelector('[data-tool="contrast"]'),
     'the mark comes from the family subject; contrast lives in its flyout');
   ok('and so is geometry — its head is the promoted subject',
-    !!famOf('📏') && famOf('📏').querySelector('[data-tool]')?.dataset.tool === 'measure',
+    !!famOf('geometry') && famOf('geometry').querySelector('[data-tool]')?.dataset.tool === 'measure',
     'geometry serves two tools, so it was always a subject by this project\'s own rule');
   ok('while select stays a direct button — it consults geometry, it is not OF it',
     !bar.querySelector('[data-tool="select"]')?.closest('.fam'),

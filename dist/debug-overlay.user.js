@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.78
+// @version      3.8.79
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -167,6 +167,11 @@ HOW TO USE
   SCRIPT, not for the site — set them once and every other site already agrees,
   and Tampermonkey's own sync carries them to a new machine.
 
+  ICONS — one set, Lucide (lucide.dev, ISC licence), inlined as SVG so the
+  single-file build stays self-contained. Every tool declares its own icon
+  as a literal beside its id, which is what the audit counts; the glyphs in
+  this text (📌 ⬚ ▦ 🎨 ⌕ ⚙ …) are shorthand names for those buttons.
+
   ARCHITECTURE — real ES modules, one folder per component, bundled by
   esbuild into this single file. Execution order is the import graph, and a
   new capability is one new folder that nothing else has to name.
@@ -307,7 +312,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.78",
+    VERSION: "3.8.79",
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -776,7 +781,8 @@ HOW TO USE
   // src/subjects/geometry.js
   var Measure = defineSubject({
     id: "geometry",
-    icon: "📏",
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z" /><path d="m14.5 12.5 2-2" /><path d="m11.5 9.5 2-2" /><path d="m8.5 6.5 2-2" /><path d="m17.5 15.5 2-2" /></svg>',
+    // lucide 'ruler' (ISC) — the geometry family's mark
     // --- lanes: keep parallel dimension lines off each other -------------
     lanes: { v: [], h: [] },
     resetLanes() {
@@ -970,7 +976,8 @@ HOW TO USE
     // its settings lived under this id before the subject existed
     // the FAMILY's mark, not contrast's — ◐ is the read-out's glyph, and the
     // "WCAG level" row wearing it made the subject look like one of its tools
-    icon: "🎨",
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z" /><circle cx="13.5" cy="6.5" r=".5" fill="currentColor" /><circle cx="17.5" cy="10.5" r=".5" fill="currentColor" /><circle cx="6.5" cy="12.5" r=".5" fill="currentColor" /><circle cx="8.5" cy="7.5" r=".5" fill="currentColor" /></svg>',
+    // lucide 'palette' (ISC) — the colour family's mark
     /**
      * AA is the level nearly everyone is held to; AAA is what accessibility
      * commitments and public-sector procurement actually ask for. Both
@@ -1230,7 +1237,8 @@ HOW TO USE
     id: "contrast",
     family: "colour",
     // audited: must match the domain folder this sits in
-    icon: "◐",
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><circle cx="12" cy="12" r="10" /><path d="M12 18a6 6 0 0 0 0-12v12z" /></svg>',
+    // lucide 'contrast' (ISC)
     // the level is the user's choice now, so it cannot be stated here
     title: "Contrast — WCAG text contrast ratio",
     uses: [Colour],
@@ -1316,7 +1324,8 @@ HOW TO USE
     id: "dupid",
     // not ⧉ — the copy button already uses that glyph, and two identical
     // icons in one bar is a bar you have to read twice
-    icon: "⌗",
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><line x1="4" x2="20" y1="9" y2="9" /><line x1="4" x2="20" y1="15" y2="15" /><line x1="10" x2="8" y1="3" y2="21" /><line x1="16" x2="14" y1="3" y2="21" /></svg>',
+    // lucide 'hash' (ISC)
     title: "Duplicate ids — the same id used more than once",
     badge: badge2,
     compact: compact2,
@@ -1447,7 +1456,8 @@ HOW TO USE
     id: "measure",
     family: "geometry",
     // audited: must match the domain folder this sits in
-    icon: "📐",
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M13 7 8.7 2.7a2.41 2.41 0 0 0-3.4 0L2.7 5.3a2.41 2.41 0 0 0 0 3.4L7 13" /><path d="m8 6 2-2" /><path d="m18 16 2-2" /><path d="m17 11 4.3 4.3c.94.94.94 2.46 0 3.4l-2.6 2.6c-.94.94-2.46.94-3.4 0L11 17" /><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></svg>',
+    // lucide 'pencil-ruler' (ISC)
     title: "Measure — size, radius, spacing, font, distances",
     startsOn: true,
     // the read-out is what the overlay is FOR
@@ -1471,7 +1481,8 @@ HOW TO USE
     id: "scale",
     was: "grid",
     // its settings lived under this id before the subject existed
-    icon: "▦",
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="m18 8 4 4-4 4" /><path d="M2 12h20" /><path d="m6 8-4 4 4 4" /></svg>',
+    // lucide 'move-horizontal' (ISC) — scale is spacing, not the grid tool
     options() {
       return [
         // 2, not 4, because that is what the scale in front of us actually is:
@@ -1656,7 +1667,8 @@ HOW TO USE
     .dbgov-badge .warn{ color: #ffd54f; }
     `,
     id: "grid",
-    icon: "▦",
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M3 9h18" /><path d="M3 15h18" /><path d="M9 3v18" /><path d="M15 3v18" /></svg>',
+    // lucide 'grid-3x3' (ISC)
     // No number in the title: the step is the user's now, and a title baked
     // at boot would still be claiming 2px long after they picked 8.
     title: "Grid — flag values off the spacing grid",
@@ -1686,7 +1698,8 @@ HOW TO USE
   // src/tools/pin/index.js
   defineTool({
     id: "pin",
-    icon: "📌",
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 17v5" /><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" /></svg>',
+    // lucide 'pin' (ISC)
     title: "Pin — keep what you select; off, selections replace each other",
     startsOn: true,
     keeps
@@ -1756,7 +1769,8 @@ HOW TO USE
   // src/tools/select/index.js
   defineTool({
     id: "select",
-    icon: "⬚",
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M5 3a2 2 0 0 0-2 2" /><path d="M19 3a2 2 0 0 1 2 2" /><path d="M21 19a2 2 0 0 1-2 2" /><path d="M5 21a2 2 0 0 1-2-2" /><path d="M9 3h1" /><path d="M9 21h1" /><path d="M14 3h1" /><path d="M14 21h1" /><path d="M3 9v1" /><path d="M21 9v1" /><path d="M3 14v1" /><path d="M21 14v1" /></svg>',
+    // lucide 'box-select' (ISC)
     title: "Select — how pinned elements group up",
     startsOn: true,
     /** The single place grouping is decided — see form.js. */
@@ -1974,6 +1988,13 @@ HOW TO USE
     #__dbgov-bar button.tool, #__dbgov-bar button.act, #__dbgov-bar button.bctl {
       width: 34px; height: 34px; border-radius: 50%; border: 0; cursor: pointer;
       background: #2c2c31; color: #fff; font-size: 15px; }
+    /* NO display here: .whenOn owns display (none ↔ flex with centring), and
+       a more specific display on the buttons out-guns the hider — the exact
+       mistake the fam flyout already made once. One icon set (lucide, ISC),
+       one size; the .whenOn / .pwr / .fam-btn flex does the centring. */
+    #__dbgov-bar button svg { width: 16px; height: 16px; pointer-events: none; }
+    #__dbgov-bar .grip svg { width: 14px; height: 14px; display: block; }
+    #__dbgov-list .tag svg { width: 14px; height: 14px; vertical-align: -3px; }
     #__dbgov-bar button.tool:hover, #__dbgov-bar button.act:hover { background: #3a3a40; }
     #__dbgov-bar button.tool.armed,
     #__dbgov-bar button.bctl.armed { background: #58c4ff; color: #0d1b24; }
@@ -2184,7 +2205,8 @@ HOW TO USE
             r.className = "row";
             const tag = document.createElement("span");
             tag.className = "tag";
-            tag.textContent = row.tag;
+            if (/^<svg[\s>]/.test(row.tag || "")) tag.innerHTML = row.tag;
+            else tag.textContent = row.tag;
             const lbl = document.createElement("span");
             lbl.className = "lbl";
             lbl.textContent = row.label;
@@ -2278,22 +2300,23 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           const kin = run.tools.filter((x) => x.family === t.family);
           const famName = t.family[0].toUpperCase() + t.family.slice(1);
           out.push(
-            `<span class="fam whenOn"><button class="fam-btn whenOn ${kin.some(Tools.feedsAudit) ? "checks" : ""}" aria-expanded="false" title="${famName} family — ${kin.map((x) => x.id).join(", ")}; click to open">${mark}</button><span class="flyout">${kin.map(toolBtn).join("")}</span></span>`
+            `<span class="fam whenOn" data-fam="${t.family}"><button class="fam-btn whenOn ${kin.some(Tools.feedsAudit) ? "checks" : ""}" aria-expanded="false" title="${famName} family — ${kin.map((x) => x.id).join(", ")}; click to open">${mark}</button><span class="flyout">${kin.map(toolBtn).join("")}</span></span>`
           );
         }
         return out.join("");
       }).join('<hr class="sep whenOn">');
+      const SWEEP_ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="m21 21-4.34-4.34" /><circle cx="11" cy="11" r="8" /></svg>';
       el2.innerHTML = `
-      <span class="grip" title="Drag to move — snaps to the nearest edge">⋮⋮</span>
-      <button class="pwr" title="Power (Alt+Shift+D) · v${CONFIG.VERSION}">⏻</button>
+      <span class="grip" title="Drag to move — snaps to the nearest edge"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><circle cx="9" cy="12" r="1" /><circle cx="9" cy="5" r="1" /><circle cx="9" cy="19" r="1" /><circle cx="15" cy="12" r="1" /><circle cx="15" cy="5" r="1" /><circle cx="15" cy="19" r="1" /></svg></span>
+      <button class="pwr" title="Power (Alt+Shift+D) · v${CONFIG.VERSION}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 2v10" /><path d="M18.4 6.6a9 9 0 1 1-12.77.04" /></svg></button>
       <span class="st" data-st>OFF</span>
       <hr class="sep whenOn">
       ${toolRuns}
       <!-- its own band: ⌕ and ⚙ drive the services, they are not tools -->
       <hr class="sep whenOn">
-      <button class="act whenOn" data-sweep data-view="findings" title="Audit the whole page">⌕</button>
+      <button class="act whenOn" data-sweep data-view="findings" title="Audit the whole page">${SWEEP_ICON}</button>
       <!-- with the tools it configures, not with the panel's own actions -->
-      <button class="act whenOn" data-settings data-view="settings" title="Tool settings">⚙</button>
+      <button class="act whenOn" data-settings data-view="settings" title="Tool settings"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></svg></button>
       <hr class="sep whenOn">
       <button class="cnt whenOn" data-c data-view="pins" title="Pinned elements — click for the list">0</button>
       <!-- 🏷 replaces ≡: same fam flyout the domain families use, members
@@ -2301,11 +2324,11 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
            what it is given and never learns what a view or a facet is -->
       <span class="fam whenOn" data-badge>
         <button class="fam-btn act" title="Badge — view and facets; click to open"
-                aria-haspopup="true" aria-expanded="false">🏷</button>
+                aria-haspopup="true" aria-expanded="false"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></svg></button>
         <span class="flyout" data-badge-fly></span>
       </span>
-      <button class="act whenOn" data-copy title="Copy report">⧉</button>
-      <button class="act whenOn" data-clear title="Clear pins and the audit's marks">✕</button>`;
+      <button class="act whenOn" data-copy title="Copy report"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /><path d="M16 4h2a2 2 0 0 1 2 2v4" /><path d="M21 14H11" /><path d="m15 10-4 4 4 4" /></svg></button>
+      <button class="act whenOn" data-clear title="Clear pins and the audit's marks"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>`;
       root.append(el2);
       List.attach({
         el: el2,
@@ -2327,7 +2350,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         for (const g of badgeGroups) {
           const h = document.createElement("button");
           h.className = "bctl whenOn axis" + (open === g.key ? " open" : "");
-          h.textContent = g.glyph;
+          h.innerHTML = g.glyph;
           h.title = g.title;
           h.setAttribute("aria-expanded", String(open === g.key));
           h.addEventListener("click", () => {
@@ -2339,7 +2362,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           for (const r of g.rows) {
             const b = document.createElement("button");
             b.className = "bctl whenOn" + (r.armed ? " armed" : "") + (r.fixed ? " fixed" : "");
-            b.textContent = r.glyph;
+            b.innerHTML = r.glyph;
             b.title = r.title;
             b.setAttribute("aria-pressed", String(!!r.armed));
             if (r.fixed) b.setAttribute("aria-disabled", "true");
@@ -2423,7 +2446,8 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         setSwept(v, n) {
           const b = el2.querySelector("[data-sweep]");
           b.classList.toggle("swept", !!v);
-          b.textContent = v ? String(n) : "⌕";
+          if (v) b.textContent = String(n);
+          else b.innerHTML = SWEEP_ICON;
           const what = v ? `Audit: ${n} distinct problem${n === 1 ? "" : "s"} — click to re-run` : "Audit the whole page";
           b.title = what;
           b.setAttribute("aria-label", what);
@@ -2453,13 +2477,13 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           const b = el2.querySelector(sel);
           if (!b) return;
           const live = flashing.get(b);
-          const original = live ? live.original : b.textContent;
+          const original = live ? live.original : b.innerHTML;
           if (live) clearTimeout(live.timer);
           b.textContent = msg;
           flashing.set(b, {
             original,
             timer: setTimeout(() => {
-              b.textContent = original;
+              b.innerHTML = original;
               flashing.delete(b);
             }, CONFIG.FLASH_MS)
           });
@@ -2617,7 +2641,8 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
   // src/services/badge/options.js
   var BadgeFace = defineService({
     id: "badge",
-    icon: "🏷",
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></svg>',
+    // lucide 'tag' (ISC)
     title: "Badge — view and facets",
     was: "grid",
     options() {
@@ -2627,7 +2652,11 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           label: "Badge view",
           def: CONFIG.BADGE_MODES[0],
           values: CONFIG.BADGE_MODES,
-          glyphs: { compact: "▬", full: "▤" },
+          glyphs: {
+            compact: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M5 12h14" /></svg>',
+            full: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M3 5h18" /><path d="M3 12h18" /><path d="M3 19h18" /></svg>'
+          },
+          // lucide minus / align-justify
           affects: "inspect"
         },
         {
@@ -2635,17 +2664,19 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           label: "Issue marks (⚠)",
           def: true,
           type: "toggle",
-          glyph: "⚠",
+          glyph: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>',
           affects: "inspect"
         },
+        // lucide triangle-alert
         {
           key: "suggest",
           label: "Suggest what would pass (→)",
           def: false,
           type: "toggle",
-          glyph: "→",
+          glyph: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>',
           affects: "inspect"
         }
+        // lucide arrow-right
       ];
     },
     /**
@@ -2666,7 +2697,8 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       return [
         {
           key: "view",
-          glyph: "◫",
+          glyph: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M12 3v18" /></svg>',
+          // lucide 'columns-2'
           title: "View — how much ink; press to choose",
           rows: view.values.map((v) => ({
             key: `${view.key}:${v}`,
@@ -2677,13 +2709,15 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         },
         {
           key: "facets",
-          glyph: "◈",
+          glyph: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z" /></svg>',
+          // lucide 'diamond'
           title: "Facets — which kinds of content render; press to choose",
           rows: [
             {
               fixed: true,
-              glyph: "＝",
+              glyph: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><line x1="5" x2="19" y1="9" y2="9" /><line x1="5" x2="19" y1="15" y2="15" /></svg>',
               armed: true,
+              // lucide 'equal'
               title: "Current — the component's own fields. Always on: this is the badge itself"
             },
             ...opts.filter((o) => o.type === "toggle").map((o) => ({

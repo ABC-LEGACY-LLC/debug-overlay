@@ -209,6 +209,13 @@ import { CONFIG } from '../core/config.js';
     #__dbgov-bar button.tool, #__dbgov-bar button.act, #__dbgov-bar button.bctl {
       width: 34px; height: 34px; border-radius: 50%; border: 0; cursor: pointer;
       background: #2c2c31; color: #fff; font-size: 15px; }
+    /* NO display here: .whenOn owns display (none ↔ flex with centring), and
+       a more specific display on the buttons out-guns the hider — the exact
+       mistake the fam flyout already made once. One icon set (lucide, ISC),
+       one size; the .whenOn / .pwr / .fam-btn flex does the centring. */
+    #__dbgov-bar button svg { width: 16px; height: 16px; pointer-events: none; }
+    #__dbgov-bar .grip svg { width: 14px; height: 14px; display: block; }
+    #__dbgov-list .tag svg { width: 14px; height: 14px; vertical-align: -3px; }
     #__dbgov-bar button.tool:hover, #__dbgov-bar button.act:hover { background: #3a3a40; }
     #__dbgov-bar button.tool.armed,
     #__dbgov-bar button.bctl.armed { background: #58c4ff; color: #0d1b24; }

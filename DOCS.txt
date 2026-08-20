@@ -151,6 +151,11 @@ HOW TO USE
   SCRIPT, not for the site — set them once and every other site already agrees,
   and Tampermonkey's own sync carries them to a new machine.
 
+  ICONS — one set, Lucide (lucide.dev, ISC licence), inlined as SVG so the
+  single-file build stays self-contained. Every tool declares its own icon
+  as a literal beside its id, which is what the audit counts; the glyphs in
+  this text (📌 ⬚ ▦ 🎨 ⌕ ⚙ …) are shorthand names for those buttons.
+
   ARCHITECTURE — real ES modules, one folder per component, bundled by
   esbuild into this single file. Execution order is the import graph, and a
   new capability is one new folder that nothing else has to name.

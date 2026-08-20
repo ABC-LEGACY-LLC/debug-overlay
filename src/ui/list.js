@@ -146,7 +146,12 @@ import { root } from './dom.js';
           r.className = 'row';
           const tag = document.createElement('span');
           tag.className = 'tag';
-          tag.textContent = row.tag;
+          /* A tag is never page text — it is a tool's declared icon, a
+             severity word, or a number this code built — so an SVG icon may
+             render as markup. LABELS and details stay textContent below:
+             page text flows through those, and a hostile id must stay inert. */
+          if (/^<svg[\s>]/.test(row.tag || '')) tag.innerHTML = row.tag;
+          else tag.textContent = row.tag;
           const lbl = document.createElement('span');
           lbl.className = 'lbl';
           lbl.textContent = row.label;         // textContent: page text is never HTML here

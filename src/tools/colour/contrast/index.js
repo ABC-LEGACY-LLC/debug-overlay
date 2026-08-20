@@ -17,7 +17,7 @@ import { Colour } from './service.js';
     `,
       id: 'contrast',
       family: 'colour',   // audited: must match the domain folder this sits in
-      icon: '◐',
+      icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><circle cx="12" cy="12" r="10" /><path d="M12 18a6 6 0 0 0 0-12v12z" /></svg>',   // lucide 'contrast' (ISC)
       // the level is the user's choice now, so it cannot be stated here
       title: 'Contrast — WCAG text contrast ratio',
       uses: [Colour],   // its settings are Colour's, and belong on its own menu

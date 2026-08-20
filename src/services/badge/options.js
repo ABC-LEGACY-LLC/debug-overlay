@@ -27,18 +27,20 @@ import { defineService, Tools } from '../../core/registry.js';
  */
 export const BadgeFace = defineService({
         id: 'badge',
-        icon: '🏷',
+        icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></svg>',   // lucide 'tag' (ISC)
         title: 'Badge — view and facets',
         was: 'grid',
         options() {
           return [
             { key: 'view', label: 'Badge view', def: CONFIG.BADGE_MODES[0],
-              values: CONFIG.BADGE_MODES, glyphs: { compact: '▬', full: '▤' },
+              values: CONFIG.BADGE_MODES,
+              glyphs: { compact: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M5 12h14" /></svg>',
+                        full: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M3 5h18" /><path d="M3 12h18" /><path d="M3 19h18" /></svg>' },   // lucide minus / align-justify
               affects: 'inspect' },
             { key: 'issues', label: 'Issue marks (⚠)', def: true,
-              type: 'toggle', glyph: '⚠', affects: 'inspect' },
+              type: 'toggle', glyph: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>', affects: 'inspect' },   // lucide triangle-alert
             { key: 'suggest', label: 'Suggest what would pass (→)', def: false,
-              type: 'toggle', glyph: '→', affects: 'inspect' },
+              type: 'toggle', glyph: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>', affects: 'inspect' },   // lucide arrow-right
           ];
         },
 
@@ -58,14 +60,16 @@ export const BadgeFace = defineService({
           const opts = this.options();
           const view = opts.find((o) => o.values);
           return [
-            { key: 'view', glyph: '◫', title: 'View — how much ink; press to choose',
+            { key: 'view', glyph: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M12 3v18" /></svg>',   // lucide 'columns-2'
+              title: 'View — how much ink; press to choose',
               rows: view.values.map((v) => ({
                 key: `${view.key}:${v}`, glyph: (view.glyphs || {})[v] || String(v),
                 title: `${view.label} — ${v}`,
                 armed: Tools.setting(this, view.key) === v })) },
-            { key: 'facets', glyph: '◈', title: 'Facets — which kinds of content render; press to choose',
+            { key: 'facets', glyph: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z" /></svg>',   // lucide 'diamond'
+              title: 'Facets — which kinds of content render; press to choose',
               rows: [
-                { fixed: true, glyph: '＝', armed: true,
+                { fixed: true, glyph: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><line x1="5" x2="19" y1="9" y2="9" /><line x1="5" x2="19" y1="15" y2="15" /></svg>', armed: true,   // lucide 'equal'
                   title: "Current — the component's own fields. Always on: this is the badge itself" },
                 ...opts.filter((o) => o.type === 'toggle').map((o) => ({
                   key: o.key, glyph: o.glyph || o.label, title: o.label,
