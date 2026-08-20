@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.79
+// @version      3.8.80
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -312,7 +312,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.79",
+    VERSION: "3.8.80",
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -1966,11 +1966,17 @@ HOW TO USE
     #__dbgov-bar .fam-btn.checks::after { content: ''; position: absolute;
       right: 1px; bottom: 1px; width: 7px; height: 7px; border-radius: 50%;
       background: #b5e853; border: 2px solid rgba(18,18,20,.96); }
+    /* VERTICAL, like the bar it belongs to — the flyout is a short second
+       column beside the head, not a sideways pill. And SEPARATED: no capsule
+       background; each member is its own circle wearing its own shadow, the
+       same species of button as the bar's. */
     #__dbgov-bar .fam .flyout { position: absolute; top: 50%;
-      transform: translateY(-50%) scale(.9); display: flex; gap: 6px;
-      padding: 6px; border-radius: 999px; background: rgba(18,18,20,.96);
-      box-shadow: 0 4px 18px rgba(0,0,0,.55); opacity: 0; pointer-events: none;
+      transform: translateY(-50%) scale(.9); display: flex;
+      flex-direction: column; align-items: center; gap: 6px;
+      opacity: 0; pointer-events: none;
       transition: opacity .15s ease, transform .15s ease; }
+    #__dbgov-bar .fam .flyout button {
+      box-shadow: 0 4px 14px rgba(0,0,0,.55); }
     #__dbgov-bar .fam.open .flyout { opacity: 1; pointer-events: auto;
       transform: translateY(-50%) scale(1); }
     #__dbgov-bar[data-side="right"] .fam .flyout { right: calc(100% + 12px); }
