@@ -76,7 +76,15 @@ import { Render } from '../ui/renderer.js';
       if (view === 'settings') return { title: 'Settings', detail: 'what each tool checks and shows' };
       if (view === 'pins') {
         const n = State.pins.length;
-        return { title: 'Pins', detail: `${n} pinned element${n === 1 ? '' : 's'}` };
+        /* The header carries pin's own clear-all: the bar's ✕ is the
+           page-wide broom (pins AND the audit's marks, one state), so
+           dropping the pins while KEEPING an audit on screen had no
+           control at all. It rides on the title ROW — same array, same
+           index the panel hands back — because a control living outside
+           rows(view) is how ✕ deleted the wrong pin once already. */
+        return { title: 'Pins', detail: `${n} pinned element${n === 1 ? '' : 's'}`,
+                 removable: n > 0, rmTitle: 'Clear all pins — the audit\'s marks stay',
+                 pins: State.pins.slice() };
       }
       const s = State.sweep;
       if (!s) return { title: 'Findings', detail: 'no audit has run' };

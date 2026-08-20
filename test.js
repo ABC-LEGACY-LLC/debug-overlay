@@ -1821,6 +1821,27 @@ console.log('\nSELECTION CHOOSES, PIN KEEPS');
     rep5.split('\n').find((l) => l.startsWith('[')) || 'nothing reported');
   w5.close();
 
+  // 5b) the pin list's header ✕ clears ALL pins and ONLY pins — the bar's ✕
+  // is the page-wide broom (pins AND audit marks); this is pin's own, so an
+  // audit on screen survives dropping the pins that anchored your reading
+  const w5b = boot(['measure', 'grid', 'pin'], idsOnDisk,
+    '<div id="a" style="padding:7px">a</div><div id="b">b</div>');
+  const bar5b = w5b.document.getElementById('__dbgov-bar');
+  bar5b.querySelector('[data-sweep]').dispatchEvent(new w5b.MouseEvent('click', { bubbles: true }));
+  clickOn(w5b, 'a');
+  clickOn(w5b, 'b');
+  bar5b.querySelector('[data-c]').dispatchEvent(new w5b.MouseEvent('click', { bubbles: true }));
+  const head5b = w5b.document.querySelector('#__dbgov-list .viewhead .rm');
+  ok('the pin list header carries its own clear-all', !!head5b,
+    'no ✕ on the Pins header');
+  head5b.dispatchEvent(new w5b.MouseEvent('click', { bubbles: true }));
+  const rep5b = copyText(w5b) || '';
+  ok('it clears every pin…', !/\[#\d/.test(rep5b),
+    rep5b.match(/\[#\d+\]/g)?.join(' ') || 'no pins — good');
+  ok('…and the audit stays on the page', /whole page/.test(rep5b),
+    'the sweep died with the pins — that is the bar ✕\'s job, not this one\'s');
+  w5b.close();
+
   // 6) a technique is a GESTURE, not a mode — pairs and chains mix in one
   // session. Shift+click pairs ①②, a fresh Shift+click opens ③, and two
   // Ctrl+Shift+clicks chain ③─④─⑤. The retired 'Pin grouping' mode could

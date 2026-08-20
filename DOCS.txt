@@ -67,6 +67,8 @@ HOW TO USE
   Count chip .......... sits right under 📌 — the keeper and its count are one
                         home, and the number rests in the bar where a flyout
                         would have hidden it.
+                        Its header carries pin's own ✕ — clear ALL pins while
+                        the audit's marks stay (the bar's ✕ takes both).
                         Click the pin count to open the pin list: every pin and
                         measured pair in one place, even ones scrolled off
                         screen. Click a row to scroll to it and flash it; click

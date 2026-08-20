@@ -83,6 +83,8 @@ HOW TO USE
   Count chip .......... sits right under 📌 — the keeper and its count are one
                         home, and the number rests in the bar where a flyout
                         would have hidden it.
+                        Its header carries pin's own ✕ — clear ALL pins while
+                        the audit's marks stay (the bar's ✕ takes both).
                         Click the pin count to open the pin list: every pin and
                         measured pair in one place, even ones scrolled off
                         screen. Click a row to scroll to it and flash it; click
@@ -1841,6 +1843,7 @@ HOW TO USE
        settings with no header at all, so nothing said what you were reading */
     #__dbgov-list .viewhead { padding: 4px 8px 8px; color: #fff; font-size: 13px;
       font-weight: 800; border-bottom: 1px solid rgba(255,255,255,.10); margin-bottom: 4px; }
+    #__dbgov-list .viewhead .rm { float: right; }
     #__dbgov-list .viewhead .note { display: block; margin-top: 2px; color: #8f8f96;
       font-size: 10px; font-weight: 400; }
     #__dbgov-list .head { padding: 10px 8px 4px; color: #8f8f96;
@@ -2157,6 +2160,17 @@ HOW TO USE
               const h = document.createElement("div");
               h.className = row.title ? "viewhead" : "head";
               h.textContent = row.title || row.heading;
+              if (row.removable) {
+                const rm = document.createElement("button");
+                rm.className = "rm";
+                rm.textContent = "✕";
+                rm.title = row.rmTitle || "Remove";
+                rm.addEventListener("click", (e) => {
+                  e.stopPropagation();
+                  api.onRowRemove?.(i);
+                });
+                h.append(rm);
+              }
               if (row.detail) {
                 const n = document.createElement("span");
                 n.className = "note";
@@ -3528,7 +3542,13 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       if (view === "settings") return { title: "Settings", detail: "what each tool checks and shows" };
       if (view === "pins") {
         const n = State.pins.length;
-        return { title: "Pins", detail: `${n} pinned element${n === 1 ? "" : "s"}` };
+        return {
+          title: "Pins",
+          detail: `${n} pinned element${n === 1 ? "" : "s"}`,
+          removable: n > 0,
+          rmTitle: "Clear all pins — the audit's marks stay",
+          pins: State.pins.slice()
+        };
       }
       const s = State.sweep;
       if (!s) return { title: "Findings", detail: "no audit has run" };

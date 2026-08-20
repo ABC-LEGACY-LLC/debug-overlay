@@ -121,6 +121,18 @@ import { root } from './dom.js';
             const h = document.createElement('div');
             h.className = row.title ? 'viewhead' : 'head';
             h.textContent = row.title || row.heading;
+            /* A heading that OWNS things may carry a ✕ like any row — wired
+               through the same onRowRemove with the same index, so whoever
+               handles it resolves this row in rows(view) like every other.
+               The heading itself stays unclickable; only the ✕ acts. */
+            if (row.removable) {
+              const rm = document.createElement('button');
+              rm.className = 'rm';
+              rm.textContent = '✕';
+              rm.title = row.rmTitle || 'Remove';
+              rm.addEventListener('click', (e) => { e.stopPropagation(); api.onRowRemove?.(i); });
+              h.append(rm);
+            }
             if (row.detail) {
               const n = document.createElement('span');
               n.className = 'note';

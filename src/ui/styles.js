@@ -78,6 +78,7 @@ import { CONFIG } from '../core/config.js';
        settings with no header at all, so nothing said what you were reading */
     #__dbgov-list .viewhead { padding: 4px 8px 8px; color: #fff; font-size: 13px;
       font-weight: 800; border-bottom: 1px solid rgba(255,255,255,.10); margin-bottom: 4px; }
+    #__dbgov-list .viewhead .rm { float: right; }
     #__dbgov-list .viewhead .note { display: block; margin-top: 2px; color: #8f8f96;
       font-size: 10px; font-weight: 400; }
     #__dbgov-list .head { padding: 10px 8px 4px; color: #8f8f96;
