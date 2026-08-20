@@ -12,9 +12,10 @@ wrong twice; run `npm run map` for the living version.
 
 ```
                 YOU
-                 │  click · shift+click · ctrl+click
+                 │  click · shift+click · ctrl+shift+click · ctrl+click
                  ▼
         ╔══════ INPUT SIDE ══════╗
+        ║ pin    — SOURCE        ║──▶ keeps() — selections persist as pins
         ║ select — SOURCE        ║──▶ State.pins + groups()   (feeds components)
         ║ pick   — ACTION        ║──▶ clipboard, directly     (bypasses them)
         ╚═══════════╤════════════╝
@@ -50,11 +51,11 @@ species, so the label cannot drift from the behaviour:
 | band | derived from | job |
 |---|---|---|
 | **COMPONENT** | `badge` / `compact` / `annotate` / `audit` / `auditPage` | reads the page, produces content INTO SERVICES |
-| **SOURCE** | `groups` / `listRows` / `pendingIndex` | input side: turns clicks into what components work ON |
+| **SOURCE** | `groups` / `listRows` / `pendingIndex` / `keeps` | input side: turns clicks into what components work ON |
 | **ACTION** | `intercept` | input side: a click becomes a direct effect |
 
-Today: measure, grid, contrast and dupid are components; select is the
-source; pick is the action. A flat "components" list put all six in one
+Today: measure, grid, contrast and dupid are components; select and pin are
+the sources; pick is the action. A flat "components" list put all six in one
 rowset, and every matrix drawn over it felt wrong — select's row looked broken
 next to measure's because they are different species, not because the code was.
 
@@ -111,6 +112,30 @@ Other services can grow families the same way, when a producer exists: the
 findings list already distinguishes fail from `review` (a verdict vs the
 absence of one), which is its own two-facet family in all but name.
 
+## Selection chooses; pin keeps
+
+Two verbs that used to be welded into one click. SELECTION is core's: a click
+chooses ONE element — outline, badge, no number — and the next click lets it
+go and chooses the next. 📌 pin is the tool that KEEPS a choice: armed (its
+shipped default), what you select persists as a numbered pin; off, the page
+never accumulates anything. The input layer asks "does any armed tool keep
+selections?" through the `keeps` hook — a capability question with no id in
+it, like the grouping question beside it. Numbers belong to KEPT selections:
+that is why the current selection wears none, and why disarming pin never
+deletes the pins you already made — off stops NEW keeping only.
+
+## A technique is a gesture, not a mode
+
+How selection pins GROUP rides on the gesture, never on a setting chosen in
+advance: Shift+click pairs (①② then a fresh ③④), Ctrl/⌘+Shift+click links to
+the previous pin (repeat for ①─②─③), and the two mix in one session. The
+retired 'Pin grouping' mode is the cautionary tale — the same finger did
+different things on different days, and two clicks looked identical until the
+third betrayed which mode was on. `tools/select/form.js` is the one walk that
+turns kinds into runs; consumers still see two-pin groups and never learn any
+of this happened. A mode switch is what you reach for only when gestures run
+out.
+
 ## The source's output is consumed, not shown
 
 select publishes `groups()`; measure asks `Tools.groups()` and draws dimension
@@ -120,10 +145,11 @@ the pin list — its real product feeds another component. A lasso or a
 select-by-query is one new file in this band, and every consumer picks it up
 unchanged.
 
-Two capability flows exist today, and both are name-free:
+Three capability flows exist today, and all are name-free:
 
 | producer | capability | consumer |
 |---|---|---|
+| pin | `keeps()` | interactions — does a click's choice persist? |
 | select | `groups()` | whoever measures between elements |
 | grid | `annotate` (the ⚠ lens) | every number any badge prints |
 
@@ -146,12 +172,13 @@ pin and select appends only the `…`.
 |---|---|---|
 | badge | the box, the `#N` prefix | describers' fields |
 | pin marks | outline AND `#N` chip | the `…` on a waiting pin |
+| current selection | outline + badge, NO number | nothing yet — 📌 decides if it becomes a pin |
 | page marks | the layer, cleared per frame | outlines, lines, flashes |
 | pin list | a plain row per pin | pair rows |
 | findings | grouping, sort, `×N` | the findings themselves |
 | report | header, scope, `## rules` | each tool's lines |
 | ⚙ | grouping by `affects`, KEYS | each owner's rows |
-| input | hover, click, pins, hotkeys | pick's claim |
+| input | hover, click, the current selection, hotkeys | pick's claim; pin's keeping |
 
 ## The audit is a flow, not a place
 

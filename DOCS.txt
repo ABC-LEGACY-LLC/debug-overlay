@@ -2,8 +2,11 @@ HOW TO USE
   ----------
   Alt+Shift+D ......... power on/off (or click ⏻ on the panel)
   Hover ............... live badge for the element under the cursor
-  Click ............... INSPECT one element (orange, dashed). Its badge freezes
-                        in place. No measuring, no green line.
+  Click ............... SELECT one element (orange, dashed). Its badge freezes
+                        in place. No measuring, no green line. With 📌 pin
+                        armed (the default) the selection is KEPT — numbered,
+                        listed, reported; with 📌 off, the next click simply
+                        replaces it and the page never accumulates anything.
   Shift+Click ......... PAIR (lime, solid): a selection pin. These group in
                         PAIRS: the 1st is "from" (cyan, marked 1…), the 2nd is
                         "to" — and whatever measures (📐) draws the dimension
@@ -23,7 +26,8 @@ HOW TO USE
                         pins whose element is hard to hit again. Release to exit.
   Hold Alt ............ pass clicks through to the page (links keep working)
   Esc ................. closes the top layer: an open panel first, then remove
-                        mode, then pins. It never powers the tool off — that is
+                        mode, then pins and the selection. It never powers the
+                        tool off — that is
                         the ⏻ button and Alt+Shift+D, both of which say so.
   ≡ ................... compact / full badges
   ⌕ ................... audit the WHOLE page — every active rule runs over every
@@ -60,6 +64,13 @@ HOW TO USE
   at all. WHAT gets measured is decided by the tools below it, each an
   independent toggle you can mix freely:
 
+    📌 pin       keep what you select. SELECTION chooses — one element at a
+                 time, replaced by the next click; PIN is what makes a choice
+                 persist as a numbered pin. On by default, so clicks pin the
+                 way they always did. Switch it off to browse a page one
+                 badge at a time with nothing to clean up afterwards — and
+                 pins you already made stay until ✕, because a toggle must
+                 not destroy a prepared screenshot.
     ⬚ select    how pinned elements group up. The technique rides on the
                  gesture — Shift+click pairs, Ctrl+Shift+click chains — and
                  grouping lives here and not in measure, so a new way of
@@ -108,7 +119,7 @@ HOW TO USE
   appears, with nothing installed or wired up.
 
   The rules between the buttons mark the PIPELINE, top to bottom: the input
-  side (⬚ select, ⌖ pick — what your clicks become), then the components
+  side (📌 pin, ⬚ select, ⌖ pick — what your clicks become), then the components
   (what describes the page), then ⌕ and ⚙, then the pins/copy/clear band. A
   green dot on a tool means its rule feeds ⌕. Arming decides what you SEE;
   ⌕ checks every rule either way, so a toggle you forgot can never quietly

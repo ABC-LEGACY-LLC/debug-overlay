@@ -168,7 +168,8 @@ src/
     grid/              index · service (Scale) · badge · lens · rule · draw
                        · report · options
     pick/              index · act
-    select/            index · service · rows
+    pin/               index · keep — SELECTION chooses, this KEEPS the choice
+    select/            index · service · form · rows
   services/            the four collectors — never edited for a new tool
     badge/  findings/  report/  settings/
   subjects/

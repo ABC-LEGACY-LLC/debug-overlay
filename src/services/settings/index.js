@@ -119,8 +119,8 @@ import { State, Store } from '../../core/state.js';
       const hot = [H.ctrl && 'Ctrl', H.alt && 'Alt', H.shift && 'Shift',
                    H.code.replace('Key', '')].filter(Boolean).join('+');
       const rows = [
-        ['Click', 'pin an element'],
-        ['Shift+click', 'pin it for measuring'],
+        ['Click', 'select an element — 📌 armed, it is kept as a pin'],
+        ['Shift+click', 'pair it with your next Shift+click'],
         ['Alt+click', 'let the click through to the page'],
         [`Hold ${CONFIG.REMOVE_KEY.replace('Key', '')}`, 'show ✕ on every pin'],
         ['Esc', 'close the panel, then the pins'],
