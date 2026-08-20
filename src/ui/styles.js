@@ -47,12 +47,25 @@ import { CONFIG } from '../core/config.js';
     #__dbgov-list.dbgov-open { display: block; }
     #__dbgov-list .dbgov-empty { padding: 10px 8px; color: #8f8f96; line-height: 1.5; }
     #__dbgov-list .dbgov-row { display: flex; align-items: center; gap: 8px;
-      padding: 6px 8px; border-radius: 8px; cursor: pointer; }
+      padding: 6px 8px; border-radius: 8px; }
+    /* only a row that DOES something on click says so — a settings row is a
+       label beside a control, and a pointer over it promised an action that
+       never came */
+    #__dbgov-list .dbgov-row[role="button"] { cursor: pointer; }
     #__dbgov-list .dbgov-row:hover { background: rgba(255,255,255,.08); }
     #__dbgov-list .dbgov-tag { flex: none; color: #ff8a65; font-weight: 800; }
-    #__dbgov-list .dbgov-lbl { flex: 1 1 auto; overflow: hidden;
+    /* THE MESSAGE IS THE CONTENT AND MUST NOT BE THE CELL THAT COLLAPSES.
+       .dbgov-lbl was the only shrinkable item in the row (every sibling is
+       flex: none), and its overflow:hidden zeroes its automatic minimum size —
+       so a long CSS selector in .dbgov-det ate the whole row and the finding
+       rendered with NO TEXT AT ALL: measured 0px wide on 2 of 11 rows. The
+       floor keeps the human-readable half; the machine-readable half is what
+       truncates, with the whole of it in the row's title. */
+    #__dbgov-list .dbgov-lbl { flex: 1 1 auto; min-width: 55%; overflow: hidden;
       text-overflow: ellipsis; white-space: nowrap; }
-    #__dbgov-list .dbgov-det { flex: none; color: #b5e853; font-weight: 700; }
+    #__dbgov-list .dbgov-det { flex: 0 1 auto; min-width: 0; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap;
+      color: #b5e853; font-weight: 700; }
     /* A row may carry an opaque accent; the panel copies it onto the element
        without knowing what any of the values mean. */
     #__dbgov-list .dbgov-row[data-accent="error"] .dbgov-tag { color: #ff6b6b; }
@@ -195,7 +208,14 @@ import { CONFIG } from '../core/config.js';
       transform: translateY(-50%) scale(.9); display: flex;
       flex-direction: column; align-items: center; gap: 6px;
       opacity: 0; pointer-events: none;
-      transition: opacity .15s ease, transform .15s ease; }
+      /* VISIBILITY, not just opacity: pointer-events stops the mouse but a
+         transparent button keeps its place in the TAB ORDER, so four buttons
+         nobody could see answered the keyboard. Delayed to the end of the fade
+         so the transition still plays; inert is not an option here — that is
+         the v3.8.48 defect, and jsdom implements neither its semantics nor
+         display:none inheritance. */
+      visibility: hidden;
+      transition: opacity .15s ease, transform .15s ease, visibility 0s linear .15s; }
     #__dbgov-bar .dbgov-fam .dbgov-flyout button {
       box-shadow: 0 4px 14px rgba(0,0,0,.55); }
     /* the SECOND layer: a pressed axis grows its members one more step out
@@ -210,6 +230,7 @@ import { CONFIG } from '../core/config.js';
     #__dbgov-bar[data-side="top"] .dbgov-fam .dbgov-flyout .dbgov-subfly,
     #__dbgov-bar[data-side="bottom"] .dbgov-fam .dbgov-flyout .dbgov-subfly { left: calc(100% + 12px); }
     #__dbgov-bar .dbgov-fam.dbgov-open .dbgov-flyout { opacity: 1; pointer-events: auto;
+      visibility: visible; transition-delay: 0s;
       transform: translateY(-50%) scale(1); }
     #__dbgov-bar[data-side="right"] .dbgov-fam .dbgov-flyout { right: calc(100% + 12px); }
     #__dbgov-bar[data-side="left"] .dbgov-fam .dbgov-flyout,
@@ -221,6 +242,13 @@ import { CONFIG } from '../core/config.js';
       border: 0; background: transparent; cursor: pointer; padding: 2px 6px;
       border-radius: 999px; font-family: inherit; }
     #__dbgov-bar .dbgov-cnt:hover { background: #2c2c31; }
+    /* ARMED WINS OVER HOVER. The armed chip is dark text on amber; this hover
+       rule is declared later at equal specificity, so it replaced the amber
+       with #2c2c31 and left the dark text — #1a1a1a on #2c2c31 is 1.25:1, an
+       empty-looking circle exactly while its own list is open, and you are
+       always hovering the chip you just clicked. In a tool that ships a
+       contrast checker. */
+    #__dbgov-bar .dbgov-cnt.dbgov-armed:hover { background: #ff8a65; }
 
     /* tool + action buttons */
     #__dbgov-bar button.dbgov-tool, #__dbgov-bar button.dbgov-act, #__dbgov-bar button.dbgov-bctl {

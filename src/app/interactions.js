@@ -107,7 +107,12 @@ import { Render } from '../ui/renderer.js';
              took the panel, the audit and the session with it — for a key
              whose universal meaning is "close this". Power stays on the button
              and on Alt+Shift+D, both of which say so. */
+          /* ONE ladder, every overlay on it. The flyouts used to be missing —
+             they closed on an outside click and nowhere else, so Escape, the
+             one key whose universal meaning is "close this", walked straight
+             past an open flyout and cleared the pins behind it. */
           if (Menu.isOpen()) Menu.close();   // the newest top layer
+          else if (Panel.isFlyoutOpen()) Panel.closeFlyouts();
           else if (State.removeMode) ctl.setRemoveMode(false);
           else if (Panel.isListOpen()) Panel.toggleList(false);
           else if (State.pins.length || State.current) ctl.clearPins();

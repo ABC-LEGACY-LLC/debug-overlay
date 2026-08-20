@@ -50,6 +50,12 @@ import { Render } from '../ui/renderer.js';
       // === 0, and a title alone would suppress the one sentence that explains
       // why the view is empty.
       if (!body.length) return body;
+      /* Which rows DO something when you activate them — the same question
+         revealRow answers, asked once, here, because this is the only layer
+         that knows what a row means. The panel reads the flag and gives those
+         rows a role and the keyboard; a settings row is a label beside a
+         control and gets neither. */
+      for (const r of body) if (r.pins || r.el) r.activatable = true;
       const t = Controller.viewTitle(view, body);
       return t ? [t, ...body] : body;
     },

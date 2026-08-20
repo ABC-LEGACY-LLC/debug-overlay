@@ -101,6 +101,12 @@ import { root } from './dom.js';
        * its value has, and so cannot start deciding any of that.
        */
       set(rows, empty = '') {
+        /* Every activation ends in a rebuild, and a rebuild starts by emptying
+           this element — so a row the KEYBOARD was standing on sent focus to
+           <body> the moment it was used, and the next Tab started from the top
+           of the page. Remember where focus was by index and put it back. */
+        const focusedRow = document.activeElement &&
+          [...el.children].indexOf(document.activeElement.closest?.('.dbgov-row'));
         el.textContent = '';
         if (!rows.length) {
           const e = document.createElement('div');
@@ -158,13 +164,35 @@ import { root } from './dom.js';
           // carried, not interpreted — the stylesheet decides what it means
           if (row.accent) r.dataset.accent = row.accent;
           if (row.inert) r.classList.add('dbgov-inert');
-          r.addEventListener('click', () => api.onRowActivate?.(i));
+          /* A row that DOES something answers the keyboard and says what it is.
+             role+tabindex rather than a real <button>, because a settings row
+             contains a <select> and a pin row contains its own ✕ button, and
+             interactive content may not nest — a <button class="row"> around
+             either is invalid, and the controls' stopPropagation would stop
+             guarding, since it cannot cancel a button's own activation.
+             `activatable` is the controller's word: only it knows which rows
+             resolve to something on the page. */
+          if (row.activatable) {
+            r.setAttribute('role', 'button');
+            r.tabIndex = 0;
+            r.addEventListener('click', () => api.onRowActivate?.(i));
+            r.addEventListener('keydown', (e) => {
+              if (e.key !== 'Enter' && e.key !== ' ') return;
+              e.preventDefault();        // Space must not scroll the page
+              api.onRowActivate?.(i);
+            });
+          }
           if (row.control) {
             r.append(tag, lbl, Controls.build(row.control, (raw) => api.onRowChange?.(i, raw)));
           } else {
             const det = document.createElement('span');
             det.className = 'dbgov-det';
             det.textContent = row.detail || '';
+            /* The detail is the cell that truncates now, so the whole of it
+               has to be somewhere: a selector you cannot read is not an
+               address. Both halves, on the row, for the hover that the
+               ellipsis makes necessary. */
+            if (row.detail) r.title = `${row.label}\n${row.detail}`;
             r.append(tag, lbl, det);
           }
           // Only rows that own something can drop it. A finding is a fact
@@ -179,6 +207,8 @@ import { root } from './dom.js';
           }
           el.append(r);
         });
+        // put the keyboard back where it was, now that the rows exist again
+        if (focusedRow >= 0) el.children[focusedRow]?.focus?.();
         place();
       },
     };

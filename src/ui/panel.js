@@ -195,6 +195,20 @@ import { List } from './list.js';
         badgeGroups = groups;
         renderBadgeFly();
       },
+      /* A flyout is an overlay, so Escape has to reach it — it did not, and
+         the comment above the fam-btn handler claimed otherwise. Shaped like
+         Menu's isOpen/close so app/ can put it in the one dismissal ladder
+         without ui/ learning anything about app/. Closing collapses the badge
+         drawer too: which axis is open is furniture, not a choice. */
+      isFlyoutOpen: () => !!el.querySelector('.dbgov-fam.dbgov-open'),
+      closeFlyouts() {
+        el.querySelectorAll('.dbgov-fam.dbgov-open').forEach((f) => {
+          f.classList.remove('dbgov-open');
+          f.querySelector('.dbgov-fam-btn')?.setAttribute('aria-expanded', 'false');
+        });
+        const fly = el.querySelector('[data-badge-fly]');
+        if (fly && fly.dataset.open) { fly.dataset.open = ''; renderBadgeFly(); }
+      },
       /**
        * Whether an audit is currently showing on the page. The ⌕ flash is
        * transient by design, so once it expired the bar said "no audit has
@@ -292,20 +306,14 @@ import { List } from './list.js';
       b.addEventListener('click', () => {
         const fam = b.parentElement;
         const open = !fam.classList.contains('dbgov-open');
-        el.querySelectorAll('.dbgov-fam.dbgov-open').forEach((f) => {
-          f.classList.remove('dbgov-open');
-          f.querySelector('.dbgov-fam-btn').setAttribute('aria-expanded', 'false');
-        });
+        api.closeFlyouts();
         fam.classList.toggle('dbgov-open', open);
         b.setAttribute('aria-expanded', String(open));
       });
     });
     document.addEventListener('pointerdown', (e) => {
       if (e.target.closest && e.target.closest('.dbgov-fam')) return;
-      el.querySelectorAll('.dbgov-fam.dbgov-open').forEach((f) => {
-        f.classList.remove('dbgov-open');
-        f.querySelector('.dbgov-fam-btn').setAttribute('aria-expanded', 'false');
-      });
+      api.closeFlyouts();
     }, true);
 
     el.querySelectorAll('[data-tool]').forEach((b) => {

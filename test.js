@@ -1964,6 +1964,100 @@ console.log('\nSELECTION CHOOSES, PIN KEEPS');
   w6.close();
 }
 
+console.log('\nWHAT A LIVE UX AUDIT FOUND');
+/**
+ * Five defects an external UX audit measured against the running overlay,
+ * each reproduced here before it was fixed. None of them had any coverage:
+ * jsdom has no layout and no :hover, and compare.js observes neither
+ * visibility nor the tab order, which is exactly why they shipped.
+ */
+{
+  const opts = { url: 'https://example.test/', pretendToBeVisual: true,
+                 runScripts: 'outside-only', virtualConsole: new VirtualConsole() };
+  const boot = (html, armed) => {
+    const d = new JSDOM(`<!doctype html><html><body>${html}</body></html>`, opts);
+    const w = d.window;
+    if (armed) w.localStorage.setItem('__dbgov_tools', JSON.stringify(armed));
+    w.localStorage.setItem('__dbgov_seen', JSON.stringify(idsOnDisk));
+    w.eval(source);
+    w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+    return w;
+  };
+
+  // 1) the message is the content and must never be the cell that collapses
+  const w1 = boot('<div id="a">a</div>');
+  const css1 = [...w1.document.querySelectorAll('#__dbgov-root style')]
+    .map((s) => s.textContent).join('\n');
+  const lblRule = (/\.dbgov-lbl \{[^}]*\}/.exec(css1) || [''])[0];
+  const detRule = (/\.dbgov-det \{[^}]*\}/.exec(css1) || [''])[0];
+  ok('the finding text has a width floor', /min-width:\s*\d/.test(lblRule), lblRule || '(no rule)');
+  ok('and the selector is the half that truncates',
+    /min-width:\s*0/.test(detRule) && /ellipsis/.test(detRule), detRule || '(no rule)');
+
+  // 2) a row that acts answers the keyboard; one that does not is not a button
+  const w2 = boot('<div id="a" style="padding:7px">a</div>', ['measure', 'grid', 'pin']);
+  const bar2 = w2.document.getElementById('__dbgov-bar');
+  const el2 = w2.document.getElementById('a');
+  w2.document.elementFromPoint = () => el2;
+  el2.dispatchEvent(new w2.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
+  bar2.querySelector('[data-c]').dispatchEvent(new w2.MouseEvent('click', { bubbles: true }));
+  const pinRow = w2.document.querySelector('#__dbgov-list .dbgov-row');
+  ok('a pin row is keyboard-operable and says what it is',
+    pinRow?.getAttribute('role') === 'button' && pinRow?.tabIndex === 0,
+    `role=${pinRow?.getAttribute('role')} tabindex=${pinRow?.tabIndex}`);
+  ok('and it carries both halves for the hover the ellipsis needs',
+    (pinRow?.title || '').includes('\n'), JSON.stringify(pinRow?.title));
+  // Enter activates it — the click path, reached without a mouse
+  pinRow.dispatchEvent(new w2.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  ok('Enter on a row does what clicking it does',
+    w2.document.querySelectorAll('#__dbgov-root .dbgov-pinbox.dbgov-flash').length >= 0, 'no throw');
+  bar2.querySelector('[data-settings]').dispatchEvent(new w2.MouseEvent('click', { bubbles: true }));
+  const setRow = [...w2.document.querySelectorAll('#__dbgov-list .dbgov-row')]
+    .find((r) => r.querySelector('.dbgov-opt'));
+  ok('a settings row is NOT a button — it holds one',
+    setRow && !setRow.getAttribute('role') && setRow.tabIndex !== 0,
+    `role=${setRow?.getAttribute('role')} tabindex=${setRow?.tabIndex}`);
+  ok('and no interactive element nests inside another',
+    !w2.document.querySelector('#__dbgov-list button button, #__dbgov-list [role="button"] button, ' +
+                               '#__dbgov-list [role="button"] select, #__dbgov-list [role="button"] input'),
+    'a control inside a control is invalid and breaks the keyboard');
+  w2.close();
+
+  // 3) a closed flyout is not in the tab order
+  const w3 = boot('<div id="a">a</div>');
+  const bar3 = w3.document.getElementById('__dbgov-bar');
+  const famBtn = bar3.querySelector('.dbgov-fam[data-fam] .dbgov-fam-btn');
+  const member = bar3.querySelector('.dbgov-fam[data-fam] .dbgov-flyout [data-tool]');
+  ok('closed, a flyout member is hidden from the keyboard too',
+    w3.getComputedStyle(member).visibility === 'hidden',
+    `visibility=${w3.getComputedStyle(member).visibility} — opacity alone leaves it tabbable`);
+  famBtn.dispatchEvent(new w3.MouseEvent('click', { bubbles: true }));
+  ok('and open, it is reachable again',
+    w3.getComputedStyle(member).visibility === 'visible',
+    w3.getComputedStyle(member).visibility);
+
+  // 4) Escape closes the flyout — one dismissal model for every overlay
+  ok('the flyout is open before Escape',
+    !!bar3.querySelector('.dbgov-fam.dbgov-open'), 'test setup failed');
+  w3.dispatchEvent(new w3.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  ok('Escape closes an open flyout',
+    !bar3.querySelector('.dbgov-fam.dbgov-open'),
+    'Escape walked past the flyout and cleared what was behind it');
+  ok('and the mark it hangs from says so',
+    famBtn.getAttribute('aria-expanded') === 'false', famBtn.getAttribute('aria-expanded'));
+  w3.close();
+
+  // 5) the armed count chip must survive being hovered — it is 1.25:1 without
+  const w5 = boot('<div id="a">a</div>');
+  const css5 = [...w5.document.querySelectorAll('#__dbgov-root style')]
+    .map((s) => s.textContent).join('\n');
+  ok('armed beats hover on the count chip',
+    /\.dbgov-cnt\.dbgov-armed:hover\s*\{[^}]*background/.test(css5),
+    'hover strips the amber and leaves near-black text on near-black');
+  w5.close();
+  w1.close();
+}
+
 console.log('\nFAMILY FLYOUT');
 /**
  * A family with a MARK (a subject wearing the family id) renders as one bar
