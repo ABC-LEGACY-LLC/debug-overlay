@@ -100,6 +100,12 @@ import { List } from './list.js';
       const open = fly.dataset.open || '';
       fly.textContent = '';
       for (const g of badgeGroups) {
+        /* Each axis is wrapped so its members hang BESIDE it — the next
+           layer out from the bar, its own column, the way the flyout itself
+           hangs beside the head. Members mixed into the heads' column read
+           as one flat level, which is exactly what the axes exist to avoid. */
+        const sub = document.createElement('span');
+        sub.className = 'sub';
         const h = document.createElement('button');
         // bctl, not tool: these are the badge service's controls, and every
         // test and map that enumerates button.tool means REGISTRY tools
@@ -111,21 +117,26 @@ import { List } from './list.js';
           fly.dataset.open = open === g.key ? '' : g.key;
           renderBadgeFly();
         });
-        fly.append(h);
-        if (open !== g.key) continue;
-        for (const r of g.rows) {
-          const b = document.createElement('button');
-          b.className = 'bctl whenOn' + (r.armed ? ' armed' : '') +
-                        (r.fixed ? ' fixed' : '');
-          b.innerHTML = r.glyph;   // our own icon constant, never page text
-          b.title = r.title;
-          b.setAttribute('aria-pressed', String(!!r.armed));
-          // a fixed member is information, not a control — it says the axis
-          // has this face and that it is always on, and it takes no click
-          if (r.fixed) b.setAttribute('aria-disabled', 'true');
-          else b.addEventListener('click', () => api.onBadgeControl?.(r.key));
-          fly.append(b);
+        sub.append(h);
+        if (open === g.key) {
+          const members = document.createElement('span');
+          members.className = 'subfly';
+          for (const r of g.rows) {
+            const b = document.createElement('button');
+            b.className = 'bctl whenOn' + (r.armed ? ' armed' : '') +
+                          (r.fixed ? ' fixed' : '');
+            b.innerHTML = r.glyph;   // our own icon constant, never page text
+            b.title = r.title;
+            b.setAttribute('aria-pressed', String(!!r.armed));
+            // a fixed member is information, not a control — it says the axis
+            // has this face and that it is always on, and it takes no click
+            if (r.fixed) b.setAttribute('aria-disabled', 'true');
+            else b.addEventListener('click', () => api.onBadgeControl?.(r.key));
+            members.append(b);
+          }
+          sub.append(members);
         }
+        fly.append(sub);
       }
     }
 

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.80
+// @version      3.8.81
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -312,7 +312,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.80",
+    VERSION: "3.8.81",
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -1977,6 +1977,17 @@ HOW TO USE
       transition: opacity .15s ease, transform .15s ease; }
     #__dbgov-bar .fam .flyout button {
       box-shadow: 0 4px 14px rgba(0,0,0,.55); }
+    /* the SECOND layer: a pressed axis grows its members one more step out
+       from the bar, its own column beside the head — never mixed into the
+       heads' column, or two levels read as one flat run */
+    #__dbgov-bar .fam .flyout .sub { position: relative; display: flex; }
+    #__dbgov-bar .fam .flyout .subfly { position: absolute; top: 50%;
+      transform: translateY(-50%); display: flex; flex-direction: column;
+      align-items: center; gap: 6px; }
+    #__dbgov-bar[data-side="right"] .fam .flyout .subfly { right: calc(100% + 12px); }
+    #__dbgov-bar[data-side="left"] .fam .flyout .subfly,
+    #__dbgov-bar[data-side="top"] .fam .flyout .subfly,
+    #__dbgov-bar[data-side="bottom"] .fam .flyout .subfly { left: calc(100% + 12px); }
     #__dbgov-bar .fam.open .flyout { opacity: 1; pointer-events: auto;
       transform: translateY(-50%) scale(1); }
     #__dbgov-bar[data-side="right"] .fam .flyout { right: calc(100% + 12px); }
@@ -2354,6 +2365,8 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         const open = fly.dataset.open || "";
         fly.textContent = "";
         for (const g of badgeGroups) {
+          const sub = document.createElement("span");
+          sub.className = "sub";
           const h = document.createElement("button");
           h.className = "bctl whenOn axis" + (open === g.key ? " open" : "");
           h.innerHTML = g.glyph;
@@ -2363,18 +2376,23 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
             fly.dataset.open = open === g.key ? "" : g.key;
             renderBadgeFly();
           });
-          fly.append(h);
-          if (open !== g.key) continue;
-          for (const r of g.rows) {
-            const b = document.createElement("button");
-            b.className = "bctl whenOn" + (r.armed ? " armed" : "") + (r.fixed ? " fixed" : "");
-            b.innerHTML = r.glyph;
-            b.title = r.title;
-            b.setAttribute("aria-pressed", String(!!r.armed));
-            if (r.fixed) b.setAttribute("aria-disabled", "true");
-            else b.addEventListener("click", () => api.onBadgeControl?.(r.key));
-            fly.append(b);
+          sub.append(h);
+          if (open === g.key) {
+            const members = document.createElement("span");
+            members.className = "subfly";
+            for (const r of g.rows) {
+              const b = document.createElement("button");
+              b.className = "bctl whenOn" + (r.armed ? " armed" : "") + (r.fixed ? " fixed" : "");
+              b.innerHTML = r.glyph;
+              b.title = r.title;
+              b.setAttribute("aria-pressed", String(!!r.armed));
+              if (r.fixed) b.setAttribute("aria-disabled", "true");
+              else b.addEventListener("click", () => api.onBadgeControl?.(r.key));
+              members.append(b);
+            }
+            sub.append(members);
           }
+          fly.append(sub);
         }
       }
       const api = {

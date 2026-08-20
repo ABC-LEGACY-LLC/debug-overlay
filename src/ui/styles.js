@@ -198,6 +198,17 @@ import { CONFIG } from '../core/config.js';
       transition: opacity .15s ease, transform .15s ease; }
     #__dbgov-bar .fam .flyout button {
       box-shadow: 0 4px 14px rgba(0,0,0,.55); }
+    /* the SECOND layer: a pressed axis grows its members one more step out
+       from the bar, its own column beside the head — never mixed into the
+       heads' column, or two levels read as one flat run */
+    #__dbgov-bar .fam .flyout .sub { position: relative; display: flex; }
+    #__dbgov-bar .fam .flyout .subfly { position: absolute; top: 50%;
+      transform: translateY(-50%); display: flex; flex-direction: column;
+      align-items: center; gap: 6px; }
+    #__dbgov-bar[data-side="right"] .fam .flyout .subfly { right: calc(100% + 12px); }
+    #__dbgov-bar[data-side="left"] .fam .flyout .subfly,
+    #__dbgov-bar[data-side="top"] .fam .flyout .subfly,
+    #__dbgov-bar[data-side="bottom"] .fam .flyout .subfly { left: calc(100% + 12px); }
     #__dbgov-bar .fam.open .flyout { opacity: 1; pointer-events: auto;
       transform: translateY(-50%) scale(1); }
     #__dbgov-bar[data-side="right"] .fam .flyout { right: calc(100% + 12px); }
