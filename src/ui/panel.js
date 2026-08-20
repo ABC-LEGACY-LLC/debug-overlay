@@ -62,7 +62,14 @@ import { List } from './list.js';
       <button class="act whenOn" data-settings data-view="settings" title="Tool settings">⚙</button>
       <hr class="sep whenOn">
       <button class="cnt whenOn" data-c data-view="pins" title="Pinned elements — click for the list">0</button>
-      <button class="act whenOn" data-detail title="Compact / full badges">≡</button>
+      <!-- 🏷 replaces ≡: same fam flyout the domain families use, members
+           handed in by the controller (setBadgeControls) — this file renders
+           what it is given and never learns what a view or a facet is -->
+      <span class="fam whenOn" data-badge>
+        <button class="fam-btn act" title="Badge — view and facets; click to open"
+                aria-haspopup="true" aria-expanded="false">🏷</button>
+        <span class="flyout" data-badge-fly></span>
+      </span>
       <button class="act whenOn" data-copy title="Copy report">⧉</button>
       <button class="act whenOn" data-clear title="Clear pins and the audit's marks">✕</button>`;
     root.append(el);
@@ -85,9 +92,9 @@ import { List } from './list.js';
 
     const api = {
       el,
-      onToggle: null, onTool: null, onDetail: null, onCopy: null, onClear: null,
-      onListOpen: null, onRowActivate: null, onRowRemove: null, onSweep: null,
-      onRowChange: null,
+      onToggle: null, onTool: null, onBadgeControl: null, onCopy: null,
+      onClear: null, onListOpen: null, onRowActivate: null, onRowRemove: null,
+      onSweep: null, onRowChange: null,
       setOn(v) {
         /* NO `inert` here, ever. It was added to take the overlay out of the
            tab order when powered off — but inert covers the WHOLE subtree, and
@@ -112,10 +119,27 @@ import { List } from './list.js';
         if (fam) fam.querySelector('.fam-btn')
           .classList.toggle('armed', !!fam.querySelector('.tool.armed'));
       },
-      setDetail(v) {
-        const b = el.querySelector('[data-detail]');
-        b.classList.toggle('armed', v);
-        b.setAttribute('aria-pressed', String(!!v));
+      /**
+       * The 🏷 flyout's members, rendered from whatever the controller hands
+       * over: { key, glyph, title, armed } each. This file never learns what
+       * a view or a facet IS — key goes straight back through the callback,
+       * the way data-view names do. Re-rendered on every change so armed
+       * always shows the value in force.
+       */
+      setBadgeControls(rows) {
+        const fly = el.querySelector('[data-badge-fly]');
+        fly.textContent = '';
+        for (const r of rows) {
+          const b = document.createElement('button');
+          // bctl, not tool: these are the badge service's controls, and every
+          // test and map that enumerates button.tool means REGISTRY tools
+          b.className = 'bctl whenOn' + (r.armed ? ' armed' : '');
+          b.textContent = r.glyph;
+          b.title = r.title;
+          b.setAttribute('aria-pressed', String(!!r.armed));
+          b.addEventListener('click', () => api.onBadgeControl?.(r.key));
+          fly.append(b);
+        }
       },
       /**
        * Whether an audit is currently showing on the page. The ⌕ flash is
@@ -199,7 +223,7 @@ import { List } from './list.js';
       const name = (b.title || '').split(/[\n·—]/)[0].trim();
       if (name) b.setAttribute('aria-label', name);
     });
-    el.querySelectorAll('[data-tool], [data-detail], [data-view]')
+    el.querySelectorAll('[data-tool], [data-view]')
       .forEach((b) => b.setAttribute('aria-pressed', 'false'));
 
     el.querySelector('.pwr').addEventListener('click', () => api.onToggle?.());
@@ -240,7 +264,6 @@ import { List } from './list.js';
     });
     el.querySelector('[data-c]').addEventListener('click', () => api.toggleList(undefined, 'pins'));
     el.querySelector('[data-settings]').addEventListener('click', () => api.toggleList(undefined, 'settings'));
-    el.querySelector('[data-detail]').addEventListener('click', () => api.onDetail?.());
     el.querySelector('[data-sweep]').addEventListener('click', () => api.onSweep?.());
     el.querySelector('[data-copy]').addEventListener('click', () => api.onCopy?.());
     el.querySelector('[data-clear]').addEventListener('click', () => api.onClear?.());

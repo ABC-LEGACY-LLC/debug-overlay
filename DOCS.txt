@@ -29,7 +29,12 @@ HOW TO USE
                         mode, then pins and the selection. It never powers the
                         tool off — that is
                         the ⏻ button and Alt+Shift+D, both of which say so.
-  ≡ ................... compact / full badges
+  🏷 ................... the badge's own controls, in a flyout: the VIEW
+                        (▬ compact / ▤ full — remembered, where ≡ used to
+                        forget on reload) and the FACETS — ⚠ issue marks
+                        on/off, → recommendations on/off. Facets gate badge
+                        ink ONLY: the copied report always carries
+                        everything, and ⌕ findings are untouched.
   ⌕ ................... audit the WHOLE page — every active rule runs over every
                         visible element, and the button shows how many distinct
                         problems came back. Repeats collapse: a nav of 40
@@ -86,8 +91,8 @@ HOW TO USE
                  line you did not want costs nothing and the one you did costs
                  a round trip.
     ▦ grid       marks any number another tool prints that is off the
-                 spacing step (⚠ — 2px by default, change it under ⚙). Its
-                 "Suggest nearest step" option adds the fix after each mark:
+                 spacing step (⚠ — 2px by default, change it under ⚙). The
+                 🏷 recommendations facet adds the fix after each mark:
                  p 7⚠ becomes p 7⚠→8. Off by default — a suggestion doubles
                  every marked number. In ⌕ it
                  judges AUTHORED spacing only — padding, margin, gap — never

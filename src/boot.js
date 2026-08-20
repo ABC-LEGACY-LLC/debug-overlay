@@ -22,7 +22,7 @@ initPanel();
 
 Panel.onToggle = Controller.togglePower;
 Panel.onTool = Controller.toggleTool;
-Panel.onDetail = Controller.toggleDetail;
+Panel.onBadgeControl = Controller.badgeControl;
 Panel.onCopy = Report.copy;
 Panel.onSweep = Controller.sweep;
 Panel.onClear = Controller.clearPins;
@@ -39,6 +39,7 @@ Render.onPinsPruned = Controller.pinsPruned;
 // before loadTools: a tool's options decide what its rules do, and arming
 // one immediately schedules a render that asks
 Settings.load();
+Controller.refreshBadge();   // the 🏷 members show the values just loaded
 Controller.loadTools();
 Interactions.install(Controller);
 Controller.setPower(false);

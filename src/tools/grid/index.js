@@ -4,7 +4,6 @@ import { annotate } from './lens.js';
 import { report } from './report.js';
 import { rules, audit } from './rule.js';
 import { draw } from './draw.js';
-import { options } from './options.js';
 import { Scale } from './service.js';
 
 /* index — REGISTRATION ONLY. The tool's behaviour lives in the files
@@ -37,5 +36,9 @@ import { Scale } from './service.js';
       rules,
       audit,
       draw,
-      options,
+      // no options of its own any more: 'Suggest nearest step' was the
+      // RECOMMENDATION facet wearing this tool's name, and it moved to the
+      // badge face (was: 'grid' there adopts what anyone saved). The step
+      // and ceiling were never grid's either — they are Scale's, reached
+      // through uses: above.
     });

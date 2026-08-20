@@ -132,11 +132,11 @@ const bandsOf = (t) => {
 const FACETS = {
   badge: [
     { key: 'CURRENT', example: 'p 7', means: "the component's own fields",
-      via: 'badge / compact' },
+      via: 'badge / compact — not gateable: switch it off and 🏷 controls nothing' },
     { key: 'ISSUE', example: 'p 7⚠', means: 'a lens marking a value that fails',
-      via: 'annotate' },
+      via: "annotate, gated by the badge face's issues toggle (in Tools.annotator, over every lens at once)" },
     { key: 'RECOMMENDATION', example: 'p 7⚠→8', means: 'what would pass — off by default',
-      via: "annotate + the lens's suggest option" },
+      via: "annotate + the badge face's suggest toggle, riding in on info.facets (was grid's own option)" },
   ],
 };
 

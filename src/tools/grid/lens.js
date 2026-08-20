@@ -1,5 +1,4 @@
 import { Scale } from './service.js';
-import { Tools } from '../../core/registry.js';
 
 /**
  * LENS hook: every number another tool prints comes through here first.
@@ -10,10 +9,15 @@ import { Tools } from '../../core/registry.js';
  * off-grid number, not what one is. That is the whole point of the
  * split: the rule below reaches the same verdict through the same call.
  */
-export function annotate(html, n) {
+export function annotate(html, n, info) {
         if (!Scale.judges(n)) return html;
-        // ISSUE always; RECOMMENDATION only when asked. Both answers come from
-        // the subject, so the mark and the suggestion cannot disagree.
-        const fix = Tools.setting(this, 'suggest') ? `→${Scale.nearest(n)}` : '';
+        // ISSUE always (the badge service's issues gate sits upstream, over
+        // every lens at once); RECOMMENDATION only when the badge facet asks.
+        // `suggest` was this tool's own option — it moved to the badge face,
+        // where every future lens's suggestion obeys the same switch, and it
+        // rides in on the stamped info so neither side learns a name. The
+        // suggestion itself still comes from the subject, so the mark and
+        // the fix cannot disagree.
+        const fix = info?.facets?.suggest ? `→${Scale.nearest(n)}` : '';
         return `<span class="warn">${html}⚠${fix}</span>`;
 }

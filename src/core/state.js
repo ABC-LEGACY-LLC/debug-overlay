@@ -61,7 +61,10 @@
      ====================================================================== */
   export const State = {
     enabled: false,      // master power
-    detail: false,       // compact vs full badges
+    // no `detail` flag any more: the badge VIEW is a value in settings —
+    // State.settings.badge.view — chosen from CONFIG.BADGE_MODES and
+    // persisted like everything else the user picks. The ≡ boolean it
+    // replaced forgot itself on every reload.
     tools: new Set(),    // active tool ids — filled by CONTROLLER on boot
     // { toolId: { key: value } } for every option any tool declares. Filled
     // once on boot from the tools' own defaults, then overlaid with whatever

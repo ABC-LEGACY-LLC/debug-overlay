@@ -45,7 +45,12 @@ HOW TO USE
                         mode, then pins and the selection. It never powers the
                         tool off — that is
                         the ⏻ button and Alt+Shift+D, both of which say so.
-  ≡ ................... compact / full badges
+  🏷 ................... the badge's own controls, in a flyout: the VIEW
+                        (▬ compact / ▤ full — remembered, where ≡ used to
+                        forget on reload) and the FACETS — ⚠ issue marks
+                        on/off, → recommendations on/off. Facets gate badge
+                        ink ONLY: the copied report always carries
+                        everything, and ⌕ findings are untouched.
   ⌕ ................... audit the WHOLE page — every active rule runs over every
                         visible element, and the button shows how many distinct
                         problems came back. Repeats collapse: a nav of 40
@@ -102,8 +107,8 @@ HOW TO USE
                  line you did not want costs nothing and the one you did costs
                  a round trip.
     ▦ grid       marks any number another tool prints that is off the
-                 spacing step (⚠ — 2px by default, change it under ⚙). Its
-                 "Suggest nearest step" option adds the fix after each mark:
+                 spacing step (⚠ — 2px by default, change it under ⚙). The
+                 🏷 recommendations facet adds the fix after each mark:
                  p 7⚠ becomes p 7⚠→8. Off by default — a suggestion doubles
                  every marked number. In ⌕ it
                  judges AUTHORED spacing only — padding, margin, gap — never
@@ -334,6 +339,11 @@ HOW TO USE
     // the same finger do different things on different days, and two clicks
     // looked identical until the third betrayed which mode was on.
     PIN_KIND: { PLAIN: "note", SHIFT: "pair", CHAIN: "link" },
+    // The badge service's VIEW axis, in order. 'compact' leads because it is
+    // the shipped default — a full badge is a lot of ink over a page you came
+    // to read one number off. A third view is one new entry here plus its
+    // rendering; the 🏷 flyout and the ⚙ row both derive from this list.
+    BADGE_MODES: ["compact", "full"],
     PICK_FLASH: 700,
     // ms an element stays outlined after being picked
     LANE_SEP: 16,
@@ -507,8 +517,10 @@ HOW TO USE
   var State = {
     enabled: false,
     // master power
-    detail: false,
-    // compact vs full badges
+    // no `detail` flag any more: the badge VIEW is a value in settings —
+    // State.settings.badge.view — chosen from CONFIG.BADGE_MODES and
+    // persisted like everything else the user picks. The ≡ boolean it
+    // replaced forgot itself on every reload.
     tools: /* @__PURE__ */ new Set(),
     // active tool ids — filled by CONTROLLER on boot
     // { toolId: { key: value } } for every option any tool declares. Filled
@@ -582,6 +594,11 @@ HOW TO USE
   var defineTool = (t) => {
     TOOLS.push(t);
     return t;
+  };
+  var SERVICES = [];
+  var defineService = (s) => {
+    SERVICES.push(s);
+    return s;
   };
   var ordered = () => TOOLS.slice().sort(byRole);
   var Tools = {
@@ -696,6 +713,7 @@ HOW TO USE
         out.push(t);
       }
       for (const su of SUBJECTS) if (!seen.has(su)) out.push(su);
+      for (const sv of SERVICES) out.push(sv);
       return out.filter((o) => o.options);
     },
     /** Every role a tool fills, in ROLES order. Plural by construction. */
@@ -728,6 +746,7 @@ HOW TO USE
      * order), each one wrapping the previous one's html.
      */
     annotator(info) {
+      if (info.facets && info.facets.issues === false) return null;
       const lenses = Tools.withHook("annotate", true);
       if (!lenses.length) return null;
       return (n) => lenses.reduce(
@@ -1565,9 +1584,9 @@ HOW TO USE
   }
 
   // src/tools/grid/lens.js
-  function annotate(html, n) {
+  function annotate(html, n, info) {
     if (!Scale.judges(n)) return html;
-    const fix = Tools.setting(this, "suggest") ? `→${Scale.nearest(n)}` : "";
+    const fix = info?.facets?.suggest ? `→${Scale.nearest(n)}` : "";
     return `<span class="warn">${html}⚠${fix}</span>`;
   }
 
@@ -1613,13 +1632,6 @@ HOW TO USE
     }
   }
 
-  // src/tools/grid/options.js
-  function options2() {
-    return [
-      { key: "suggest", label: "Suggest nearest step", def: false, type: "toggle", affects: "inspect" }
-    ];
-  }
-
   // src/tools/grid/index.js
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
@@ -1641,8 +1653,12 @@ HOW TO USE
     report: report4,
     rules: rules3,
     audit: audit2,
-    draw: draw4,
-    options: options2
+    draw: draw4
+    // no options of its own any more: 'Suggest nearest step' was the
+    // RECOMMENDATION facet wearing this tool's name, and it moved to the
+    // badge face (was: 'grid' there adopts what anyone saved). The step
+    // and ceiling were never grid's either — they are Scale's, reached
+    // through uses: above.
   });
 
   // src/tools/pick/act.js
@@ -1674,7 +1690,7 @@ HOW TO USE
   function report5({ el }) {
     return [`  selector: ${U.selectorOf(el)}`];
   }
-  function options3() {
+  function options2() {
     return [{
       key: "what",
       label: "Ctrl+click copies",
@@ -1702,7 +1718,7 @@ HOW TO USE
     intercept,
     draw: draw5,
     report: report5,
-    options: options3,
+    options: options2,
     gestures
   });
 
@@ -1988,11 +2004,12 @@ HOW TO USE
     #__dbgov-bar .cnt:hover { background: #2c2c31; }
 
     /* tool + action buttons */
-    #__dbgov-bar button.tool, #__dbgov-bar button.act {
+    #__dbgov-bar button.tool, #__dbgov-bar button.act, #__dbgov-bar button.bctl {
       width: 34px; height: 34px; border-radius: 50%; border: 0; cursor: pointer;
       background: #2c2c31; color: #fff; font-size: 15px; }
     #__dbgov-bar button.tool:hover, #__dbgov-bar button.act:hover { background: #3a3a40; }
-    #__dbgov-bar button.tool.armed { background: #58c4ff; color: #0d1b24; }
+    #__dbgov-bar button.tool.armed,
+    #__dbgov-bar button.bctl.armed { background: #58c4ff; color: #0d1b24; }
     /* A tool in the run that feeds ⌕ carries a dot. Armed or not, it is still
        swept — the dot says "this contributes findings", the fill says "this
        is drawn". They are different questions and used to look the same. */
@@ -2259,7 +2276,14 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       <button class="act whenOn" data-settings data-view="settings" title="Tool settings">⚙</button>
       <hr class="sep whenOn">
       <button class="cnt whenOn" data-c data-view="pins" title="Pinned elements — click for the list">0</button>
-      <button class="act whenOn" data-detail title="Compact / full badges">≡</button>
+      <!-- 🏷 replaces ≡: same fam flyout the domain families use, members
+           handed in by the controller (setBadgeControls) — this file renders
+           what it is given and never learns what a view or a facet is -->
+      <span class="fam whenOn" data-badge>
+        <button class="fam-btn act" title="Badge — view and facets; click to open"
+                aria-haspopup="true" aria-expanded="false">🏷</button>
+        <span class="flyout" data-badge-fly></span>
+      </span>
       <button class="act whenOn" data-copy title="Copy report">⧉</button>
       <button class="act whenOn" data-clear title="Clear pins and the audit's marks">✕</button>`;
       root.append(el);
@@ -2279,7 +2303,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         el,
         onToggle: null,
         onTool: null,
-        onDetail: null,
+        onBadgeControl: null,
         onCopy: null,
         onClear: null,
         onListOpen: null,
@@ -2303,10 +2327,25 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           const fam = b?.closest(".fam");
           if (fam) fam.querySelector(".fam-btn").classList.toggle("armed", !!fam.querySelector(".tool.armed"));
         },
-        setDetail(v) {
-          const b = el.querySelector("[data-detail]");
-          b.classList.toggle("armed", v);
-          b.setAttribute("aria-pressed", String(!!v));
+        /**
+         * The 🏷 flyout's members, rendered from whatever the controller hands
+         * over: { key, glyph, title, armed } each. This file never learns what
+         * a view or a facet IS — key goes straight back through the callback,
+         * the way data-view names do. Re-rendered on every change so armed
+         * always shows the value in force.
+         */
+        setBadgeControls(rows) {
+          const fly = el.querySelector("[data-badge-fly]");
+          fly.textContent = "";
+          for (const r of rows) {
+            const b = document.createElement("button");
+            b.className = "bctl whenOn" + (r.armed ? " armed" : "");
+            b.textContent = r.glyph;
+            b.title = r.title;
+            b.setAttribute("aria-pressed", String(!!r.armed));
+            b.addEventListener("click", () => api.onBadgeControl?.(r.key));
+            fly.append(b);
+          }
         },
         /**
          * Whether an audit is currently showing on the page. The ⌕ flash is
@@ -2381,7 +2420,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         const name = (b.title || "").split(/[\n·—]/)[0].trim();
         if (name) b.setAttribute("aria-label", name);
       });
-      el.querySelectorAll("[data-tool], [data-detail], [data-view]").forEach((b) => b.setAttribute("aria-pressed", "false"));
+      el.querySelectorAll("[data-tool], [data-view]").forEach((b) => b.setAttribute("aria-pressed", "false"));
       el.querySelector(".pwr").addEventListener("click", () => api.onToggle?.());
       el.querySelectorAll(".fam-btn").forEach((b) => {
         b.addEventListener("click", () => {
@@ -2411,7 +2450,6 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       });
       el.querySelector("[data-c]").addEventListener("click", () => api.toggleList(void 0, "pins"));
       el.querySelector("[data-settings]").addEventListener("click", () => api.toggleList(void 0, "settings"));
-      el.querySelector("[data-detail]").addEventListener("click", () => api.onDetail?.());
       el.querySelector("[data-sweep]").addEventListener("click", () => api.onSweep?.());
       el.querySelector("[data-copy]").addEventListener("click", () => api.onCopy?.());
       el.querySelector("[data-clear]").addEventListener("click", () => api.onClear?.());
@@ -2514,9 +2552,55 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     })();
   }
 
+  // src/services/badge/options.js
+  var BadgeFace = defineService({
+    id: "badge",
+    icon: "🏷",
+    title: "Badge — view and facets",
+    was: "grid",
+    options() {
+      return [
+        {
+          key: "view",
+          label: "Badge view",
+          def: CONFIG.BADGE_MODES[0],
+          values: CONFIG.BADGE_MODES,
+          glyphs: { compact: "▬", full: "▤" },
+          affects: "inspect"
+        },
+        {
+          key: "issues",
+          label: "Issue marks (⚠)",
+          def: true,
+          type: "toggle",
+          glyph: "⚠",
+          affects: "inspect"
+        },
+        {
+          key: "suggest",
+          label: "Suggest what would pass (→)",
+          def: false,
+          type: "toggle",
+          glyph: "→",
+          affects: "inspect"
+        }
+      ];
+    }
+  });
+
   // src/services/badge/index.js
   var Badges = {
+    /** The VIEW axis's live value — the renderer asks per frame. */
+    view: () => Tools.setting(BadgeFace, "view"),
+    /** The FACETS, as the neutral contract object build() stamps onto the
+     *  info it hands the tools. Lenses read it from there (and the ISSUE
+     *  gate sits in Tools.annotator), so no tool ever imports this file. */
+    facets: () => ({
+      issues: !!Tools.setting(BadgeFace, "issues"),
+      suggest: !!Tools.setting(BadgeFace, "suggest")
+    }),
     build(info, compact5) {
+      info.facets = Badges.facets();
       const parts = [];
       for (const t of Tools.active()) {
         const fn = compact5 ? t.compact || null : t.badge || null;
@@ -2681,7 +2765,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       }
       pinInfo.forEach(({ p, i }) => {
         if (i.r.bottom < 0 || i.r.top > innerHeight || i.r.right < 0 || i.r.left > innerWidth) return;
-        const full = State.detail || State.hoverEl === p.el;
+        const full = Badges.view() === "full" || State.hoverEl === p.el;
         const html = Badges.build(i, !full);
         if (!html) return;
         const b = document.createElement("div");
@@ -2693,7 +2777,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       if (cur) {
         const i = U.info(cur);
         if (!(i.r.bottom < 0 || i.r.top > innerHeight || i.r.right < 0 || i.r.left > innerWidth)) {
-          const full = State.detail || State.hoverEl === cur;
+          const full = Badges.view() === "full" || State.hoverEl === cur;
           const html = Badges.build(i, !full);
           if (html) {
             const b = document.createElement("div");
@@ -3555,9 +3639,48 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       Panel.setSwept(false, 0);
       Controller.pinsChanged();
     },
-    toggleDetail() {
-      State.detail = !State.detail;
-      Panel.setDetail(State.detail);
+    /**
+     * The 🏷 flyout's members — DERIVED from the badge face's own options()
+     * so the flyout and the ⚙ rows come from one declaration and cannot
+     * drift. A values option becomes a radio (one member per value, the live
+     * one armed); a toggle becomes one member that flips. Both write through
+     * Settings.apply — the same store the ⚙ row writes — so the two surfaces
+     * re-read one value and can never disagree.
+     */
+    badgeControls() {
+      const rows = [];
+      for (const o of BadgeFace.options()) {
+        const live = Tools.setting(BadgeFace, o.key);
+        if (o.values) {
+          for (const v of o.values)
+            rows.push({
+              key: `${o.key}:${v}`,
+              glyph: (o.glyphs || {})[v] || String(v),
+              title: `${o.label} — ${v}`,
+              armed: live === v
+            });
+        } else {
+          rows.push({
+            key: o.key,
+            glyph: o.glyph || o.label,
+            title: o.label,
+            armed: !!live
+          });
+        }
+      }
+      return rows;
+    },
+    refreshBadge() {
+      Panel.setBadgeControls(Controller.badgeControls());
+    },
+    badgeControl(key) {
+      const [k, v] = key.split(":");
+      const opt = BadgeFace.options().find((o) => o.key === k);
+      if (!opt) return;
+      const next = opt.values ? v : !Tools.setting(BadgeFace, k);
+      Settings.apply({ tool: BadgeFace, opt }, next);
+      Controller.refreshBadge();
+      Controller.refreshList();
       Render.schedule();
     }
   };
@@ -3568,7 +3691,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
   initPanel();
   Panel.onToggle = Controller.togglePower;
   Panel.onTool = Controller.toggleTool;
-  Panel.onDetail = Controller.toggleDetail;
+  Panel.onBadgeControl = Controller.badgeControl;
   Panel.onCopy = Report.copy;
   Panel.onSweep = Controller.sweep;
   Panel.onClear = Controller.clearPins;
@@ -3578,6 +3701,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
   Panel.onRowChange = Controller.changeRow;
   Render.onPinsPruned = Controller.pinsPruned;
   Settings.load();
+  Controller.refreshBadge();
   Controller.loadTools();
   Interactions.install(Controller);
   Controller.setPower(false);

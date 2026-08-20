@@ -108,6 +108,17 @@ import { State } from './state.js';
   /** Register a debug tool. One call per file in src/tools/. */
   export const defineTool = (t) => { TOOLS.push(t); return t; };
 
+  /**
+   * SERVICES with a settings face. A service is core-owned and always on —
+   * no arming, no hooks — but the badge service has preferences of its own
+   * (which view, which facets), and those must live in the ONE settings
+   * store or the ⚙ view and the 🏷 flyout could disagree. Registering the
+   * face here is what puts its rows under ⚙ exactly as a tool's, `was:`
+   * migration included.
+   */
+  export const SERVICES = [];
+  export const defineService = (s) => { SERVICES.push(s); return s; };
+
   /** Presentation order, everywhere: byRole, then id. Registration order is
    *  whatever the manifest's folder glob produced — moving contrast under
    *  colour/ reordered it, and grid's ⚠ silently moved to the END of every
@@ -230,6 +241,8 @@ import { State } from './state.js';
         out.push(t);
       }
       for (const su of SUBJECTS) if (!seen.has(su)) out.push(su);
+      // services last — the bar's order again: 🏷 sits below the tool bands
+      for (const sv of SERVICES) out.push(sv);
       return out.filter((o) => o.options);
     },
 
@@ -265,6 +278,12 @@ import { State } from './state.js';
      * order), each one wrapping the previous one's html.
      */
     annotator(info) {
+      /* The ISSUE facet is the badge service's gate over every lens at once.
+         The facets ride in on the info the service stamped — a neutral
+         contract object, no service or tool named here — and the report
+         path, which stamps none, stays byte-for-byte what it was: the
+         copied report always carries everything. */
+      if (info.facets && info.facets.issues === false) return null;
       const lenses = Tools.withHook('annotate', true);
       if (!lenses.length) return null;
       return (n) => lenses.reduce(

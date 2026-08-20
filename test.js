@@ -1555,7 +1555,10 @@ console.log('\nEVERY RULE SHOWS WHERE');
   const el = w.document.getElementById('dup');
   w.document.elementFromPoint = () => el;
   el.dispatchEvent(new w.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
-  bar.querySelector('[data-detail]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  // full badges via the 🏷 flyout — the member is found by its title, not its
+  // position, so a fourth control cannot silently retarget this click
+  [...bar.querySelectorAll('[data-badge-fly] button')].find((b) => /full/.test(b.title))
+    .dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   bar.querySelector('[data-sweep]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   pendingChecks.push(() => {
     const root = w.document.getElementById('__dbgov-root');
@@ -1601,10 +1604,65 @@ console.log('\nBADGE FACETS');
     ok('and the RECOMMENDATION facet is not', !/→/.test(text),
       text + ' — a suggestion has to be asked for');
   });
+  // Seeded under GRID's id on purpose: `suggest` moved to the badge face
+  // with `was: 'grid'`, so this passing is the migration itself — an install
+  // that chose the suggestion under the old owner keeps it under the new.
   facet({ grid: { suggest: true } }, (text) => {
     ok('asked for, the fix appears after the mark', /7⚠→8/.test(text),
       text + ' — Scale.nearest(7) on a 2px step is 8, half away from zero');
   });
+  // the same value under the new owner works directly, of course
+  facet({ badge: { suggest: true } }, (text) => {
+    ok('and the badge face owns it now', /7⚠→8/.test(text), text);
+  });
+  // The ISSUE gate strips LENS ink from badges — the ⚠ after a number.
+  // grid's own '⚠4' summary field stays: that is its CURRENT facet, and
+  // arming grid is the control for it, not this toggle.
+  facet({ badge: { issues: false } }, (text) => {
+    ok('issues off: no number wears a lens mark', /p 7(?!⚠)/.test(text) && !/7⚠/.test(text), text);
+  });
+  {
+    const d = new JSDOM('<!doctype html><html><body>' +
+      '<div id="a" style="padding:7px">seven</div></body></html>', opts);
+    const w = d.window;
+    w.localStorage.setItem('__dbgov_tools', '["measure","grid","pin"]');
+    w.localStorage.setItem('__dbgov_seen', JSON.stringify(idsOnDisk));
+    w.localStorage.setItem('__dbgov_settings', '{"badge":{"issues":false}}');
+    w.eval(source);
+    w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+    const el = w.document.getElementById('a');
+    w.document.elementFromPoint = () => el;
+    el.dispatchEvent(new w.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
+    let rep = null;
+    Object.defineProperty(w.navigator, 'clipboard',
+      { value: { writeText: async (t) => { rep = t; } }, configurable: true });
+    w.document.getElementById('__dbgov-bar').querySelector('[data-copy]')
+      .dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    ok('…but the report still carries the ⚠ — facets gate badge ink only',
+      /⚠ off 2px grid/.test(rep || ''), (rep || '').split('\n').find((l) => /⚠/.test(l)) || 'no ⚠ anywhere');
+    w.close();
+  }
+  // the VIEW is a value in the one settings store — ≡ used to forget on reload
+  {
+    const d = new JSDOM('<!doctype html><html><body><div id="a">a</div></body></html>', opts);
+    const w = d.window;
+    w.eval(source);
+    w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+    const fly = (win) => [...win.document.querySelectorAll('[data-badge-fly] button')];
+    fly(w).find((b) => /full/.test(b.title))
+      .dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    const blob = w.localStorage.getItem('__dbgov_settings') || '';
+    ok('choosing a badge view writes the store', /"view":"full"/.test(blob), blob);
+    // a second boot over the same store wakes up already in that view
+    const d2 = new JSDOM('<!doctype html><html><body><div id="a">a</div></body></html>', opts);
+    const w2 = d2.window;
+    w2.localStorage.setItem('__dbgov_settings', blob);
+    w2.eval(source);
+    ok('and a reload remembers it',
+      fly(w2).find((b) => /full/.test(b.title))?.classList.contains('armed'),
+      fly(w2).map((b) => `${b.textContent}${b.classList.contains('armed') ? '*' : ''}`).join(' '));
+    w.close(); w2.close();
+  }
 }
 
 console.log('\nPICK');
@@ -1835,7 +1893,8 @@ w3.document.body.append(evil);
 w3.eval(source);
 const bar3 = w3.document.getElementById('__dbgov-bar');
 w3.dispatchEvent(new w3.KeyboardEvent('keydown', { ...hot, bubbles: true }));
-bar3.querySelector('[data-detail]').dispatchEvent(new w3.MouseEvent('click', { bubbles: true }));
+[...bar3.querySelectorAll('[data-badge-fly] button')].find((b) => /full/.test(b.title))
+  .dispatchEvent(new w3.MouseEvent('click', { bubbles: true }));
 w3.document.elementFromPoint = () => evil;
 evil.dispatchEvent(new w3.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
 

@@ -123,7 +123,7 @@ import { Place } from './placement.js';
         // describes an element nobody can see, next to elements it is not about
         if (i.r.bottom < 0 || i.r.top > innerHeight ||
             i.r.right < 0 || i.r.left > innerWidth) return;
-        const full = State.detail || State.hoverEl === p.el;
+        const full = Badges.view() === 'full' || State.hoverEl === p.el;
         const html = Badges.build(i, !full);
         if (!html) return;
         const b = document.createElement('div');
@@ -139,7 +139,7 @@ import { Place } from './placement.js';
         const i = U.info(cur);
         if (!(i.r.bottom < 0 || i.r.top > innerHeight ||
               i.r.right < 0 || i.r.left > innerWidth)) {
-          const full = State.detail || State.hoverEl === cur;
+          const full = Badges.view() === 'full' || State.hoverEl === cur;
           const html = Badges.build(i, !full);
           if (html) {
             const b = document.createElement('div');

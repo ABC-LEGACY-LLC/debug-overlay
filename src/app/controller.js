@@ -1,4 +1,5 @@
 import { Settings } from '../services/settings/index.js';
+import { BadgeFace } from '../services/badge/options.js';
 import { Sweep } from '../services/findings/index.js';
 import { CONFIG } from '../core/config.js';
 import { TOOLS, Tools } from '../core/registry.js';
@@ -358,9 +359,38 @@ import { Render } from '../ui/renderer.js';
       Panel.setSwept(false, 0);
       Controller.pinsChanged();
     },
-    toggleDetail() {
-      State.detail = !State.detail;
-      Panel.setDetail(State.detail);
+    /**
+     * The 🏷 flyout's members — DERIVED from the badge face's own options()
+     * so the flyout and the ⚙ rows come from one declaration and cannot
+     * drift. A values option becomes a radio (one member per value, the live
+     * one armed); a toggle becomes one member that flips. Both write through
+     * Settings.apply — the same store the ⚙ row writes — so the two surfaces
+     * re-read one value and can never disagree.
+     */
+    badgeControls() {
+      const rows = [];
+      for (const o of BadgeFace.options()) {
+        const live = Tools.setting(BadgeFace, o.key);
+        if (o.values) {
+          for (const v of o.values)
+            rows.push({ key: `${o.key}:${v}`, glyph: (o.glyphs || {})[v] || String(v),
+                        title: `${o.label} — ${v}`, armed: live === v });
+        } else {
+          rows.push({ key: o.key, glyph: o.glyph || o.label,
+                      title: o.label, armed: !!live });
+        }
+      }
+      return rows;
+    },
+    refreshBadge() { Panel.setBadgeControls(Controller.badgeControls()); },
+    badgeControl(key) {
+      const [k, v] = key.split(':');
+      const opt = BadgeFace.options().find((o) => o.key === k);
+      if (!opt) return;
+      const next = opt.values ? v : !Tools.setting(BadgeFace, k);
+      Settings.apply({ tool: BadgeFace, opt }, next);
+      Controller.refreshBadge();
+      Controller.refreshList();   // the ⚙ row for the same value, if open
       Render.schedule();
     },
   };

@@ -195,11 +195,12 @@ import { CONFIG } from '../core/config.js';
     #__dbgov-bar .cnt:hover { background: #2c2c31; }
 
     /* tool + action buttons */
-    #__dbgov-bar button.tool, #__dbgov-bar button.act {
+    #__dbgov-bar button.tool, #__dbgov-bar button.act, #__dbgov-bar button.bctl {
       width: 34px; height: 34px; border-radius: 50%; border: 0; cursor: pointer;
       background: #2c2c31; color: #fff; font-size: 15px; }
     #__dbgov-bar button.tool:hover, #__dbgov-bar button.act:hover { background: #3a3a40; }
-    #__dbgov-bar button.tool.armed { background: #58c4ff; color: #0d1b24; }
+    #__dbgov-bar button.tool.armed,
+    #__dbgov-bar button.bctl.armed { background: #58c4ff; color: #0d1b24; }
     /* A tool in the run that feeds ⌕ carries a dot. Armed or not, it is still
        swept — the dot says "this contributes findings", the fill says "this
        is drawn". They are different questions and used to look the same. */

@@ -56,6 +56,11 @@
     // the same finger do different things on different days, and two clicks
     // looked identical until the third betrayed which mode was on.
     PIN_KIND: { PLAIN: 'note', SHIFT: 'pair', CHAIN: 'link' },
+    // The badge service's VIEW axis, in order. 'compact' leads because it is
+    // the shipped default — a full badge is a lot of ink over a page you came
+    // to read one number off. A third view is one new entry here plus its
+    // rendering; the 🏷 flyout and the ⚙ row both derive from this list.
+    BADGE_MODES: ['compact', 'full'],
     PICK_FLASH: 700,          // ms an element stays outlined after being picked
     LANE_SEP: 16,             // px between parallel dimension lines
     HOTKEY: { alt: true, shift: true, ctrl: false, code: 'KeyD' },
