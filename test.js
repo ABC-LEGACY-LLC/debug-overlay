@@ -1642,6 +1642,19 @@ console.log('\nPICK');
   ok('and the click was claimed, not pinned',
     bar.querySelector('[data-c]').textContent === '0',
     'pin count ' + bar.querySelector('[data-c]').textContent);
+  // Claim narrowly: Ctrl+Shift+click is selection's gesture, not pick's.
+  // `ctrlKey || metaKey` alone would swallow it — armed pick must let it pass.
+  copied = null;
+  el.dispatchEvent(new w.MouseEvent('click',
+    { bubbles: true, clientX: 5, clientY: 5, ctrlKey: true, shiftKey: true }));
+  ok('Ctrl+Shift+click passes pick by — nothing copied',
+    copied === null, JSON.stringify(copied));
+  pendingChecks.push(() => {
+    // the count chip is painted by the renderer, so it is a frame behind
+    ok('and it reaches the overlay as a pin instead',
+      bar.querySelector('[data-c]').textContent === '1',
+      'pin count ' + bar.querySelector('[data-c]').textContent);
+  });
   pendingChecks.push(() => {
     ok('the picked element is flashed on the page',
       w.document.querySelectorAll('#__dbgov-root .dbgov-picked').length === 1,

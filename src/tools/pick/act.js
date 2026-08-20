@@ -10,9 +10,13 @@ import { U } from '../../core/utils.js';
  *
  * Meta as well as Ctrl: Ctrl+click is the context menu on macOS, so the
  * modifier that means "modified click" there is ⌘.
+ *
+ * WITHOUT Shift — claim narrowly. Ctrl+Shift+click is selection's chain
+ * gesture; `ctrlKey || metaKey` alone swallowed it, so arming pick would
+ * have silently taken a selection gesture away from every other tool.
  */
 export function intercept({ type, ev, el, redraw, toClipboard }) {
-        if (type !== 'click' || !(ev.ctrlKey || ev.metaKey)) return false;
+        if (type !== 'click' || ev.shiftKey || !(ev.ctrlKey || ev.metaKey)) return false;
         const txt = Tools.setting(this, 'what') === 'text'
           ? (el.textContent || '').trim()
           : U.selectorOf(el);

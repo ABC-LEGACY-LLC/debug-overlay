@@ -1621,7 +1621,7 @@ HOW TO USE
 
   // src/tools/pick/act.js
   function intercept({ type, ev, el, redraw, toClipboard }) {
-    if (type !== "click" || !(ev.ctrlKey || ev.metaKey)) return false;
+    if (type !== "click" || ev.shiftKey || !(ev.ctrlKey || ev.metaKey)) return false;
     const txt = Tools.setting(this, "what") === "text" ? (el.textContent || "").trim() : U.selectorOf(el);
     if (!txt) return false;
     toClipboard(txt);
