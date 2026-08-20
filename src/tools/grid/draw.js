@@ -25,7 +25,7 @@ export function draw({ layer, Place, found }) {
           if (!document.contains(f.el)) continue;
           const r = f.el.getBoundingClientRect();
           const box = document.createElement('div');
-          box.className = 'dbgov-box dbgov-flag ' + f.severity;
+          box.className = 'dbgov-box dbgov-flag dbgov-' + f.severity;
           Place.put(box, r.left, r.top, r.width, r.height);
           layer.append(box);
         }

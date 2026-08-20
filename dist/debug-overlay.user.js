@@ -841,7 +841,7 @@ HOW TO USE
       layer2.append(tick);
       if (endArrow) {
         const a = document.createElement("div");
-        a.className = "dbgov-arrow " + dir;
+        a.className = "dbgov-arrow dbgov-" + dir;
         const P = {
           up: [Math.round(x2) - 5, Math.round(y2)],
           down: [Math.round(x2) - 5, Math.round(y2) - 7],
@@ -860,7 +860,7 @@ HOW TO USE
       const mx = vertical ? x1 + 12 : (x1 + x2) / 2;
       const my = vertical ? (y1 + y2) / 2 : y1 - 12;
       const lbl = document.createElement("div");
-      lbl.className = "dbgov-dist" + (vertical ? " vert" : "");
+      lbl.className = "dbgov-dist" + (vertical ? " dbgov-vert" : "");
       lbl.textContent = text;
       layer2.append(lbl);
       Place2.smart(
@@ -874,7 +874,7 @@ HOW TO USE
       if (Math.round(x1) === Math.round(x2) && Math.round(y1) === Math.round(y2)) return;
       const e = document.createElement("div");
       const horizontal = Math.abs(x2 - x1) >= Math.abs(y2 - y1);
-      e.className = "dbgov-ext" + (horizontal ? "" : " v");
+      e.className = "dbgov-ext" + (horizontal ? "" : " dbgov-v");
       if (horizontal) Place2.put(e, Math.min(x1, x2), Math.round(y1), Math.abs(x2 - x1) || 1, 1);
       else Place2.put(e, Math.round(x1), Math.min(y1, y2), 1, Math.abs(y2 - y1) || 1);
       layer2.append(e);
@@ -1156,14 +1156,14 @@ HOW TO USE
   function badge(i) {
     const c = Colour.measure(i);
     if (!c) return null;
-    if (c.unknown) return `<span class="unk">contrast ?</span>`;
-    const cls = c.pass ? "ok" : "bad";
+    if (c.unknown) return `<span class="dbgov-unk">contrast ?</span>`;
+    const cls = c.pass ? "dbgov-ok" : "dbgov-bad";
     return `<span class="${cls}">${c.ratio.toFixed(2)}:1 ${c.level}${c.pass ? "✓" : "✗"}</span>`;
   }
   function compact(i) {
     const c = Colour.measure(i);
     if (!c || c.unknown || c.pass) return null;
-    return `<span class="bad">${c.ratio.toFixed(1)}:1 ✗</span>`;
+    return `<span class="dbgov-bad">${c.ratio.toFixed(1)}:1 ✗</span>`;
   }
 
   // src/tools/colour/contrast/report.js
@@ -1220,7 +1220,7 @@ HOW TO USE
       if (!document.contains(f.el)) continue;
       const r = f.el.getBoundingClientRect();
       const box = document.createElement("div");
-      box.className = "dbgov-box dbgov-flag " + (f.verdict === "review" ? "review" : f.severity);
+      box.className = "dbgov-box dbgov-flag dbgov-" + (f.verdict === "review" ? "review" : f.severity);
       Place2.put(box, r.left, r.top, r.width, r.height);
       layer2.append(box);
     }
@@ -1230,9 +1230,9 @@ HOW TO USE
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `
-    .dbgov-badge .ok  { color: #b5e853; }
-    .dbgov-badge .bad { color: #ff6b6b; font-weight: 700; }
-    .dbgov-badge .unk { color: #8ab4f8; font-style: italic; }
+    .dbgov-badge .dbgov-ok  { color: #b5e853; }
+    .dbgov-badge .dbgov-bad { color: #ff6b6b; font-weight: 700; }
+    .dbgov-badge .dbgov-unk { color: #8ab4f8; font-style: italic; }
     `,
     id: "contrast",
     family: "colour",
@@ -1257,7 +1257,7 @@ HOW TO USE
     const n = document.querySelectorAll(
       `[id="${CSS.escape ? CSS.escape(el2.id) : el2.id}"]`
     ).length;
-    return n > 1 ? `<span class="dup">⌗ id ×${n}</span>` : null;
+    return n > 1 ? `<span class="dbgov-dup">⌗ id ×${n}</span>` : null;
   }
   function compact2(i) {
     return this.badge(i);
@@ -1309,7 +1309,7 @@ HOW TO USE
       if (!document.contains(f.el)) continue;
       const r = f.el.getBoundingClientRect();
       const box = document.createElement("div");
-      box.className = "dbgov-box dbgov-flag " + f.severity;
+      box.className = "dbgov-box dbgov-flag dbgov-" + f.severity;
       Place2.put(box, r.left, r.top, r.width, r.height);
       layer2.append(box);
     }
@@ -1319,7 +1319,7 @@ HOW TO USE
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `
-    .dbgov-badge .dup { color: #ff8a65; font-weight: 700; }
+    .dbgov-badge .dbgov-dup { color: #ff8a65; font-weight: 700; }
     `,
     id: "dupid",
     // not ⧉ — the copy button already uses that glyph, and two identical
@@ -1341,25 +1341,25 @@ HOW TO USE
     const dec = Tools.annotator(i);
     const on = (k) => Tools.setting(this, k);
     const bits = [];
-    if (on("size")) bits.push(`<span class="sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`);
+    if (on("size")) bits.push(`<span class="dbgov-sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`);
     if (on("radius")) {
       const rad = U.radius(cs);
-      if (rad) bits.push(`<span class="rad">r ${rad}</span>`);
+      if (rad) bits.push(`<span class="dbgov-rad">r ${rad}</span>`);
     }
     if (on("padding")) {
       const p = U.four(cs, "padding", dec);
-      if (p) bits.push(`<span class="sp">p ${p.join(" ")}</span>`);
+      if (p) bits.push(`<span class="dbgov-sp">p ${p.join(" ")}</span>`);
     }
     if (on("margin")) {
       const m = U.four(cs, "margin", dec);
-      if (m) bits.push(`<span class="sp">m ${m.join(" ")}</span>`);
+      if (m) bits.push(`<span class="dbgov-sp">m ${m.join(" ")}</span>`);
     }
     if (on("layout") && (cs.display.includes("flex") || cs.display.includes("grid"))) {
       const g = U.px(cs.columnGap) || U.px(cs.gap);
-      bits.push(`<span class="sp">${U.esc(cs.display)}${g ? " gap " + U.mark(g, dec) : ""}</span>`);
+      bits.push(`<span class="dbgov-sp">${U.esc(cs.display)}${g ? " gap " + U.mark(g, dec) : ""}</span>`);
     }
-    if (on("font")) bits.push(`<span class="fnt">${U.px(cs.fontSize)}/${U.px(cs.lineHeight) || "–"} ${cs.fontWeight}</span>`);
-    if (on("tag")) bits.push(`<span class="tag">${el2.tagName.toLowerCase()}${el2.id ? "#" + U.esc(el2.id) : ""}</span>`);
+    if (on("font")) bits.push(`<span class="dbgov-fnt">${U.px(cs.fontSize)}/${U.px(cs.lineHeight) || "–"} ${cs.fontWeight}</span>`);
+    if (on("tag")) bits.push(`<span class="dbgov-tag">${el2.tagName.toLowerCase()}${el2.id ? "#" + U.esc(el2.id) : ""}</span>`);
     return bits.join(" · ");
   }
   function compact3(i) {
@@ -1367,14 +1367,14 @@ HOW TO USE
     const dec = Tools.annotator(i);
     const on = (k) => Tools.setting(this, k);
     const bits = [];
-    if (on("size")) bits.push(`<span class="sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`);
+    if (on("size")) bits.push(`<span class="dbgov-sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`);
     if (on("radius")) {
       const rad = U.radius(cs);
-      if (rad) bits.push(`<span class="rad">r ${rad}</span>`);
+      if (rad) bits.push(`<span class="dbgov-rad">r ${rad}</span>`);
     }
     if (on("padding")) {
       const p = U.four(cs, "padding", dec);
-      if (p) bits.push(`<span class="sp">p ${p.join(" ")}</span>`);
+      if (p) bits.push(`<span class="dbgov-sp">p ${p.join(" ")}</span>`);
     }
     return bits.join(" · ");
   }
@@ -1435,23 +1435,23 @@ HOW TO USE
       border-radius: 1px; box-shadow: 0 0 0 .5px rgba(0,0,0,.5); }
     .dbgov-arrow { position: fixed; pointer-events: none; width: 0; height: 0;
       filter: drop-shadow(0 0 .5px rgba(0,0,0,.6)); }
-    .dbgov-arrow.up    { border-left: 5px solid transparent; border-right: 5px solid transparent;
+    .dbgov-arrow.dbgov-up    { border-left: 5px solid transparent; border-right: 5px solid transparent;
                          border-bottom: 7px solid #b5e853; }
-    .dbgov-arrow.down  { border-left: 5px solid transparent; border-right: 5px solid transparent;
+    .dbgov-arrow.dbgov-down  { border-left: 5px solid transparent; border-right: 5px solid transparent;
                          border-top: 7px solid #b5e853; }
-    .dbgov-arrow.left  { border-top: 5px solid transparent; border-bottom: 5px solid transparent;
+    .dbgov-arrow.dbgov-left  { border-top: 5px solid transparent; border-bottom: 5px solid transparent;
                          border-right: 7px solid #b5e853; }
-    .dbgov-arrow.right { border-top: 5px solid transparent; border-bottom: 5px solid transparent;
+    .dbgov-arrow.dbgov-right { border-top: 5px solid transparent; border-bottom: 5px solid transparent;
                          border-left: 7px solid #b5e853; }
     .dbgov-ext { position: fixed; pointer-events: none;
       background: repeating-linear-gradient(to right,
         rgba(181,232,83,.7) 0 4px, transparent 4px 8px); }
-    .dbgov-ext.v { background: repeating-linear-gradient(to bottom,
+    .dbgov-ext.dbgov-v { background: repeating-linear-gradient(to bottom,
         rgba(181,232,83,.7) 0 4px, transparent 4px 8px); }
     .dbgov-dist { position: fixed; pointer-events: none;
       background: rgba(24,28,14,.95); color: #b5e853; border-radius: 7px;
       padding: 3px 8px; font-size: 12px; font-weight: 700; white-space: nowrap; }
-    .dbgov-dist.vert { border-left: 2px solid #b5e853; }
+    .dbgov-dist.dbgov-vert { border-left: 2px solid #b5e853; }
     `,
     id: "measure",
     family: "geometry",
@@ -1604,18 +1604,18 @@ HOW TO USE
     const bad = Scale.scan(i, true);
     if (!bad.length) return null;
     const vals = [...new Set(bad.map(([, v]) => v))];
-    return `<span class="warn">⚠ ${vals.join(" ")} off ${Scale.step()}px</span>`;
+    return `<span class="dbgov-warn">⚠ ${vals.join(" ")} off ${Scale.step()}px</span>`;
   }
   function compact4(i) {
     const bad = Scale.scan(i, true);
-    return bad.length ? `<span class="warn">⚠${bad.length}</span>` : null;
+    return bad.length ? `<span class="dbgov-warn">⚠${bad.length}</span>` : null;
   }
 
   // src/tools/grid/lens.js
   function annotate(html, n, info) {
     if (!Scale.judges(n)) return html;
     const fix = info?.facets?.suggest ? `→${Scale.nearest(n)}` : "";
-    return `<span class="warn">${html}⚠${fix}</span>`;
+    return `<span class="dbgov-warn">${html}⚠${fix}</span>`;
   }
 
   // src/tools/grid/report.js
@@ -1654,7 +1654,7 @@ HOW TO USE
       if (!document.contains(f.el)) continue;
       const r = f.el.getBoundingClientRect();
       const box = document.createElement("div");
-      box.className = "dbgov-box dbgov-flag " + f.severity;
+      box.className = "dbgov-box dbgov-flag dbgov-" + f.severity;
       Place2.put(box, r.left, r.top, r.width, r.height);
       layer2.append(box);
     }
@@ -1664,7 +1664,7 @@ HOW TO USE
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `
-    .dbgov-badge .warn{ color: #ffd54f; }
+    .dbgov-badge .dbgov-warn{ color: #ffd54f; }
     `,
     id: "grid",
     icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M3 9h18" /><path d="M3 15h18" /><path d="M9 3v18" /><path d="M15 3v18" /></svg>',
@@ -1795,14 +1795,14 @@ HOW TO USE
     /* note pin = plain click (inspect only) · pair = Shift+click ·
        link = Ctrl/⌘+Shift+click, chained to the previous pin */
     .dbgov-pinbox { outline: 1.5px dashed #ff8a65; outline-offset: -1px; }
-    .dbgov-pinbox.pair { outline-style: solid; outline-color: #b5e853; }
-    .dbgov-pinbox.link { outline-style: solid; outline-color: #c084fc; }
-    .dbgov-pinbox.waiting { outline-color: #58c4ff; }
-    .dbgov-pinbox.rmtarget { outline: 2px solid #ff5c5c; background: rgba(255,92,92,.10); }
-    .dbgov-pinbox.flash { outline: 2.5px solid #58c4ff;
+    .dbgov-pinbox.dbgov-pair { outline-style: solid; outline-color: #b5e853; }
+    .dbgov-pinbox.dbgov-link { outline-style: solid; outline-color: #c084fc; }
+    .dbgov-pinbox.dbgov-waiting { outline-color: #58c4ff; }
+    .dbgov-pinbox.dbgov-rmtarget { outline: 2px solid #ff5c5c; background: rgba(255,92,92,.10); }
+    .dbgov-pinbox.dbgov-flash { outline: 2.5px solid #58c4ff;
       background: rgba(88,196,255,.18); }
     @media (prefers-reduced-motion: no-preference) {
-      .dbgov-pinbox.flash { animation: dbgov-pulse .9s ease-out; }
+      .dbgov-pinbox.dbgov-flash { animation: dbgov-pulse .9s ease-out; }
     }
     @keyframes dbgov-pulse {
       0% { box-shadow: 0 0 0 0 rgba(88,196,255,.55); }
@@ -1814,7 +1814,7 @@ HOW TO USE
       min-width: 150px; background: rgba(18,18,20,.97); border-radius: 10px;
       padding: 4px; box-shadow: 0 6px 24px rgba(0,0,0,.6); color: #fff;
       font-size: 12px; }
-    #__dbgov-menu.open { display: block; }
+    #__dbgov-menu.dbgov-open { display: block; }
     #__dbgov-menu button { display: block; width: 100%; text-align: left;
       padding: 7px 12px; background: transparent; border: 0; border-radius: 6px;
       color: inherit; font: inherit; cursor: pointer; }
@@ -1823,103 +1823,103 @@ HOW TO USE
       min-width: 250px; max-width: 460px; max-height: 60vh; overflow-y: auto;
       background: rgba(18,18,20,.97); border-radius: 12px; padding: 6px;
       box-shadow: 0 6px 24px rgba(0,0,0,.6); color: #fff; font-size: 12px; }
-    #__dbgov-list.open { display: block; }
-    #__dbgov-list .empty { padding: 10px 8px; color: #8f8f96; line-height: 1.5; }
-    #__dbgov-list .row { display: flex; align-items: center; gap: 8px;
+    #__dbgov-list.dbgov-open { display: block; }
+    #__dbgov-list .dbgov-empty { padding: 10px 8px; color: #8f8f96; line-height: 1.5; }
+    #__dbgov-list .dbgov-row { display: flex; align-items: center; gap: 8px;
       padding: 6px 8px; border-radius: 8px; cursor: pointer; }
-    #__dbgov-list .row:hover { background: rgba(255,255,255,.08); }
-    #__dbgov-list .tag { flex: none; color: #ff8a65; font-weight: 800; }
-    #__dbgov-list .lbl { flex: 1 1 auto; overflow: hidden;
+    #__dbgov-list .dbgov-row:hover { background: rgba(255,255,255,.08); }
+    #__dbgov-list .dbgov-tag { flex: none; color: #ff8a65; font-weight: 800; }
+    #__dbgov-list .dbgov-lbl { flex: 1 1 auto; overflow: hidden;
       text-overflow: ellipsis; white-space: nowrap; }
-    #__dbgov-list .det { flex: none; color: #b5e853; font-weight: 700; }
+    #__dbgov-list .dbgov-det { flex: none; color: #b5e853; font-weight: 700; }
     /* A row may carry an opaque accent; the panel copies it onto the element
        without knowing what any of the values mean. */
-    #__dbgov-list .row[data-accent="error"] .tag { color: #ff6b6b; }
-    #__dbgov-list .row[data-accent="warn"]  .tag { color: #ffd54f; }
-    #__dbgov-list .row[data-accent="info"]  .tag { color: #9ad0ff; }
+    #__dbgov-list .dbgov-row[data-accent="error"] .dbgov-tag { color: #ff6b6b; }
+    #__dbgov-list .dbgov-row[data-accent="warn"]  .dbgov-tag { color: #ffd54f; }
+    #__dbgov-list .dbgov-row[data-accent="info"]  .dbgov-tag { color: #9ad0ff; }
     /* not a verdict — something the tool could not measure and you have to
        look at yourself; italic so it never reads as a failure */
-    #__dbgov-list .row[data-accent="review"] .tag { color: #8ab4f8; font-style: italic; }
+    #__dbgov-list .dbgov-row[data-accent="review"] .dbgov-tag { color: #8ab4f8; font-style: italic; }
     /* The verdict reads first and the selector says where to look, so a
-       finding puts its message in .lbl — which already takes the room and
-       ellipsises — and the element in .det. No direction tricks: rtl reorders
+       finding puts its message in .dbgov-lbl — which already takes the room and
+       ellipsises — and the element in .dbgov-det. No direction tricks: rtl reorders
        the neutral characters in a CSS selector and prints '#id' backwards. */
-    #__dbgov-list .row[data-accent] .det { color: #8f8f96; font-weight: 400; }
+    #__dbgov-list .dbgov-row[data-accent] .dbgov-det { color: #8f8f96; font-weight: 400; }
     /* A settings row's picker. font: inherit because a bare <select> takes the
        PAGE's font on some sites and the row stops lining up; the overlay must
        look the same wherever it is injected. */
-    #__dbgov-list .opt { flex: none; cursor: pointer; font: inherit;
+    #__dbgov-list .dbgov-opt { flex: none; cursor: pointer; font: inherit;
       background: #2c2c31; color: #b5e853; font-weight: 700; border: 0;
       border-radius: 6px; padding: 3px 6px; }
-    #__dbgov-list .opt:hover { background: #3a3a41; }
+    #__dbgov-list .dbgov-opt:hover { background: #3a3a41; }
     /* what the settings under it change — the category, not the owning tool */
     /* which of the three screens this is — one slot showed findings, pins and
        settings with no header at all, so nothing said what you were reading */
-    #__dbgov-list .viewhead { padding: 4px 8px 8px; color: #fff; font-size: 13px;
+    #__dbgov-list .dbgov-viewhead { padding: 4px 8px 8px; color: #fff; font-size: 13px;
       font-weight: 800; border-bottom: 1px solid rgba(255,255,255,.10); margin-bottom: 4px; }
-    #__dbgov-list .viewhead .rm { float: right; }
-    #__dbgov-list .viewhead .note { display: block; margin-top: 2px; color: #8f8f96;
+    #__dbgov-list .dbgov-viewhead .dbgov-rm { float: right; }
+    #__dbgov-list .dbgov-viewhead .dbgov-note { display: block; margin-top: 2px; color: #8f8f96;
       font-size: 10px; font-weight: 400; }
-    #__dbgov-list .head { padding: 10px 8px 4px; color: #8f8f96;
+    #__dbgov-list .dbgov-head { padding: 10px 8px 4px; color: #8f8f96;
       font-size: 10px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
-    #__dbgov-list .head:first-child { padding-top: 4px; }
-    #__dbgov-list .head .note { display: block; margin-top: 2px;
+    #__dbgov-list .dbgov-head:first-child { padding-top: 4px; }
+    #__dbgov-list .dbgov-head .dbgov-note { display: block; margin-top: 2px;
       font-size: 10px; font-weight: 400; letter-spacing: 0; text-transform: none; }
     /* stored and waiting — the tool that reads it is switched off */
-    #__dbgov-list .row.inert .lbl, #__dbgov-list .row.inert .tag { opacity: .45; }
-    #__dbgov-list .num { flex: none; display: flex; align-items: center; gap: 4px; }
-    #__dbgov-list .num .opt { width: 68px; text-align: right; }
-    #__dbgov-list .unit { color: #8f8f96; font-weight: 400; }
+    #__dbgov-list .dbgov-row.dbgov-inert .dbgov-lbl, #__dbgov-list .dbgov-row.dbgov-inert .dbgov-tag { opacity: .45; }
+    #__dbgov-list .dbgov-num { flex: none; display: flex; align-items: center; gap: 4px; }
+    #__dbgov-list .dbgov-num .dbgov-opt { width: 68px; text-align: right; }
+    #__dbgov-list .dbgov-unit { color: #8f8f96; font-weight: 400; }
     /* accent-color rather than a hand-built switch: the native control already
        knows focus, keyboard and the platform's own hit target */
-    #__dbgov-list .tick { width: 15px; height: 15px; padding: 0; accent-color: #b5e853; }
-    #__dbgov-list .rm { flex: none; width: 20px; height: 20px; border: 0; cursor: pointer;
+    #__dbgov-list .dbgov-tick { width: 15px; height: 15px; padding: 0; accent-color: #b5e853; }
+    #__dbgov-list .dbgov-rm { flex: none; width: 20px; height: 20px; border: 0; cursor: pointer;
       border-radius: 50%; background: #2c2c31; color: #ff8a8a; font-size: 11px;
       display: flex; align-items: center; justify-content: center; }
-    #__dbgov-list .rm:hover { background: #ff5c5c; color: #fff; }
+    #__dbgov-list .dbgov-rm:hover { background: #ff5c5c; color: #fff; }
     /* Where the findings actually are. Dashed, never filled: a mark points at
        a problem, it must not hide the thing it is pointing at.
        CORE, not one tool's: every rule may mark its own findings, and this was
        contrast's private CSS until dupid needed to mark its own too. A class
        more than one tool emits cannot live in either one's sheet. */
     .dbgov-flag { outline-offset: 1px; }
-    .dbgov-flag.error  { outline: 2px dashed #ff6b6b; }
-    .dbgov-flag.warn   { outline: 2px dashed #ffd54f; }
-    .dbgov-flag.info   { outline: 2px dashed #9ad0ff; }
-    .dbgov-flag.review { outline: 2px dotted #8ab4f8; }
-    /* an audit is on the page right now — distinct from .armed, which only
+    .dbgov-flag.dbgov-error  { outline: 2px dashed #ff6b6b; }
+    .dbgov-flag.dbgov-warn   { outline: 2px dashed #ffd54f; }
+    .dbgov-flag.dbgov-info   { outline: 2px dashed #9ad0ff; }
+    .dbgov-flag.dbgov-review { outline: 2px dotted #8ab4f8; }
+    /* an audit is on the page right now — distinct from .dbgov-armed, which only
        means the findings VIEW is the one open. No backticks in here: this
        whole sheet is a template literal. */
-    #__dbgov-bar .act.swept { box-shadow: inset 0 0 0 2px #b5e853; }
+    #__dbgov-bar .dbgov-act.dbgov-swept { box-shadow: inset 0 0 0 2px #b5e853; }
     /* There was no designed focus indicator anywhere in this sheet — a
        keyboard user could tab through 13 controls with nothing to show where
        they were. :focus-visible only, so a mouse click does not draw one. */
     #__dbgov-root :focus-visible { outline: 2px solid #58c4ff; outline-offset: 2px; }
     /* WCAG 2.5.8 wants 24x24. These three were 18x21, 20x20 and 15x15. */
-    #__dbgov-bar .cnt { min-width: 24px; min-height: 24px; }
-    #__dbgov-list .rm { width: 24px; height: 24px; }
-    #__dbgov-list .tick { width: 24px; height: 24px; }
-    #__dbgov-bar .cnt.armed { background: #ff8a65; color: #1a1a1a; }
+    #__dbgov-bar .dbgov-cnt { min-width: 24px; min-height: 24px; }
+    #__dbgov-list .dbgov-rm { width: 24px; height: 24px; }
+    #__dbgov-list .dbgov-tick { width: 24px; height: 24px; }
+    #__dbgov-bar .dbgov-cnt.dbgov-armed { background: #ff8a65; color: #1a1a1a; }
 
     .dbgov-badge { position: fixed; pointer-events: none; max-width: 92vw;
       background: rgba(18,18,20,.94); color: #fff; border-radius: 8px;
       padding: 4px 9px; font-size: 12px; line-height: 1.45; white-space: nowrap;
       box-shadow: 0 2px 10px rgba(0,0,0,.45); }
-    .dbgov-badge .sz  { color: #ffffff; font-weight: 700; }
-    .dbgov-badge .rad { color: #ff8a65; }
-    .dbgov-badge .sp  { color: #9ad0ff; }
-    .dbgov-badge .fnt { color: #d7c4ff; }
-    .dbgov-badge .tag { color: #8f8f96; }
+    .dbgov-badge .dbgov-sz  { color: #ffffff; font-weight: 700; }
+    .dbgov-badge .dbgov-rad { color: #ff8a65; }
+    .dbgov-badge .dbgov-sp  { color: #9ad0ff; }
+    .dbgov-badge .dbgov-fnt { color: #d7c4ff; }
+    .dbgov-badge .dbgov-tag { color: #8f8f96; }
 
     .dbgov-pin-num { position: fixed; pointer-events: none;
       min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px;
       background: #ff8a65; color: #1a1a1a; font-size: 12px; font-weight: 800;
       display: flex; align-items: center; justify-content: center;
       box-shadow: 0 2px 8px rgba(0,0,0,.5); }
-    .dbgov-pin-num.pair { background: #b5e853; color: #16200a; }
-    .dbgov-pin-num.link { background: #c084fc; color: #241333; }
-    .dbgov-pin-num.waiting { background: #58c4ff; color: #0d1b24; }
-    .dbgov-pin-num.rmtarget { background: #ff5c5c; color: #fff; }
+    .dbgov-pin-num.dbgov-pair { background: #b5e853; color: #16200a; }
+    .dbgov-pin-num.dbgov-link { background: #c084fc; color: #241333; }
+    .dbgov-pin-num.dbgov-waiting { background: #58c4ff; color: #0d1b24; }
+    .dbgov-pin-num.dbgov-rmtarget { background: #ff5c5c; color: #fff; }
 
     /* remove mode: ✕ chips appear only while the remove key is held */
     .dbgov-rm { position: fixed; pointer-events: none;
@@ -1927,110 +1927,110 @@ HOW TO USE
       font-size: 11px; font-weight: 800; line-height: 1;
       display: flex; align-items: center; justify-content: center;
       box-shadow: 0 2px 6px rgba(0,0,0,.5); transition: transform .1s ease; }
-    .dbgov-rm.target { transform: scale(1.3); background: #ff2f2f; }
+    .dbgov-rm.dbgov-target { transform: scale(1.3); background: #ff2f2f; }
 
     #__dbgov-bar { position: fixed; right: 14px; top: 50%;
       pointer-events: auto; display: flex; flex-direction: column; align-items: center;
       gap: 6px; background: rgba(18,18,20,.96); border-radius: 999px; padding: 8px;
       box-shadow: 0 4px 18px rgba(0,0,0,.55); user-select: none; touch-action: none;
       transition: transform .22s cubic-bezier(.2,.8,.3,1), opacity .22s ease; }
-    #__dbgov-bar.dragging { transition: none; opacity: .9; }
-    #__dbgov-bar .grip { width: 22px; height: 12px; cursor: grab; flex: none;
+    #__dbgov-bar.dbgov-dragging { transition: none; opacity: .9; }
+    #__dbgov-bar .dbgov-grip { width: 22px; height: 12px; cursor: grab; flex: none;
       display: flex; align-items: center; justify-content: center;
       color: #6a6a72; font-size: 11px; letter-spacing: 1px; line-height: 1; }
-    #__dbgov-bar.dragging .grip { cursor: grabbing; }
+    #__dbgov-bar.dbgov-dragging .dbgov-grip { cursor: grabbing; }
 
     /* master power */
-    #__dbgov-bar .pwr { width: 36px; height: 36px; border-radius: 50%; border: 0; cursor: pointer;
+    #__dbgov-bar .dbgov-pwr { width: 36px; height: 36px; border-radius: 50%; border: 0; cursor: pointer;
       font-size: 15px; background: #3a3a40; color: #9a9aa2;
       display: flex; align-items: center; justify-content: center; transition: background .15s; }
-    #__dbgov-bar.on .pwr { background: #b5e853; color: #1a1a1a; }
-    #__dbgov-bar .st { font-size: 10px; font-weight: 800; letter-spacing: .5px; color: #8f8f96; }
-    #__dbgov-bar.on .st { color: #b5e853; }
-    #__dbgov-bar.removing .pwr { background: #ff5c5c; color: #fff; }
-    #__dbgov-bar.removing .st { color: #ff5c5c; }
+    #__dbgov-bar.dbgov-on .dbgov-pwr { background: #b5e853; color: #1a1a1a; }
+    #__dbgov-bar .dbgov-st { font-size: 10px; font-weight: 800; letter-spacing: .5px; color: #8f8f96; }
+    #__dbgov-bar.dbgov-on .dbgov-st { color: #b5e853; }
+    #__dbgov-bar.dbgov-removing .dbgov-pwr { background: #ff5c5c; color: #fff; }
+    #__dbgov-bar.dbgov-removing .dbgov-st { color: #ff5c5c; }
 
     /* things that only make sense once powered on */
-    #__dbgov-bar .whenOn { display: none; }
-    #__dbgov-bar.on .whenOn { display: flex; align-items: center; justify-content: center; }
-    #__dbgov-bar.on .cnt.whenOn { display: block; }
+    #__dbgov-bar .dbgov-whenOn { display: none; }
+    #__dbgov-bar.dbgov-on .dbgov-whenOn { display: flex; align-items: center; justify-content: center; }
+    #__dbgov-bar.dbgov-on .dbgov-cnt.dbgov-whenOn { display: block; }
     /* the family flyout: the mark sits in the bar, the members slide out
        sideways — toward the open side of the screen, read off data-side */
-    #__dbgov-bar .fam, #__dbgov-bar .fam-btn { display: none; }
-    #__dbgov-bar.on .fam { position: relative; display: flex; }
-    #__dbgov-bar.on .fam-btn { width: 34px; height: 34px; border-radius: 50%; border: 0;
+    #__dbgov-bar .dbgov-fam, #__dbgov-bar .dbgov-fam-btn { display: none; }
+    #__dbgov-bar.dbgov-on .dbgov-fam { position: relative; display: flex; }
+    #__dbgov-bar.dbgov-on .dbgov-fam-btn { width: 34px; height: 34px; border-radius: 50%; border: 0;
       cursor: pointer; background: #2c2c31; color: #eaeaea; font-size: 15px;
       display: flex; align-items: center; justify-content: center; position: relative; }
-    #__dbgov-bar .fam-btn:hover { background: #3a3a41; }
-    #__dbgov-bar .fam-btn.armed { background: #58c4ff; color: #10151a; }
-    #__dbgov-bar .fam-btn.checks::after { content: ''; position: absolute;
+    #__dbgov-bar .dbgov-fam-btn:hover { background: #3a3a41; }
+    #__dbgov-bar .dbgov-fam-btn.dbgov-armed { background: #58c4ff; color: #10151a; }
+    #__dbgov-bar .dbgov-fam-btn.dbgov-checks::after { content: ''; position: absolute;
       right: 1px; bottom: 1px; width: 7px; height: 7px; border-radius: 50%;
       background: #b5e853; border: 2px solid rgba(18,18,20,.96); }
     /* VERTICAL, like the bar it belongs to — the flyout is a short second
        column beside the head, not a sideways pill. And SEPARATED: no capsule
        background; each member is its own circle wearing its own shadow, the
        same species of button as the bar's. */
-    #__dbgov-bar .fam .flyout { position: absolute; top: 50%;
+    #__dbgov-bar .dbgov-fam .dbgov-flyout { position: absolute; top: 50%;
       transform: translateY(-50%) scale(.9); display: flex;
       flex-direction: column; align-items: center; gap: 6px;
       opacity: 0; pointer-events: none;
       transition: opacity .15s ease, transform .15s ease; }
-    #__dbgov-bar .fam .flyout button {
+    #__dbgov-bar .dbgov-fam .dbgov-flyout button {
       box-shadow: 0 4px 14px rgba(0,0,0,.55); }
     /* the SECOND layer: a pressed axis grows its members one more step out
        from the bar, its own column beside the head — never mixed into the
        heads' column, or two levels read as one flat run */
-    #__dbgov-bar .fam .flyout .sub { position: relative; display: flex; }
-    #__dbgov-bar .fam .flyout .subfly { position: absolute; top: 50%;
+    #__dbgov-bar .dbgov-fam .dbgov-flyout .dbgov-sub { position: relative; display: flex; }
+    #__dbgov-bar .dbgov-fam .dbgov-flyout .dbgov-subfly { position: absolute; top: 50%;
       transform: translateY(-50%); display: flex; flex-direction: column;
       align-items: center; gap: 6px; }
-    #__dbgov-bar[data-side="right"] .fam .flyout .subfly { right: calc(100% + 12px); }
-    #__dbgov-bar[data-side="left"] .fam .flyout .subfly,
-    #__dbgov-bar[data-side="top"] .fam .flyout .subfly,
-    #__dbgov-bar[data-side="bottom"] .fam .flyout .subfly { left: calc(100% + 12px); }
-    #__dbgov-bar .fam.open .flyout { opacity: 1; pointer-events: auto;
+    #__dbgov-bar[data-side="right"] .dbgov-fam .dbgov-flyout .dbgov-subfly { right: calc(100% + 12px); }
+    #__dbgov-bar[data-side="left"] .dbgov-fam .dbgov-flyout .dbgov-subfly,
+    #__dbgov-bar[data-side="top"] .dbgov-fam .dbgov-flyout .dbgov-subfly,
+    #__dbgov-bar[data-side="bottom"] .dbgov-fam .dbgov-flyout .dbgov-subfly { left: calc(100% + 12px); }
+    #__dbgov-bar .dbgov-fam.dbgov-open .dbgov-flyout { opacity: 1; pointer-events: auto;
       transform: translateY(-50%) scale(1); }
-    #__dbgov-bar[data-side="right"] .fam .flyout { right: calc(100% + 12px); }
-    #__dbgov-bar[data-side="left"] .fam .flyout,
-    #__dbgov-bar[data-side="top"] .fam .flyout,
-    #__dbgov-bar[data-side="bottom"] .fam .flyout { left: calc(100% + 12px); }
-    #__dbgov-bar hr.sep { width: 20px; height: 1px; border: 0; margin: 1px 0;
+    #__dbgov-bar[data-side="right"] .dbgov-fam .dbgov-flyout { right: calc(100% + 12px); }
+    #__dbgov-bar[data-side="left"] .dbgov-fam .dbgov-flyout,
+    #__dbgov-bar[data-side="top"] .dbgov-fam .dbgov-flyout,
+    #__dbgov-bar[data-side="bottom"] .dbgov-fam .dbgov-flyout { left: calc(100% + 12px); }
+    #__dbgov-bar hr.dbgov-sep { width: 20px; height: 1px; border: 0; margin: 1px 0;
       background: rgba(255,255,255,.14); }
-    #__dbgov-bar .cnt { font-size: 11px; font-weight: 700; color: #ff8a65;
+    #__dbgov-bar .dbgov-cnt { font-size: 11px; font-weight: 700; color: #ff8a65;
       border: 0; background: transparent; cursor: pointer; padding: 2px 6px;
       border-radius: 999px; font-family: inherit; }
-    #__dbgov-bar .cnt:hover { background: #2c2c31; }
+    #__dbgov-bar .dbgov-cnt:hover { background: #2c2c31; }
 
     /* tool + action buttons */
-    #__dbgov-bar button.tool, #__dbgov-bar button.act, #__dbgov-bar button.bctl {
+    #__dbgov-bar button.dbgov-tool, #__dbgov-bar button.dbgov-act, #__dbgov-bar button.dbgov-bctl {
       width: 34px; height: 34px; border-radius: 50%; border: 0; cursor: pointer;
       background: #2c2c31; color: #fff; font-size: 15px; }
-    /* NO display here: .whenOn owns display (none ↔ flex with centring), and
+    /* NO display here: .dbgov-whenOn owns display (none ↔ flex with centring), and
        a more specific display on the buttons out-guns the hider — the exact
        mistake the fam flyout already made once. One icon set (lucide, ISC),
-       one size; the .whenOn / .pwr / .fam-btn flex does the centring. */
+       one size; the .dbgov-whenOn / .dbgov-pwr / .dbgov-fam-btn flex does the centring. */
     #__dbgov-bar button svg { width: 16px; height: 16px; pointer-events: none; }
-    #__dbgov-bar .grip svg { width: 14px; height: 14px; display: block; }
-    #__dbgov-list .tag svg { width: 14px; height: 14px; vertical-align: -3px; }
-    #__dbgov-bar button.tool:hover, #__dbgov-bar button.act:hover { background: #3a3a40; }
-    #__dbgov-bar button.tool.armed,
-    #__dbgov-bar button.bctl.armed { background: #58c4ff; color: #0d1b24; }
+    #__dbgov-bar .dbgov-grip svg { width: 14px; height: 14px; display: block; }
+    #__dbgov-list .dbgov-tag svg { width: 14px; height: 14px; vertical-align: -3px; }
+    #__dbgov-bar button.dbgov-tool:hover, #__dbgov-bar button.dbgov-act:hover { background: #3a3a40; }
+    #__dbgov-bar button.dbgov-tool.dbgov-armed,
+    #__dbgov-bar button.dbgov-bctl.dbgov-armed { background: #58c4ff; color: #0d1b24; }
     /* an OPEN axis head is a drawer pulled out, not a value in force —
        a ring, not the armed fill, so the two states cannot be confused */
-    #__dbgov-bar button.bctl.axis.open { box-shadow: inset 0 0 0 2px #58c4ff; }
+    #__dbgov-bar button.dbgov-bctl.dbgov-axis.dbgov-open { box-shadow: inset 0 0 0 2px #58c4ff; }
     /* a fixed member is information: always on, takes no click */
-    #__dbgov-bar button.bctl.fixed { opacity: .55; cursor: default; }
+    #__dbgov-bar button.dbgov-bctl.dbgov-fixed { opacity: .55; cursor: default; }
     /* A tool in the run that feeds ⌕ carries a dot. Armed or not, it is still
        swept — the dot says "this contributes findings", the fill says "this
        is drawn". They are different questions and used to look the same. */
-    #__dbgov-bar button.tool.checks { position: relative; }
-    #__dbgov-bar button.tool.checks::after {
+    #__dbgov-bar button.dbgov-tool.dbgov-checks { position: relative; }
+    #__dbgov-bar button.dbgov-tool.dbgov-checks::after {
       content: ''; position: absolute; right: 2px; bottom: 2px;
       width: 4px; height: 4px; border-radius: 50%; background: #b5e853; }
-    #__dbgov-bar button.act.armed { background: #b5e853; color: #1a1a1a; }
+    #__dbgov-bar button.dbgov-act.dbgov-armed { background: #b5e853; color: #1a1a1a; }
 
-    #__dbgov-bar.tucked { opacity: .4; }
-    #__dbgov-bar.tucked:hover { opacity: 1; }
+    #__dbgov-bar.dbgov-tucked { opacity: .4; }
+    #__dbgov-bar.dbgov-tucked:hover { opacity: 1; }
   `;
 
   // src/ui/dom.js
@@ -2068,7 +2068,7 @@ HOW TO USE
     },
     choice(c, onChange) {
       const sel = document.createElement("select");
-      sel.className = "opt";
+      sel.className = "dbgov-opt";
       c.choices.forEach((label, k) => {
         const o = document.createElement("option");
         o.value = String(k);
@@ -2082,10 +2082,10 @@ HOW TO USE
     },
     number(c, onChange) {
       const wrap = document.createElement("span");
-      wrap.className = "num";
+      wrap.className = "dbgov-num";
       const inp = document.createElement("input");
       inp.type = "number";
-      inp.className = "opt";
+      inp.className = "dbgov-opt";
       inp.value = c.value;
       if (c.min !== void 0) inp.min = String(c.min);
       if (c.max !== void 0) inp.max = String(c.max);
@@ -2095,7 +2095,7 @@ HOW TO USE
       wrap.append(inp);
       if (c.suffix) {
         const u = document.createElement("span");
-        u.className = "unit";
+        u.className = "dbgov-unit";
         u.textContent = c.suffix;
         wrap.append(u);
       }
@@ -2104,7 +2104,7 @@ HOW TO USE
     toggle(c, onChange) {
       const inp = document.createElement("input");
       inp.type = "checkbox";
-      inp.className = "opt tick";
+      inp.className = "dbgov-opt dbgov-tick";
       inp.checked = !!c.on;
       inp.addEventListener("click", (e) => e.stopPropagation());
       inp.addEventListener("change", () => onChange(inp.checked));
@@ -2166,7 +2166,7 @@ HOW TO USE
           const same = open && view === name;
           open = v === void 0 ? !same : !!v;
           view = open ? name : null;
-          el2.classList.toggle("open", open);
+          el2.classList.toggle("dbgov-open", open);
           anchor?.mark(view);
           if (open) {
             api.onOpen?.(view);
@@ -2187,7 +2187,7 @@ HOW TO USE
           el2.textContent = "";
           if (!rows.length) {
             const e = document.createElement("div");
-            e.className = "empty";
+            e.className = "dbgov-empty";
             e.textContent = empty;
             el2.append(e);
             place();
@@ -2196,11 +2196,11 @@ HOW TO USE
           rows.forEach((row, i) => {
             if (row.title || row.heading) {
               const h = document.createElement("div");
-              h.className = row.title ? "viewhead" : "head";
+              h.className = row.title ? "dbgov-viewhead" : "dbgov-head";
               h.textContent = row.title || row.heading;
               if (row.removable) {
                 const rm = document.createElement("button");
-                rm.className = "rm";
+                rm.className = "dbgov-rm";
                 rm.textContent = "✕";
                 rm.title = row.rmTitle || "Remove";
                 rm.addEventListener("click", (e) => {
@@ -2211,7 +2211,7 @@ HOW TO USE
               }
               if (row.detail) {
                 const n = document.createElement("span");
-                n.className = "note";
+                n.className = "dbgov-note";
                 n.textContent = row.detail;
                 h.append(n);
               }
@@ -2219,28 +2219,28 @@ HOW TO USE
               return;
             }
             const r = document.createElement("div");
-            r.className = "row";
+            r.className = "dbgov-row";
             const tag = document.createElement("span");
-            tag.className = "tag";
+            tag.className = "dbgov-tag";
             if (/^<svg[\s>]/.test(row.tag || "")) tag.innerHTML = row.tag;
             else tag.textContent = row.tag;
             const lbl = document.createElement("span");
-            lbl.className = "lbl";
+            lbl.className = "dbgov-lbl";
             lbl.textContent = row.label;
             if (row.accent) r.dataset.accent = row.accent;
-            if (row.inert) r.classList.add("inert");
+            if (row.inert) r.classList.add("dbgov-inert");
             r.addEventListener("click", () => api.onRowActivate?.(i));
             if (row.control) {
               r.append(tag, lbl, Controls.build(row.control, (raw) => api.onRowChange?.(i, raw)));
             } else {
               const det = document.createElement("span");
-              det.className = "det";
+              det.className = "dbgov-det";
               det.textContent = row.detail || "";
               r.append(tag, lbl, det);
             }
             if (row.removable) {
               const rm = document.createElement("button");
-              rm.className = "rm";
+              rm.className = "dbgov-rm";
               rm.textContent = "✕";
               rm.title = "Remove";
               rm.addEventListener("click", (e) => {
@@ -2270,7 +2270,7 @@ HOW TO USE
     }, true);
   }
   var Menu = {
-    isOpen: () => !!el && el.classList.contains("open"),
+    isOpen: () => !!el && el.classList.contains("dbgov-open"),
     /** rows: [{ label, run }] — label is all this file reads of them. */
     open(x, y, rows) {
       el.textContent = "";
@@ -2283,14 +2283,14 @@ HOW TO USE
         });
         el.append(b);
       }
-      el.classList.add("open");
+      el.classList.add("dbgov-open");
       const w = el.offsetWidth, h = el.offsetHeight;
       el.style.left = Math.max(4, Math.min(x, innerWidth - w - 4)) + "px";
       el.style.top = Math.max(4, Math.min(y, innerHeight - h - 4)) + "px";
     },
     close() {
       if (!el) return;
-      el.classList.remove("open");
+      el.classList.remove("dbgov-open");
       el.textContent = "";
     }
   };
@@ -2301,7 +2301,7 @@ HOW TO USE
     Panel = (() => {
       const el2 = document.createElement("div");
       el2.id = "__dbgov-bar";
-      const toolBtn = (t) => `<button class="tool whenOn ${Tools.feedsAudit(t) ? "checks" : ""}" data-tool="${t.id}" title="${t.family ? t.family[0].toUpperCase() + t.family.slice(1) + " › " : ""}${t.title}
+      const toolBtn = (t) => `<button class="dbgov-tool dbgov-whenOn ${Tools.feedsAudit(t) ? "dbgov-checks" : ""}" data-tool="${t.id}" title="${t.family ? t.family[0].toUpperCase() + t.family.slice(1) + " › " : ""}${t.title}
 ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the page audit" : ""}${t.options || t.uses ? "\nright-click for its options" : ""}">${t.icon}</button>`;
       const toolRuns = Tools.runs().map((run) => {
         const out = [];
@@ -2317,35 +2317,35 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           const kin = run.tools.filter((x) => x.family === t.family);
           const famName = t.family[0].toUpperCase() + t.family.slice(1);
           out.push(
-            `<span class="fam whenOn" data-fam="${t.family}"><button class="fam-btn whenOn ${kin.some(Tools.feedsAudit) ? "checks" : ""}" aria-expanded="false" title="${famName} family — ${kin.map((x) => x.id).join(", ")}; click to open">${mark}</button><span class="flyout">${kin.map(toolBtn).join("")}</span></span>`
+            `<span class="dbgov-fam dbgov-whenOn" data-fam="${t.family}"><button class="dbgov-fam-btn dbgov-whenOn ${kin.some(Tools.feedsAudit) ? "dbgov-checks" : ""}" aria-expanded="false" title="${famName} family — ${kin.map((x) => x.id).join(", ")}; click to open">${mark}</button><span class="dbgov-flyout">${kin.map(toolBtn).join("")}</span></span>`
           );
         }
         return out.join("");
-      }).join('<hr class="sep whenOn">');
+      }).join('<hr class="dbgov-sep dbgov-whenOn">');
       const SWEEP_ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="m21 21-4.34-4.34" /><circle cx="11" cy="11" r="8" /></svg>';
       el2.innerHTML = `
-      <span class="grip" title="Drag to move — snaps to the nearest edge"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><circle cx="9" cy="12" r="1" /><circle cx="9" cy="5" r="1" /><circle cx="9" cy="19" r="1" /><circle cx="15" cy="12" r="1" /><circle cx="15" cy="5" r="1" /><circle cx="15" cy="19" r="1" /></svg></span>
-      <button class="pwr" title="Power (Alt+Shift+D) · v${CONFIG.VERSION}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 2v10" /><path d="M18.4 6.6a9 9 0 1 1-12.77.04" /></svg></button>
-      <span class="st" data-st>OFF</span>
-      <hr class="sep whenOn">
+      <span class="dbgov-grip" title="Drag to move — snaps to the nearest edge"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><circle cx="9" cy="12" r="1" /><circle cx="9" cy="5" r="1" /><circle cx="9" cy="19" r="1" /><circle cx="15" cy="12" r="1" /><circle cx="15" cy="5" r="1" /><circle cx="15" cy="19" r="1" /></svg></span>
+      <button class="dbgov-pwr" title="Power (Alt+Shift+D) · v${CONFIG.VERSION}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 2v10" /><path d="M18.4 6.6a9 9 0 1 1-12.77.04" /></svg></button>
+      <span class="dbgov-st" data-st>OFF</span>
+      <hr class="dbgov-sep dbgov-whenOn">
       ${toolRuns}
       <!-- its own band: ⌕ and ⚙ drive the services, they are not tools -->
-      <hr class="sep whenOn">
-      <button class="act whenOn" data-sweep data-view="findings" title="Audit the whole page">${SWEEP_ICON}</button>
+      <hr class="dbgov-sep dbgov-whenOn">
+      <button class="dbgov-act dbgov-whenOn" data-sweep data-view="findings" title="Audit the whole page">${SWEEP_ICON}</button>
       <!-- with the tools it configures, not with the panel's own actions -->
-      <button class="act whenOn" data-settings data-view="settings" title="Tool settings"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></svg></button>
-      <hr class="sep whenOn">
-      <button class="cnt whenOn" data-c data-view="pins" title="Pinned elements — click for the list">0</button>
+      <button class="dbgov-act dbgov-whenOn" data-settings data-view="settings" title="Tool settings"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></svg></button>
+      <hr class="dbgov-sep dbgov-whenOn">
+      <button class="dbgov-cnt dbgov-whenOn" data-c data-view="pins" title="Pinned elements — click for the list">0</button>
       <!-- 🏷 replaces ≡: same fam flyout the domain families use, members
            handed in by the controller (setBadgeControls) — this file renders
            what it is given and never learns what a view or a facet is -->
-      <span class="fam whenOn" data-badge>
-        <button class="fam-btn act" title="Badge — view and facets; click to open"
+      <span class="dbgov-fam dbgov-whenOn" data-badge>
+        <button class="dbgov-fam-btn dbgov-act" title="Badge — view and facets; click to open"
                 aria-haspopup="true" aria-expanded="false"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></svg></button>
-        <span class="flyout" data-badge-fly></span>
+        <span class="dbgov-flyout" data-badge-fly></span>
       </span>
-      <button class="act whenOn" data-copy title="Copy report"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /><path d="M16 4h2a2 2 0 0 1 2 2v4" /><path d="M21 14H11" /><path d="m15 10-4 4 4 4" /></svg></button>
-      <button class="act whenOn" data-clear title="Clear pins and the audit's marks"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>`;
+      <button class="dbgov-act dbgov-whenOn" data-copy title="Copy report"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /><path d="M16 4h2a2 2 0 0 1 2 2v4" /><path d="M21 14H11" /><path d="m15 10-4 4 4 4" /></svg></button>
+      <button class="dbgov-act dbgov-whenOn" data-clear title="Clear pins and the audit's marks"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>`;
       root.append(el2);
       List.attach({
         el: el2,
@@ -2353,7 +2353,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         mark: (view) => el2.querySelectorAll("[data-view]").forEach(
           (b) => {
             const on = !!view && b.dataset.view === view;
-            b.classList.toggle("armed", on);
+            b.classList.toggle("dbgov-armed", on);
             b.setAttribute("aria-pressed", String(on));
           }
         )
@@ -2366,9 +2366,9 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         fly.textContent = "";
         for (const g of badgeGroups) {
           const sub = document.createElement("span");
-          sub.className = "sub";
+          sub.className = "dbgov-sub";
           const h = document.createElement("button");
-          h.className = "bctl whenOn axis" + (open === g.key ? " open" : "");
+          h.className = "dbgov-bctl dbgov-whenOn dbgov-axis" + (open === g.key ? " dbgov-open" : "");
           h.innerHTML = g.glyph;
           h.title = g.title;
           h.setAttribute("aria-expanded", String(open === g.key));
@@ -2379,10 +2379,10 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           sub.append(h);
           if (open === g.key) {
             const members = document.createElement("span");
-            members.className = "subfly";
+            members.className = "dbgov-subfly";
             for (const r of g.rows) {
               const b = document.createElement("button");
-              b.className = "bctl whenOn" + (r.armed ? " armed" : "") + (r.fixed ? " fixed" : "");
+              b.className = "dbgov-bctl dbgov-whenOn" + (r.armed ? " dbgov-armed" : "") + (r.fixed ? " dbgov-fixed" : "");
               b.innerHTML = r.glyph;
               b.title = r.title;
               b.setAttribute("aria-pressed", String(!!r.armed));
@@ -2408,7 +2408,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         onSweep: null,
         onRowChange: null,
         setOn(v) {
-          el2.classList.toggle("on", v);
+          el2.classList.toggle("dbgov-on", v);
           el2.querySelector("[data-st]").textContent = v ? "ON" : "OFF";
           if (!v) api.toggleList(false);
           if (v) {
@@ -2428,10 +2428,10 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         },
         setTool(id, v) {
           const b = el2.querySelector(`[data-tool="${id}"]`);
-          b?.classList.toggle("armed", v);
+          b?.classList.toggle("dbgov-armed", v);
           b?.setAttribute("aria-pressed", String(!!v));
-          const fam = b?.closest(".fam");
-          if (fam) fam.querySelector(".fam-btn").classList.toggle("armed", !!fam.querySelector(".tool.armed"));
+          const fam = b?.closest(".dbgov-fam");
+          if (fam) fam.querySelector(".dbgov-fam-btn").classList.toggle("dbgov-armed", !!fam.querySelector(".dbgov-tool.dbgov-armed"));
         },
         /**
          * The 🏷 flyout, two levels: AXIS heads at rest, and only the pressed
@@ -2469,7 +2469,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
          */
         setSwept(v, n) {
           const b = el2.querySelector("[data-sweep]");
-          b.classList.toggle("swept", !!v);
+          b.classList.toggle("dbgov-swept", !!v);
           if (v) b.textContent = String(n);
           else b.innerHTML = SWEEP_ICON;
           const what = v ? `Audit: ${n} distinct problem${n === 1 ? "" : "s"} — click to re-run` : "Audit the whole page";
@@ -2477,7 +2477,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           b.setAttribute("aria-label", what);
         },
         setRemoveMode(v) {
-          el2.classList.toggle("removing", v);
+          el2.classList.toggle("dbgov-removing", v);
           const st = el2.querySelector("[data-st]");
           st.textContent = v ? "DEL" : api.isOn() ? "ON" : "OFF";
         },
@@ -2513,7 +2513,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           });
         },
         rect: () => el2.getBoundingClientRect(),
-        isOn: () => el2.classList.contains("on")
+        isOn: () => el2.classList.contains("dbgov-on")
       };
       List.onOpen = (v) => api.onListOpen?.(v);
       List.onRowActivate = (i) => api.onRowActivate?.(i);
@@ -2524,24 +2524,24 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         if (name) b.setAttribute("aria-label", name);
       });
       el2.querySelectorAll("[data-tool], [data-view]").forEach((b) => b.setAttribute("aria-pressed", "false"));
-      el2.querySelector(".pwr").addEventListener("click", () => api.onToggle?.());
-      el2.querySelectorAll(".fam-btn").forEach((b) => {
+      el2.querySelector(".dbgov-pwr").addEventListener("click", () => api.onToggle?.());
+      el2.querySelectorAll(".dbgov-fam-btn").forEach((b) => {
         b.addEventListener("click", () => {
           const fam = b.parentElement;
-          const open = !fam.classList.contains("open");
-          el2.querySelectorAll(".fam.open").forEach((f) => {
-            f.classList.remove("open");
-            f.querySelector(".fam-btn").setAttribute("aria-expanded", "false");
+          const open = !fam.classList.contains("dbgov-open");
+          el2.querySelectorAll(".dbgov-fam.dbgov-open").forEach((f) => {
+            f.classList.remove("dbgov-open");
+            f.querySelector(".dbgov-fam-btn").setAttribute("aria-expanded", "false");
           });
-          fam.classList.toggle("open", open);
+          fam.classList.toggle("dbgov-open", open);
           b.setAttribute("aria-expanded", String(open));
         });
       });
       document.addEventListener("pointerdown", (e) => {
-        if (e.target.closest && e.target.closest(".fam")) return;
-        el2.querySelectorAll(".fam.open").forEach((f) => {
-          f.classList.remove("open");
-          f.querySelector(".fam-btn").setAttribute("aria-expanded", "false");
+        if (e.target.closest && e.target.closest(".dbgov-fam")) return;
+        el2.querySelectorAll(".dbgov-fam.dbgov-open").forEach((f) => {
+          f.classList.remove("dbgov-open");
+          f.querySelector(".dbgov-fam-btn").setAttribute("aria-expanded", "false");
         });
       }, true);
       el2.querySelectorAll("[data-tool]").forEach((b) => {
@@ -2551,7 +2551,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           api.toggleList(void 0, `tool:${b.dataset.tool}`);
         });
       });
-      el2.querySelector("[data-badge] .fam-btn").addEventListener("click", () => {
+      el2.querySelector("[data-badge] .dbgov-fam-btn").addEventListener("click", () => {
         const fly = el2.querySelector("[data-badge-fly]");
         if (fly.dataset.open) {
           fly.dataset.open = "";
@@ -2600,7 +2600,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       })();
       let tuckTimer = 0;
       function untuck() {
-        el2.classList.remove("tucked");
+        el2.classList.remove("dbgov-tucked");
         el2.style.transform = "";
       }
       function tuck() {
@@ -2611,7 +2611,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         if (side === "left") t = `translateX(${Math.round(CONFIG.PEEK - r.right)}px)`;
         if (side === "bottom") t = `translateY(${Math.round(innerHeight - CONFIG.PEEK - r.top)}px)`;
         if (side === "top") t = `translateY(${Math.round(CONFIG.PEEK - r.bottom)}px)`;
-        el2.classList.add("tucked");
+        el2.classList.add("dbgov-tucked");
         el2.style.transform = t;
       }
       function scheduleTuck() {
@@ -2640,14 +2640,14 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       });
       el2.addEventListener("pointermove", (e) => {
         if (!drag) return;
-        el2.classList.add("dragging");
+        el2.classList.add("dbgov-dragging");
         applyPos(e.clientX - drag.dx, e.clientY - drag.dy);
         if (List.isOpen()) List.place();
       });
       const endDrag = () => {
         if (!drag) return;
         drag = null;
-        el2.classList.remove("dragging");
+        el2.classList.remove("dbgov-dragging");
         snap();
         scheduleTuck();
         if (List.isOpen()) List.place();
@@ -2884,7 +2884,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         const waiting = idx === pendingIdx;
         const isTarget = State.removeMode && State.removeTarget === p;
         const isFlash = State.flashPins && State.flashPins.includes(p);
-        const kindCls = ` ${p.kind}` + (waiting ? " waiting" : "") + (isTarget ? " rmtarget" : "") + (isFlash ? " flash" : "");
+        const kindCls = ` dbgov-${p.kind}` + (waiting ? " dbgov-waiting" : "") + (isTarget ? " dbgov-rmtarget" : "") + (isFlash ? " dbgov-flash" : "");
         const i = U.info(p.el);
         const box = document.createElement("div");
         box.className = "dbgov-box dbgov-pinbox" + kindCls;
@@ -2903,7 +2903,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         }
         if (State.removeMode) {
           const rm = document.createElement("div");
-          rm.className = "dbgov-rm" + (isTarget ? " target" : "");
+          rm.className = "dbgov-rm" + (isTarget ? " dbgov-target" : "");
           rm.textContent = "✕";
           layer.append(rm);
           const rx = Math.min(innerWidth - 20, Math.max(2, i.r.right - 9));
@@ -2918,7 +2918,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       if (cur) {
         const i = U.info(cur);
         const box = document.createElement("div");
-        box.className = "dbgov-box dbgov-pinbox note";
+        box.className = "dbgov-box dbgov-pinbox dbgov-note";
         Place.put(box, i.r.left, i.r.top, i.r.width, i.r.height);
         layer.append(box);
       }
@@ -2942,7 +2942,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         if (!html) return;
         const b = document.createElement("div");
         b.className = "dbgov-badge";
-        b.innerHTML = `<span class="rad">#${p.id}</span> · ${html}`;
+        b.innerHTML = `<span class="dbgov-rad">#${p.id}</span> · ${html}`;
         layer.append(b);
         Place.smart(b, i.r, { avoid: i.r });
       });

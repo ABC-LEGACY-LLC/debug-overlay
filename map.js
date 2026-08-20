@@ -53,11 +53,22 @@ const from = origins();
 console.log(`\ndbgov v${cfg.version} — the panel, and where it comes from\n`);
 
 console.log('BAR');
+/* Name each control by what it IS, not by its class list: the icons are inline
+   SVGs now (no textContent), and printing className instead spelled the whole
+   namespaced class string for every button. data-tool for a tool, else the
+   title's first clause — the same first-clause rule the panel's aria-label
+   uses, so the map reads like the bar sounds. */
 console.log('  ' + [...bar.children]
-  .map((c) => (c.tagName === 'HR' ? '│' : c.textContent.trim() || c.className)).join(' '));
+  .map((c) => {
+    if (c.tagName === 'HR') return '│';
+    const b = c.matches('button, .dbgov-fam') ? c : c;
+    const btn = b.tagName === 'BUTTON' ? b : b.querySelector('button');
+    const name = (btn?.dataset.tool) || (btn?.title || b.title || '').split(/[\n·—(]/)[0].trim();
+    return (c.textContent.trim() || name || b.className).slice(0, 22);
+  }).join(' '));
 
 console.log('\nTOOLS          roles are derived from hooks, so they can be plural');
-for (const b of bar.querySelectorAll('button.tool')) {
+for (const b of bar.querySelectorAll('button.dbgov-tool')) {
   const id = b.dataset.tool;
   const roles = (b.title.split('\n')[1] || '').replace(' · also runs in the page audit', '');
   console.log(`  ${b.textContent}  ${id.padEnd(10)}${roles.padEnd(20)}${from[id] || '?'}`);
@@ -69,24 +80,24 @@ bar.querySelector('[data-settings]').dispatchEvent(new w.MouseEvent('click', { b
 
 console.log('\nSETTINGS       grouped by what each one CHANGES, not by which tool owns it');
 for (const n of d.querySelectorAll('#__dbgov-list > *')) {
-  if (n.classList.contains('viewhead')) continue;
-  if (n.classList.contains('head')) {
+  if (n.classList.contains('dbgov-viewhead')) continue;
+  if (n.classList.contains('dbgov-head')) {
     console.log(`\n  ${n.childNodes[0].textContent.toUpperCase().padEnd(9)}` +
-                `${(n.querySelector('.note') || {}).textContent || ''}`);
+                `${(n.querySelector('.dbgov-note') || {}).textContent || ''}`);
     continue;
   }
-  const c = n.querySelector('.opt');
+  const c = n.querySelector('.dbgov-opt');
   if (!c) {   // the gesture legend: read-only rows, no control
-    console.log(`    ${n.querySelector(".tag").textContent.padEnd(14)}` +
-                `${n.querySelector('.lbl').textContent}`);
+    console.log(`    ${n.querySelector(".dbgov-tag").textContent.padEnd(14)}` +
+                `${n.querySelector('.dbgov-lbl').textContent}`);
     continue;
   }
   const shown = c.tagName === 'SELECT'
     ? [...c.options].map((o, i) => (i === c.selectedIndex ? `[${o.textContent}]` : o.textContent)).join(' ')
     : c.type === 'checkbox' ? (c.checked ? '[x]' : '[ ]')
-      : `${c.value}${(n.querySelector('.unit') || {}).textContent || ''}`;
-  console.log(`    ${n.querySelector('.tag').textContent} ` +
-              `${n.querySelector('.lbl').textContent.padEnd(22)}${shown}`);
+      : `${c.value}${(n.querySelector('.dbgov-unit') || {}).textContent || ''}`;
+  console.log(`    ${n.querySelector('.dbgov-tag').textContent} ` +
+              `${n.querySelector('.dbgov-lbl').textContent.padEnd(22)}${shown}`);
 }
 
 /* Derived from the same hooks.js audit.js enforces — the hand-written version

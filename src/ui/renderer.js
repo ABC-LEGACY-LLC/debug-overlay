@@ -38,8 +38,8 @@ import { Place } from './placement.js';
         // class comes straight from the pin's kind — no tool ids in here
         const isTarget = State.removeMode && State.removeTarget === p;
         const isFlash = State.flashPins && State.flashPins.includes(p);
-        const kindCls = ` ${p.kind}` + (waiting ? ' waiting' : '') +
-                        (isTarget ? ' rmtarget' : '') + (isFlash ? ' flash' : '');
+        const kindCls = ` dbgov-${p.kind}` + (waiting ? ' dbgov-waiting' : '') +
+                        (isTarget ? ' dbgov-rmtarget' : '') + (isFlash ? ' dbgov-flash' : '');
         const i = U.info(p.el);
         const box = document.createElement('div');
         box.className = 'dbgov-box dbgov-pinbox' + kindCls;
@@ -68,7 +68,7 @@ import { Place } from './placement.js';
         // remove mode: a ✕ chip on every pin, enlarged on the one under the cursor
         if (State.removeMode) {
           const rm = document.createElement('div');
-          rm.className = 'dbgov-rm' + (isTarget ? ' target' : '');
+          rm.className = 'dbgov-rm' + (isTarget ? ' dbgov-target' : '');
           rm.textContent = '✕';
           layer.append(rm);
           const rx = Math.min(innerWidth - 20, Math.max(2, i.r.right - 9));
@@ -91,7 +91,7 @@ import { Place } from './placement.js';
       if (cur) {
         const i = U.info(cur);
         const box = document.createElement('div');
-        box.className = 'dbgov-box dbgov-pinbox note';
+        box.className = 'dbgov-box dbgov-pinbox dbgov-note';
         Place.put(box, i.r.left, i.r.top, i.r.width, i.r.height);
         layer.append(box);
       }
@@ -128,7 +128,7 @@ import { Place } from './placement.js';
         if (!html) return;
         const b = document.createElement('div');
         b.className = 'dbgov-badge';
-        b.innerHTML = `<span class="rad">#${p.id}</span> · ${html}`;
+        b.innerHTML = `<span class="dbgov-rad">#${p.id}</span> · ${html}`;
         layer.append(b);
         Place.smart(b, i.r, { avoid: i.r });
       });

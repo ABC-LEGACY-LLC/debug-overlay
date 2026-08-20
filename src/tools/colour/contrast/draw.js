@@ -13,7 +13,7 @@ export function draw({ layer, Place, found }) {
           const r = f.el.getBoundingClientRect();
           const box = document.createElement('div');
           // review is not failure, and must not be painted as though it were
-          box.className = 'dbgov-box dbgov-flag ' +
+          box.className = 'dbgov-box dbgov-flag dbgov-' +
                           (f.verdict === 'review' ? 'review' : f.severity);
           Place.put(box, r.left, r.top, r.width, r.height);
           layer.append(box);

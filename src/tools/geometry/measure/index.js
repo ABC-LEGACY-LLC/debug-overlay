@@ -18,23 +18,23 @@ import { Tools } from '../../../core/registry.js';
       border-radius: 1px; box-shadow: 0 0 0 .5px rgba(0,0,0,.5); }
     .dbgov-arrow { position: fixed; pointer-events: none; width: 0; height: 0;
       filter: drop-shadow(0 0 .5px rgba(0,0,0,.6)); }
-    .dbgov-arrow.up    { border-left: 5px solid transparent; border-right: 5px solid transparent;
+    .dbgov-arrow.dbgov-up    { border-left: 5px solid transparent; border-right: 5px solid transparent;
                          border-bottom: 7px solid #b5e853; }
-    .dbgov-arrow.down  { border-left: 5px solid transparent; border-right: 5px solid transparent;
+    .dbgov-arrow.dbgov-down  { border-left: 5px solid transparent; border-right: 5px solid transparent;
                          border-top: 7px solid #b5e853; }
-    .dbgov-arrow.left  { border-top: 5px solid transparent; border-bottom: 5px solid transparent;
+    .dbgov-arrow.dbgov-left  { border-top: 5px solid transparent; border-bottom: 5px solid transparent;
                          border-right: 7px solid #b5e853; }
-    .dbgov-arrow.right { border-top: 5px solid transparent; border-bottom: 5px solid transparent;
+    .dbgov-arrow.dbgov-right { border-top: 5px solid transparent; border-bottom: 5px solid transparent;
                          border-left: 7px solid #b5e853; }
     .dbgov-ext { position: fixed; pointer-events: none;
       background: repeating-linear-gradient(to right,
         rgba(181,232,83,.7) 0 4px, transparent 4px 8px); }
-    .dbgov-ext.v { background: repeating-linear-gradient(to bottom,
+    .dbgov-ext.dbgov-v { background: repeating-linear-gradient(to bottom,
         rgba(181,232,83,.7) 0 4px, transparent 4px 8px); }
     .dbgov-dist { position: fixed; pointer-events: none;
       background: rgba(24,28,14,.95); color: #b5e853; border-radius: 7px;
       padding: 3px 8px; font-size: 12px; font-weight: 700; white-space: nowrap; }
-    .dbgov-dist.vert { border-left: 2px solid #b5e853; }
+    .dbgov-dist.dbgov-vert { border-left: 2px solid #b5e853; }
     `,
       id: 'measure',
       family: 'geometry',   // audited: must match the domain folder this sits in

@@ -23,7 +23,7 @@ export function initMenu() {
 }
 
 export const Menu = {
-        isOpen: () => !!el && el.classList.contains('open'),
+        isOpen: () => !!el && el.classList.contains('dbgov-open'),
         /** rows: [{ label, run }] — label is all this file reads of them. */
         open(x, y, rows) {
           el.textContent = '';
@@ -33,7 +33,7 @@ export const Menu = {
             b.addEventListener('click', () => { Menu.close(); r.run(); });
             el.append(b);
           }
-          el.classList.add('open');
+          el.classList.add('dbgov-open');
           // clamp AFTER the rows exist — the box has no size before they do
           const w = el.offsetWidth, h = el.offsetHeight;
           el.style.left = Math.max(4, Math.min(x, innerWidth - w - 4)) + 'px';
@@ -41,7 +41,7 @@ export const Menu = {
         },
         close() {
           if (!el) return;
-          el.classList.remove('open');
+          el.classList.remove('dbgov-open');
           el.textContent = '';
         },
 };

@@ -77,7 +77,7 @@ import { defineSubject } from '../core/registry.js';
       // end: arrowhead pointing into the target — reads as direction, not a stub
       if (endArrow) {
         const a = document.createElement('div');
-        a.className = 'dbgov-arrow ' + dir;
+        a.className = 'dbgov-arrow dbgov-' + dir;
         const P = { up:    [Math.round(x2) - 5, Math.round(y2)],
                     down:  [Math.round(x2) - 5, Math.round(y2) - 7],
                     left:  [Math.round(x2),     Math.round(y2) - 5],
@@ -96,7 +96,7 @@ import { defineSubject } from '../core/registry.js';
       const mx = vertical ? x1 + 12 : (x1 + x2) / 2;
       const my = vertical ? (y1 + y2) / 2 : y1 - 12;
       const lbl = document.createElement('div');
-      lbl.className = 'dbgov-dist' + (vertical ? ' vert' : '');
+      lbl.className = 'dbgov-dist' + (vertical ? ' dbgov-vert' : '');
       lbl.textContent = text;
       layer.append(lbl);
       Place.smart(lbl, { left: mx, top: my, right: mx, bottom: my, width: 0, height: 0 },
@@ -108,7 +108,7 @@ import { defineSubject } from '../core/registry.js';
       if (Math.round(x1) === Math.round(x2) && Math.round(y1) === Math.round(y2)) return;
       const e = document.createElement('div');
       const horizontal = Math.abs(x2 - x1) >= Math.abs(y2 - y1);
-      e.className = 'dbgov-ext' + (horizontal ? '' : ' v');
+      e.className = 'dbgov-ext' + (horizontal ? '' : ' dbgov-v');
       if (horizontal) Place.put(e, Math.min(x1, x2), Math.round(y1), Math.abs(x2 - x1) || 1, 1);
       else Place.put(e, Math.round(x1), Math.min(y1, y2), 1, Math.abs(y2 - y1) || 1);
       layer.append(e);

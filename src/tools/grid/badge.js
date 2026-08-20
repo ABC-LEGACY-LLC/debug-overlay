@@ -17,10 +17,10 @@ export function badge(i) {
         if (!bad.length) return null;
         // by value, not by side: 7px used on three edges is one decision
         const vals = [...new Set(bad.map(([, v]) => v))];
-        return `<span class="warn">⚠ ${vals.join(' ')} off ${Scale.step()}px</span>`;
+        return `<span class="dbgov-warn">⚠ ${vals.join(' ')} off ${Scale.step()}px</span>`;
 }
 
 export function compact(i) {
         const bad = Scale.scan(i, true);
-        return bad.length ? `<span class="warn">⚠${bad.length}</span>` : null;
+        return bad.length ? `<span class="dbgov-warn">⚠${bad.length}</span>` : null;
 }

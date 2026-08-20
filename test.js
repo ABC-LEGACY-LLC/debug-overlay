@@ -132,7 +132,7 @@ ok('the overlay is never made inert', root && !root.hasAttribute('inert'),
 const shownOff = () => [...(bar0 ? bar0.querySelectorAll('button') : [])]
   .filter((b) => window.getComputedStyle(b).display !== 'none');
 ok('and powered off, only the power control is reachable',
-  shownOff().length === 1 && shownOff()[0].classList.contains('pwr'),
+  shownOff().length === 1 && shownOff()[0].classList.contains('dbgov-pwr'),
   shownOff().map((b) => b.className).join(', ') || 'nothing reachable at all');
 
 const sheets = root ? [...root.querySelectorAll('style')] : [];
@@ -147,8 +147,102 @@ ok('tool CSS reached its sheet', cssOf('measure').includes('.dbgov-line'),
   'measure tool css missing');
 // the lens emits <span class="warn"> itself, so its markup and the rule that
 // colours it have to ship from the same file
-ok('lens CSS reached its sheet', cssOf('grid').includes('.dbgov-badge .warn'),
+ok('lens CSS reached its sheet', cssOf('grid').includes('.dbgov-badge .dbgov-warn'),
   'grid lens css missing');
+
+console.log('\nHOST CSS CANNOT REACH IN');
+/**
+ * The overlay injects a <style> into the PAGE, so our elements and the host's
+ * rules share one cascade: every bare class we emit is a class the host can
+ * style. Measured, not theorised — a Tailwind page's own `.fixed{position:
+ * fixed}` matched the badge flyout's always-on chip, lifted it out of flow onto
+ * its neighbour's slot and, being positioned, won the hit test, so the "Issue"
+ * facet could not be switched off with the mouse at all. Bootstrap's `.row`
+ * and Bulma's `.tag` reached the popover the same way.
+ *
+ * Specificity is NOT the defence — an unopposed declaration wins at any
+ * specificity. Only a name nobody else uses is. So: every class we emit and
+ * every class we style carries the dbgov- namespace, and the last check is
+ * differential — same bundle, same script, one clean host and one that defines
+ * every name we ever used bare, then diff the computed styles.
+ */
+{
+  const BARE = ['fixed', 'static', 'absolute', 'relative', 'hidden', 'block', 'flex', 'grid',
+    'row', 'col', 'tag', 'note', 'head', 'open', 'active', 'card', 'sub', 'warn', 'ok', 'bad',
+    'empty', 'inert', 'tool', 'act', 'link', 'pair', 'target', 'flash', 'on', 'lbl', 'det', 'rm',
+    'sep', 'grip', 'pwr', 'st', 'cnt', 'opt', 'num', 'unit', 'tick', 'sz', 'fnt', 'rad', 'sp',
+    'dup', 'unk', 'error', 'info', 'review', 'up', 'down', 'left', 'right', 'v', 'vert', 'axis',
+    'checks', 'armed', 'swept', 'viewhead', 'waiting', 'bctl', 'fam', 'flyout', 'subfly',
+    'whenOn', 'box', 'badge', 'line', 'cap', 'arrow', 'dist', 'ext', 'leader', 'pinbox', 'flag'];
+  const HOSTILE = BARE.map((c) =>
+    `.${c}{position:fixed!important;display:none!important;margin:-15px!important;` +
+    `font-size:99px!important;float:left!important;opacity:.01!important}`).join('\n');
+  const PAGE = '<div id="ha" style="padding:7px">alpha</div><div id="hb">beta</div>';
+  // this section runs before WIRING defines `hot`
+  const HOTKEY = cfg.hotkey || { altKey: true, shiftKey: true, ctrlKey: false, code: 'KeyD' };
+
+  const drive = (hostCss) => {
+    const d = new JSDOM(
+      `<!doctype html><html><head><style>${hostCss}</style></head><body>${PAGE}</body></html>`,
+      { url: 'https://probe.test/', pretendToBeVisual: true,
+        runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
+    const w = d.window;
+    w.eval(source);
+    w.dispatchEvent(new w.KeyboardEvent('keydown', { ...HOTKEY, bubbles: true }));
+    const b = w.document.getElementById('__dbgov-bar');
+    const el = w.document.getElementById('ha');
+    w.document.elementFromPoint = () => el;
+    el.dispatchEvent(new w.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
+    b.querySelector('[data-sweep]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    b.querySelector('[data-settings]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    b.querySelector('[data-badge] button').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    return w;
+  };
+
+  const wClean = drive('');
+  // every class we STYLE is namespaced
+  const css = [...wClean.document.querySelectorAll('#__dbgov-root style')]
+    .map((s) => s.textContent).join('\n');
+  const styled = [...css.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)].map((m) => m[1]);
+  const badSel = [...new Set(styled)].filter((c) => !c.startsWith('dbgov-'));
+  ok('every class the overlay styles is namespaced', badSel.length === 0, badSel.join(' '));
+  // every class we EMIT is namespaced
+  const live = new Set();
+  wClean.document.getElementById('__dbgov-root').querySelectorAll('*')
+    .forEach((n) => n.classList.forEach((c) => live.add(c)));
+  const badTok = [...live].filter((c) => !c.startsWith('dbgov-'));
+  ok('every class the overlay emits is namespaced', badTok.length === 0, badTok.join(' '));
+  ok('and the census actually saw the overlay', live.size > 20, `${live.size} classes seen`);
+
+  // the differential proof: a hostile host may change nothing at all
+  const wDirty = drive(HOSTILE);
+  const PROPS = ['position', 'display', 'marginLeft', 'fontSize', 'float', 'opacity',
+                 'flexWrap', 'fontStyle', 'textTransform'];
+  const census = (w) => {
+    const out = new Map();
+    const walk = (n, path) => {
+      const key = `${path}>${n.tagName.toLowerCase()}.${String(n.className)}`;
+      const cs = w.getComputedStyle(n);
+      out.set(key, PROPS.map((p) => `${p}:${cs[p]}`).join(' '));
+      [...n.children].forEach((c, i) => walk(c, `${key}[${i}]`));
+    };
+    walk(w.document.getElementById('__dbgov-root'), '');
+    return out;
+  };
+  pendingChecks.push(() => {
+    const clean = census(wClean), dirty = census(wDirty);
+    const diffs = [];
+    for (const [k, v] of clean) {
+      const d = dirty.get(k);
+      if (d === undefined) diffs.push(`missing: ${k}`);
+      else if (d !== v) diffs.push(`${k.split('>').pop()} → ${d}`);
+    }
+    ok('a hostile host stylesheet changes nothing in the overlay',
+      diffs.length === 0 && clean.size > 50,
+      diffs.slice(0, 3).join(' | ') || `only ${clean.size} elements compared`);
+    wClean.close(); wDirty.close();
+  });
+}
 
 console.log('\nSTYLESHEET');
 // Malformed CSS never fails loudly: the parser drops the broken rule and
@@ -192,7 +286,7 @@ ok('panel built', !!bar);
 const status = bar && bar.querySelector('[data-st]');
 ok('boots powered off', !!status && status.textContent === 'OFF');
 
-const buttons = bar ? [...bar.querySelectorAll('button.tool')] : [];
+const buttons = bar ? [...bar.querySelectorAll('button.dbgov-tool')] : [];
 const ids = buttons.map((b) => b.dataset.tool).sort();
 ok('a button per registered tool', ids.length === idsOnDisk.length,
   `got ${ids.length}: ${ids.join(', ')} — src/tools has ${idsOnDisk.length}`);
@@ -200,13 +294,13 @@ ok('tool ids match the registry',
   ids.join(',') === idsOnDisk.join(','), `${ids.join(',')} vs ${idsOnDisk.join(',')}`);
 // Two toggles that look identical and mean different things was the problem:
 // arming grid or contrast changes what ⌕ finds, arming measure does not.
-const checks = buttons.filter((b) => b.classList.contains('checks')).map((b) => b.dataset.tool).sort();
+const checks = buttons.filter((b) => b.classList.contains('dbgov-checks')).map((b) => b.dataset.tool).sort();
 const judgesOnDisk = TOOLS_ON_DISK.filter((t) => t.judges).map((t) => t.id).sort();
 ok('the tools that feed the audit are marked as such',
   checks.join(',') === judgesOnDisk.join(','),
   `${checks.join(',') || 'none marked'} vs ${judgesOnDisk.join(',')}`);
 ok('and they are separated from the ones that only draw',
-  bar.querySelectorAll('button.tool + hr.sep, hr.sep + button.tool').length >= 2,
+  bar.querySelectorAll('button.dbgov-tool + hr.dbgov-sep, hr.dbgov-sep + button.dbgov-tool').length >= 2,
   'the runs are not divided by a rule');
 /* Was "⌕ sits with the run it sweeps" — proximity carried the feeds-⌕ fact
    when the separator axis was that boolean. The bands are the PIPELINE now
@@ -214,14 +308,14 @@ ok('and they are separated from the ones that only draw',
    fact per tool, and ⌕ has a band of its own with ⚙ — so the invariant is a
    separator before it, not a neighbour. */
 ok('⌕ and ⚙ are their own band, not filed among the tools',
-  bar.querySelector('[data-sweep]').previousElementSibling?.matches('hr.sep') &&
+  bar.querySelector('[data-sweep]').previousElementSibling?.matches('hr.dbgov-sep') &&
   bar.querySelector('[data-settings]').previousElementSibling?.matches('[data-sweep]'),
   `before ⌕: ${bar.querySelector('[data-sweep]').previousElementSibling?.tagName}`);
 ok('and the input side leads the bar, before the components',
-  bar.querySelector('button.tool')?.dataset.tool ===
-    [...bar.querySelectorAll('button.tool')].find((b) => !b.classList.contains('checks'))?.dataset.tool &&
-  ['pin', 'select', 'pick'].includes(bar.querySelector('button.tool')?.dataset.tool),
-  `first tool: ${bar.querySelector('button.tool')?.dataset.tool}`);
+  bar.querySelector('button.dbgov-tool')?.dataset.tool ===
+    [...bar.querySelectorAll('button.dbgov-tool')].find((b) => !b.classList.contains('dbgov-checks'))?.dataset.tool &&
+  ['pin', 'select', 'pick'].includes(bar.querySelector('button.dbgov-tool')?.dataset.tool),
+  `first tool: ${bar.querySelector('button.dbgov-tool')?.dataset.tool}`);
 
 console.log('\nWIRING');
 // the hotkey is the one path that proves interactions → controller → panel
@@ -257,7 +351,7 @@ ok('alt hands the page back', !down(target, { altKey: true }).defaultPrevented);
 ok('right-click is left alone', !down(target, { button: 2 }).defaultPrevented,
   'swallowing it would take the context menu too');
 ok('the panel keeps its own clicks',
-  !down(bar.querySelector('button.pwr')).defaultPrevented);
+  !down(bar.querySelector('button.dbgov-pwr')).defaultPrevented);
 window.dispatchEvent(new window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
 
 console.log('\nREPORT');
@@ -304,7 +398,7 @@ console.log('\nBACKGROUND');
 // calls 11:1 — the reader sees 1.4:1. An element paints its own background
 // behind its own text.
 const only = (id) => {
-  window.document.querySelectorAll('button.act[data-clear]')
+  window.document.querySelectorAll('button.dbgov-act[data-clear]')
     .forEach((b) => b.dispatchEvent(new window.MouseEvent('click', { bubbles: true })));
   pin(id);
   bar.querySelector('[data-copy]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
@@ -471,7 +565,7 @@ console.log('\nHONEST ZERO');
   const barc = wc.document.getElementById('__dbgov-bar');
   wc.dispatchEvent(new wc.KeyboardEvent('keydown', { ...hot, bubbles: true }));
   barc.querySelector('[data-sweep]').dispatchEvent(new wc.MouseEvent('click', { bubbles: true }));
-  const msg = (wc.document.querySelector('#__dbgov-list .empty') || {}).textContent || '';
+  const msg = (wc.document.querySelector('#__dbgov-list .dbgov-empty') || {}).textContent || '';
   ok('a clean page reports its scope, not a mood', /3 rules over \d+ elements/.test(msg), msg);
   ok('and never claims every rule is happy', !/happy/.test(msg), msg);
   clean.window.close();
@@ -480,14 +574,14 @@ console.log('\nHONEST ZERO');
 console.log('\nFINDINGS LIST');
 window.HTMLElement.prototype.scrollIntoView = function () {};   // jsdom has none
 const listEl = window.document.getElementById('__dbgov-list');
-ok('the sweep opens its own view', listEl.classList.contains('open'));
-const rows = () => [...listEl.querySelectorAll('.row')];
+ok('the sweep opens its own view', listEl.classList.contains('dbgov-open'));
+const rows = () => [...listEl.querySelectorAll('.dbgov-row')];
 ok('one row per distinct problem', rows().length === 4, `${rows().length} rows`);
-ok('worst first', (rows()[0]?.querySelector('.tag') || {}).textContent === 'error');
+ok('worst first', (rows()[0]?.querySelector('.dbgov-tag') || {}).textContent === 'error');
 ok('reviews are marked as such, and come last',
   rows().slice(-2).every((r) => r.dataset.accent === 'review'),
   rows().map((r) => r.dataset.accent).join(', '));
-ok('a finding has no remove button', !listEl.querySelector('.rm'),
+ok('a finding has no remove button', !listEl.querySelector('.dbgov-rm'),
   'there is no pin behind a finding for a ✕ to drop');
 // A finding is a place on the page. Clicking one should take you there and
 // leave something behind that the badge and the report can both use.
@@ -497,7 +591,7 @@ rows()[0].dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 bar.querySelector('[data-c]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 ok('clicking a finding pins its element', rows().length === 1,
   `${rows().length} pin rows after clicking one finding`);
-ok('and the chip still means pins', !!listEl.querySelector('.rm'),
+ok('and the chip still means pins', !!listEl.querySelector('.dbgov-rm'),
   'switching views lost the remove button');
 window.dispatchEvent(new window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
 
@@ -582,19 +676,19 @@ console.log('\nSETTINGS');
   const list4 = w4.document.getElementById('__dbgov-list');
   const hit = (sel) => bar4.querySelector(sel)
     .dispatchEvent(new w4.MouseEvent('click', { bubbles: true }));
-  const rowsOf = () => [...list4.querySelectorAll('.row')];
-  const labelled = (t) => rowsOf().find((r) => r.querySelector('.lbl').textContent === t);
-  const messages = () => rowsOf().map((r) => r.querySelector('.lbl').textContent).join(' | ');
+  const rowsOf = () => [...list4.querySelectorAll('.dbgov-row')];
+  const labelled = (t) => rowsOf().find((r) => r.querySelector('.dbgov-lbl').textContent === t);
+  const messages = () => rowsOf().map((r) => r.querySelector('.dbgov-lbl').textContent).join(' | ');
 
   // built by build.js, so the assertion is against the bundle, not the source
   ok('the version placeholder is substituted', !source.includes(['__VER', 'SION__'].join('')),
     'it shipped unreplaced — the overlay cannot say which version it is');
-  ok('and the panel states the version', bar4.querySelector('.pwr').title.includes(`v${cfg.version}`),
-    bar4.querySelector('.pwr').title);
+  ok('and the panel states the version', bar4.querySelector('.dbgov-pwr').title.includes(`v${cfg.version}`),
+    bar4.querySelector('.dbgov-pwr').title);
 
   w4.dispatchEvent(new w4.KeyboardEvent('keydown', { ...hot, bubbles: true }));
   hit('[data-settings]');
-  ok('⚙ opens a view of its own', list4.classList.contains('open') && rowsOf().length > 0,
+  ok('⚙ opens a view of its own', list4.classList.contains('dbgov-open') && rowsOf().length > 0,
     `${rowsOf().length} rows`);
   // Rows under a ROLE heading are settings and must be controls. Rows under
   // "Keys" are the gesture legend — deliberately read-only, since a gesture is
@@ -603,25 +697,25 @@ console.log('\nSETTINGS');
     const out = [];
     let inKeys = false;
     for (const n of list4.children) {
-      if (n.classList.contains('head')) { inKeys = n.childNodes[0].textContent === 'Keys'; continue; }
-      if (n.classList.contains('viewhead')) continue;
+      if (n.classList.contains('dbgov-head')) { inKeys = n.childNodes[0].textContent === 'Keys'; continue; }
+      if (n.classList.contains('dbgov-viewhead')) continue;
       if (!inKeys) out.push(n);
     }
     return out;
   };
   ok('every setting is a control, not a read-out',
-    settingRows().length > 0 && settingRows().every((r) => r.querySelector('.opt')),
-    settingRows().filter((r) => !r.querySelector('.opt'))
-      .map((r) => r.querySelector('.lbl').textContent).join(', ') || 'none missing');
+    settingRows().length > 0 && settingRows().every((r) => r.querySelector('.dbgov-opt')),
+    settingRows().filter((r) => !r.querySelector('.dbgov-opt'))
+      .map((r) => r.querySelector('.dbgov-lbl').textContent).join(', ') || 'none missing');
   ok('and the gestures are listed where the user already is',
-    [...list4.querySelectorAll('.row .tag')].some((t) => /Alt\+click/.test(t.textContent)),
+    [...list4.querySelectorAll('.dbgov-row .dbgov-tag')].some((t) => /Alt\+click/.test(t.textContent)),
     'Alt+click, the remove key and Esc existed nowhere in the running UI');
   // a list cannot express a threshold you type or a thing that is simply on
   ok('a choice, a number and a toggle all render',
-    !!labelled('Grid step').querySelector('select.opt') &&
-    labelled('Ignore above').querySelector('input.opt').type === 'number' &&
-    labelled('Judge width & height').querySelector('input.opt').type === 'checkbox',
-    rowsOf().map((r) => (r.querySelector('.opt') || {}).tagName).join(', '));
+    !!labelled('Grid step').querySelector('select.dbgov-opt') &&
+    labelled('Ignore above').querySelector('input.dbgov-opt').type === 'number' &&
+    labelled('Judge width & height').querySelector('input.dbgov-opt').type === 'checkbox',
+    rowsOf().map((r) => (r.querySelector('.dbgov-opt') || {}).tagName).join(', '));
   const step = labelled('Grid step');
   ok('a tool contributes its own options', !!step, messages());
   ok('and the picker shows what is actually in force',
@@ -667,7 +761,7 @@ console.log('\nSETTINGS');
 
   // ---- a typed number is not a choice, and can arrive broken ---------------
   hit('[data-settings]');
-  const numOf = () => labelled('Ignore above').querySelector('input.opt');
+  const numOf = () => labelled('Ignore above').querySelector('input.dbgov-opt');
   const setNum = (v) => {
     const n = numOf();
     n.value = v;
@@ -683,7 +777,7 @@ console.log('\nSETTINGS');
   setNum('abc');
   ok('and neither does a non-number', numOf().value === '2000', numOf().value);
 
-  const tick = () => labelled('Judge width & height').querySelector('input.opt');
+  const tick = () => labelled('Judge width & height').querySelector('input.dbgov-opt');
   ok('a toggle starts off', tick().checked === false, 'width and height are layout output');
   tick().checked = true;
   tick().dispatchEvent(new w4.Event('change'));
@@ -709,8 +803,8 @@ console.log('\nSETTINGS');
   d5.window.dispatchEvent(new d5.window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
   bar5.querySelector('[data-settings]')
     .dispatchEvent(new d5.window.MouseEvent('click', { bubbles: true }));
-  const back = [...d5.window.document.querySelectorAll('#__dbgov-list .row')]
-    .find((r) => r.querySelector('.lbl').textContent === 'Grid step');
+  const back = [...d5.window.document.querySelectorAll('#__dbgov-list .dbgov-row')]
+    .find((r) => r.querySelector('.dbgov-lbl').textContent === 'Grid step');
   ok('and it is restored on the next load',
     !!back && back.querySelector('select').selectedOptions[0].textContent === '8px',
     back ? back.querySelector('select').selectedOptions[0].textContent : 'no row');
@@ -727,8 +821,8 @@ console.log('\nSETTINGS');
   d6.window.dispatchEvent(new d6.window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
   bar6.querySelector('[data-settings]')
     .dispatchEvent(new d6.window.MouseEvent('click', { bubbles: true }));
-  const stale = [...d6.window.document.querySelectorAll('#__dbgov-list .row')]
-    .find((r) => r.querySelector('.lbl').textContent === 'Grid step');
+  const stale = [...d6.window.document.querySelectorAll('#__dbgov-list .dbgov-row')]
+    .find((r) => r.querySelector('.dbgov-lbl').textContent === 'Grid step');
   ok('a value the tool dropped falls back to its default',
     !!stale && stale.querySelector('select').selectedOptions[0].textContent === '2px',
     stale ? stale.querySelector('select').selectedOptions[0].textContent : 'no row');
@@ -760,7 +854,7 @@ console.log('\nSTORAGE');
     dom.window.GM_setValue = (k, v) => { store.set(k, v); };
     return store;
   };
-  const armedIn = (w) => [...w.document.querySelectorAll('#__dbgov-bar button.tool.armed')]
+  const armedIn = (w) => [...w.document.querySelectorAll('#__dbgov-bar button.dbgov-tool.dbgov-armed')]
     .map((b) => b.dataset.tool).sort().join(',');
 
   // ---- writes go to the script store, not the origin ----------------------
@@ -856,7 +950,7 @@ console.log('\nTHE TARGET MENU');
   const chip = () => bar11.querySelector('[data-c]')
     .dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   // the count chip is painted a frame later; the list is rebuilt synchronously
-  const pins = () => { chip(); const n = list11.querySelectorAll('.row').length; chip(); return n; };
+  const pins = () => { chip(); const n = list11.querySelectorAll('.dbgov-row').length; chip(); return n; };
   const rclick = (opt) => {
     const ev = new w.MouseEvent('contextmenu',
       { bubbles: true, cancelable: true, clientX: 8, clientY: 8, ...opt });
@@ -865,7 +959,7 @@ console.log('\nTHE TARGET MENU');
   };
 
   rclick({});
-  ok('right-click opens the target menu', menu().classList.contains('open'),
+  ok('right-click opens the target menu', menu().classList.contains('dbgov-open'),
     'no menu \u2014 the surface never opened');
   const labels = [...menu().querySelectorAll('button')].map((b) => b.textContent);
   ok('with the two copy rows', labels.join(' \u00b7 ') === 'Copy selector \u00b7 Copy text',
@@ -873,7 +967,7 @@ console.log('\nTHE TARGET MENU');
   menu().querySelectorAll('button')[0]
     .dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   ok('Copy selector copies the selector', picked === '#q', JSON.stringify(picked));
-  ok('and the menu closed on use', !menu().classList.contains('open'), 'still open');
+  ok('and the menu closed on use', !menu().classList.contains('dbgov-open'), 'still open');
   ok('and no pin landed under any of it', pins() === 0, `${pins()} pins`);
 
   // Escape closes the menu FIRST — the newest top layer, never the pins
@@ -881,20 +975,20 @@ console.log('\nTHE TARGET MENU');
   rclick({});
   w.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
   ok('Escape closes the menu and only the menu',
-    !menu().classList.contains('open') && pins() === 1,
-    `menu ${menu().classList.contains('open') ? 'open' : 'closed'}, ${pins()} pins`);
+    !menu().classList.contains('dbgov-open') && pins() === 1,
+    `menu ${menu().classList.contains('dbgov-open') ? 'open' : 'closed'}, ${pins()} pins`);
 
   // Alt is the same escape hatch it is for every click
   const evAlt = rclick({ altKey: true });
   ok("Alt+right-click stays the page's own menu",
-    !menu().classList.contains('open') && !evAlt.defaultPrevented,
+    !menu().classList.contains('dbgov-open') && !evAlt.defaultPrevented,
     'the overlay took a gesture Alt reserves for the page');
 
   // powered OFF, right-click is nobody's business but the page's
   w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
   const evOff = rclick({});
   ok('powered off, right-click is untouched',
-    !menu().classList.contains('open') && !evOff.defaultPrevented, 'not off enough');
+    !menu().classList.contains('dbgov-open') && !evOff.defaultPrevented, 'not off enough');
   w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
 
   // Ctrl/⌘+C copies the HOVERED target's selector — the universal key
@@ -944,7 +1038,7 @@ console.log('\nCATEGORIES');
 
   // ---- the ⚙ view, filed by what each setting changes ---------------------
   hit('[data-settings]');
-  const heads = [...list.querySelectorAll('.head')].map((h) => h.childNodes[0].textContent);
+  const heads = [...list.querySelectorAll('.dbgov-head')].map((h) => h.childNodes[0].textContent);
   // No Select heading since 'Pin grouping' retired (a technique is a gesture
   // now), and no Act heading since pick retired with its option (copy is a
   // take-away action, not a tool) — a heading with no settings under it would
@@ -958,8 +1052,8 @@ console.log('\nCATEGORIES');
     const out = [];
     let seen = false;
     for (const n of list.children) {
-      if (n.classList.contains('head')) { seen = n.childNodes[0].textContent === h; continue; }
-      if (seen) out.push(n.querySelector('.lbl').textContent);
+      if (n.classList.contains('dbgov-head')) { seen = n.childNodes[0].textContent === h; continue; }
+      if (seen) out.push(n.querySelector('.dbgov-lbl').textContent);
     }
     return out;
   };
@@ -997,15 +1091,15 @@ console.log('\nCATEGORIES');
   };
   shiftPin('one'); shiftPin('two');
   hit('[data-c]');
-  const pairRow = () => [...list.querySelectorAll('.row')]
-    .find((r) => /→/.test(r.querySelector('.tag').textContent));
+  const pairRow = () => [...list.querySelectorAll('.dbgov-row')]
+    .find((r) => /→/.test(r.querySelector('.dbgov-tag').textContent));
   ok('the selection tool groups the pins it owns', !!pairRow(),
-    [...list.querySelectorAll('.row .tag')].map((t) => t.textContent).join(', '));
+    [...list.querySelectorAll('.dbgov-row .dbgov-tag')].map((t) => t.textContent).join(', '));
   hit('[data-tool="select"]');
   ok('and disarming it takes the grouping with it', !pairRow(),
     'the pairing outlived the tool that forms it');
-  ok('while the pins themselves stay', list.querySelectorAll('.row').length === 2,
-    `${list.querySelectorAll('.row').length} rows — selection is not the same as pinning`);
+  ok('while the pins themselves stay', list.querySelectorAll('.dbgov-row').length === 2,
+    `${list.querySelectorAll('.dbgov-row').length} rows — selection is not the same as pinning`);
   dc.window.close();
 }
 
@@ -1074,9 +1168,9 @@ console.log('\nREGRESSIONS');
   du.window.dispatchEvent(new du.window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
   barU.querySelector('[data-settings]').dispatchEvent(new du.window.MouseEvent('click', { bubbles: true }));
   const valueOf = (label) => {
-    const r = [...du.window.document.querySelectorAll('#__dbgov-list .row')]
-      .find((x) => x.querySelector('.lbl').textContent === label);
-    const c = r && r.querySelector('.opt');
+    const r = [...du.window.document.querySelectorAll('#__dbgov-list .dbgov-row')]
+      .find((x) => x.querySelector('.dbgov-lbl').textContent === label);
+    const c = r && r.querySelector('.dbgov-opt');
     return c ? (c.tagName === 'SELECT' ? c.selectedOptions[0].textContent : c.value) : null;
   };
   ok('a setting stored under an owner\'s former id is adopted',
@@ -1170,13 +1264,13 @@ console.log('\nREVIEW FIXES');
     el.dispatchEvent(new we.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
   }
   barE.querySelector('[data-settings]').dispatchEvent(new we.MouseEvent('click', { bubbles: true }));
-  const numE = [...listE.querySelectorAll('.row')]
+  const numE = [...listE.querySelectorAll('.dbgov-row')]
     .find((r) => r.querySelector('input[type=number]')).querySelector('input');
   numE.dispatchEvent(new we.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
   barE.querySelector('[data-c]').dispatchEvent(new we.MouseEvent('click', { bubbles: true }));
   ok('Escape in a panel field abandons the edit, not the pins',
-    listE.querySelectorAll('.row').length === 2,
-    `${listE.querySelectorAll('.row').length} pins left`);
+    listE.querySelectorAll('.dbgov-row').length === 2,
+    `${listE.querySelectorAll('.dbgov-row').length} pins left`);
   we.close();
 
   // a capability shipped after the user last chose must still appear
@@ -1184,7 +1278,7 @@ console.log('\nREVIEW FIXES');
     __dbgov_tools: '["measure","select"]',
     __dbgov_seen: '["measure","select","contrast","dupid","pick"]',
   });
-  const armedN = [...wn2.document.querySelectorAll('#__dbgov-bar button.tool.armed')]
+  const armedN = [...wn2.document.querySelectorAll('#__dbgov-bar button.dbgov-tool.dbgov-armed')]
     .map((b) => b.dataset.tool);
   ok('a tool this install has never met gets its own default',
     armedN.includes('grid'), armedN.join(', ') || '(none)');
@@ -1198,8 +1292,8 @@ console.log('\nREVIEW FIXES');
   const barK = wk.document.getElementById('__dbgov-bar');
   wk.dispatchEvent(new wk.KeyboardEvent('keydown', { ...hot, bubbles: true }));
   barK.querySelector('[data-settings]').dispatchEvent(new wk.MouseEvent('click', { bubbles: true }));
-  const selK = [...wk.document.querySelectorAll('#__dbgov-list .row')]
-    .find((r) => r.querySelector('.lbl').textContent === 'WCAG level').querySelector('select');
+  const selK = [...wk.document.querySelectorAll('#__dbgov-list .dbgov-row')]
+    .find((r) => r.querySelector('.dbgov-lbl').textContent === 'WCAG level').querySelector('select');
   selK.selectedIndex = 1; selK.dispatchEvent(new wk.Event('change'));
   ok('a setting whose owner this build does not know is not destroyed',
     /"ghost"/.test(wk.localStorage.getItem('__dbgov_settings') || ''),
@@ -1211,12 +1305,12 @@ console.log('\nREVIEW FIXES');
   // which is the same "green by accident" this suite has already been caught
   // by once. It runs inside that block instead, before the count is read.
   pendingChecks.push(() => {
-    const tags = [...listP.querySelectorAll('.row .tag')].map((t) => t.textContent);
-    const rows = [...listP.querySelectorAll('.row')];
+    const tags = [...listP.querySelectorAll('.dbgov-row .dbgov-tag')].map((t) => t.textContent);
+    const rows = [...listP.querySelectorAll('.dbgov-row')];
     const target = tags[tags.length - 1];
-    rows[rows.length - 1].querySelector('.rm')
+    rows[rows.length - 1].querySelector('.dbgov-rm')
       .dispatchEvent(new wp.MouseEvent('click', { bubbles: true }));
-    const left = [...listP.querySelectorAll('.row .tag')].map((t) => t.textContent);
+    const left = [...listP.querySelectorAll('.dbgov-row .dbgov-tag')].map((t) => t.textContent);
     ok('the list drops rows whose element left the page',
       tags.join(' ') === '#1 #3', tags.join(' '));
     ok('so ✕ removes the pin that was clicked', !left.includes(target),
@@ -1347,7 +1441,7 @@ console.log('\nPANEL AUDIT FIXES');
   const barA = wa.document.getElementById('__dbgov-bar');
   barA.querySelector('[data-sweep]').dispatchEvent(new wa.MouseEvent('click', { bubbles: true }));
   ok('the bar says an audit is showing',
-    barA.querySelector('[data-sweep]').classList.contains('swept'),
+    barA.querySelector('[data-sweep]').classList.contains('dbgov-swept'),
     'the ⌕ flash expires, so the marks outlived any sign of them');
   ok('the bar carries a resting problem count',
     /^\d+$/.test(barA.querySelector('[data-sweep]').textContent) &&
@@ -1355,7 +1449,7 @@ console.log('\nPANEL AUDIT FIXES');
     `${barA.querySelector('[data-sweep]').textContent} — ${barA.querySelector('[data-sweep]').title}`);
   barA.querySelector('[data-clear]').dispatchEvent(new wa.MouseEvent('click', { bubbles: true }));
   ok('and ✕ is the way out of it',
-    !barA.querySelector('[data-sweep]').classList.contains('swept'),
+    !barA.querySelector('[data-sweep]').classList.contains('dbgov-swept'),
     'clearing pins used to leave the outlines with no control at all');
   wa.close();
 
@@ -1370,8 +1464,8 @@ console.log('\nPANEL AUDIT FIXES');
   barC.querySelector('[data-sweep]').dispatchEvent(new wc.MouseEvent('click', { bubbles: true }));
   barC.querySelector('[data-copy]').dispatchEvent(new wc.MouseEvent('click', { bubbles: true }));
   ok('the findings list says the page could not show them all',
-    /shows the first 200/.test((listC.querySelector('.head') || {}).textContent || ''),
-    (listC.querySelector('.head') || {}).textContent || '(no heading)');
+    /shows the first 200/.test((listC.querySelector('.dbgov-head') || {}).textContent || ''),
+    (listC.querySelector('.dbgov-head') || {}).textContent || '(no heading)');
   ok('and so does the copied report',
     /outlines capped at 200 per rule/.test(copiedC || ''),
     (/## findings[^\n]*/.exec(copiedC || '') || ['none'])[0]);
@@ -1390,14 +1484,14 @@ console.log('\nPANEL AUDIT FIXES');
   barE.querySelector('[data-settings]').dispatchEvent(new we.MouseEvent('click', { bubbles: true }));
   barE.querySelector('[data-settings]')
     .dispatchEvent(new we.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-  ok('Escape closes a panel opened with the mouse', !listE.classList.contains('open'),
+  ok('Escape closes a panel opened with the mouse', !listE.classList.contains('dbgov-open'),
     'focus sits on the button that opened it, inside the overlay root');
   barE.querySelector('[data-sweep]').dispatchEvent(new we.MouseEvent('click', { bubbles: true }));
   esc();
-  ok('Escape closes the open panel', !listE.classList.contains('open') && barE.classList.contains('on'),
-    `list ${listE.classList.contains('open') ? 'open' : 'closed'}, power ${barE.classList.contains('on') ? 'ON' : 'OFF'}`);
+  ok('Escape closes the open panel', !listE.classList.contains('dbgov-open') && barE.classList.contains('dbgov-on'),
+    `list ${listE.classList.contains('dbgov-open') ? 'open' : 'closed'}, power ${barE.classList.contains('dbgov-on') ? 'ON' : 'OFF'}`);
   esc(); esc();
-  ok('and never powers the tool off', barE.classList.contains('on'),
+  ok('and never powers the tool off', barE.classList.contains('dbgov-on'),
     'Escape used to end the session whenever nothing was pinned');
   we.close();
 }
@@ -1426,7 +1520,7 @@ console.log('\nPIN NUMBERS');
   };
   const tags = () => {
     bar.querySelector('[data-c]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
-    const t = [...list.querySelectorAll('.row .tag')].map((x) => x.textContent).join(' ');
+    const t = [...list.querySelectorAll('.dbgov-row .dbgov-tag')].map((x) => x.textContent).join(' ');
     bar.querySelector('[data-c]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
     return t || '(none)';
   };
@@ -1463,7 +1557,7 @@ console.log('\nPIN NUMBERS');
   // one at a time, re-querying: the list re-renders after each removal, so a
   // cached NodeList holds nodes that are no longer in the document
   for (let guard = 0; guard < 20; guard++) {
-    const rm = list.querySelector('.row .rm');
+    const rm = list.querySelector('.dbgov-row .dbgov-rm');
     if (!rm) break;
     rm.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   }
@@ -1494,18 +1588,18 @@ console.log('\nPER-TOOL OPTIONS');
   w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
   const bar = w.document.getElementById('__dbgov-bar');
   const list = w.document.getElementById('__dbgov-list');
-  const labels = () => [...list.querySelectorAll('.row .lbl')].map((x) => x.textContent);
+  const labels = () => [...list.querySelectorAll('.dbgov-row .dbgov-lbl')].map((x) => x.textContent);
 
   bar.querySelector('[data-tool="measure"]')
     .dispatchEvent(new w.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
   const mine = labels();
-  ok('right-clicking a tool opens its own options', mine.length > 0 && list.classList.contains('open'),
+  ok('right-clicking a tool opens its own options', mine.length > 0 && list.classList.contains('dbgov-open'),
     `${mine.length} rows`);
   ok('and shows only that tool\'s',
     mine.includes('Radius') && !mine.includes('Grid step') && !mine.includes('WCAG level'),
     mine.join(', '));
   ok('the menu keeps ⚙\'s grouping — it is a filter, not a rebuild',
-    [...list.querySelectorAll('.head')].some((h) => /Inspect/.test(h.textContent)),
+    [...list.querySelectorAll('.dbgov-head')].some((h) => /Inspect/.test(h.textContent)),
     'the per-tool door used to flatten the rows and invert the category order');
   ok('a family tool announces its family, zero pixels spent',
     /^Colour › Contrast/.test(w.document.querySelector('#__dbgov-bar [data-tool="contrast"]')?.title || '') &&
@@ -1513,17 +1607,17 @@ console.log('\nPER-TOOL OPTIONS');
     'family in the tooltip; a tool without a domain folder stays plain');
   ok('the family mark is its own, not a member tool\'s',
     (() => { bar.querySelector('[data-settings]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
-      const r = [...list.querySelectorAll('.row')].find((x) => x.querySelector('.lbl').textContent === 'WCAG level');
+      const r = [...list.querySelectorAll('.dbgov-row')].find((x) => x.querySelector('.dbgov-lbl').textContent === 'WCAG level');
       // icons are inline SVGs now — compare markup against the family
       // subject's own declared icon, taken from the fam-btn that wears it
-      const tag = r && r.querySelector('.tag').innerHTML;
-      const mark = bar.querySelector('.fam[data-fam="colour"] .fam-btn').innerHTML;
+      const tag = r && r.querySelector('.dbgov-tag').innerHTML;
+      const mark = bar.querySelector('.dbgov-fam[data-fam="colour"] .dbgov-fam-btn').innerHTML;
       bar.querySelector('[data-tool="measure"]').dispatchEvent(new w.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
       return !!tag && tag === mark; })(),
     'the WCAG level row wore a member\'s icon — the subject looked like one of its tools');
   ok('titled with the tool, not with "Settings"',
-    /Measure/.test((list.querySelector('.viewhead') || {}).textContent || ''),
-    (list.querySelector('.viewhead') || {}).textContent || '(none)');
+    /Measure/.test((list.querySelector('.dbgov-viewhead') || {}).textContent || ''),
+    (list.querySelector('.dbgov-viewhead') || {}).textContent || '(none)');
 
   // the same rows are still in ⚙, because one is a filter of the other
   bar.querySelector('[data-settings]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
@@ -1541,7 +1635,7 @@ console.log('\nPER-TOOL OPTIONS');
   const gridRows = labels();
   ok('a tool surfaces the subject settings it consults',
     gridRows.includes('Grid step') && gridRows.includes('Ignore above'),
-    gridRows.join(', ') || (list.querySelector('.empty') || {}).textContent);
+    gridRows.join(', ') || (list.querySelector('.dbgov-empty') || {}).textContent);
   ok('and still not another tool\'s', !gridRows.includes('WCAG level'),
     gridRows.join(', '));
   ok('while the tooltip only offers it where there is something',
@@ -1557,8 +1651,8 @@ console.log('\nPER-TOOL OPTIONS');
   el.dispatchEvent(new w.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
   bar.querySelector('[data-tool="measure"]')
     .dispatchEvent(new w.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-  const radiusRow = [...list.querySelectorAll('.row')]
-    .find((r) => r.querySelector('.lbl').textContent === 'Radius');
+  const radiusRow = [...list.querySelectorAll('.dbgov-row')]
+    .find((r) => r.querySelector('.dbgov-lbl').textContent === 'Radius');
   const tick = radiusRow.querySelector('input[type=checkbox]');
   tick.checked = false;
   tick.dispatchEvent(new w.Event('change'));
@@ -1706,7 +1800,7 @@ console.log('\nBADGE FACETS');
     openAxis(w, /^Facets/);
     const cur = fly(w).find((b) => /^Current/.test(b.title));
     ok('Facets lists Current — armed, fixed, information not a control',
-      !!cur && cur.classList.contains('armed') && cur.getAttribute('aria-disabled') === 'true',
+      !!cur && cur.classList.contains('dbgov-armed') && cur.getAttribute('aria-disabled') === 'true',
       fly(w).map((b) => b.title.split(' — ')[0]).join(', '));
     // a second boot over the same store wakes up already in that view
     const d2 = new JSDOM('<!doctype html><html><body><div id="a">a</div></body></html>', opts);
@@ -1715,8 +1809,8 @@ console.log('\nBADGE FACETS');
     w2.eval(source);
     openAxis(w2, /^View/);
     ok('and a reload remembers it',
-      fly(w2).find((b) => /full/.test(b.title))?.classList.contains('armed'),
-      fly(w2).map((b) => `${b.textContent}${b.classList.contains('armed') ? '*' : ''}`).join(' '));
+      fly(w2).find((b) => /full/.test(b.title))?.classList.contains('dbgov-armed'),
+      fly(w2).map((b) => `${b.textContent}${b.classList.contains('dbgov-armed') ? '*' : ''}`).join(' '));
     w.close(); w2.close();
   }
 }
@@ -1834,7 +1928,7 @@ console.log('\nSELECTION CHOOSES, PIN KEEPS');
   clickOn(w5b, 'a');
   clickOn(w5b, 'b');
   bar5b.querySelector('[data-c]').dispatchEvent(new w5b.MouseEvent('click', { bubbles: true }));
-  const head5b = w5b.document.querySelector('#__dbgov-list .viewhead .rm');
+  const head5b = w5b.document.querySelector('#__dbgov-list .dbgov-viewhead .dbgov-rm');
   ok('the pin list header carries its own clear-all', !!head5b,
     'no ✕ on the Pins header');
   head5b.dispatchEvent(new w5b.MouseEvent('click', { bubbles: true }));
@@ -1886,9 +1980,9 @@ console.log('\nFAMILY FLYOUT');
   const bar = w.document.getElementById('__dbgov-bar');
   // icons are SVGs (no textContent), so families are found by the name the
   // panel stamps on the wrapper — the family declaration, not the picture
-  const famOf = (name) => bar.querySelector(`.fam[data-fam="${name}"]`);
+  const famOf = (name) => bar.querySelector(`.dbgov-fam[data-fam="${name}"]`);
   const fam = famOf('colour');
-  const btn = fam && fam.querySelector('.fam-btn');
+  const btn = fam && fam.querySelector('.dbgov-fam-btn');
   ok('the colour family is one mark on the bar',
     !!btn && !!fam.querySelector('[data-tool="contrast"]'),
     'the mark comes from the family subject; contrast lives in its flyout');
@@ -1896,21 +1990,21 @@ console.log('\nFAMILY FLYOUT');
     !!famOf('geometry') && famOf('geometry').querySelector('[data-tool]')?.dataset.tool === 'measure',
     'geometry serves two tools, so it was always a subject by this project\'s own rule');
   ok('while select stays a direct button — it consults geometry, it is not OF it',
-    !bar.querySelector('[data-tool="select"]')?.closest('.fam'),
+    !bar.querySelector('[data-tool="select"]')?.closest('.dbgov-fam'),
     'a domain folder is identity; consulting a subject is not membership');
   w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
   btn.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   ok('clicking the mark opens the flyout',
-    fam.classList.contains('open') && btn.getAttribute('aria-expanded') === 'true',
+    fam.classList.contains('dbgov-open') && btn.getAttribute('aria-expanded') === 'true',
     fam.className);
   fam.querySelector('[data-tool="contrast"]')
     .dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   ok('a member arms from the flyout, and the mark shows it',
-    btn.classList.contains('armed'),
+    btn.classList.contains('dbgov-armed'),
     'the family mark reflects any armed member');
   w.document.body.dispatchEvent(new w.PointerEvent('pointerdown', { bubbles: true }));
   ok('clicking anywhere else closes it',
-    !fam.classList.contains('open') && btn.getAttribute('aria-expanded') === 'false',
+    !fam.classList.contains('dbgov-open') && btn.getAttribute('aria-expanded') === 'false',
     fam.className);
   w.close();
 }
@@ -1965,8 +2059,8 @@ whenPainted(() => window.document.querySelector('#__dbgov-root .dbgov-flag') &&
   ok('findings are marked on the page', marks().length > 0,
     'the sweep produced findings that appear nowhere on screen');
   ok('a review is not painted as a failure',
-    [...marks()].some((m) => m.classList.contains('review')) &&
-    [...marks()].some((m) => m.classList.contains('error')),
+    [...marks()].some((m) => m.classList.contains('dbgov-review')) &&
+    [...marks()].some((m) => m.classList.contains('dbgov-error')),
     [...marks()].map((m) => m.className.replace('dbgov-box dbgov-flag ', '')).join(' / '));
   dom.window.close();
 

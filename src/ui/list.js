@@ -85,7 +85,7 @@ import { root } from './dom.js';
         const same = open && view === name;
         open = v === undefined ? !same : !!v;
         view = open ? name : null;
-        el.classList.toggle('open', open);
+        el.classList.toggle('dbgov-open', open);
         anchor?.mark(view);
         if (open) { api.onOpen?.(view); place(); }
       },
@@ -104,7 +104,7 @@ import { root } from './dom.js';
         el.textContent = '';
         if (!rows.length) {
           const e = document.createElement('div');
-          e.className = 'empty';
+          e.className = 'dbgov-empty';
           e.textContent = empty;
           el.append(e);
           place();
@@ -119,7 +119,7 @@ import { root } from './dom.js';
              from it. */
           if (row.title || row.heading) {
             const h = document.createElement('div');
-            h.className = row.title ? 'viewhead' : 'head';
+            h.className = row.title ? 'dbgov-viewhead' : 'dbgov-head';
             h.textContent = row.title || row.heading;
             /* A heading that OWNS things may carry a ✕ like any row — wired
                through the same onRowRemove with the same index, so whoever
@@ -127,7 +127,7 @@ import { root } from './dom.js';
                The heading itself stays unclickable; only the ✕ acts. */
             if (row.removable) {
               const rm = document.createElement('button');
-              rm.className = 'rm';
+              rm.className = 'dbgov-rm';
               rm.textContent = '✕';
               rm.title = row.rmTitle || 'Remove';
               rm.addEventListener('click', (e) => { e.stopPropagation(); api.onRowRemove?.(i); });
@@ -135,7 +135,7 @@ import { root } from './dom.js';
             }
             if (row.detail) {
               const n = document.createElement('span');
-              n.className = 'note';
+              n.className = 'dbgov-note';
               n.textContent = row.detail;
               h.append(n);
             }
@@ -143,9 +143,9 @@ import { root } from './dom.js';
             return;
           }
           const r = document.createElement('div');
-          r.className = 'row';
+          r.className = 'dbgov-row';
           const tag = document.createElement('span');
-          tag.className = 'tag';
+          tag.className = 'dbgov-tag';
           /* A tag is never page text — it is a tool's declared icon, a
              severity word, or a number this code built — so an SVG icon may
              render as markup. LABELS and details stay textContent below:
@@ -153,17 +153,17 @@ import { root } from './dom.js';
           if (/^<svg[\s>]/.test(row.tag || '')) tag.innerHTML = row.tag;
           else tag.textContent = row.tag;
           const lbl = document.createElement('span');
-          lbl.className = 'lbl';
+          lbl.className = 'dbgov-lbl';
           lbl.textContent = row.label;         // textContent: page text is never HTML here
           // carried, not interpreted — the stylesheet decides what it means
           if (row.accent) r.dataset.accent = row.accent;
-          if (row.inert) r.classList.add('inert');
+          if (row.inert) r.classList.add('dbgov-inert');
           r.addEventListener('click', () => api.onRowActivate?.(i));
           if (row.control) {
             r.append(tag, lbl, Controls.build(row.control, (raw) => api.onRowChange?.(i, raw)));
           } else {
             const det = document.createElement('span');
-            det.className = 'det';
+            det.className = 'dbgov-det';
             det.textContent = row.detail || '';
             r.append(tag, lbl, det);
           }
@@ -171,7 +171,7 @@ import { root } from './dom.js';
           // about the page; there is nothing there for a ✕ to remove.
           if (row.removable) {
             const rm = document.createElement('button');
-            rm.className = 'rm';
+            rm.className = 'dbgov-rm';
             rm.textContent = '✕';
             rm.title = 'Remove';
             rm.addEventListener('click', (e) => { e.stopPropagation(); api.onRowRemove?.(i); });

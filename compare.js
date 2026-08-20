@@ -58,15 +58,15 @@ async function observe(bundlePath) {
     w.document.elementFromPoint = () => el;
     el.dispatchEvent(new w.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5, ...mods }));
   };
-  const rows = () => [...list.querySelectorAll('.row')].map((r) => {
-    const c = r.querySelector('.opt');
-    const shown = !c ? (r.querySelector('.det') || {}).textContent || ''
+  const rows = () => [...list.querySelectorAll('.dbgov-row')].map((r) => {
+    const c = r.querySelector('.dbgov-opt');
+    const shown = !c ? (r.querySelector('.dbgov-det') || {}).textContent || ''
       : c.tagName === 'SELECT' ? c.selectedOptions[0].textContent
         : c.type === 'checkbox' ? String(c.checked) : c.value;
-    return [(r.querySelector('.tag') || {}).textContent,
-            (r.querySelector('.lbl') || {}).textContent, shown, r.className].join(' | ');
+    return [(r.querySelector('.dbgov-tag') || {}).textContent,
+            (r.querySelector('.dbgov-lbl') || {}).textContent, shown, r.className].join(' | ');
   });
-  const heads = () => [...list.querySelectorAll('.head, .viewhead')].map((h) => h.textContent);
+  const heads = () => [...list.querySelectorAll('.dbgov-head, .dbgov-viewhead')].map((h) => h.textContent);
 
   // ---- the bar, cold ------------------------------------------------------
   o.barButtons = [...bar.querySelectorAll('button')].map((b) =>
@@ -76,7 +76,7 @@ async function observe(bundlePath) {
 
   // ---- power on, pins, pair ----------------------------------------------
   w.dispatchEvent(new w.KeyboardEvent('keydown', { ...HOT, bubbles: true }));
-  o.powerOn = bar.classList.contains('on');
+  o.powerOn = bar.classList.contains('dbgov-on');
   pin('a');                       // note pin
   pin('b', { shiftKey: true });   // pair 1
   pin('c', { shiftKey: true });   // pair 2
@@ -92,7 +92,7 @@ async function observe(bundlePath) {
   await sleep(150);
   o.findingsRows = rows(); o.findingsHeads = heads();
   o.sweepBtn = [bar.querySelector('[data-sweep]').textContent,
-                bar.querySelector('[data-sweep]').classList.contains('swept'),
+                bar.querySelector('[data-sweep]').classList.contains('dbgov-swept'),
                 norm(bar.querySelector('[data-sweep]').title)];
   o.marks = [...root.querySelectorAll('.dbgov-flag')].map((m) => m.className).sort();
 
@@ -112,8 +112,8 @@ async function observe(bundlePath) {
 
   // ---- Escape closes the layer, Alt passes through ------------------------
   d.body.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-  o.escClosedList = !list.classList.contains('open');
-  o.escPowerStays = bar.classList.contains('on');
+  o.escClosedList = !list.classList.contains('dbgov-open');
+  o.escPowerStays = bar.classList.contains('dbgov-on');
   let pageSaw = 0;
   d.getElementById('link').addEventListener('click', () => pageSaw++);
   pin('link', { altKey: true });
@@ -122,7 +122,7 @@ async function observe(bundlePath) {
   // ---- ✕ clears pins AND audit -------------------------------------------
   click('[data-clear]');
   await sleep(120);
-  o.afterClear = [bar.querySelector('[data-sweep]').classList.contains('swept'),
+  o.afterClear = [bar.querySelector('[data-sweep]').classList.contains('dbgov-swept'),
                   root.querySelectorAll('.dbgov-flag').length,
                   root.querySelectorAll('.dbgov-pin-num').length];
 
