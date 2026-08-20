@@ -1,4 +1,3 @@
-import { CONFIG } from '../../core/config.js';
 
 /**
  * RULE hook. This tool decorates other tools' numbers AND produces
@@ -20,13 +19,7 @@ import { CONFIG } from '../../core/config.js';
  * `found` is this tool's own findings, handed over by the renderer. The
  * mark classes are core, because more than one rule paints them.
  */
-export function draw({ layer, Place, found }) {
-        for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
-          if (!document.contains(f.el)) continue;
-          const r = f.el.getBoundingClientRect();
-          const box = document.createElement('div');
-          box.className = 'dbgov-box dbgov-flag dbgov-' + f.severity;
-          Place.put(box, r.left, r.top, r.width, r.height);
-          layer.append(box);
-        }
+export function draw({ marks, found }) {
+        marks(found);
 }
+

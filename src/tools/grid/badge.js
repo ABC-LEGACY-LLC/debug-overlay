@@ -24,3 +24,11 @@ export function compact(i) {
         const bad = Scale.scan(i, true);
         return bad.length ? `<span class="dbgov-warn">⚠${bad.length}</span>` : null;
 }
+
+/** The lens's own two marks - see the badge facets under the tag button. */
+export function legend() {
+        return [
+          { mark: '7\u26a0', means: 'amber: this number is off the spacing step' },
+          { mark: '7\u26a0\u21928', means: 'the nearest on-step value - the Recommendation facet' },
+        ];
+}

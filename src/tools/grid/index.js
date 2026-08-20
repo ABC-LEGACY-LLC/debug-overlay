@@ -1,5 +1,5 @@
 import { defineTool } from '../../core/registry.js';
-import { badge, compact } from './badge.js';
+import { badge, compact, legend } from './badge.js';
 import { annotate } from './lens.js';
 import { report } from './report.js';
 import { rules, audit } from './rule.js';
@@ -30,6 +30,15 @@ import { Scale } from './service.js';
 
 
       badge,
+
+
+
+
+
+
+
+
+      legend,
       compact,
       annotate,
       report,

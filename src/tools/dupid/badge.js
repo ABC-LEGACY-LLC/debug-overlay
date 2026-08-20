@@ -12,3 +12,8 @@ export function badge({ el }) {
 }
 
 export function compact(i) { return this.badge(i); }
+
+/** One mark, and a page-wide fact rather than a property of this element. */
+export function legend() {
+        return [{ mark: '\u2317 id \u00d72', means: 'orange: this id is used more than once in the document' }];
+}

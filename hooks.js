@@ -15,7 +15,7 @@ const SRC = path.join(__dirname, 'src');
 
 const HOOKS = ['badge', 'compact', 'report', 'reportTail', 'draw', 'listRows',
                'pendingIndex', 'annotate', 'audit', 'auditPage', 'options',
-               'intercept', 'groups', 'gestures', 'keeps'];
+               'intercept', 'groups', 'gestures', 'keeps', 'legend'];
 
 /** Comments first: a file that merely EXPLAINS a hook is not implementing it. */
 const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -89,8 +89,8 @@ const SURFACES = [
     fills: ['audit', 'auditPage'] },
   { key: '⑥ report', core: 'report — header, scope, the ## rules section',
     fills: ['report', 'reportTail'] },
-  { key: '⚙ settings', core: 'settings — grouping by affects, plus KEYS',
-    fills: ['options', 'gestures'] },
+  { key: '⚙ settings', core: 'settings — grouping by affects, plus KEYS and LEGEND',
+    fills: ['options', 'gestures', 'legend'] },
   { key: 'input', core: 'interactions — hover, click, the CURRENT selection, hotkeys',
     fills: ['intercept', 'keeps'] },
 ];

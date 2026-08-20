@@ -690,16 +690,21 @@ console.log('\nSETTINGS');
   hit('[data-settings]');
   ok('⚙ opens a view of its own', list4.classList.contains('dbgov-open') && rowsOf().length > 0,
     `${rowsOf().length} rows`);
-  // Rows under a ROLE heading are settings and must be controls. Rows under
-  // "Keys" are the gesture legend — deliberately read-only, since a gesture is
-  // not something you set.
+  // Rows under a ROLE heading are settings and must be controls. Rows under a
+  // REFERENCE heading — Keys (the gestures) and Legend (what the marks mean) —
+  // are deliberately read-only: neither a gesture nor a colour is something you
+  // set. Matched by the set of reference headings, not by one literal, so the
+  // next one does not silently get counted as a broken settings row.
+  const REFERENCE = ['Keys', 'Legend'];
   const settingRows = () => {
     const out = [];
-    let inKeys = false;
+    let inRef = false;
     for (const n of list4.children) {
-      if (n.classList.contains('dbgov-head')) { inKeys = n.childNodes[0].textContent === 'Keys'; continue; }
+      if (n.classList.contains('dbgov-head')) {
+        inRef = REFERENCE.includes(n.childNodes[0].textContent); continue;
+      }
       if (n.classList.contains('dbgov-viewhead')) continue;
-      if (!inKeys) out.push(n);
+      if (!inRef) out.push(n);
     }
     return out;
   };
@@ -1044,7 +1049,7 @@ console.log('\nCATEGORIES');
   // take-away action, not a tool) — a heading with no settings under it would
   // be furniture. Each comes back the day something declares one.
   ok('the ⚙ view is grouped by what a setting changes',
-    heads.join(' → ') === 'Inspect → Detect → Keys',
+    heads.join(' → ') === 'Inspect → Detect → Keys → Legend',
     heads.join(' → ') || '(no headings)');
   // the grid rows are not adjacent to each other because they own the tool —
   // they are adjacent because all three change what counts as a problem
@@ -2047,7 +2052,54 @@ console.log('\nWHAT A LIVE UX AUDIT FOUND');
     famBtn.getAttribute('aria-expanded') === 'false', famBtn.getAttribute('aria-expanded'));
   w3.close();
 
-  // 5) the armed count chip must survive being hovered — it is 1.25:1 without
+  // 5) a mark must say WHAT, not only where. A title cannot: the layer is
+  // aria-hidden and pointer-events:none, so no tooltip can ever fire on one.
+  const w6 = boot('<div id="a" style="padding:7px">a</div>', ['grid', 'pin']);
+  w6.document.getElementById('__dbgov-bar').querySelector('[data-sweep]')
+    .dispatchEvent(new w6.MouseEvent('click', { bubbles: true }));
+  pendingChecks.push(() => {
+    const tips = [...w6.document.querySelectorAll('#__dbgov-root .dbgov-tip')];
+    ok('an audit mark names the rule that made it',
+      tips.length > 0 && /grid-off/.test(tips[0].textContent), tips.map((t) => t.textContent).join(' | ') || '(no labels)');
+    ok('and repeats on one element collapse into its count',
+      /×\d/.test(tips[0]?.textContent || ''), tips[0]?.textContent);
+    ok('one outline per element, not one per finding',
+      w6.document.querySelectorAll('#__dbgov-root .dbgov-flag').length === tips.length,
+      `${w6.document.querySelectorAll('#__dbgov-root .dbgov-flag').length} outlines, ${tips.length} labels`);
+    ok('a label is not itself a finding mark',
+      !tips.some((t) => t.classList.contains('dbgov-flag')),
+      'a labelled sibling wearing .dbgov-flag corrupts every count of them');
+    w6.close();
+  });
+
+  // 6) the badge's vocabulary is written down where the user already is
+  const w7 = boot('<div id="a">a</div>');
+  w7.document.getElementById('__dbgov-bar').querySelector('[data-settings]')
+    .dispatchEvent(new w7.MouseEvent('click', { bubbles: true }));
+  const heads7 = [...w7.document.querySelectorAll('#__dbgov-list .dbgov-head')]
+    .map((h) => h.childNodes[0].textContent);
+  ok('⚙ carries a legend section', heads7.includes('Legend'), heads7.join(' → '));
+  const legendText = [...w7.document.querySelectorAll('#__dbgov-list .dbgov-row')]
+    .map((r) => r.querySelector('.dbgov-tag')?.textContent + ' ' + r.querySelector('.dbgov-lbl')?.textContent)
+    .join(' | ');
+  ok('and it explains the badge abbreviations and the colours',
+    /r 13/.test(legendText) && /12\/16 400/.test(legendText) && /amber/.test(legendText),
+    legendText.slice(0, 120));
+  // the dynamic flyout buttons are named for a screen reader, by their WHOLE
+  // title — first-clause would call both view members "Badge view"
+  w7.document.querySelector('[data-badge] button').dispatchEvent(new w7.MouseEvent('click', { bubbles: true }));
+  const axis7 = [...w7.document.querySelectorAll('[data-badge-fly] button')];
+  ok('every badge control has an accessible name',
+    axis7.length > 0 && axis7.every((b) => (b.getAttribute('aria-label') || '').length > 3),
+    axis7.map((b) => b.getAttribute('aria-label')).join(' | '));
+  axis7.find((b) => /^View/.test(b.title)).dispatchEvent(new w7.MouseEvent('click', { bubbles: true }));
+  const names7 = [...w7.document.querySelectorAll('[data-badge-fly] button')]
+    .map((b) => b.getAttribute('aria-label'));
+  ok('and two members never share one name',
+    new Set(names7).size === names7.length, names7.join(' | '));
+  w7.close();
+
+  // 7) the armed count chip must survive being hovered — it is 1.25:1 without
   const w5 = boot('<div id="a">a</div>');
   const css5 = [...w5.document.querySelectorAll('#__dbgov-root style')]
     .map((s) => s.textContent).join('\n');

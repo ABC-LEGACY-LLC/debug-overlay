@@ -66,3 +66,19 @@ export function options() {
           { key: 'tag', label: 'Tag & id', def: true, type: 'toggle', affects: 'inspect' },
         ];
 }
+
+/**
+ * What the short names mean. The badge is dense on purpose — it has to fit
+ * beside the element it describes and survive a screenshot — but dense is
+ * only useful if the reader can expand it, and nothing in the overlay said
+ * what `p` or `12/16 400` were.
+ */
+export function legend() {
+        return [
+          { mark: '92x24', means: 'width x height, rounded' },
+          { mark: 'r 13', means: 'border-radius' },
+          { mark: 'p / m', means: 'padding / margin - top right bottom left, collapsed when equal' },
+          { mark: 'gap 12', means: 'flex or grid gap' },
+          { mark: '12/16 400', means: 'font-size / line-height, weight' },
+        ];
+}

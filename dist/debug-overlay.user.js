@@ -67,7 +67,11 @@ HOW TO USE
                         untouched.
   ⌕ ................... audit the WHOLE page — every active rule runs over every
                         visible element, and the button shows how many distinct
-                        problems came back. Repeats collapse: a nav of 40
+                        problems came back. Each mark on the page is LABELLED
+                        with the rule that made it (grid-off ×4), because a
+                        dashed box that never says what is wrong is half a
+                        finding — and no tooltip can say it, the overlay's
+                        drawing layer takes no pointer events at all. Repeats collapse: a nav of 40
                         identical links is one finding, not forty. The result
                         rides along in the next report you copy, and every
                         finding is outlined on the page by the tool that found
@@ -1165,6 +1169,13 @@ HOW TO USE
     if (!c || c.unknown || c.pass) return null;
     return `<span class="dbgov-bad">${c.ratio.toFixed(1)}:1 ✗</span>`;
   }
+  function legend() {
+    return [
+      { mark: "4.5:1 AA✓", means: "green: meets the level set under the settings button" },
+      { mark: "2.8:1 AA✗", means: "red: below it" },
+      { mark: "contrast ?", means: "grey: not measurable - a gradient, an image, an unreadable colour space" }
+    ];
+  }
 
   // src/tools/colour/contrast/report.js
   function report(i) {
@@ -1215,15 +1226,8 @@ HOW TO USE
   }
 
   // src/tools/colour/contrast/draw.js
-  function draw({ layer: layer2, Place: Place2, found }) {
-    for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
-      if (!document.contains(f.el)) continue;
-      const r = f.el.getBoundingClientRect();
-      const box = document.createElement("div");
-      box.className = "dbgov-box dbgov-flag dbgov-" + (f.verdict === "review" ? "review" : f.severity);
-      Place2.put(box, r.left, r.top, r.width, r.height);
-      layer2.append(box);
-    }
+  function draw({ marks, found }) {
+    marks(found);
   }
 
   // src/tools/colour/contrast/index.js
@@ -1244,6 +1248,7 @@ HOW TO USE
     uses: [Colour],
     // its settings are Colour's, and belong on its own menu
     badge,
+    legend,
     compact,
     report,
     rules,
@@ -1261,6 +1266,9 @@ HOW TO USE
   }
   function compact2(i) {
     return this.badge(i);
+  }
+  function legend2() {
+    return [{ mark: "⌗ id ×2", means: "orange: this id is used more than once in the document" }];
   }
 
   // src/tools/dupid/report.js
@@ -1304,15 +1312,8 @@ HOW TO USE
   }
 
   // src/tools/dupid/draw.js
-  function draw2({ layer: layer2, Place: Place2, found }) {
-    for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
-      if (!document.contains(f.el)) continue;
-      const r = f.el.getBoundingClientRect();
-      const box = document.createElement("div");
-      box.className = "dbgov-box dbgov-flag dbgov-" + f.severity;
-      Place2.put(box, r.left, r.top, r.width, r.height);
-      layer2.append(box);
-    }
+  function draw2({ marks, found }) {
+    marks(found);
   }
 
   // src/tools/dupid/index.js
@@ -1328,6 +1329,7 @@ HOW TO USE
     // lucide 'hash' (ISC)
     title: "Duplicate ids — the same id used more than once",
     badge: badge2,
+    legend: legend2,
     compact: compact2,
     report: report2,
     rules: rules2,
@@ -1387,6 +1389,15 @@ HOW TO USE
       { key: "layout", label: "Display & gap", def: true, type: "toggle", affects: "inspect" },
       { key: "font", label: "Font", def: true, type: "toggle", affects: "inspect" },
       { key: "tag", label: "Tag & id", def: true, type: "toggle", affects: "inspect" }
+    ];
+  }
+  function legend3() {
+    return [
+      { mark: "92x24", means: "width x height, rounded" },
+      { mark: "r 13", means: "border-radius" },
+      { mark: "p / m", means: "padding / margin - top right bottom left, collapsed when equal" },
+      { mark: "gap 12", means: "flex or grid gap" },
+      { mark: "12/16 400", means: "font-size / line-height, weight" }
     ];
   }
 
@@ -1469,6 +1480,7 @@ HOW TO USE
      */
     _pairs: () => Tools.groups().filter((g) => g.length === 2),
     badge: badge3,
+    legend: legend3,
     compact: compact3,
     options,
     report: report3,
@@ -1610,6 +1622,12 @@ HOW TO USE
     const bad = Scale.scan(i, true);
     return bad.length ? `<span class="dbgov-warn">⚠${bad.length}</span>` : null;
   }
+  function legend4() {
+    return [
+      { mark: "7⚠", means: "amber: this number is off the spacing step" },
+      { mark: "7⚠→8", means: "the nearest on-step value - the Recommendation facet" }
+    ];
+  }
 
   // src/tools/grid/lens.js
   function annotate(html, n, info) {
@@ -1649,15 +1667,8 @@ HOW TO USE
   }
 
   // src/tools/grid/draw.js
-  function draw4({ layer: layer2, Place: Place2, found }) {
-    for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
-      if (!document.contains(f.el)) continue;
-      const r = f.el.getBoundingClientRect();
-      const box = document.createElement("div");
-      box.className = "dbgov-box dbgov-flag dbgov-" + f.severity;
-      Place2.put(box, r.left, r.top, r.width, r.height);
-      layer2.append(box);
-    }
+  function draw4({ marks, found }) {
+    marks(found);
   }
 
   // src/tools/grid/index.js
@@ -1677,6 +1688,7 @@ HOW TO USE
     uses: [Scale],
     // its settings are Scale's, and belong on its own menu
     badge: badge4,
+    legend: legend4,
     compact: compact4,
     annotate,
     report: report4,
@@ -1900,6 +1912,17 @@ HOW TO USE
     .dbgov-flag.dbgov-warn   { outline: 2px dashed #ffd54f; }
     .dbgov-flag.dbgov-info   { outline: 2px dashed #9ad0ff; }
     .dbgov-flag.dbgov-review { outline: 2px dotted #8ab4f8; }
+    /* WHAT is wrong, not only where. A dashed box names no rule, and no
+       tooltip can ever say: this layer is aria-hidden and pointer-events:none,
+       so a title attribute on a mark reaches nobody. So it is painted — the
+       rule's own id, one label per element however many findings it drew. */
+    .dbgov-tip { position: fixed; pointer-events: none; font-size: 9px;
+      font-weight: 700; line-height: 12px; padding: 0 3px; border-radius: 3px;
+      background: rgba(18,18,20,.92); white-space: nowrap; }
+    .dbgov-tip.dbgov-error  { color: #ff6b6b; }
+    .dbgov-tip.dbgov-warn   { color: #ffd54f; }
+    .dbgov-tip.dbgov-info   { color: #9ad0ff; }
+    .dbgov-tip.dbgov-review { color: #8ab4f8; font-style: italic; }
     /* an audit is on the page right now — distinct from .dbgov-armed, which only
        means the findings VIEW is the one open. No backticks in here: this
        whole sheet is a template literal. */
@@ -2412,6 +2435,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           h.className = "dbgov-bctl dbgov-whenOn dbgov-axis" + (open === g.key ? " dbgov-open" : "");
           h.innerHTML = g.glyph;
           h.title = g.title;
+          h.setAttribute("aria-label", g.title);
           h.setAttribute("aria-expanded", String(open === g.key));
           h.addEventListener("click", () => {
             fly.dataset.open = open === g.key ? "" : g.key;
@@ -2426,6 +2450,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
               b.className = "dbgov-bctl dbgov-whenOn" + (r.armed ? " dbgov-armed" : "") + (r.fixed ? " dbgov-fixed" : "");
               b.innerHTML = r.glyph;
               b.title = r.title;
+              b.setAttribute("aria-label", r.title);
               b.setAttribute("aria-pressed", String(!!r.armed));
               if (r.fixed) b.setAttribute("aria-disabled", "true");
               else b.addEventListener("click", () => api.onBadgeControl?.(r.key));
@@ -2982,7 +3007,36 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         Place.put(box, i.r.left, i.r.top, i.r.width, i.r.height);
         layer.append(box);
       }
-      const ctx = { layer, Place, State, U, found: [] };
+      const marks = (found) => {
+        const seen = /* @__PURE__ */ new Map();
+        for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
+          if (!document.contains(f.el)) continue;
+          const at = seen.get(f.el);
+          if (at) {
+            at.n++;
+            at.rules.add(f.rule);
+            continue;
+          }
+          const r = f.el.getBoundingClientRect();
+          const cls = f.verdict === "review" ? "review" : f.severity;
+          const box = document.createElement("div");
+          box.className = "dbgov-box dbgov-flag dbgov-" + cls;
+          Place.put(box, r.left, r.top, r.width, r.height);
+          layer.append(box);
+          seen.set(f.el, { r, cls, n: 1, rules: /* @__PURE__ */ new Set([f.rule]) });
+        }
+        for (const [, m] of seen) {
+          if (m.r.bottom < 0 || m.r.top > innerHeight || m.r.right < 0 || m.r.left > innerWidth) continue;
+          const tip = document.createElement("div");
+          tip.className = "dbgov-tip dbgov-" + m.cls;
+          tip.textContent = [...m.rules].join(" ") + (m.n > 1 ? ` ×${m.n}` : "");
+          layer.append(tip);
+          const tx = Math.max(2, m.r.left), ty = Math.max(2, m.r.top - 13);
+          Place.put(tip, tx, ty);
+          Place.claim(tx, ty, 8 * tip.textContent.length, 12);
+        }
+      };
+      const ctx = { layer, Place, State, U, marks, found: [] };
       for (const t of Tools.active()) {
         ctx.found = State.sweep && State.sweep.byTool[t.id] || [];
         t.draw?.call(t, ctx);
@@ -3477,7 +3531,29 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         out.push({ heading: "Keys", detail: "the parts of this that are not buttons" });
         out.push(...keys);
       }
+      const legend5 = only ? [] : Settings.legendRows();
+      if (legend5.length) {
+        out.push({ heading: "Legend", detail: "what the marks and short names mean" });
+        out.push(...legend5);
+      }
       return out;
+    },
+    /**
+     * WHAT THE BADGE IS SAYING. `p 4 8`, `r 13`, `12/16 400`, an amber ⚠, a
+     * red ratio — the whole diagnosis is abbreviations and colour, and none of
+     * it was written down anywhere in the running overlay. A first reader had
+     * to guess or read the source.
+     *
+     * Collected through a hook for the same reason `gestures` is: each tool
+     * declares the vocabulary it invented, beside the code that prints it, so
+     * no core file holds a table of another tool's colours — and a tool
+     * shipped tomorrow documents itself with nothing installed here.
+     */
+    legendRows() {
+      const rows = [];
+      for (const t of Tools.withHook("legend"))
+        for (const g of t.legend.call(t) || []) rows.push([g.mark, g.means]);
+      return rows.map(([mark, means]) => ({ tag: mark, label: means, detail: "" }));
     },
     /**
      * THE GESTURES. Three of them — Alt+click, the remove key, Escape — existed

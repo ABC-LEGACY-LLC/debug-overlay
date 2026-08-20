@@ -112,6 +112,12 @@ import { List } from './list.js';
         h.className = 'dbgov-bctl dbgov-whenOn dbgov-axis' + (open === g.key ? ' dbgov-open' : '');
         h.innerHTML = g.glyph;   // our own icon constant, never page text
         h.title = g.title;
+        /* The WHOLE title, not the bar's first-clause heuristic: these titles
+           distinguish themselves after the em dash ("Badge view — compact" vs
+           "— full"), so first-clause would name both members the same thing.
+           Set here because these buttons are built on every re-render, long
+           after the init-time labelling pass has run. */
+        h.setAttribute('aria-label', g.title);
         h.setAttribute('aria-expanded', String(open === g.key));
         h.addEventListener('click', () => {
           fly.dataset.open = open === g.key ? '' : g.key;
@@ -127,6 +133,7 @@ import { List } from './list.js';
                           (r.fixed ? ' dbgov-fixed' : '');
             b.innerHTML = r.glyph;   // our own icon constant, never page text
             b.title = r.title;
+            b.setAttribute('aria-label', r.title);
             b.setAttribute('aria-pressed', String(!!r.armed));
             // a fixed member is information, not a control — it says the axis
             // has this face and that it is always on, and it takes no click

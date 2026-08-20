@@ -1,4 +1,3 @@
-import { CONFIG } from '../../core/config.js';
 
 /**
  * ITS OWN SURFACE. Findings reach the ⌕ list whether a rule is armed or
@@ -10,13 +9,7 @@ import { CONFIG } from '../../core/config.js';
  * mark classes are core: more than one rule paints them, so they cannot
  * belong to whichever tool needed them first.
  */
-export function draw({ layer, Place, found }) {
-        for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
-          if (!document.contains(f.el)) continue;
-          const r = f.el.getBoundingClientRect();
-          const box = document.createElement('div');
-          box.className = 'dbgov-box dbgov-flag dbgov-' + f.severity;
-          Place.put(box, r.left, r.top, r.width, r.height);
-          layer.append(box);
-        }
+export function draw({ marks, found }) {
+        marks(found);
 }
+

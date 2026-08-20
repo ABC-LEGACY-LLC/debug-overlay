@@ -1,3 +1,4 @@
+import { CONFIG } from '../core/config.js';
 import { Tools } from '../core/registry.js';
 import { State } from '../core/state.js';
 import { U } from '../core/utils.js';
@@ -111,7 +112,47 @@ import { Place } from './placement.js';
       // else's — the sweep stamped them, so the renderer hands them over
       // without learning what any of them mean. Only ARMED tools draw: a
       // sweep is what gets checked, arming is what gets shown.
-      const ctx = { layer, Place, State, U, found: [] };
+      /* `marks` is a CAPABILITY, handed in the way intercept receives redraw:
+         a tool may not import ui/ or services/, and painting a finding is the
+         same job in every rule — three byte-identical loops proved it. Core
+         owns the surface, the tool decides what goes on it.
+
+         It also LABELS. A dashed box says something is wrong and never what,
+         and a title attribute cannot help: the layer is aria-hidden and
+         pointer-events:none, so no tooltip can ever fire. The label is
+         painted, named by the RULE and coalesced per element — grid can
+         produce ten findings for one element, which used to stack ten
+         identical outlines on it. Coalescing happens INSIDE the cap, never
+         before it, so "outlines capped at N per rule" stays true. */
+      const marks = (found) => {
+        const seen = new Map();
+        for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
+          if (!document.contains(f.el)) continue;
+          const at = seen.get(f.el);
+          if (at) { at.n++; at.rules.add(f.rule); continue; }
+          const r = f.el.getBoundingClientRect();
+          const cls = f.verdict === 'review' ? 'review' : f.severity;
+          const box = document.createElement('div');
+          box.className = 'dbgov-box dbgov-flag dbgov-' + cls;
+          Place.put(box, r.left, r.top, r.width, r.height);
+          layer.append(box);
+          seen.set(f.el, { r, cls, n: 1, rules: new Set([f.rule]) });
+        }
+        for (const [, m] of seen) {
+          if (m.r.bottom < 0 || m.r.top > innerHeight ||
+              m.r.right < 0 || m.r.left > innerWidth) continue;
+          const tip = document.createElement('div');
+          tip.className = 'dbgov-tip dbgov-' + m.cls;
+          // textContent: a rule id is ours, but a message is not — dupid's
+          // carries a page-authored id straight from the document
+          tip.textContent = [...m.rules].join(' ') + (m.n > 1 ? ` ×${m.n}` : '');
+          layer.append(tip);
+          const tx = Math.max(2, m.r.left), ty = Math.max(2, m.r.top - 13);
+          Place.put(tip, tx, ty);
+          Place.claim(tx, ty, 8 * tip.textContent.length, 12);
+        }
+      };
+      const ctx = { layer, Place, State, U, marks, found: [] };
       for (const t of Tools.active()) {
         ctx.found = (State.sweep && State.sweep.byTool[t.id]) || [];
         t.draw?.call(t, ctx);

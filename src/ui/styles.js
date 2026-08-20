@@ -121,6 +121,17 @@ import { CONFIG } from '../core/config.js';
     .dbgov-flag.dbgov-warn   { outline: 2px dashed #ffd54f; }
     .dbgov-flag.dbgov-info   { outline: 2px dashed #9ad0ff; }
     .dbgov-flag.dbgov-review { outline: 2px dotted #8ab4f8; }
+    /* WHAT is wrong, not only where. A dashed box names no rule, and no
+       tooltip can ever say: this layer is aria-hidden and pointer-events:none,
+       so a title attribute on a mark reaches nobody. So it is painted — the
+       rule's own id, one label per element however many findings it drew. */
+    .dbgov-tip { position: fixed; pointer-events: none; font-size: 9px;
+      font-weight: 700; line-height: 12px; padding: 0 3px; border-radius: 3px;
+      background: rgba(18,18,20,.92); white-space: nowrap; }
+    .dbgov-tip.dbgov-error  { color: #ff6b6b; }
+    .dbgov-tip.dbgov-warn   { color: #ffd54f; }
+    .dbgov-tip.dbgov-info   { color: #9ad0ff; }
+    .dbgov-tip.dbgov-review { color: #8ab4f8; font-style: italic; }
     /* an audit is on the page right now — distinct from .dbgov-armed, which only
        means the findings VIEW is the one open. No backticks in here: this
        whole sheet is a template literal. */

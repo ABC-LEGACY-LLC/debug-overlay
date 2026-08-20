@@ -51,7 +51,11 @@ HOW TO USE
                         untouched.
   ⌕ ................... audit the WHOLE page — every active rule runs over every
                         visible element, and the button shows how many distinct
-                        problems came back. Repeats collapse: a nav of 40
+                        problems came back. Each mark on the page is LABELLED
+                        with the rule that made it (grid-off ×4), because a
+                        dashed box that never says what is wrong is half a
+                        finding — and no tooltip can say it, the overlay's
+                        drawing layer takes no pointer events at all. Repeats collapse: a nav of 40
                         identical links is one finding, not forty. The result
                         rides along in the next report you copy, and every
                         finding is outlined on the page by the tool that found

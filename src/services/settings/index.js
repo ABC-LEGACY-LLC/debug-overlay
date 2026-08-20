@@ -101,7 +101,30 @@ import { State, Store } from '../../core/state.js';
         out.push({ heading: 'Keys', detail: 'the parts of this that are not buttons' });
         out.push(...keys);
       }
+      const legend = only ? [] : Settings.legendRows();
+      if (legend.length) {
+        out.push({ heading: 'Legend', detail: 'what the marks and short names mean' });
+        out.push(...legend);
+      }
       return out;
+    },
+
+    /**
+     * WHAT THE BADGE IS SAYING. `p 4 8`, `r 13`, `12/16 400`, an amber ⚠, a
+     * red ratio — the whole diagnosis is abbreviations and colour, and none of
+     * it was written down anywhere in the running overlay. A first reader had
+     * to guess or read the source.
+     *
+     * Collected through a hook for the same reason `gestures` is: each tool
+     * declares the vocabulary it invented, beside the code that prints it, so
+     * no core file holds a table of another tool's colours — and a tool
+     * shipped tomorrow documents itself with nothing installed here.
+     */
+    legendRows() {
+      const rows = [];
+      for (const t of Tools.withHook('legend'))
+        for (const g of t.legend.call(t) || []) rows.push([g.mark, g.means]);
+      return rows.map(([mark, means]) => ({ tag: mark, label: means, detail: '' }));
     },
 
     /**

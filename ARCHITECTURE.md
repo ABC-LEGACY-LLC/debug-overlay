@@ -188,13 +188,29 @@ pin and select appends only the `…`.
 | badge | the box, the `#N` prefix | describers' fields |
 | pin marks | outline AND `#N` chip | the `…` on a waiting pin |
 | current selection | outline + badge, NO number | nothing yet — 📌 decides if it becomes a pin |
-| page marks | the layer, cleared per frame | outlines, lines, flashes |
+| page marks | the layer, cleared per frame, AND the mark painter (`ctx.marks`) — outline, severity colour, and the rule's label, coalesced per element | which findings to paint (`draw`) |
 | pin list | a plain row per pin | pair rows |
 | findings | grouping, sort, `×N` | the findings themselves |
 | report | header, scope, `## rules` | each tool's lines |
-| ⚙ | grouping by `affects`, KEYS | each owner's rows |
+| ⚙ | grouping by `affects`, KEYS, LEGEND | each owner's rows (`options`, `gestures`, `legend`) |
 | target menu | the box, position, dismissal — rows from Report | nothing yet — a `menu` hook the day a tool wants a row |
 | input | hover, click, right-click, Ctrl+C, the current selection, hotkeys | pin's keeping; `intercept` stays the door |
+
+## Our classes are ours; the page's cascade is not
+
+The overlay injects a `<style>` into the host document, so our elements and
+the page's rules share one cascade. Every class we emit is therefore a class
+the host can style, and specificity is no defence — an unopposed declaration
+wins at any specificity. Measured, not theorised: a Tailwind page's own
+`.fixed { position: fixed }` matched the badge flyout's always-on chip, lifted
+it out of flow onto its neighbour's slot and won the hit test, so one facet
+could not be switched off with a mouse at all; Bootstrap's `.row` reached the
+popover's rows the same way. So every class carries the `dbgov-` namespace,
+and data that doubles as a class token — a pin's kind, a finding's severity —
+is prefixed where the CLASS is built, never in the data. `test.js` proves it
+differentially: the same bundle driven identically on a clean host and on one
+that defines every name we ever used bare, computed styles diffed over every
+element in the overlay.
 
 ## The audit is a flow, not a place
 
