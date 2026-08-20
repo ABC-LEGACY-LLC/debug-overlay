@@ -22,6 +22,9 @@ import { State } from './state.js';
           pendingIndex() → index into State.pins of a pin still being chosen
           annotate(html, n, info) → 'lens': wrap one number's html
           audit(info)    → 'rule': [{ el, severity, rule, message, key }]
+          keeps()        → this tool KEEPS selections: while armed, a click's
+                           selection persists as a pin instead of replacing
+                           the previous one
           options()      → [{ key, label, values, def }] the panel can change
           css            → stylesheet text, read from EVERY registered tool
      ====================================================================== */
@@ -49,7 +52,7 @@ import { State } from './state.js';
   export const ROLES = [
     { key: 'select', label: 'Select',
       note: 'how what you click becomes what you are looking at',
-      has: (t) => !!(t.groups || t.listRows || t.pendingIndex) },
+      has: (t) => !!(t.groups || t.listRows || t.pendingIndex || t.keeps) },
     { key: 'inspect', label: 'Inspect',
       note: 'what gets shown about it',
       has: (t) => !!(t.badge || t.compact || t.annotate) },

@@ -21,6 +21,16 @@ import { Panel } from '../../ui/panel.js';
         '',
       ];
       const found = [];
+      // The CURRENT selection first — the choice nothing armed is keeping.
+      // Labelled, not numbered: numbers belong to kept pins, and a report
+      // saying [#1] about something the page shows unnumbered would lie.
+      if (State.current && document.contains(State.current)) {
+        const i = U.info(State.current);
+        L.push(`[selected] ${U.selectorOf(i.el)}`);
+        for (const t of active) L.push(...(t.report?.call(t, i) || []));
+        found.push(...Sweep.collect(active, 'audit', i));
+        L.push('');
+      }
       State.pins.forEach((p) => {
         const i = U.info(p.el);
         L.push(`[#${p.id}] (${p.kind}) ${U.selectorOf(i.el)}`);

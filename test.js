@@ -220,7 +220,7 @@ ok('⌕ and ⚙ are their own band, not filed among the tools',
 ok('and the input side leads the bar, before the components',
   bar.querySelector('button.tool')?.dataset.tool ===
     [...bar.querySelectorAll('button.tool')].find((b) => !b.classList.contains('checks'))?.dataset.tool &&
-  ['select', 'pick'].includes(bar.querySelector('button.tool')?.dataset.tool),
+  ['pin', 'select', 'pick'].includes(bar.querySelector('button.tool')?.dataset.tool),
   `first tool: ${bar.querySelector('button.tool')?.dataset.tool}`);
 
 console.log('\nWIRING');
@@ -1244,7 +1244,7 @@ console.log('\nSTANDS ALONE');
   });
 
   // a shift-click with nothing to group it must not promise a measurement
-  const wn = only(['measure'], '<div id="a">a</div><div id="b">b</div>');
+  const wn = only(['measure', 'pin'], '<div id="a">a</div><div id="b">b</div>');
   pinIt(wn, 'a', { shiftKey: true });
   pinIt(wn, 'b', { shiftKey: true });
   let copiedN = null;
@@ -1258,7 +1258,7 @@ console.log('\nSTANDS ALONE');
   wn.close();
 
   // and with a grouping armed it means what it always meant
-  const wy = only(['measure', 'select'], '<div id="a">a</div><div id="b">b</div>');
+  const wy = only(['measure', 'select', 'pin'], '<div id="a">a</div><div id="b">b</div>');
   pinIt(wy, 'a', { shiftKey: true });
   pinIt(wy, 'b', { shiftKey: true });
   let copiedY = null;
@@ -1626,7 +1626,7 @@ console.log('\nPICK');
     { url: 'https://example.test/', pretendToBeVisual: true,
       runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
   const w = d.window;
-  w.localStorage.setItem('__dbgov_tools', '["pick"]');
+  w.localStorage.setItem('__dbgov_tools', '["pick","pin"]');
   w.localStorage.setItem('__dbgov_seen', JSON.stringify(idsOnDisk));
   w.eval(source);
   let copied = null;
@@ -1661,6 +1661,103 @@ console.log('\nPICK');
       'the redraw capability did not reach the renderer');
     w.close();
   });
+}
+
+console.log('\nSELECTION CHOOSES, PIN KEEPS');
+/**
+ * Pinning used to be welded to the click: choosing an element and keeping it
+ * were one gesture. 📌 pin is the keeper now — armed (its shipped default),
+ * clicks pin exactly as they always did; off, a click SELECTS: one outline,
+ * one badge, no number, replaced by the next click. These are the off-state's
+ * guarantees, none of which the compare gate can see (it runs with pin armed).
+ */
+{
+  const opts = { url: 'https://example.test/', pretendToBeVisual: true,
+                 runScripts: 'outside-only', virtualConsole: new VirtualConsole() };
+  const boot = (armed, seen, html) => {
+    const d = new JSDOM(`<!doctype html><html><body>${html}</body></html>`, opts);
+    d.window.localStorage.setItem('__dbgov_tools', JSON.stringify(armed));
+    d.window.localStorage.setItem('__dbgov_seen', JSON.stringify(seen));
+    d.window.eval(source);
+    d.window.dispatchEvent(new d.window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+    return d.window;
+  };
+  const clickOn = (w, id, mods = {}) => {
+    const el = w.document.getElementById(id);
+    w.document.elementFromPoint = () => el;
+    el.dispatchEvent(new w.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5, ...mods }));
+  };
+  const copyText = (w) => {
+    let out = null;
+    Object.defineProperty(w.navigator, 'clipboard',
+      { value: { writeText: async (t) => { out = t; } }, configurable: true });
+    w.document.getElementById('__dbgov-bar').querySelector('[data-copy]')
+      .dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    return out;
+  };
+
+  // 1) pin off: clicks select and REPLACE — the report labels, never numbers
+  const w1 = boot(['measure'], idsOnDisk, '<div id="a">a</div><div id="b">b</div>');
+  clickOn(w1, 'a');
+  clickOn(w1, 'b');
+  const rep1 = copyText(w1) || '';
+  ok('with no keeper armed, a click is a SELECTION — labelled, not numbered',
+    /\[selected\] #b/.test(rep1) && !/\[#\d/.test(rep1),
+    rep1.split('\n').find((l) => l.startsWith('[')) || 'no selection block');
+  ok('and the next selection replaced the last — #a let go',
+    !/\[selected\] #a/.test(rep1), 'both #a and #b reported');
+  pendingChecks.push(() => {
+    ok('on the page: one outline and NO number chip',
+      w1.document.querySelectorAll('#__dbgov-root .dbgov-pinbox').length === 1 &&
+      w1.document.querySelectorAll('#__dbgov-root .dbgov-pin-num').length === 0,
+      `${w1.document.querySelectorAll('#__dbgov-root .dbgov-pinbox').length} boxes, ` +
+      `${w1.document.querySelectorAll('#__dbgov-root .dbgov-pin-num').length} chips`);
+    w1.close();
+  });
+
+  // 2) a modifier must not smuggle persistence past a disarmed keeper
+  const w2 = boot(['measure', 'select'], idsOnDisk, '<div id="a">a</div>');
+  clickOn(w2, 'a', { shiftKey: true });
+  const rep2 = copyText(w2) || '';
+  ok('shift+click with no keeper falls back to a bare selection',
+    /\[selected\]/.test(rep2) && !/\((pair|note)\)/.test(rep2),
+    rep2.split('\n').find((l) => l.startsWith('[')) || 'nothing reported');
+  w2.close();
+
+  // 3) switching the keeper OFF must not take kept pins away
+  const w3 = boot(['measure', 'select', 'pin'], idsOnDisk,
+    '<div id="a">a</div><div id="b">b</div><div id="c">c</div>');
+  clickOn(w3, 'a', { shiftKey: true });
+  clickOn(w3, 'b', { shiftKey: true });
+  w3.document.getElementById('__dbgov-bar').querySelector('[data-tool="pin"]')
+    .dispatchEvent(new w3.MouseEvent('click', { bubbles: true }));
+  clickOn(w3, 'c');   // pin is off now: c is selected, never kept
+  pendingChecks.push(() => {
+    const bar3 = w3.document.getElementById('__dbgov-bar');
+    ok('disarming pin keeps existing pins — off stops NEW keeping only',
+      bar3.querySelector('[data-c]').textContent === '2',
+      'pin count ' + bar3.querySelector('[data-c]').textContent);
+    w3.close();
+  });
+
+  // 4) Escape releases the selection the way it clears pins
+  const w4 = boot(['measure'], idsOnDisk, '<div id="a">a</div>');
+  clickOn(w4, 'a');
+  w4.dispatchEvent(new w4.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  const rep4 = copyText(w4) || '';
+  ok('Escape releases a bare selection',
+    !/\[selected\]/.test(rep4), 'selection survived Escape');
+  w4.close();
+
+  // 5) an install from before 📌 meets it for the first time
+  const w5 = boot(['measure'], idsOnDisk.filter((id) => id !== 'pin'),
+    '<div id="a">a</div>');
+  clickOn(w5, 'a');
+  const rep5 = copyText(w5) || '';
+  ok('an existing install still pins by default — SEEN gave startsOn its say',
+    /\[#1\] \(note\)/.test(rep5),
+    rep5.split('\n').find((l) => l.startsWith('[')) || 'nothing reported');
+  w5.close();
 }
 
 console.log('\nFAMILY FLYOUT');

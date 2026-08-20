@@ -91,7 +91,7 @@ import { Render } from '../ui/renderer.js';
              and on Alt+Shift+D, both of which say so. */
           if (State.removeMode) ctl.setRemoveMode(false);
           else if (Panel.isListOpen()) Panel.toggleList(false);
-          else if (State.pins.length) ctl.clearPins();
+          else if (State.pins.length || State.current) ctl.clearPins();
         }
       }, true);
 
@@ -144,6 +144,12 @@ import { Render } from '../ui/renderer.js';
         const el = document.elementFromPoint(e.clientX, e.clientY);
         if (!el || root.contains(el)) return;
         if (Interactions.claimed('click', e, el)) return;
+        /* SELECTION chooses; PIN keeps. Whether a choice PERSISTS is a
+           capability question — does any armed tool keep selections? — asked
+           the same way the grouping one is below, with no id in it. With no
+           keeper armed, every click is a bare selection: it replaces the
+           previous one and the page never accumulates anything. */
+        if (!Tools.withHook('keeps', true).length) { ctl.setCurrent(el); return; }
         /* A SHIFT pin exists to be grouped and measured. With no armed tool
            publishing groups there is nothing to group it, so it used to sit
            there numbered and lime — promising a measurement that could never

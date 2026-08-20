@@ -218,7 +218,11 @@ for (const t of tools) {
      between three rules behaving the same way and two of them happening to. */
   if ((hooks.includes('audit') || hooks.includes('auditPage')) && !hooks.includes('draw'))
     bad.push('produces findings but never draws them — add draw() so they can be found on the page');
-  const SURFACE = ['badge', 'compact', 'draw', 'listRows', 'intercept'];
+  /* keeps counts as a surface because arming it alone visibly changes the
+     page: selections persist and wear numbers instead of replacing each
+     other. This EXTENDS the worth-arming set — an annotate/report/rule-only
+     tool still fails exactly as before. */
+  const SURFACE = ['badge', 'compact', 'draw', 'listRows', 'intercept', 'keeps'];
   if (hooks.length && !SURFACE.some((h) => hooks.includes(h)))
     bad.push(`no surface of its own (${hooks.join(', ')}) — armed alone this shows ` +
              `nothing. Add one of: ${SURFACE.join(', ')}`);

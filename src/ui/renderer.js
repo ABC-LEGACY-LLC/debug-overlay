@@ -79,7 +79,24 @@ import { Place } from './placement.js';
         return { p, i };
       });
 
-      const hoverLive = !State.removeMode && State.hoverEl &&
+      /* The CURRENT selection — the choice nothing armed is keeping. Core
+         draws it the way core draws hover: outline and badge, NO number.
+         A number is the mark of a KEPT selection; this one is replaced by
+         the next click, so a number on it would promise permanence it does
+         not have. Pruned like pins, but silently — it is never in the list,
+         so no index can go stale over it. */
+      if (State.current && !document.contains(State.current)) State.current = null;
+      const cur = (!State.removeMode && State.current &&
+                   !pinned.has(State.current)) ? State.current : null;
+      if (cur) {
+        const i = U.info(cur);
+        const box = document.createElement('div');
+        box.className = 'dbgov-box dbgov-pinbox note';
+        Place.put(box, i.r.left, i.r.top, i.r.width, i.r.height);
+        layer.append(box);
+      }
+
+      const hoverLive = !State.removeMode && State.hoverEl && State.hoverEl !== cur &&
                         document.contains(State.hoverEl) && !pinned.has(State.hoverEl);
       if (hoverLive) {
         const i = U.info(State.hoverEl);
@@ -115,6 +132,24 @@ import { Place } from './placement.js';
         layer.append(b);
         Place.smart(b, i.r, { avoid: i.r });
       });
+
+      // 3b) the current selection's badge — a pin badge without the #N,
+      // because there is no number to prefix and nothing to confuse it with
+      if (cur) {
+        const i = U.info(cur);
+        if (!(i.r.bottom < 0 || i.r.top > innerHeight ||
+              i.r.right < 0 || i.r.left > innerWidth)) {
+          const full = State.detail || State.hoverEl === cur;
+          const html = Badges.build(i, !full);
+          if (html) {
+            const b = document.createElement('div');
+            b.className = 'dbgov-badge';
+            b.innerHTML = html;
+            layer.append(b);
+            Place.smart(b, i.r, { avoid: i.r });
+          }
+        }
+      }
 
       // 4) hover badge last — slots into whatever space is left
       if (hoverLive) {

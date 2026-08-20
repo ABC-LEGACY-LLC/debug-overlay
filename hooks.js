@@ -15,7 +15,7 @@ const SRC = path.join(__dirname, 'src');
 
 const HOOKS = ['badge', 'compact', 'report', 'reportTail', 'draw', 'listRows',
                'pendingIndex', 'annotate', 'audit', 'auditPage', 'options',
-               'intercept', 'groups', 'gestures'];
+               'intercept', 'groups', 'gestures', 'keeps'];
 
 /** Comments first: a file that merely EXPLAINS a hook is not implementing it. */
 const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -91,8 +91,8 @@ const SURFACES = [
     fills: ['report', 'reportTail'] },
   { key: '⚙ settings', core: 'settings — grouping by affects, plus KEYS',
     fills: ['options', 'gestures'] },
-  { key: 'input', core: 'interactions — hover, click, pins, hotkeys',
-    fills: ['intercept'] },
+  { key: 'input', core: 'interactions — hover, click, the CURRENT selection, hotkeys',
+    fills: ['intercept', 'keeps'] },
 ];
 
 /**
@@ -115,7 +115,8 @@ const bandsOf = (t) => {
   const out = [];
   if (has('badge') || has('compact') || has('annotate') ||
       has('audit') || has('auditPage')) out.push('COMPONENT');
-  if (has('groups') || has('listRows') || has('pendingIndex')) out.push('SOURCE');
+  if (has('groups') || has('listRows') || has('pendingIndex') ||
+      has('keeps')) out.push('SOURCE');
   if (has('intercept')) out.push('ACTION');
   return out;
 };

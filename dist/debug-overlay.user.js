@@ -497,6 +497,11 @@ HOW TO USE
     settings: {},
     pins: [],
     // [{ el, id, kind }] — kind ∈ CONFIG.PIN_KIND
+    // The CURRENT selection — the element a click chose while nothing armed
+    // was keeping selections. One at most: the next click replaces it. It is
+    // NOT a pin (no number, never in the list); a pin is a selection some
+    // armed tool KEPT, and this is the one nothing did.
+    current: null,
     hoverEl: null,
     removeMode: false,
     // true while the remove key is held
@@ -518,7 +523,7 @@ HOW TO USE
       key: "select",
       label: "Select",
       note: "how what you click becomes what you are looking at",
-      has: (t) => !!(t.groups || t.listRows || t.pendingIndex)
+      has: (t) => !!(t.groups || t.listRows || t.pendingIndex || t.keeps)
     },
     {
       key: "inspect",
@@ -1680,6 +1685,20 @@ HOW TO USE
     gestures
   });
 
+  // src/tools/pin/keep.js
+  function keeps() {
+    return true;
+  }
+
+  // src/tools/pin/index.js
+  defineTool({
+    id: "pin",
+    icon: "📌",
+    title: "Pin — keep what you select; off, selections replace each other",
+    startsOn: true,
+    keeps
+  });
+
   // src/tools/select/service.js
   function options4() {
     return [{
@@ -2618,7 +2637,16 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         }
         return { p, i };
       });
-      const hoverLive = !State.removeMode && State.hoverEl && document.contains(State.hoverEl) && !pinned.has(State.hoverEl);
+      if (State.current && !document.contains(State.current)) State.current = null;
+      const cur = !State.removeMode && State.current && !pinned.has(State.current) ? State.current : null;
+      if (cur) {
+        const i = U.info(cur);
+        const box = document.createElement("div");
+        box.className = "dbgov-box dbgov-pinbox note";
+        Place.put(box, i.r.left, i.r.top, i.r.width, i.r.height);
+        layer.append(box);
+      }
+      const hoverLive = !State.removeMode && State.hoverEl && State.hoverEl !== cur && document.contains(State.hoverEl) && !pinned.has(State.hoverEl);
       if (hoverLive) {
         const i = U.info(State.hoverEl);
         const box = document.createElement("div");
@@ -2642,6 +2670,20 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         layer.append(b);
         Place.smart(b, i.r, { avoid: i.r });
       });
+      if (cur) {
+        const i = U.info(cur);
+        if (!(i.r.bottom < 0 || i.r.top > innerHeight || i.r.right < 0 || i.r.left > innerWidth)) {
+          const full = State.detail || State.hoverEl === cur;
+          const html = Badges.build(i, !full);
+          if (html) {
+            const b = document.createElement("div");
+            b.className = "dbgov-badge";
+            b.innerHTML = html;
+            layer.append(b);
+            Place.smart(b, i.r, { avoid: i.r });
+          }
+        }
+      }
       if (hoverLive) {
         const i = U.info(State.hoverEl);
         const html = Badges.build(i, false);
@@ -2763,6 +2805,13 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         ""
       ];
       const found = [];
+      if (State.current && document.contains(State.current)) {
+        const i = U.info(State.current);
+        L.push(`[selected] ${U.selectorOf(i.el)}`);
+        for (const t of active) L.push(...t.report?.call(t, i) || []);
+        found.push(...Sweep.collect(active, "audit", i));
+        L.push("");
+      }
       State.pins.forEach((p) => {
         const i = U.info(p.el);
         L.push(`[#${p.id}] (${p.kind}) ${U.selectorOf(i.el)}`);
@@ -2900,7 +2949,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         if (e.key === "Escape" && State.enabled && !Interactions.typing(e)) {
           if (State.removeMode) ctl.setRemoveMode(false);
           else if (Panel.isListOpen()) Panel.toggleList(false);
-          else if (State.pins.length) ctl.clearPins();
+          else if (State.pins.length || State.current) ctl.clearPins();
         }
       }, true);
       addEventListener("keyup", (e) => {
@@ -2951,6 +3000,10 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         const el = document.elementFromPoint(e.clientX, e.clientY);
         if (!el || root.contains(el)) return;
         if (Interactions.claimed("click", e, el)) return;
+        if (!Tools.withHook("keeps", true).length) {
+          ctl.setCurrent(el);
+          return;
+        }
         const grouped = e.shiftKey && Tools.withHook("groups", true).length > 0;
         ctl.togglePin(el, grouped ? CONFIG.PIN_KIND.SHIFT : CONFIG.PIN_KIND.PLAIN);
       }, true);
@@ -3368,6 +3421,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     // kind: CONFIG.PIN_KIND.PLAIN → a note: inspect only, groups with nothing
     //       CONFIG.PIN_KIND.SHIFT → a pair pin: joins whatever grouping is armed
     togglePin(el, kind = CONFIG.PIN_KIND.PLAIN) {
+      State.current = null;
       const i = State.pins.findIndex((p) => p.el === el);
       if (i >= 0) {
         if (State.pins[i].kind === kind) State.pins.splice(i, 1);
@@ -3376,6 +3430,17 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         State.pins.push({ el, id: Controller.nextPinId(), kind });
       }
       Controller.pinsChanged();
+    },
+    /**
+     * SELECTION chooses; PIN keeps. This is the choosing half on its own:
+     * with no armed keeper, a click selects ONE element — outline and badge,
+     * no number — and the next click lets it go and selects the next thing.
+     * Clicking the selected element again deselects it. The page never
+     * accumulates anything; only an armed keeper turns choices into pins.
+     */
+    setCurrent(el) {
+      State.current = State.current === el ? null : el;
+      Render.schedule();
     },
     setRemoveMode(v) {
       State.removeMode = v;
@@ -3464,6 +3529,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
      */
     clearPins() {
       State.pins = [];
+      State.current = null;
       State.sweep = null;
       Panel.setSwept(false, 0);
       Controller.pinsChanged();

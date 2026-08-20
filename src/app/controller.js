@@ -245,6 +245,7 @@ import { Render } from '../ui/renderer.js';
     // kind: CONFIG.PIN_KIND.PLAIN → a note: inspect only, groups with nothing
     //       CONFIG.PIN_KIND.SHIFT → a pair pin: joins whatever grouping is armed
     togglePin(el, kind = CONFIG.PIN_KIND.PLAIN) {
+      State.current = null;   // a kept selection supersedes the transient one
       const i = State.pins.findIndex((p) => p.el === el);
       if (i >= 0) {
         // same modifier → unpin; different modifier → switch this pin's role
@@ -254,6 +255,17 @@ import { Render } from '../ui/renderer.js';
         State.pins.push({ el, id: Controller.nextPinId(), kind });
       }
       Controller.pinsChanged();
+    },
+    /**
+     * SELECTION chooses; PIN keeps. This is the choosing half on its own:
+     * with no armed keeper, a click selects ONE element — outline and badge,
+     * no number — and the next click lets it go and selects the next thing.
+     * Clicking the selected element again deselects it. The page never
+     * accumulates anything; only an armed keeper turns choices into pins.
+     */
+    setCurrent(el) {
+      State.current = State.current === el ? null : el;
+      Render.schedule();
     },
     setRemoveMode(v) {
       State.removeMode = v;
@@ -341,6 +353,7 @@ import { Render } from '../ui/renderer.js';
      */
     clearPins() {
       State.pins = [];
+      State.current = null;
       State.sweep = null;
       Panel.setSwept(false, 0);
       Controller.pinsChanged();

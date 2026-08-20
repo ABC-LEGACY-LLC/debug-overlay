@@ -69,6 +69,11 @@
     // for its step once per number on a page with thousands of them.
     settings: {},
     pins: [],            // [{ el, id, kind }] — kind ∈ CONFIG.PIN_KIND
+    // The CURRENT selection — the element a click chose while nothing armed
+    // was keeping selections. One at most: the next click replaces it. It is
+    // NOT a pin (no number, never in the list); a pin is a selection some
+    // armed tool KEPT, and this is the one nothing did.
+    current: null,
     hoverEl: null,
     removeMode: false,   // true while the remove key is held
     removeTarget: null,  // pin object under the cursor in remove mode
