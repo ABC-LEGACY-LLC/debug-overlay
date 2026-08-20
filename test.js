@@ -1664,14 +1664,19 @@ console.log('\nFAMILY FLYOUT');
   const w = d.window;
   w.eval(source);
   const bar = w.document.getElementById('__dbgov-bar');
-  const fam = bar.querySelector('.fam');
+  const famOf = (mark) => [...bar.querySelectorAll('.fam')]
+    .find((f) => f.querySelector('.fam-btn').textContent === mark);
+  const fam = famOf('🎨');
   const btn = fam && fam.querySelector('.fam-btn');
   ok('the colour family is one mark on the bar',
-    !!btn && btn.textContent === '🎨' && !!fam.querySelector('[data-tool="contrast"]'),
+    !!btn && !!fam.querySelector('[data-tool="contrast"]'),
     'the mark comes from the family subject; contrast lives in its flyout');
-  ok('and geometry stays a direct button — no subject, no mark',
-    !bar.querySelector('[data-tool="measure"]')?.closest('.fam'),
-    'a family earns a bar presence only when its head exists to carry it');
+  ok('and so is geometry — its head is the promoted subject',
+    !!famOf('📏') && famOf('📏').querySelector('[data-tool]')?.dataset.tool === 'measure',
+    'geometry serves two tools, so it was always a subject by this project\'s own rule');
+  ok('while select stays a direct button — it consults geometry, it is not OF it',
+    !bar.querySelector('[data-tool="select"]')?.closest('.fam'),
+    'a domain folder is identity; consulting a subject is not membership');
   w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
   btn.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   ok('clicking the mark opens the flyout',

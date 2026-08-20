@@ -1,11 +1,20 @@
-import { CONFIG } from './config.js';
-import { U } from './utils.js';
+import { CONFIG } from '../core/config.js';
+import { U } from '../core/utils.js';
+import { defineSubject } from '../core/registry.js';
   /* ======================================================================
-     MEASURE ENGINE — how a distance between two rects is drawn.
+     GEOMETRY — how a distance between two rects is drawn.
      Pure geometry + drawing rules. Knows nothing about tools, panels or
      reports, so dimension styling can be tuned in isolation.
+
+     A SUBJECT, promoted from core/ by this project's own rule: a backend two
+     tools consult is a subject — measure draws its dimension lines from it
+     and select words its pair rows with it. The promotion is also what gives
+     the geometry FAMILY its head: 📏 is the family's mark on the bar, never a
+     member's glyph (measure keeps 📐). No options, so it has no ⚙ rows.
      ====================================================================== */
-  export const Measure = {
+  export const Measure = defineSubject({
+    id: 'geometry',
+    icon: '📏',
     // --- lanes: keep parallel dimension lines off each other -------------
     lanes: { v: [], h: [] },
     resetLanes() { Measure.lanes = { v: [], h: [] }; },
@@ -194,4 +203,4 @@ import { U } from './utils.js';
         text: `${tag} · ${down ? '↓' : '↑'} ${g.dy} px`,
       });
     },
-  };
+  });

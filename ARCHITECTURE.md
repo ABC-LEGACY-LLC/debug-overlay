@@ -202,9 +202,11 @@ subject look like one of its tools. A family whose subject carries a
 mark renders as ONE bar button (🎨) whose members slide out sideways — toward
 the open side of the screen, read off the bar's snap side — with the ordinary
 tool buttons inside: same arming, same right-click menu. One button per
-family, so a family that grows shrinks the bar. Geometry has no subject to
-carry a mark, so measure stays a direct button until that family's head
-exists.
+family, so a family that grows shrinks the bar. Geometry's head is the promoted
+subject `subjects/geometry.js` (📏) — promoted by this project's own rule,
+since measure and select both consult it — so measure lives in its flyout
+too. select stays a direct button: consulting a subject is not membership;
+the domain folder is.
 
 Nobody has to remember this: reaching for another tool's `service.js`
 fails the import audit with this exact promotion named in the message. The
@@ -215,7 +217,7 @@ trigger enforces itself.
 | folder | what it is |
 |---|---|
 | `tools/<name>/` | one component per folder — `index.js` registers; `badge` / `rule` / `draw` / `report` / `options` beside it; `service.js` is its backend when it has one of its own. A DOMAIN folder (`colour/`, `geometry/`) has no `index.js` — it only groups a family; a component is the nearest folder that has one |
-| `subjects/` | a backend SHARED by two tools — empty today; a sole-consumer backend lives inside its tool, and is promoted here the day a second consumer appears |
+| `subjects/` | a backend SHARED by two tools — `geometry.js` (measure draws with it, select words its rows with it); a sole-consumer backend lives inside its tool until a second consumer appears |
 | `services/` | the four collectors — `badge/`, `findings/`, `report/`, `settings/` — never edited when a component is added |
 | `ui/` | the panel machinery: bar, popover, controls, renderer, placement, styles, dom |
 | `core/`, `app/` | glue — state, config, utils, geometry, the registry; interactions, controller, boot |

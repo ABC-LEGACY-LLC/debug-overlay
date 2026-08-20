@@ -147,7 +147,7 @@ exactly what the `kind` field died of.
 ## Boundaries (audit.js enforces these)
 - `core/utils.js` — pure. No `State.`, no DOM creation, no markup. Callers hand
   in a decorator; the tool that styles a class is the tool that emits it.
-- `core/geometry.js` — rectangles only. No `Tools.`, no `Panel.`.
+- `subjects/geometry.js` — rectangles only; a subject (two consumers: measure, select), and the geometry family's mark 📏.
 - `ui/panel.js` — no `State.`, and it must not know what a "pair" is. It
   fires callbacks; the controller handles them.
 - `ui/renderer.js` / `app/interactions.js` / `app/controller.js` — never

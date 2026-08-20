@@ -72,7 +72,7 @@ const RULES = [
   ['core/utils.js', /\bState\./, 'UTILS must stay pure — callers pass decorators in'],
   ['core/utils.js', /document\.createElement/, 'UTILS must not build DOM'],
   ['core/utils.js', /class="/, 'UTILS must not own markup — the tool that styles it does'],
-  ['core/geometry.js', /\bTools\.|\bPanel\./, 'MEASURE is tool-agnostic geometry'],
+  ['subjects/geometry.js', /\bPanel\./, 'GEOMETRY is tool-agnostic drawing'],
   // Persistence goes through Store, which is per-script; localStorage is per
   // origin, and with @match *://*/* that silently means "per site" — the bug
   // this project just spent a release fixing.

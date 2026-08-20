@@ -101,7 +101,7 @@ console.log('\nPIPELINE       the direction of flow\n');
 console.log('  you ──click──────────▶ SOURCE  select ──▶ pins + groups()');
 console.log('      ──ctrl/⌘+click──▶ ACTION  pick   ──▶ clipboard (direct effect)');
 console.log('  pins ──▶ COMPONENTS measure·grid·contrast·dupid ──▶ SERVICES ──▶ your eyes');
-console.log('           (consulting SUBJECTS scale·colour)');
+console.log('           (consulting SUBJECTS scale·colour·geometry)');
 
 console.log('\nCOMPONENTS     read the page, produce content into the four SERVICES\n');
 const inBand = (b) => tools.filter((t) => bandsOf(t).includes(b));

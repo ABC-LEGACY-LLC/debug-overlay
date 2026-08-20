@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.73
+// @version      3.8.74
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -72,7 +72,9 @@ HOW TO USE
     ⬚ select    how pinned elements group up — pairs or a chain. Pairing
                  lives here and not in measure, so a new way of selecting is
                  one new file and everything that measures picks it up.
-    📐 measure   sizes, radius, padding/margin, gap, font, and the distance
+    📏 geometry  the geometry family — one button; click it and its members
+                 slide out sideways:
+       📐 measure  sizes, radius, padding/margin, gap, font, and the distance
                  between whatever the selection tools have grouped. Right-click
                  it to choose which of those the badge shows — a full badge is
                  a lot of ink over a page you came to read one number off. The
@@ -132,7 +134,7 @@ HOW TO USE
     tools/<n>/         ⭐ one folder per armable tool — index registers, the
                        hook files sit beside it, service.js is its backend
     services/          badge, findings, report, settings — the collectors
-    subjects/          a backend shared by two components (none today)
+    subjects/          a backend shared by two tools — geometry.js
     core/              config, state+Store, utils, geometry, registry
     ui/                styles, dom, controls, list, panel, placement, renderer
     app/               interactions, controller
@@ -257,6 +259,189 @@ HOW TO USE
   window.__DBG_OVERLAY__ = true;
 
 (() => {
+  // src/core/config.js
+  var CONFIG = {
+    // Substituted by build.js at bundle time. A userscript with @grant none
+    // cannot read GM_info, and an overlay that cannot say which version it is
+    // makes a stale install look exactly like a current one — which is the
+    // failure this project has already had once, from the other end.
+    VERSION: "3.8.74",
+    Z: 2147483647,
+    // The step the "grid" tool checks against. 2, not 4, because that is what
+    // the scale in front of us actually is: Tailwind's default spacing has
+    // half-steps (0.5 = 2px, 1.5 = 6px, 2.5 = 10px) and a real page used them
+    // 2,681 times. A rule has to check the scale a project HAS; making the
+    // project match the rule is the wrong way round. Set it to 4 or 8 for a
+    // project that keeps to whole steps.
+    GRID: 2,
+    // Above this, a margin or padding is layout arithmetic rather than a
+    // spacing token. getComputedStyle resolves `margin: auto` to the pixels it
+    // worked out — 1127px on a real page — and nothing distinguishes that from
+    // a value somebody typed. Nobody types 1127px; nobody types past this.
+    GRID_MAX: 96,
+    PEEK: 10,
+    // px of panel visible when tucked
+    TUCK_DELAY: 2200,
+    // ms idle before the panel tucks away
+    EDGE_MARGIN: 8,
+    BADGE_MARGIN: 6,
+    POS_KEY: "__dbgov_pos",
+    TOOLS_KEY: "__dbgov_tools",
+    SETTINGS_KEY: "__dbgov_settings",
+    // Which tool ids this install has already met. Without it a saved armed
+    // set answers for tools that no longer exist and stays silent about ones
+    // shipped since — so a new capability arrives switched off and invisible.
+    SEEN_KEY: "__dbgov_seen",
+    FLASH_MS: 1200,
+    // how long a button shows a transient message
+    LIST_GAP: 10,
+    // px between the bar and the popover it opens
+    LIST_PAD: 6,
+    // px the popover keeps from the viewport edge
+    // No DEFAULT_TOOLS list here any more. It named tool ids in a core file,
+    // so shipping a tool that should start armed meant editing this — the one
+    // place "a new tool is one new file" was not literally true. A tool says
+    // `startsOn: true` about itself instead, and nothing central has to know
+    // the name of anything.
+    // 'pairs' = every measurement takes two clicks (from → to) and the next
+    //           click starts a fresh pair, so a pin is never reused silently.
+    // 'chain' = old behaviour: each pin measures to the previous one.
+    PAIR_MODE: "pairs",
+    // A pin's "kind" names which tool consumes it. Defined once here so the
+    // input layer, controller and renderer never hardcode a tool's id.
+    PIN_KIND: { PLAIN: "note", SHIFT: "measure" },
+    PICK_FLASH: 700,
+    // ms an element stays outlined after being picked
+    LANE_SEP: 16,
+    // px between parallel dimension lines
+    HOTKEY: { alt: true, shift: true, ctrl: false, code: "KeyD" },
+    REMOVE_KEY: "KeyX",
+    // hold to reveal ✕ on pins and click one to remove
+    // `level` is the default the panel starts on; `levels` is what it offers.
+    // The two thresholds move together — a rule that checked AAA for body text
+    // and AA for headings would be neither.
+    CONTRAST: {
+      largePx: 24,
+      largeBoldPx: 18.66,
+      level: "AA",
+      levels: { AA: { normal: 4.5, large: 3 }, AAA: { normal: 7, large: 4.5 } }
+    },
+    // Findings vocabulary, shared by every 'rule' tool. The number is only a
+    // rank, so a list of findings reads worst-first.
+    SEVERITY: { error: 3, warn: 2, info: 1 },
+    // Marks drawn per tool per frame. A page can return thousands of findings
+    // and this runs at 60fps, so it is a ceiling on cost, not on truth — the
+    // list and the report still carry every one of them.
+    MARK_LIMIT: 200
+  };
+
+  // src/core/utils.js
+  var U = {
+    /**
+     * Math.round breaks ties toward +Infinity, so +2.5 became 3 (off a 2px
+     * grid) and -2.5 became -2 (on it) — the SIGN of a half-pixel decided the
+     * verdict rather than its distance from the grid. Fractional computed
+     * margins are ordinary on fractional-DPR displays. Half away from zero
+     * treats a margin and its mirror image alike.
+     */
+    px: (v) => {
+      const n = parseFloat(v) || 0;
+      return Math.sign(n) * Math.round(Math.abs(n));
+    },
+    /**
+     * Anything the PAGE controls has to come through here before it is
+     * interpolated into badge markup, because badges reach the DOM through
+     * innerHTML. An element's id is page-authored text, and a hostile — or
+     * merely careless — one closed the span and opened a tag of its own.
+     */
+    esc: (s) => String(s).replace(
+      /[&<>"']/g,
+      (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]
+    ),
+    // `dec` is a decorator, (n) => html, handed in by the caller. UTILS never
+    // reads State, and never learns what decorating a number means.
+    mark: (n, dec) => dec ? dec(n) : `${n}`,
+    four(cs, prop, dec) {
+      const t = U.px(cs[prop + "Top"]), r = U.px(cs[prop + "Right"]), b = U.px(cs[prop + "Bottom"]), l = U.px(cs[prop + "Left"]);
+      if (!t && !r && !b && !l) return null;
+      if (t === b && r === l)
+        return t === r ? [U.mark(t, dec)] : [U.mark(t, dec), U.mark(r, dec)];
+      return [U.mark(t, dec), U.mark(r, dec), U.mark(b, dec), U.mark(l, dec)];
+    },
+    fourPlain(cs, prop) {
+      return {
+        t: U.px(cs[prop + "Top"]),
+        r: U.px(cs[prop + "Right"]),
+        b: U.px(cs[prop + "Bottom"]),
+        l: U.px(cs[prop + "Left"])
+      };
+    },
+    radius(cs) {
+      const c = ["TopLeft", "TopRight", "BottomRight", "BottomLeft"].map((k) => U.px(cs["border" + k + "Radius"]));
+      if (!c.some(Boolean)) return null;
+      return c.every((v) => v === c[0]) ? `${c[0]}` : c.join("/");
+    },
+    /**
+     * An id a person chose is the best address there is. A generated one is
+     * the worst: React and base-ui emit things like `base-ui-:r1t9:`, which
+     * changes on the next render, so a report that says #base-ui-:r1t9: names
+     * an element nobody can find twice. A bare CSS identifier is the test —
+     * a colon is not legal in one unescaped, so nobody typed it.
+     */
+    stableId: (id) => /^[A-Za-z][\w-]*$/.test(id),
+    selectorOf(el) {
+      const part = (e2) => {
+        if (e2.id && U.stableId(e2.id)) return "#" + e2.id;
+        let s = e2.tagName.toLowerCase();
+        const cls = [...e2.classList].filter((c) => !c.startsWith("__dbgov")).slice(0, 2);
+        if (cls.length) s += "." + cls.join(".");
+        const p = e2.parentElement;
+        if (p) {
+          const same = [...p.children].filter((x) => x.tagName === e2.tagName);
+          if (same.length > 1) s += `:nth-of-type(${same.indexOf(e2) + 1})`;
+        }
+        return s;
+      };
+      const chain = [];
+      let e = el;
+      while (e && e.tagName && chain.length < 3) {
+        chain.unshift(part(e));
+        if (e.id && U.stableId(e.id)) break;
+        e = e.parentElement;
+      }
+      return chain.join(" > ");
+    },
+    // human-readable name for a pin row: the element's own text, else a selector
+    labelOf(el) {
+      const t = (el.innerText || el.textContent || "").trim().replace(/\s+/g, " ");
+      if (t) return t.length <= 34 ? t : t.slice(0, 31) + "…";
+      const cls = [...el.classList].filter((c) => !c.startsWith("__dbgov"))[0];
+      return el.tagName.toLowerCase() + (el.id ? "#" + el.id : cls ? "." + cls : "");
+    },
+    /**
+     * `r` is a getter: a rule that only reads colours never pays for a
+     * layout read, which over a whole page is thousands of them. `cs` can be
+     * handed in by a caller that has already read it.
+     */
+    info(el, cs) {
+      let r = null;
+      return {
+        el,
+        cs: cs || getComputedStyle(el),
+        get r() {
+          return r || (r = el.getBoundingClientRect());
+        }
+      };
+    },
+    gap(a, b) {
+      const dx = Math.max(a.left - b.right, b.left - a.right, 0);
+      const dy = Math.max(a.top - b.bottom, b.top - a.bottom, 0);
+      return { dx: Math.round(dx), dy: Math.round(dy), d: Math.round(Math.hypot(dx, dy)) };
+    },
+    rectOf: (x, y, w, h) => ({ l: x, t: y, r: x + w, b: y + h }),
+    overlap: (a, b) => Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) * Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t))
+  };
+
   // src/core/state.js
   var Store = {
     /**
@@ -523,81 +708,195 @@ HOW TO USE
     }
   };
 
-  // src/core/config.js
-  var CONFIG = {
-    // Substituted by build.js at bundle time. A userscript with @grant none
-    // cannot read GM_info, and an overlay that cannot say which version it is
-    // makes a stale install look exactly like a current one — which is the
-    // failure this project has already had once, from the other end.
-    VERSION: "3.8.73",
-    Z: 2147483647,
-    // The step the "grid" tool checks against. 2, not 4, because that is what
-    // the scale in front of us actually is: Tailwind's default spacing has
-    // half-steps (0.5 = 2px, 1.5 = 6px, 2.5 = 10px) and a real page used them
-    // 2,681 times. A rule has to check the scale a project HAS; making the
-    // project match the rule is the wrong way round. Set it to 4 or 8 for a
-    // project that keeps to whole steps.
-    GRID: 2,
-    // Above this, a margin or padding is layout arithmetic rather than a
-    // spacing token. getComputedStyle resolves `margin: auto` to the pixels it
-    // worked out — 1127px on a real page — and nothing distinguishes that from
-    // a value somebody typed. Nobody types 1127px; nobody types past this.
-    GRID_MAX: 96,
-    PEEK: 10,
-    // px of panel visible when tucked
-    TUCK_DELAY: 2200,
-    // ms idle before the panel tucks away
-    EDGE_MARGIN: 8,
-    BADGE_MARGIN: 6,
-    POS_KEY: "__dbgov_pos",
-    TOOLS_KEY: "__dbgov_tools",
-    SETTINGS_KEY: "__dbgov_settings",
-    // Which tool ids this install has already met. Without it a saved armed
-    // set answers for tools that no longer exist and stays silent about ones
-    // shipped since — so a new capability arrives switched off and invisible.
-    SEEN_KEY: "__dbgov_seen",
-    FLASH_MS: 1200,
-    // how long a button shows a transient message
-    LIST_GAP: 10,
-    // px between the bar and the popover it opens
-    LIST_PAD: 6,
-    // px the popover keeps from the viewport edge
-    // No DEFAULT_TOOLS list here any more. It named tool ids in a core file,
-    // so shipping a tool that should start armed meant editing this — the one
-    // place "a new tool is one new file" was not literally true. A tool says
-    // `startsOn: true` about itself instead, and nothing central has to know
-    // the name of anything.
-    // 'pairs' = every measurement takes two clicks (from → to) and the next
-    //           click starts a fresh pair, so a pin is never reused silently.
-    // 'chain' = old behaviour: each pin measures to the previous one.
-    PAIR_MODE: "pairs",
-    // A pin's "kind" names which tool consumes it. Defined once here so the
-    // input layer, controller and renderer never hardcode a tool's id.
-    PIN_KIND: { PLAIN: "note", SHIFT: "measure" },
-    PICK_FLASH: 700,
-    // ms an element stays outlined after being picked
-    LANE_SEP: 16,
-    // px between parallel dimension lines
-    HOTKEY: { alt: true, shift: true, ctrl: false, code: "KeyD" },
-    REMOVE_KEY: "KeyX",
-    // hold to reveal ✕ on pins and click one to remove
-    // `level` is the default the panel starts on; `levels` is what it offers.
-    // The two thresholds move together — a rule that checked AAA for body text
-    // and AA for headings would be neither.
-    CONTRAST: {
-      largePx: 24,
-      largeBoldPx: 18.66,
-      level: "AA",
-      levels: { AA: { normal: 4.5, large: 3 }, AAA: { normal: 7, large: 4.5 } }
+  // src/subjects/geometry.js
+  var Measure = defineSubject({
+    id: "geometry",
+    icon: "📏",
+    // --- lanes: keep parallel dimension lines off each other -------------
+    lanes: { v: [], h: [] },
+    resetLanes() {
+      Measure.lanes = { v: [], h: [] };
     },
-    // Findings vocabulary, shared by every 'rule' tool. The number is only a
-    // rank, so a list of findings reads worst-first.
-    SEVERITY: { error: 3, warn: 2, info: 1 },
-    // Marks drawn per tool per frame. A page can return thousands of findings
-    // and this runs at 60fps, so it is a ceiling on cost, not on truth — the
-    // list and the report still carry every one of them.
-    MARK_LIMIT: 200
-  };
+    /**
+     * Reserve a column (vertical span) or row (horizontal span) at `pos`.
+     * If another span already occupies that position AND their spans overlap
+     * along the measured axis, shift sideways in LANE_SEP steps until clear.
+     * Returns the position actually granted.
+     */
+    reserveLane(vertical, pos, from, to) {
+      const SEP = CONFIG.LANE_SEP;
+      const list = vertical ? Measure.lanes.v : Measure.lanes.h;
+      const lo = Math.min(from, to), hi = Math.max(from, to);
+      const offsets = [0];
+      for (let s = 1; s <= 10; s++) offsets.push(s * SEP, -s * SEP);
+      for (const off of offsets) {
+        const cand = pos + off;
+        const clash = list.some((L) => Math.abs(L.pos - cand) < SEP - 1 && !(hi < L.lo - 2 || lo > L.hi + 2));
+        if (!clash) {
+          list.push({ pos: cand, lo, hi });
+          return cand;
+        }
+      }
+      list.push({ pos, lo, hi });
+      return pos;
+    },
+    // Which axis does this gap actually live on?
+    axisOf(ra, rb) {
+      const xOv = Math.min(ra.right, rb.right) - Math.max(ra.left, rb.left);
+      const yOv = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top);
+      if (xOv > 0 && yOv > 0) return { kind: "overlap", label: "overlap", xOv, yOv };
+      if (xOv > 0) return { kind: "vertical", label: "vertical gap", xOv, yOv };
+      if (yOv > 0) return { kind: "horizontal", label: "horizontal gap", xOv, yOv };
+      return { kind: "diagonal", label: "diagonal gap", xOv, yOv };
+    },
+    // one straight measured span: tick at the start, arrowhead at the target
+    span(layer2, Place2, { x1, y1, x2, y2, text, vertical, endArrow = true }) {
+      const len = vertical ? Math.abs(y2 - y1) : Math.abs(x2 - x1);
+      const dir = vertical ? y2 >= y1 ? "down" : "up" : x2 >= x1 ? "right" : "left";
+      const line = document.createElement("div");
+      line.className = "dbgov-line";
+      if (vertical) {
+        Place2.put(line, Math.round(x1) - 1, Math.min(y1, y2), 2, Math.max(len, 1));
+        Place2.claim(Math.round(x1) - 5, Math.min(y1, y2), 10, Math.max(len, 1));
+      } else {
+        Place2.put(line, Math.min(x1, x2), Math.round(y1) - 1, Math.max(len, 1), 2);
+        Place2.claim(Math.min(x1, x2), Math.round(y1) - 5, Math.max(len, 1), 10);
+      }
+      layer2.append(line);
+      const tick = document.createElement("div");
+      tick.className = "dbgov-cap";
+      if (vertical) Place2.put(tick, Math.round(x1) - 6, Math.round(y1) - 1, 12, 2);
+      else Place2.put(tick, Math.round(x1) - 1, Math.round(y1) - 6, 2, 12);
+      layer2.append(tick);
+      if (endArrow) {
+        const a = document.createElement("div");
+        a.className = "dbgov-arrow " + dir;
+        const P = {
+          up: [Math.round(x2) - 5, Math.round(y2)],
+          down: [Math.round(x2) - 5, Math.round(y2) - 7],
+          left: [Math.round(x2), Math.round(y2) - 5],
+          right: [Math.round(x2) - 7, Math.round(y2) - 5]
+        }[dir];
+        Place2.put(a, P[0], P[1]);
+        layer2.append(a);
+      } else {
+        const c = document.createElement("div");
+        c.className = "dbgov-cap";
+        if (vertical) Place2.put(c, Math.round(x2) - 6, Math.round(y2) - 1, 12, 2);
+        else Place2.put(c, Math.round(x2) - 1, Math.round(y2) - 6, 2, 12);
+        layer2.append(c);
+      }
+      const mx = vertical ? x1 + 12 : (x1 + x2) / 2;
+      const my = vertical ? (y1 + y2) / 2 : y1 - 12;
+      const lbl = document.createElement("div");
+      lbl.className = "dbgov-dist" + (vertical ? " vert" : "");
+      lbl.textContent = text;
+      layer2.append(lbl);
+      Place2.smart(
+        lbl,
+        { left: mx, top: my, right: mx, bottom: my, width: 0, height: 0 },
+        { leader: true }
+      );
+    },
+    // thin dashed line extending an element's edge out to the measured span
+    extension(layer2, Place2, { x1, y1, x2, y2 }) {
+      if (Math.round(x1) === Math.round(x2) && Math.round(y1) === Math.round(y2)) return;
+      const e = document.createElement("div");
+      const horizontal = Math.abs(x2 - x1) >= Math.abs(y2 - y1);
+      e.className = "dbgov-ext" + (horizontal ? "" : " v");
+      if (horizontal) Place2.put(e, Math.min(x1, x2), Math.round(y1), Math.abs(x2 - x1) || 1, 1);
+      else Place2.put(e, Math.round(x1), Math.min(y1, y2), 1, Math.abs(y2 - y1) || 1);
+      layer2.append(e);
+    },
+    // dashed guides running along each element's edge out to a shifted lane
+    guideTo(layer2, Place2, rect, vertical, pos, edgeCoord) {
+      if (vertical) {
+        const clamped = Math.max(rect.left, Math.min(pos, rect.right));
+        Measure.extension(layer2, Place2, { x1: clamped, y1: edgeCoord, x2: pos, y2: edgeCoord });
+      } else {
+        const clamped = Math.max(rect.top, Math.min(pos, rect.bottom));
+        Measure.extension(layer2, Place2, { x1: edgeCoord, y1: clamped, x2: edgeCoord, y2: pos });
+      }
+    },
+    dimension(layer2, Place2, ra, rb, tag) {
+      const axis = Measure.axisOf(ra, rb);
+      const g = U.gap(ra, rb);
+      if (axis.kind === "overlap") {
+        const lbl = document.createElement("div");
+        lbl.className = "dbgov-dist";
+        lbl.textContent = `${tag} · overlapping`;
+        layer2.append(lbl);
+        const mx = (Math.max(ra.left, rb.left) + Math.min(ra.right, rb.right)) / 2;
+        const my = (Math.max(ra.top, rb.top) + Math.min(ra.bottom, rb.bottom)) / 2;
+        Place2.smart(lbl, { left: mx, top: my, right: mx, bottom: my, width: 0, height: 0 });
+        return;
+      }
+      if (axis.kind === "vertical") {
+        const down2 = rb.top >= ra.bottom;
+        const y1 = down2 ? ra.bottom : ra.top;
+        const y2 = down2 ? rb.top : rb.bottom;
+        const mid = (Math.max(ra.left, rb.left) + Math.min(ra.right, rb.right)) / 2;
+        const x = Measure.reserveLane(true, mid, y1, y2);
+        Measure.guideTo(layer2, Place2, ra, true, x, y1);
+        Measure.guideTo(layer2, Place2, rb, true, x, y2);
+        Measure.span(layer2, Place2, {
+          x1: x,
+          y1,
+          x2: x,
+          y2,
+          vertical: true,
+          text: `${tag} · ${down2 ? "↓" : "↑"} ${g.dy} px`
+        });
+        return;
+      }
+      if (axis.kind === "horizontal") {
+        const right2 = rb.left >= ra.right;
+        const x1 = right2 ? ra.right : ra.left;
+        const x2 = right2 ? rb.left : rb.right;
+        const mid = (Math.max(ra.top, rb.top) + Math.min(ra.bottom, rb.bottom)) / 2;
+        const y = Measure.reserveLane(false, mid, x1, x2);
+        Measure.guideTo(layer2, Place2, ra, false, y, x1);
+        Measure.guideTo(layer2, Place2, rb, false, y, x2);
+        Measure.span(layer2, Place2, {
+          x1,
+          y1: y,
+          x2,
+          y2: y,
+          vertical: false,
+          text: `${tag} · ${right2 ? "→" : "←"} ${g.dx} px`
+        });
+        return;
+      }
+      const right = rb.left >= ra.right;
+      const down = rb.top >= ra.bottom;
+      const hx1 = right ? ra.right : ra.left;
+      const hx2 = right ? rb.left : rb.right;
+      const hy = Measure.reserveLane(false, (ra.top + ra.bottom) / 2, hx1, hx2);
+      const vy1 = down ? ra.bottom : ra.top;
+      const vy2 = down ? rb.top : rb.bottom;
+      const vx = Measure.reserveLane(true, right ? rb.left : rb.right, vy1, vy2);
+      Measure.guideTo(layer2, Place2, ra, false, hy, hx1);
+      Measure.guideTo(layer2, Place2, rb, false, hy, hx2);
+      Measure.guideTo(layer2, Place2, ra, true, vx, vy1);
+      Measure.guideTo(layer2, Place2, rb, true, vx, vy2);
+      Measure.span(layer2, Place2, {
+        x1: hx1,
+        y1: hy,
+        x2: hx2,
+        y2: hy,
+        vertical: false,
+        text: `${tag} · ${right ? "→" : "←"} ${g.dx} px`
+      });
+      Measure.span(layer2, Place2, {
+        x1: vx,
+        y1: vy1,
+        x2: vx,
+        y2: vy2,
+        vertical: true,
+        text: `${tag} · ${down ? "↓" : "↑"} ${g.dy} px`
+      });
+    }
+  });
 
   // src/tools/colour/contrast/service.js
   var Colour = defineSubject({
@@ -962,113 +1261,6 @@ HOW TO USE
     draw: draw2
   });
 
-  // src/core/utils.js
-  var U = {
-    /**
-     * Math.round breaks ties toward +Infinity, so +2.5 became 3 (off a 2px
-     * grid) and -2.5 became -2 (on it) — the SIGN of a half-pixel decided the
-     * verdict rather than its distance from the grid. Fractional computed
-     * margins are ordinary on fractional-DPR displays. Half away from zero
-     * treats a margin and its mirror image alike.
-     */
-    px: (v) => {
-      const n = parseFloat(v) || 0;
-      return Math.sign(n) * Math.round(Math.abs(n));
-    },
-    /**
-     * Anything the PAGE controls has to come through here before it is
-     * interpolated into badge markup, because badges reach the DOM through
-     * innerHTML. An element's id is page-authored text, and a hostile — or
-     * merely careless — one closed the span and opened a tag of its own.
-     */
-    esc: (s) => String(s).replace(
-      /[&<>"']/g,
-      (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]
-    ),
-    // `dec` is a decorator, (n) => html, handed in by the caller. UTILS never
-    // reads State, and never learns what decorating a number means.
-    mark: (n, dec) => dec ? dec(n) : `${n}`,
-    four(cs, prop, dec) {
-      const t = U.px(cs[prop + "Top"]), r = U.px(cs[prop + "Right"]), b = U.px(cs[prop + "Bottom"]), l = U.px(cs[prop + "Left"]);
-      if (!t && !r && !b && !l) return null;
-      if (t === b && r === l)
-        return t === r ? [U.mark(t, dec)] : [U.mark(t, dec), U.mark(r, dec)];
-      return [U.mark(t, dec), U.mark(r, dec), U.mark(b, dec), U.mark(l, dec)];
-    },
-    fourPlain(cs, prop) {
-      return {
-        t: U.px(cs[prop + "Top"]),
-        r: U.px(cs[prop + "Right"]),
-        b: U.px(cs[prop + "Bottom"]),
-        l: U.px(cs[prop + "Left"])
-      };
-    },
-    radius(cs) {
-      const c = ["TopLeft", "TopRight", "BottomRight", "BottomLeft"].map((k) => U.px(cs["border" + k + "Radius"]));
-      if (!c.some(Boolean)) return null;
-      return c.every((v) => v === c[0]) ? `${c[0]}` : c.join("/");
-    },
-    /**
-     * An id a person chose is the best address there is. A generated one is
-     * the worst: React and base-ui emit things like `base-ui-:r1t9:`, which
-     * changes on the next render, so a report that says #base-ui-:r1t9: names
-     * an element nobody can find twice. A bare CSS identifier is the test —
-     * a colon is not legal in one unescaped, so nobody typed it.
-     */
-    stableId: (id) => /^[A-Za-z][\w-]*$/.test(id),
-    selectorOf(el) {
-      const part = (e2) => {
-        if (e2.id && U.stableId(e2.id)) return "#" + e2.id;
-        let s = e2.tagName.toLowerCase();
-        const cls = [...e2.classList].filter((c) => !c.startsWith("__dbgov")).slice(0, 2);
-        if (cls.length) s += "." + cls.join(".");
-        const p = e2.parentElement;
-        if (p) {
-          const same = [...p.children].filter((x) => x.tagName === e2.tagName);
-          if (same.length > 1) s += `:nth-of-type(${same.indexOf(e2) + 1})`;
-        }
-        return s;
-      };
-      const chain = [];
-      let e = el;
-      while (e && e.tagName && chain.length < 3) {
-        chain.unshift(part(e));
-        if (e.id && U.stableId(e.id)) break;
-        e = e.parentElement;
-      }
-      return chain.join(" > ");
-    },
-    // human-readable name for a pin row: the element's own text, else a selector
-    labelOf(el) {
-      const t = (el.innerText || el.textContent || "").trim().replace(/\s+/g, " ");
-      if (t) return t.length <= 34 ? t : t.slice(0, 31) + "…";
-      const cls = [...el.classList].filter((c) => !c.startsWith("__dbgov"))[0];
-      return el.tagName.toLowerCase() + (el.id ? "#" + el.id : cls ? "." + cls : "");
-    },
-    /**
-     * `r` is a getter: a rule that only reads colours never pays for a
-     * layout read, which over a whole page is thousands of them. `cs` can be
-     * handed in by a caller that has already read it.
-     */
-    info(el, cs) {
-      let r = null;
-      return {
-        el,
-        cs: cs || getComputedStyle(el),
-        get r() {
-          return r || (r = el.getBoundingClientRect());
-        }
-      };
-    },
-    gap(a, b) {
-      const dx = Math.max(a.left - b.right, b.left - a.right, 0);
-      const dy = Math.max(a.top - b.bottom, b.top - a.bottom, 0);
-      return { dx: Math.round(dx), dy: Math.round(dy), d: Math.round(Math.hypot(dx, dy)) };
-    },
-    rectOf: (x, y, w, h) => ({ l: x, t: y, r: x + w, b: y + h }),
-    overlap: (a, b) => Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) * Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t))
-  };
-
   // src/tools/geometry/measure/badge.js
   function badge3(i) {
     const { el, r, cs } = i;
@@ -1123,194 +1315,6 @@ HOW TO USE
       { key: "tag", label: "Tag & id", def: true, type: "toggle", affects: "inspect" }
     ];
   }
-
-  // src/core/geometry.js
-  var Measure = {
-    // --- lanes: keep parallel dimension lines off each other -------------
-    lanes: { v: [], h: [] },
-    resetLanes() {
-      Measure.lanes = { v: [], h: [] };
-    },
-    /**
-     * Reserve a column (vertical span) or row (horizontal span) at `pos`.
-     * If another span already occupies that position AND their spans overlap
-     * along the measured axis, shift sideways in LANE_SEP steps until clear.
-     * Returns the position actually granted.
-     */
-    reserveLane(vertical, pos, from, to) {
-      const SEP = CONFIG.LANE_SEP;
-      const list = vertical ? Measure.lanes.v : Measure.lanes.h;
-      const lo = Math.min(from, to), hi = Math.max(from, to);
-      const offsets = [0];
-      for (let s = 1; s <= 10; s++) offsets.push(s * SEP, -s * SEP);
-      for (const off of offsets) {
-        const cand = pos + off;
-        const clash = list.some((L) => Math.abs(L.pos - cand) < SEP - 1 && !(hi < L.lo - 2 || lo > L.hi + 2));
-        if (!clash) {
-          list.push({ pos: cand, lo, hi });
-          return cand;
-        }
-      }
-      list.push({ pos, lo, hi });
-      return pos;
-    },
-    // Which axis does this gap actually live on?
-    axisOf(ra, rb) {
-      const xOv = Math.min(ra.right, rb.right) - Math.max(ra.left, rb.left);
-      const yOv = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top);
-      if (xOv > 0 && yOv > 0) return { kind: "overlap", label: "overlap", xOv, yOv };
-      if (xOv > 0) return { kind: "vertical", label: "vertical gap", xOv, yOv };
-      if (yOv > 0) return { kind: "horizontal", label: "horizontal gap", xOv, yOv };
-      return { kind: "diagonal", label: "diagonal gap", xOv, yOv };
-    },
-    // one straight measured span: tick at the start, arrowhead at the target
-    span(layer2, Place2, { x1, y1, x2, y2, text, vertical, endArrow = true }) {
-      const len = vertical ? Math.abs(y2 - y1) : Math.abs(x2 - x1);
-      const dir = vertical ? y2 >= y1 ? "down" : "up" : x2 >= x1 ? "right" : "left";
-      const line = document.createElement("div");
-      line.className = "dbgov-line";
-      if (vertical) {
-        Place2.put(line, Math.round(x1) - 1, Math.min(y1, y2), 2, Math.max(len, 1));
-        Place2.claim(Math.round(x1) - 5, Math.min(y1, y2), 10, Math.max(len, 1));
-      } else {
-        Place2.put(line, Math.min(x1, x2), Math.round(y1) - 1, Math.max(len, 1), 2);
-        Place2.claim(Math.min(x1, x2), Math.round(y1) - 5, Math.max(len, 1), 10);
-      }
-      layer2.append(line);
-      const tick = document.createElement("div");
-      tick.className = "dbgov-cap";
-      if (vertical) Place2.put(tick, Math.round(x1) - 6, Math.round(y1) - 1, 12, 2);
-      else Place2.put(tick, Math.round(x1) - 1, Math.round(y1) - 6, 2, 12);
-      layer2.append(tick);
-      if (endArrow) {
-        const a = document.createElement("div");
-        a.className = "dbgov-arrow " + dir;
-        const P = {
-          up: [Math.round(x2) - 5, Math.round(y2)],
-          down: [Math.round(x2) - 5, Math.round(y2) - 7],
-          left: [Math.round(x2), Math.round(y2) - 5],
-          right: [Math.round(x2) - 7, Math.round(y2) - 5]
-        }[dir];
-        Place2.put(a, P[0], P[1]);
-        layer2.append(a);
-      } else {
-        const c = document.createElement("div");
-        c.className = "dbgov-cap";
-        if (vertical) Place2.put(c, Math.round(x2) - 6, Math.round(y2) - 1, 12, 2);
-        else Place2.put(c, Math.round(x2) - 1, Math.round(y2) - 6, 2, 12);
-        layer2.append(c);
-      }
-      const mx = vertical ? x1 + 12 : (x1 + x2) / 2;
-      const my = vertical ? (y1 + y2) / 2 : y1 - 12;
-      const lbl = document.createElement("div");
-      lbl.className = "dbgov-dist" + (vertical ? " vert" : "");
-      lbl.textContent = text;
-      layer2.append(lbl);
-      Place2.smart(
-        lbl,
-        { left: mx, top: my, right: mx, bottom: my, width: 0, height: 0 },
-        { leader: true }
-      );
-    },
-    // thin dashed line extending an element's edge out to the measured span
-    extension(layer2, Place2, { x1, y1, x2, y2 }) {
-      if (Math.round(x1) === Math.round(x2) && Math.round(y1) === Math.round(y2)) return;
-      const e = document.createElement("div");
-      const horizontal = Math.abs(x2 - x1) >= Math.abs(y2 - y1);
-      e.className = "dbgov-ext" + (horizontal ? "" : " v");
-      if (horizontal) Place2.put(e, Math.min(x1, x2), Math.round(y1), Math.abs(x2 - x1) || 1, 1);
-      else Place2.put(e, Math.round(x1), Math.min(y1, y2), 1, Math.abs(y2 - y1) || 1);
-      layer2.append(e);
-    },
-    // dashed guides running along each element's edge out to a shifted lane
-    guideTo(layer2, Place2, rect, vertical, pos, edgeCoord) {
-      if (vertical) {
-        const clamped = Math.max(rect.left, Math.min(pos, rect.right));
-        Measure.extension(layer2, Place2, { x1: clamped, y1: edgeCoord, x2: pos, y2: edgeCoord });
-      } else {
-        const clamped = Math.max(rect.top, Math.min(pos, rect.bottom));
-        Measure.extension(layer2, Place2, { x1: edgeCoord, y1: clamped, x2: edgeCoord, y2: pos });
-      }
-    },
-    dimension(layer2, Place2, ra, rb, tag) {
-      const axis = Measure.axisOf(ra, rb);
-      const g = U.gap(ra, rb);
-      if (axis.kind === "overlap") {
-        const lbl = document.createElement("div");
-        lbl.className = "dbgov-dist";
-        lbl.textContent = `${tag} · overlapping`;
-        layer2.append(lbl);
-        const mx = (Math.max(ra.left, rb.left) + Math.min(ra.right, rb.right)) / 2;
-        const my = (Math.max(ra.top, rb.top) + Math.min(ra.bottom, rb.bottom)) / 2;
-        Place2.smart(lbl, { left: mx, top: my, right: mx, bottom: my, width: 0, height: 0 });
-        return;
-      }
-      if (axis.kind === "vertical") {
-        const down2 = rb.top >= ra.bottom;
-        const y1 = down2 ? ra.bottom : ra.top;
-        const y2 = down2 ? rb.top : rb.bottom;
-        const mid = (Math.max(ra.left, rb.left) + Math.min(ra.right, rb.right)) / 2;
-        const x = Measure.reserveLane(true, mid, y1, y2);
-        Measure.guideTo(layer2, Place2, ra, true, x, y1);
-        Measure.guideTo(layer2, Place2, rb, true, x, y2);
-        Measure.span(layer2, Place2, {
-          x1: x,
-          y1,
-          x2: x,
-          y2,
-          vertical: true,
-          text: `${tag} · ${down2 ? "↓" : "↑"} ${g.dy} px`
-        });
-        return;
-      }
-      if (axis.kind === "horizontal") {
-        const right2 = rb.left >= ra.right;
-        const x1 = right2 ? ra.right : ra.left;
-        const x2 = right2 ? rb.left : rb.right;
-        const mid = (Math.max(ra.top, rb.top) + Math.min(ra.bottom, rb.bottom)) / 2;
-        const y = Measure.reserveLane(false, mid, x1, x2);
-        Measure.guideTo(layer2, Place2, ra, false, y, x1);
-        Measure.guideTo(layer2, Place2, rb, false, y, x2);
-        Measure.span(layer2, Place2, {
-          x1,
-          y1: y,
-          x2,
-          y2: y,
-          vertical: false,
-          text: `${tag} · ${right2 ? "→" : "←"} ${g.dx} px`
-        });
-        return;
-      }
-      const right = rb.left >= ra.right;
-      const down = rb.top >= ra.bottom;
-      const hx1 = right ? ra.right : ra.left;
-      const hx2 = right ? rb.left : rb.right;
-      const hy = Measure.reserveLane(false, (ra.top + ra.bottom) / 2, hx1, hx2);
-      const vy1 = down ? ra.bottom : ra.top;
-      const vy2 = down ? rb.top : rb.bottom;
-      const vx = Measure.reserveLane(true, right ? rb.left : rb.right, vy1, vy2);
-      Measure.guideTo(layer2, Place2, ra, false, hy, hx1);
-      Measure.guideTo(layer2, Place2, rb, false, hy, hx2);
-      Measure.guideTo(layer2, Place2, ra, true, vx, vy1);
-      Measure.guideTo(layer2, Place2, rb, true, vx, vy2);
-      Measure.span(layer2, Place2, {
-        x1: hx1,
-        y1: hy,
-        x2: hx2,
-        y2: hy,
-        vertical: false,
-        text: `${tag} · ${right ? "→" : "←"} ${g.dx} px`
-      });
-      Measure.span(layer2, Place2, {
-        x1: vx,
-        y1: vy1,
-        x2: vx,
-        y2: vy2,
-        vertical: true,
-        text: `${tag} · ${down ? "↓" : "↑"} ${g.dy} px`
-      });
-    }
-  };
 
   // src/tools/geometry/measure/report.js
   function report3({ r, cs }) {

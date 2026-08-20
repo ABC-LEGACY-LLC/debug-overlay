@@ -1,4 +1,4 @@
-import { Measure } from '../../../core/geometry.js';
+import { Measure } from '../../../subjects/geometry.js';
 
 // dimension lines between grouped pins
 export function draw({ layer, Place }) {

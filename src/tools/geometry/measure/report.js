@@ -1,4 +1,4 @@
-import { Measure } from '../../../core/geometry.js';
+import { Measure } from '../../../subjects/geometry.js';
 import { U } from '../../../core/utils.js';
 
 export function report({ r, cs }) {

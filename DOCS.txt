@@ -56,7 +56,9 @@ HOW TO USE
     ⬚ select    how pinned elements group up — pairs or a chain. Pairing
                  lives here and not in measure, so a new way of selecting is
                  one new file and everything that measures picks it up.
-    📐 measure   sizes, radius, padding/margin, gap, font, and the distance
+    📏 geometry  the geometry family — one button; click it and its members
+                 slide out sideways:
+       📐 measure  sizes, radius, padding/margin, gap, font, and the distance
                  between whatever the selection tools have grouped. Right-click
                  it to choose which of those the badge shows — a full badge is
                  a lot of ink over a page you came to read one number off. The
@@ -116,7 +118,7 @@ HOW TO USE
     tools/<n>/         ⭐ one folder per armable tool — index registers, the
                        hook files sit beside it, service.js is its backend
     services/          badge, findings, report, settings — the collectors
-    subjects/          a backend shared by two components (none today)
+    subjects/          a backend shared by two tools — geometry.js
     core/              config, state+Store, utils, geometry, registry
     ui/                styles, dom, controls, list, panel, placement, renderer
     app/               interactions, controller

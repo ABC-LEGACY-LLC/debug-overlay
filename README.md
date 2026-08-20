@@ -171,8 +171,9 @@ src/
     select/            index · service · rows
   services/            the four collectors — never edited for a new tool
     badge/  findings/  report/  settings/
-  subjects/            a backend shared by TWO components (empty today)
-  core/                config · state+Store · utils · geometry · registry
+  subjects/
+    geometry.js        shared drawing maths — measure and select both consult it
+  core/                config · state+Store · utils · registry
   ui/                  styles · dom · controls · list · panel · placement
                        · renderer
   app/                 interactions · controller
@@ -213,7 +214,7 @@ backend), never by editing anything outside it.
   `t.id === 'grid'`. A lens reaches the tools; the tools never reach back.
 - Every name in `HOOKS` is consumed by some file — no hook exists that
   nothing would ever call.
-- `core/geometry.js` knows only rectangles, never tools or the panel.
+- `subjects/geometry.js` knows only rectangles, never tools or the panel.
 - `ui/panel.js` never touches state and never learns what a "pair" is.
 - `ui/renderer.js`, `app/interactions.js`, `app/controller.js` never hardcode a
   tool id; they go through hooks and `CONFIG.PIN_KIND`.
