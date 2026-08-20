@@ -53,7 +53,10 @@ HOW TO USE
                         setting and nothing on screen would say so. Press ⌕
                         again to re-audit.
   ⧉ ................... copy structured report → paste into Claude with a screenshot
-  Count chip .......... click the pin count to open the pin list: every pin and
+  Count chip .......... sits right under 📌 — the keeper and its count are one
+                        home, and the number rests in the bar where a flyout
+                        would have hidden it.
+                        Click the pin count to open the pin list: every pin and
                         measured pair in one place, even ones scrolled off
                         screen. Click a row to scroll to it and flash it; click
                         its ✕ to remove (a pair row removes both). Click the
@@ -128,7 +131,8 @@ HOW TO USE
 
   The rules between the buttons mark the PIPELINE, top to bottom: the input
   side (📌 pin, ⬚ select, ⌖ pick — what your clicks become), then the components
-  (what describes the page), then ⌕ and ⚙, then the pins/copy/clear band. A
+  (what describes the page), then ⌕ and ⚙, then the copy/clear band — the pin
+  count sits up with 📌, whose home it is. A
   green dot on a tool means its rule feeds ⌕. Arming decides what you SEE;
   ⌕ checks every rule either way, so a toggle you forgot can never quietly
   shorten an audit.

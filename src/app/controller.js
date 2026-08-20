@@ -199,6 +199,15 @@ import { Render } from '../ui/renderer.js';
       Store.set(CONFIG.SEEN_KEY, JSON.stringify([...registered].sort()));  // a SET, stored stably
       State.tools = new Set(ids.filter((id) => Tools.byId(id)));
       TOOLS.forEach((t) => Panel.setTool(t.id, State.tools.has(t.id)));
+      /* The pin COUNT lives with the KEEPER — one home for pin things,
+         instead of the on/off at the top of the bar and "1 pinned" four
+         bands below it. A capability question, not an id: whichever tool
+         keeps selections gets the chip beside it, armed or not (kept pins
+         outlive disarming), and if none exists the chip stays where the
+         template put it. The id crosses to the panel opaquely, like a
+         `tool:` view name. The count itself still RESTS in the bar — a
+         flyout would have hidden the one number that must stay visible. */
+      Panel.attachCount(Tools.withHook('keeps', false)[0]?.id ?? null);
     },
 
     /**

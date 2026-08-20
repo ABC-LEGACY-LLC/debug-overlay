@@ -147,6 +147,16 @@ import { List } from './list.js';
         if (!v) api.toggleList(false);
         if (v) { clearTimeout(tuckTimer); untuck(); } else scheduleTuck();
       },
+      /**
+       * Move the pin-count chip to sit right after one tool's button — the
+       * controller says which, by an id this file hands straight back the
+       * way it hands back view names. Null (no such tool registered) leaves
+       * the chip where the template put it, so this cannot strand it.
+       */
+      attachCount(toolId) {
+        const t = toolId && el.querySelector(`[data-tool="${toolId}"]`);
+        if (t) t.insertAdjacentElement('afterend', el.querySelector('[data-c]'));
+      },
       setTool(id, v) {
         const b = el.querySelector(`[data-tool="${id}"]`);
         b?.classList.toggle('armed', v);

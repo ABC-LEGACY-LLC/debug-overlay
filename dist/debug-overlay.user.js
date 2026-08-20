@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.76
+// @version      3.8.77
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -69,7 +69,10 @@ HOW TO USE
                         setting and nothing on screen would say so. Press ⌕
                         again to re-audit.
   ⧉ ................... copy structured report → paste into Claude with a screenshot
-  Count chip .......... click the pin count to open the pin list: every pin and
+  Count chip .......... sits right under 📌 — the keeper and its count are one
+                        home, and the number rests in the bar where a flyout
+                        would have hidden it.
+                        Click the pin count to open the pin list: every pin and
                         measured pair in one place, even ones scrolled off
                         screen. Click a row to scroll to it and flash it; click
                         its ✕ to remove (a pair row removes both). Click the
@@ -144,7 +147,8 @@ HOW TO USE
 
   The rules between the buttons mark the PIPELINE, top to bottom: the input
   side (📌 pin, ⬚ select, ⌖ pick — what your clicks become), then the components
-  (what describes the page), then ⌕ and ⚙, then the pins/copy/clear band. A
+  (what describes the page), then ⌕ and ⚙, then the copy/clear band — the pin
+  count sits up with 📌, whose home it is. A
   green dot on a tool means its rule feeds ⌕. Arming decides what you SEE;
   ⌕ checks every rule either way, so a toggle you forgot can never quietly
   shorten an audit.
@@ -293,7 +297,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.76",
+    VERSION: "3.8.77",
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -2357,6 +2361,16 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
             untuck();
           } else scheduleTuck();
         },
+        /**
+         * Move the pin-count chip to sit right after one tool's button — the
+         * controller says which, by an id this file hands straight back the
+         * way it hands back view names. Null (no such tool registered) leaves
+         * the chip where the template put it, so this cannot strand it.
+         */
+        attachCount(toolId) {
+          const t = toolId && el.querySelector(`[data-tool="${toolId}"]`);
+          if (t) t.insertAdjacentElement("afterend", el.querySelector("[data-c]"));
+        },
         setTool(id, v) {
           const b = el.querySelector(`[data-tool="${id}"]`);
           b?.classList.toggle("armed", v);
@@ -3571,6 +3585,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       Store.set(CONFIG.SEEN_KEY, JSON.stringify([...registered].sort()));
       State.tools = new Set(ids.filter((id) => Tools.byId(id)));
       TOOLS.forEach((t) => Panel.setTool(t.id, State.tools.has(t.id)));
+      Panel.attachCount(Tools.withHook("keeps", false)[0]?.id ?? null);
     },
     /**
      * Every path that adds or removes a pin ends here.

@@ -1773,6 +1773,13 @@ console.log('\nSELECTION CHOOSES, PIN KEEPS');
     rep1.split('\n').find((l) => l.startsWith('[')) || 'no selection block');
   ok('and the next selection replaced the last — #a let go',
     !/\[selected\] #a/.test(rep1), 'both #a and #b reported');
+  // one home for pin things: the count chip sits right after the keeper's
+  // button, wherever that tool is — attached by capability, not by id
+  ok('the pin count chip lives with the keeper',
+    w1.document.querySelector('#__dbgov-bar [data-c]')
+      .previousElementSibling?.dataset.tool === 'pin',
+    'chip follows: ' + (w1.document.querySelector('#__dbgov-bar [data-c]')
+      .previousElementSibling?.dataset.tool || 'nothing'));
   pendingChecks.push(() => {
     ok('on the page: one outline and NO number chip',
       w1.document.querySelectorAll('#__dbgov-root .dbgov-pinbox').length === 1 &&
