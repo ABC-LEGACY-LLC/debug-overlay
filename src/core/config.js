@@ -45,15 +45,17 @@
     // place "a new tool is one new file" was not literally true. A tool says
     // `startsOn: true` about itself instead, and nothing central has to know
     // the name of anything.
-    // 'pairs' = every measurement takes two clicks (from → to) and the next
-    //           click starts a fresh pair, so a pin is never reused silently.
-    // 'chain' = old behaviour: each pin measures to the previous one.
-    PAIR_MODE: 'pairs',
     // A pin's "kind" names the SELECTION the user made, never a consumer —
     // 'pair' used to be 'measure', which claimed one tool owned selection's
     // pins and leaked that id into a CSS class and the report text. Defined
     // once here so the input layer, controller and renderer share one word.
-    PIN_KIND: { PLAIN: 'note', SHIFT: 'pair' },
+    //
+    // pair and link replaced the 'Pin grouping' MODE. A technique is a
+    // GESTURE, not a mode: Shift+click pairs, Ctrl/⌘+Shift+click chains to
+    // the previous pin, and the two mix in one session — a mode switch made
+    // the same finger do different things on different days, and two clicks
+    // looked identical until the third betrayed which mode was on.
+    PIN_KIND: { PLAIN: 'note', SHIFT: 'pair', CHAIN: 'link' },
     PICK_FLASH: 700,          // ms an element stays outlined after being picked
     LANE_SEP: 16,             // px between parallel dimension lines
     HOTKEY: { alt: true, shift: true, ctrl: false, code: 'KeyD' },

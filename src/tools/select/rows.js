@@ -21,7 +21,7 @@ export function listRows() {
                    detail, pins: [A, B] };
         });
         if (pending) rows.push({ tag: `#${pending.id}…`, label: U.labelOf(pending.el),
-                                 detail: 'pick its pair', pins: [pending] });
+                                 detail: 'pick its pair, or chain to it', pins: [pending] });
         return rows;
 }
 

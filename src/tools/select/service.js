@@ -1,4 +1,3 @@
-import { CONFIG } from '../../core/config.js';
 import { State } from '../../core/state.js';
 
 /**
@@ -9,10 +8,6 @@ import { State } from '../../core/state.js';
  * belong together, and hands that to whoever wants to say something
  * about the pair.
  */
-export function options() {
-        return [{ key: 'mode', label: 'Pin grouping', def: CONFIG.PAIR_MODE,
-                  values: ['pairs', 'chain'], affects: 'select' }];
-}
 
 /** Hook: what is grouped, for anything that draws or reports BETWEEN
  *  elements. Consumers never learn who grouped them. */
@@ -22,4 +17,12 @@ export function groups() { return this._form().groups; }
 export function pendingIndex() {
         const { pending } = this._form();
         return pending ? State.pins.indexOf(pending) : -1;
+}
+
+/** The chain technique's own gesture, declared where the gesture lives.
+ *  Shift+click is core's row in the KEYS legend already — only what this
+ *  tool ADDS is declared here. */
+export function gestures() {
+        return [{ keys: 'Ctrl/⌘+Shift+click',
+                  does: 'chain to the previous pin — repeat for ①─②─③' }];
 }

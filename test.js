@@ -909,8 +909,11 @@ console.log('\nCATEGORIES');
   // ---- the ⚙ view, filed by what each setting changes ---------------------
   hit('[data-settings]');
   const heads = [...list.querySelectorAll('.head')].map((h) => h.childNodes[0].textContent);
+  // No Select heading since 'Pin grouping' retired: a technique is a gesture
+  // now, and a heading with no settings under it would be furniture. It comes
+  // back the day some tool declares an affects:'select' option.
   ok('the ⚙ view is grouped by what a setting changes',
-    heads.join(' → ') === 'Select → Inspect → Detect → Act → Keys',
+    heads.join(' → ') === 'Inspect → Detect → Act → Keys',
     heads.join(' → ') || '(no headings)');
   // the grid rows are not adjacent to each other because they own the tool —
   // they are adjacent because all three change what counts as a problem
@@ -1043,19 +1046,9 @@ console.log('\nREGRESSIONS');
     valueOf('Grid step') === '8px', String(valueOf('Grid step')));
   ok('and so is the one that moved with it',
     valueOf('WCAG level') === 'AAA', String(valueOf('WCAG level')));
-  // a tool can change owner too: `mode` was measure's before the select split
-  const dm = new JSDOM('<!doctype html><html><body><div id="x">x</div></body></html>', opts);
-  dm.window.localStorage.setItem('__dbgov_settings', '{"measure":{"mode":"chain"}}');
-  dm.window.eval(source);
-  dm.window.dispatchEvent(new dm.window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
-  dm.window.document.getElementById('__dbgov-bar').querySelector('[data-settings]')
-    .dispatchEvent(new dm.window.MouseEvent('click', { bubbles: true }));
-  const modeRow = [...dm.window.document.querySelectorAll('#__dbgov-list .row')]
-    .find((r) => r.querySelector('.lbl').textContent === 'Pin grouping');
-  ok('an option that changed OWNER is adopted too',
-    modeRow.querySelector('select').selectedOptions[0].textContent === 'chain',
-    modeRow.querySelector('select').selectedOptions[0].textContent);
-  dm.window.close();
+  // (the tool-changed-owner case — select's `mode`, was measure's — retired
+  //  with the 'Pin grouping' setting itself: a technique is a gesture now.
+  //  The was: mechanism stays covered by the two subject adoptions above.)
   du.window.close();
 }
 
@@ -1169,7 +1162,7 @@ console.log('\nREVIEW FIXES');
   wk.dispatchEvent(new wk.KeyboardEvent('keydown', { ...hot, bubbles: true }));
   barK.querySelector('[data-settings]').dispatchEvent(new wk.MouseEvent('click', { bubbles: true }));
   const selK = [...wk.document.querySelectorAll('#__dbgov-list .row')]
-    .find((r) => r.querySelector('.lbl').textContent === 'Pin grouping').querySelector('select');
+    .find((r) => r.querySelector('.lbl').textContent === 'WCAG level').querySelector('select');
   selK.selectedIndex = 1; selK.dispatchEvent(new wk.Event('change'));
   ok('a setting whose owner this build does not know is not destroyed',
     /"ghost"/.test(wk.localStorage.getItem('__dbgov_settings') || ''),
@@ -1758,6 +1751,30 @@ console.log('\nSELECTION CHOOSES, PIN KEEPS');
     /\[#1\] \(note\)/.test(rep5),
     rep5.split('\n').find((l) => l.startsWith('[')) || 'nothing reported');
   w5.close();
+
+  // 6) a technique is a GESTURE, not a mode — pairs and chains mix in one
+  // session. Shift+click pairs ①②, a fresh Shift+click opens ③, and two
+  // Ctrl+Shift+clicks chain ③─④─⑤. The retired 'Pin grouping' mode could
+  // only ever do one of these per session.
+  const w6 = boot(['measure', 'select', 'pin'], idsOnDisk,
+    '<div id="a">a</div><div id="b">b</div><div id="c">c</div>' +
+    '<div id="d">d</div><div id="e">e</div>');
+  clickOn(w6, 'a', { shiftKey: true });
+  clickOn(w6, 'b', { shiftKey: true });
+  clickOn(w6, 'c', { shiftKey: true });
+  clickOn(w6, 'd', { shiftKey: true, ctrlKey: true });
+  clickOn(w6, 'e', { shiftKey: true, ctrlKey: true });
+  const rep6 = copyText(w6) || '';
+  ok('a chained pin reports as (link)',
+    /\(link\)/.test(rep6),
+    rep6.match(/\((note|pair|link)\)/g)?.join(' ') || 'no pins');
+  ok('one session holds a pair AND a chain',
+    /\[#1 → #2\]/.test(rep6) && /\[#3 → #4\]/.test(rep6) && /\[#4 → #5\]/.test(rep6),
+    rep6.match(/\[#\d → #\d\]/g)?.join(' ') || 'no measurements');
+  ok('and the pair boundary held — nothing measured #2 to #3',
+    !/\[#2 → #3\]/.test(rep6),
+    'the third click was chained to the pair it should have started fresh from');
+  w6.close();
 }
 
 console.log('\nFAMILY FLYOUT');

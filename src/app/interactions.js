@@ -150,16 +150,23 @@ import { Render } from '../ui/renderer.js';
            keeper armed, every click is a bare selection: it replaces the
            previous one and the page never accumulates anything. */
         if (!Tools.withHook('keeps', true).length) { ctl.setCurrent(el); return; }
-        /* A SHIFT pin exists to be grouped and measured. With no armed tool
-           publishing groups there is nothing to group it, so it used to sit
-           there numbered and lime — promising a measurement that could never
-           arrive, which is what "it just counts 1, 2, 3, 4" was. Ask whether
-           anyone is listening; if not, a shift-click is simply a pin.
+        /* A selection pin exists to be grouped and measured. With no armed
+           tool publishing groups there is nothing to group it, so it used to
+           sit there numbered and lime — promising a measurement that could
+           never arrive. Ask whether anyone is listening; if not, a modified
+           click is simply a pin. A capability question, not an id: whatever
+           publishes groups tomorrow answers it without this file learning a
+           name.
 
-           A capability question, not an id: whatever publishes groups tomorrow
-           answers it without this file learning a name. */
+           The TECHNIQUE is the gesture, never a mode: Shift+click pairs,
+           Ctrl/⌘+Shift+click chains to the previous pin, and the two mix in
+           one session. Ctrl+Shift reaches here because pick claims Ctrl
+           WITHOUT Shift — both files hold their half of that line. */
         const grouped = e.shiftKey && Tools.withHook('groups', true).length > 0;
-        ctl.togglePin(el, grouped ? CONFIG.PIN_KIND.SHIFT : CONFIG.PIN_KIND.PLAIN);
+        const kind = !grouped ? CONFIG.PIN_KIND.PLAIN
+          : (e.ctrlKey || e.metaKey) ? CONFIG.PIN_KIND.CHAIN
+          : CONFIG.PIN_KIND.SHIFT;
+        ctl.togglePin(el, kind);
       }, true);
 
       addEventListener('scroll', Render.schedule, true);

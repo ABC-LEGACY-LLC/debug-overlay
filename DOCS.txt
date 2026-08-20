@@ -8,10 +8,16 @@ HOW TO USE
                         PAIRS: the 1st is "from" (cyan, marked 1…), the 2nd is
                         "to" — and whatever measures (📐) draws the dimension
                         between them. The 3rd starts a brand new pair — nothing
-                        is ever chained off your previous selection.
-                        Set Pin grouping to 'chain' under ⚙ for the old behaviour.
-  Click again ......... unpin (or click with the other modifier to switch the
-                        pin between note and pair)
+                        is ever chained off your previous selection unless you
+                        say so, which is the next gesture:
+  Ctrl+Shift+Click .... LINK (violet, solid): chain THIS to the previous pin.
+                        Repeat it and a chain emerges — ①─②─③ — for reading a
+                        rhythm (row gaps, list spacing) off one screenshot.
+                        A technique is a GESTURE, not a mode: pairs and chains
+                        mix freely in one session, so there is nothing to set
+                        in advance and nothing to forget to set back.
+  Click again ......... unpin (or click with another modifier to switch the
+                        pin between note, pair and link)
   Hold X .............. REMOVE mode: a red ✕ appears on every pin and only pins
                         are clickable — click one to delete it. Works even for
                         pins whose element is hard to hit again. Release to exit.
@@ -54,9 +60,11 @@ HOW TO USE
   at all. WHAT gets measured is decided by the tools below it, each an
   independent toggle you can mix freely:
 
-    ⬚ select    how pinned elements group up — pairs or a chain. Pairing
-                 lives here and not in measure, so a new way of selecting is
-                 one new file and everything that measures picks it up.
+    ⬚ select    how pinned elements group up. The technique rides on the
+                 gesture — Shift+click pairs, Ctrl+Shift+click chains — and
+                 grouping lives here and not in measure, so a new way of
+                 selecting is one new file and everything that measures
+                 picks it up.
     📏 geometry  the geometry family — one button; click it and its members
                  slide out sideways:
        📐 measure  sizes, radius, padding/margin, gap, font, and the distance

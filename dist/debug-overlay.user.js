@@ -24,10 +24,16 @@ HOW TO USE
                         PAIRS: the 1st is "from" (cyan, marked 1…), the 2nd is
                         "to" — and whatever measures (📐) draws the dimension
                         between them. The 3rd starts a brand new pair — nothing
-                        is ever chained off your previous selection.
-                        Set Pin grouping to 'chain' under ⚙ for the old behaviour.
-  Click again ......... unpin (or click with the other modifier to switch the
-                        pin between note and pair)
+                        is ever chained off your previous selection unless you
+                        say so, which is the next gesture:
+  Ctrl+Shift+Click .... LINK (violet, solid): chain THIS to the previous pin.
+                        Repeat it and a chain emerges — ①─②─③ — for reading a
+                        rhythm (row gaps, list spacing) off one screenshot.
+                        A technique is a GESTURE, not a mode: pairs and chains
+                        mix freely in one session, so there is nothing to set
+                        in advance and nothing to forget to set back.
+  Click again ......... unpin (or click with another modifier to switch the
+                        pin between note, pair and link)
   Hold X .............. REMOVE mode: a red ✕ appears on every pin and only pins
                         are clickable — click one to delete it. Works even for
                         pins whose element is hard to hit again. Release to exit.
@@ -70,9 +76,11 @@ HOW TO USE
   at all. WHAT gets measured is decided by the tools below it, each an
   independent toggle you can mix freely:
 
-    ⬚ select    how pinned elements group up — pairs or a chain. Pairing
-                 lives here and not in measure, so a new way of selecting is
-                 one new file and everything that measures picks it up.
+    ⬚ select    how pinned elements group up. The technique rides on the
+                 gesture — Shift+click pairs, Ctrl+Shift+click chains — and
+                 grouping lives here and not in measure, so a new way of
+                 selecting is one new file and everything that measures
+                 picks it up.
     📏 geometry  the geometry family — one button; click it and its members
                  slide out sideways:
        📐 measure  sizes, radius, padding/margin, gap, font, and the distance
@@ -304,15 +312,17 @@ HOW TO USE
     // place "a new tool is one new file" was not literally true. A tool says
     // `startsOn: true` about itself instead, and nothing central has to know
     // the name of anything.
-    // 'pairs' = every measurement takes two clicks (from → to) and the next
-    //           click starts a fresh pair, so a pin is never reused silently.
-    // 'chain' = old behaviour: each pin measures to the previous one.
-    PAIR_MODE: "pairs",
     // A pin's "kind" names the SELECTION the user made, never a consumer —
     // 'pair' used to be 'measure', which claimed one tool owned selection's
     // pins and leaked that id into a CSS class and the report text. Defined
     // once here so the input layer, controller and renderer share one word.
-    PIN_KIND: { PLAIN: "note", SHIFT: "pair" },
+    //
+    // pair and link replaced the 'Pin grouping' MODE. A technique is a
+    // GESTURE, not a mode: Shift+click pairs, Ctrl/⌘+Shift+click chains to
+    // the previous pin, and the two mix in one session — a mode switch made
+    // the same finger do different things on different days, and two clicks
+    // looked identical until the third betrayed which mode was on.
+    PIN_KIND: { PLAIN: "note", SHIFT: "pair", CHAIN: "link" },
     PICK_FLASH: 700,
     // ms an element stays outlined after being picked
     LANE_SEP: 16,
@@ -1700,21 +1710,36 @@ HOW TO USE
   });
 
   // src/tools/select/service.js
-  function options4() {
-    return [{
-      key: "mode",
-      label: "Pin grouping",
-      def: CONFIG.PAIR_MODE,
-      values: ["pairs", "chain"],
-      affects: "select"
-    }];
-  }
   function groups() {
     return this._form().groups;
   }
   function pendingIndex() {
     const { pending } = this._form();
     return pending ? State.pins.indexOf(pending) : -1;
+  }
+  function gestures2() {
+    return [{
+      keys: "Ctrl/⌘+Shift+click",
+      does: "chain to the previous pin — repeat for ①─②─③"
+    }];
+  }
+
+  // src/tools/select/form.js
+  function form(pins) {
+    const K = CONFIG.PIN_KIND;
+    const sel = pins.filter((p) => p.kind === K.SHIFT || p.kind === K.CHAIN);
+    const runs = [];
+    for (const p of sel) {
+      const last = runs[runs.length - 1];
+      if (last && (p.kind === K.CHAIN || last.length === 1)) last.push(p);
+      else runs.push([p]);
+    }
+    const groups2 = [];
+    for (const run of runs)
+      for (let k = 0; k + 1 < run.length; k++) groups2.push([run[k], run[k + 1]]);
+    const lastRun = runs[runs.length - 1];
+    const pending = lastRun && lastRun.length === 1 ? lastRun[0] : null;
+    return { groups: groups2, pending };
   }
 
   // src/tools/select/rows.js
@@ -1735,7 +1760,7 @@ HOW TO USE
     if (pending) rows.push({
       tag: `#${pending.id}…`,
       label: U.labelOf(pending.el),
-      detail: "pick its pair",
+      detail: "pick its pair, or chain to it",
       pins: [pending]
     });
     return rows;
@@ -1748,35 +1773,16 @@ HOW TO USE
   // src/tools/select/index.js
   defineTool({
     id: "select",
-    // `mode` was measure's option before the select/measure split, so anyone
-    // who chose 'chain' had it silently reset. Same miss as scale and colour,
-    // caught one release later — an owner names its own former id.
-    was: "measure",
     icon: "⬚",
     title: "Select — how pinned elements group up",
     startsOn: true,
-    // only Shift-clicked pins take part — a plain click is "inspect this",
-    // and silently roping it into a measurement is not what was asked
-    _pins: () => State.pins.filter((p) => p.kind === CONFIG.PIN_KIND.SHIFT),
-    /**
-     * The single place grouping is decided.
-     *
-     * 'pairs' — every group takes two clicks and the next starts a fresh
-     * one, so a pin is never silently reused. 'chain' — each new pin groups
-     * with the previous one.
-     */
+    /** The single place grouping is decided — see form.js. */
     _form() {
-      const mp = this._pins();
-      const mode = Tools.setting(this, "mode");
-      const step = mode === "pairs" ? 2 : 1;
-      const out = [];
-      for (let k = 0; k + 1 < mp.length; k += step) out.push([mp[k], mp[k + 1]]);
-      const pending = mode === "pairs" && mp.length % 2 ? mp[mp.length - 1] : null;
-      return { groups: out, pending };
+      return form(State.pins);
     },
-    options: options4,
     groups,
     pendingIndex,
+    gestures: gestures2,
     listRows,
     reportTail: reportTail2
   });
@@ -1789,9 +1795,11 @@ HOW TO USE
 
     .dbgov-box { position: fixed; pointer-events: none; }
     .dbgov-hover  { outline: 1.5px solid #58c4ff; outline-offset: -1px; background: rgba(88,196,255,.06); }
-    /* note pin = plain click (inspect only) · measure pin = Shift+click */
+    /* note pin = plain click (inspect only) · pair = Shift+click ·
+       link = Ctrl/⌘+Shift+click, chained to the previous pin */
     .dbgov-pinbox { outline: 1.5px dashed #ff8a65; outline-offset: -1px; }
     .dbgov-pinbox.pair { outline-style: solid; outline-color: #b5e853; }
+    .dbgov-pinbox.link { outline-style: solid; outline-color: #c084fc; }
     .dbgov-pinbox.waiting { outline-color: #58c4ff; }
     .dbgov-pinbox.rmtarget { outline: 2px solid #ff5c5c; background: rgba(255,92,92,.10); }
     .dbgov-pinbox.flash { outline: 2.5px solid #58c4ff;
@@ -1901,6 +1909,7 @@ HOW TO USE
       display: flex; align-items: center; justify-content: center;
       box-shadow: 0 2px 8px rgba(0,0,0,.5); }
     .dbgov-pin-num.pair { background: #b5e853; color: #16200a; }
+    .dbgov-pin-num.link { background: #c084fc; color: #241333; }
     .dbgov-pin-num.waiting { background: #58c4ff; color: #0d1b24; }
     .dbgov-pin-num.rmtarget { background: #ff5c5c; color: #fff; }
 
@@ -3005,7 +3014,8 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           return;
         }
         const grouped = e.shiftKey && Tools.withHook("groups", true).length > 0;
-        ctl.togglePin(el, grouped ? CONFIG.PIN_KIND.SHIFT : CONFIG.PIN_KIND.PLAIN);
+        const kind = !grouped ? CONFIG.PIN_KIND.PLAIN : e.ctrlKey || e.metaKey ? CONFIG.PIN_KIND.CHAIN : CONFIG.PIN_KIND.SHIFT;
+        ctl.togglePin(el, kind);
       }, true);
       addEventListener("scroll", Render.schedule, true);
       addEventListener("resize", Render.schedule);
