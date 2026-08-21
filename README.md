@@ -61,62 +61,117 @@ cannot burn version numbers that Tampermonkey would then skip past.
 
 ---
 
-## Setup
+## Install
 
-The repo side is done: `ABC-LEGACY-LLC/debug-overlay` is public (public
-matters — Tampermonkey fetches the raw URL without credentials) and
-`userscript.json` already points at it:
+Two ways to run it. **Pick ONE per browser** — they are the same overlay, and
+two copies would fight over the page.
 
-```json
-"rawBase": "https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/script"
-```
+| | A · Userscript *(recommended)* | B · Browser extension |
+|---|---|---|
+| needs | Tampermonkey | nothing extra (Chrome/Edge) |
+| install | open 1 link | download ZIP, load a folder once |
+| updates | automatic after every push | one press inside the overlay |
 
-**Install once per machine** — open this URL in the browser:
+---
+
+### Option A — Userscript with Tampermonkey *(recommended)*
+
+**Step 1.** Install the Tampermonkey extension from your browser's store
+(chrome web store / Edge add-ons / Firefox add-ons — search "Tampermonkey").
+
+**Step 2 (Chrome/Edge only).** Open `chrome://extensions` and switch
+**Developer mode** ON (top-right). Chrome requires it for userscripts to run
+at all — without this, Tampermonkey installs but stays silent.
+
+**Step 3.** Open this link in the browser:
 
 ```
 https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/script/debug-overlay.user.js
 ```
 
-The repo was once `AlonurKomilov/debug-overlay-abc`, and GitHub still redirects
-that name here. Do not use it: the redirect dies the moment anyone creates a
-repo at the old address, and a dead `@updateURL` fails the way this project
-fails worst — silently, with the overlay simply never changing.
+**Step 4.** Tampermonkey opens its install page → press **Install**.
 
-Tampermonkey offers to install it. Done — that machine now self-updates.
+**Step 5.** Open any website and press **Alt+Shift+D** — the panel appears.
+Done: this machine now updates itself after every `git push`.
 
-### The second gate: an unpacked browser extension (optional)
+*Getting updates:* automatic (checked daily). To force one: right-click the
+⏻ button → **Check for updates now** → **Update to vX** → Tampermonkey's
+dialog → then press **↻ Refresh page** in the same menu, because an open tab
+keeps running the old version until it reloads.
 
-The same build also emits `dist/browser-extension/` — a Manifest V3 extension whose
-`content.js` is byte-for-byte the userscript's bundle (a suite assertion
-locks that). For machines where you would rather not run a userscript
-manager:
+---
 
-1. Download the one link:
-   `https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/browser-extension/debug-overlay-extension.zip`
-2. Extract it somewhere permanent (e.g. `~/debug-overlay-extension/`)
-3. `chrome://extensions` → enable **Developer mode** → **Load unpacked** → that folder
+### Option B — Browser extension (Chrome / Edge, no Tampermonkey)
 
-That is the floor the browser allows: Chrome refuses URL-installs outside its
-store, but happily loads an extracted folder. After the one-time updater
-setup below, every later update is one press inside the overlay.
+**Step 1.** Download the ZIP:
 
-Updates: the userscript self-updates on push. The unpacked extension has its
-own SELF-UPDATER — one-time setup on its options page ("grant Debug Overlay its
-install folder", the browser's File System Access permission), and from then
-on the ⏻ update menu's "Update to vX" opens the updater, one press fetches
-the new files from the repo, writes them, and reloads the extension. Rules it
-lives by: only the pinned repo base, only a version that increases, fetch
-everything before writing anything, and never silently — that is the store's
-job. Load a COPY of `dist-extension/` from outside the repo (the updater writes
-files, and writes inside a checkout would dirty it). Firefox has no File
-System Access API, so there the notification means `git pull`.
+```
+https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/browser-extension/debug-overlay-extension.zip
+```
 
-**Optional but recommended — Tampermonkey Sync.** Dashboard → Settings →
-Sync to Google Drive / Dropbox / OneDrive. A brand-new machine then only needs
-you to sign in; the script arrives on its own and keeps updating from GitHub.
+**Step 2.** Extract it to a **permanent folder**, e.g. `~/debug-overlay-extension/`
+(not inside a git checkout, and not your Downloads folder — the browser reads
+it from there forever, and the updater writes into it).
 
-Forking this for a different account? Change `rawBase` in `userscript.json`,
-run `node build.js`, and push — the header is generated from that one field.
+**Step 3.** Open `chrome://extensions` → **Developer mode** ON →
+**Load unpacked** → select that folder.
+
+**Step 4.** Open any website and press **Alt+Shift+D** — the panel appears.
+
+**Step 5 — one-time updater setup** (makes every future update one press):
+`chrome://extensions` → Debug Overlay → **Details** → **Extension options** →
+**"Choose install folder…"** → pick the same folder from Step 2 → Allow.
+
+*Getting updates:* an amber dot rests on ⏻ when one exists. Right-click ⏻ →
+**Update to vX** → the updater page opens → press **Check & apply** — it
+fetches the new files from the repo, writes them, reloads the extension —
+then refresh your open tabs. (Its safety rules: only this repo's URL, only a
+version that increases, fetch everything before writing anything, never
+silently.)
+
+*Why the ZIP-and-folder dance:* Chrome refuses URL-installs outside its Web
+Store — the browser's law, not ours. This is the floor it allows, and it is
+one-time.
+
+*Firefox:* has no File System Access API and no persistent unpacked installs —
+use Option A there.
+
+---
+
+### First 60 seconds after installing
+
+| press | you get |
+|---|---|
+| **Alt+Shift+D** | power on / off |
+| hover | live badge with sizes, spacing, font |
+| click | select an element (📌 armed = it pins) |
+| Shift+click ×2 | measure between two elements |
+| ⌕ | audit the whole page, findings marked in place |
+| ⧉ | copy a structured report for an AI chat |
+| right-click ⏻ | updates: check now / install / refresh |
+
+**Optional but recommended — Tampermonkey Sync** (Option A): Dashboard →
+Settings → Sync to Google Drive / Dropbox / OneDrive. A brand-new machine
+then only needs you to sign in; the script arrives on its own.
+
+### If something looks wrong
+
+- **Panel does not appear:** is Developer mode on (`chrome://extensions`)?
+  Are you in a real tab, not an editor preview (the overlay skips frames on
+  purpose)?
+- **"I pushed but nothing updated":** did the version bump (`npm run ship`)?
+  GitHub's raw CDN also caches for a few minutes — right-click ⏻ → *Check for
+  updates now* forces it, and `npm run shipped` answers what the world sees.
+- **Updated but nothing changed:** the open tab still runs the old code —
+  press **↻ Refresh page** in the ⏻ menu.
+
+### For a different account / fork
+
+The repo must be **public** (Tampermonkey fetches raw URLs without
+credentials). Change `rawBase` in `userscript.json`, run `node build.js`,
+push — every URL (header, checker, installer, updater) derives from that one
+field. The repo was once `AlonurKomilov/debug-overlay-abc`; do not use the
+old name — the redirect dies the day anyone claims it, silently.
 
 ### What lives where in dist/
 
@@ -136,7 +191,8 @@ dist/
 
 ### How the auto-update actually works
 
-`build.js` writes two files into `dist/`:
+`build.js` writes the userscript twice — `dist/script/` (canonical) and the
+legacy-bridge copies at `dist/` — each as two files:
 
 | file | purpose |
 |---|---|
