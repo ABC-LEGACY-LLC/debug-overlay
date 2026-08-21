@@ -84,6 +84,22 @@ fails worst — silently, with the overlay simply never changing.
 
 Tampermonkey offers to install it. Done — that machine now self-updates.
 
+### The second gate: an unpacked browser extension (optional)
+
+The same build also emits `dist-ext/` — a Manifest V3 extension whose
+`content.js` is byte-for-byte the userscript's bundle (a suite assertion
+locks that). For machines where you would rather not run a userscript
+manager:
+
+1. `chrome://extensions` → enable **Developer mode** → **Load unpacked**
+2. Point it at `dist-ext/` (or a copy of it outside the repo — see below)
+
+Updates are the trade: the userscript self-updates on push; the unpacked
+extension reads files from disk, so updating it means `git pull` and a press
+of ⟳ on the extensions page. The in-overlay update checker tells you when
+that is needed. If you plan to use the coming self-updater, load a COPY of
+`dist-ext/` from outside the repo, so its writes never dirty your checkout.
+
 **Optional but recommended — Tampermonkey Sync.** Dashboard → Settings →
 Sync to Google Drive / Dropbox / OneDrive. A brand-new machine then only needs
 you to sign in; the script arrives on its own and keeps updating from GitHub.

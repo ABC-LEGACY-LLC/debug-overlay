@@ -258,6 +258,30 @@ console.log('\nHOST CSS CANNOT REACH IN');
   });
 }
 
+console.log('\nTWO GATES, ONE CORE');
+/**
+ * The userscript and the unpacked extension are two wrappers around ONE
+ * bundle — byte-identical inside, which is what makes drift impossible.
+ * These assertions are the lock on that claim.
+ */
+{
+  const extDir = path.join(__dirname, 'dist-ext');
+  const manifest = JSON.parse(fs.readFileSync(path.join(extDir, 'manifest.json'), 'utf8'));
+  const content = fs.readFileSync(path.join(extDir, 'content.js'), 'utf8');
+  const cfgNow = JSON.parse(fs.readFileSync(path.join(__dirname, 'userscript.json'), 'utf8'));
+  ok('the extension manifest carries the shipped version',
+    manifest.version === cfgNow.version, `${manifest.version} vs ${cfgNow.version}`);
+  // strip each gate's wrapper commentary; the IIFE bodies must be identical
+  const body = (s) => s.slice(s.indexOf('(function () {'));
+  ok('the two gates carry the SAME bundle, byte for byte',
+    body(content) === body(source),
+    'the extension content script drifted from the userscript');
+  ok("the worker's fetch door is pinned to the repo host",
+    (manifest.host_permissions || []).length === 1 &&
+    /raw\.githubusercontent\.com/.test(manifest.host_permissions[0]),
+    JSON.stringify(manifest.host_permissions));
+}
+
 console.log('\nSTYLESHEET');
 // Malformed CSS never fails loudly: the parser drops the broken rule and
 // every rule after it in that sheet, and raises nothing. Each sheet is

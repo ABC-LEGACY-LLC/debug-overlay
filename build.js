@@ -144,8 +144,49 @@ function build(kind) {
     cfg.version = version;
     fs.writeFileSync(path.join(ROOT, 'userscript.json'), JSON.stringify(cfg, null, 2) + '\n');
   }
+  /* THE SECOND GATE — an unpacked browser extension, from the SAME bundle.
+     One core, two wrappers: the userscript above and this content script are
+     byte-identical inside, which is what makes drift impossible — there is
+     no "extension version of the code" to disagree with the userscript.
+     Load it via chrome://extensions → Developer mode → Load unpacked. */
+  const EXT = path.join(ROOT, 'dist-ext');
+  fs.mkdirSync(EXT, { recursive: true });
+  fs.writeFileSync(path.join(EXT, 'content.js'),
+    `/* dbgov v${version} — extension gate; same bundle as the userscript */\n` +
+    `(function () {\n  'use strict';\n${banner}\n${bundled}})();\n`);
+  fs.writeFileSync(path.join(EXT, 'manifest.json'), JSON.stringify({
+    manifest_version: 3,
+    name: cfg.name,
+    version,
+    description: cfg.description,
+    content_scripts: [{ matches: ['<all_urls>'], js: ['content.js'], run_at: 'document_idle' }],
+    // the update checker's CSP-immune door: the worker fetches, pages cannot block it
+    host_permissions: [`${new URL(cfg.rawBase).origin}/*`],
+    background: { service_worker: 'sw.js' },
+  }, null, 2) + '\n');
+  fs.writeFileSync(path.join(EXT, 'sw.js'),
+    `// dbgov service worker — the extension's network door.\n` +
+    `// A page's CSP cannot reach in here, so update checks work everywhere.\n` +
+    `chrome.runtime.onMessage.addListener((msg, sender, respond) => {\n` +
+    `  if (msg && msg.type === 'dbgov-fetch' && typeof msg.url === 'string' &&\n` +
+    `      msg.url.startsWith(${JSON.stringify(cfg.rawBase + '/')})) {\n` +
+    `    fetch(msg.url, { cache: 'no-store' })\n` +
+    `      .then((r) => r.text()).then((text) => respond({ ok: true, text }))\n` +
+    `      .catch((e) => respond({ ok: false, error: String(e) }));\n` +
+    `    return true;   // async response\n` +
+    `  }\n` +
+    `});\n`);
+  try {
+    cp.execSync(`node --check "${path.join(EXT, 'content.js')}"`, { stdio: 'pipe' });
+    cp.execSync(`node --check "${path.join(EXT, 'sw.js')}"`, { stdio: 'pipe' });
+    JSON.parse(fs.readFileSync(path.join(EXT, 'manifest.json'), 'utf8'));
+  } catch (e) {
+    console.error('✗ dist-ext is broken:\n' + (e.stderr ? e.stderr.toString() : e.message));
+    process.exit(1);
+  }
+
   const kb = (Buffer.byteLength(out) / 1024).toFixed(1);
-  console.log(`✓ v${version}  ${discovered} discovered + core → dist/${cfg.distFile}  (${kb} KB)`);
+  console.log(`✓ v${version}  ${discovered} discovered + core → dist/${cfg.distFile}  (${kb} KB) + dist-ext/`);
   return distPath;
 }
 
