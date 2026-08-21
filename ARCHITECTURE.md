@@ -267,6 +267,18 @@ the next successful connect bumps the generation. Times are page time
 (`at` = ms since navigation) — the one clock a reload visibly resets,
 which is exactly what a timeline should show.
 
+The polish that closed the roadmap keeps to the same grammar. The cockpit
+says whose page it speaks for (`page`, sent on hello) because a control
+surface that does not name its subject invites mistakes. Updates tell one
+story on both faces: a found version raises the cockpit banner AND the ⏻
+dot (the same `Panel.setUpdate` announce), a forced check answers even when
+the answer is "you are current" (`checked`, because a button that does
+nothing visible is worse than no button), and applying goes through the
+page (`updateApply` → `Updates.apply`) so the in-page menu offers the
+refresh step afterwards — the cursor-menu half of apply is skipped when no
+cursor asked. Escape in the cockpit peels the open view and nothing else,
+the bar's own one-layer ladder said again.
+
 While a cockpit is connected the bar steps aside (`Panel.docked`) — the
 BAR, not the overlay: pins, marks and badges are the page's annotations and
 stay. The port dropping undocks it, so closing the side panel gives the

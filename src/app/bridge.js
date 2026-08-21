@@ -24,6 +24,7 @@ import { Protocol } from '../core/protocol.js';
 import { CONFIG } from '../core/config.js';
 import { Tools, TOOLS } from '../core/registry.js';
 import { Panel } from '../ui/panel.js';
+import { Updates } from './updates.js';
 
 let port = null;
 let watching = null;          // the view the cockpit holds open, or null
@@ -59,6 +60,7 @@ function hello() {
   // version rides with the roster: a cockpit updated under a page that was
   // not refreshed can SAY "reload this page" instead of half-working
   send('tools', roster(), CONFIG.VERSION);
+  send('page', location.origin);   // whose page this connection speaks for
   for (const [id, v] of toolLast) send('tool', id, v);
   for (const [name, args] of last) send(name, ...args);
   backlogs();
@@ -98,8 +100,14 @@ function command({ name, args }) {
     case 'rowActivate': Panel.onRowActivate?.(args[1], args[0]); break;
     case 'rowRemove': Panel.onRowRemove?.(args[1], args[0]); break;
     case 'rowChange': Panel.onRowChange?.(args[1], args[2], args[0]); break;
-    // updateCheck / updateApply: a later phase; an unwired command is
-    // dropped here, never half-handled
+    /* a found update announces itself through Panel.setUpdate as ever; the
+       explicit 'checked' answer exists because "you are current" has no
+       announcement, and a button that does nothing visible is worse than
+       no button */
+    case 'updateCheck':
+      Promise.resolve(Updates.check(true)).then((v) => send('checked', v || null));
+      break;
+    case 'updateApply': Updates.apply(); break;   // per gate; no cursor, no menu
   }
   // every command can move the rows (a removal, a changed setting, a sweep);
   // answering in the same breath is what lets the cockpit trust its list

@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.106 — extension gate; same bundle as the userscript */
+/* Debug Overlay v3.8.107 — extension gate; same bundle as the userscript */
 (function () {
   'use strict';
 /* NOT a module and NOT bundled: build.js injects this text at the very top
@@ -34,7 +34,7 @@
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.106",
+    VERSION: "3.8.107",
     // Substituted like VERSION: where the update checker asks, and what the
     // userscript's one-click update opens. One source (userscript.json), no
     // second copy to drift.
@@ -3864,7 +3864,11 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     removeMode: null,
     // (bool)
     update: null,
-    // (version)
+    // (version) — a KNOWN newer version exists
+    checked: null,
+    // (version|null) — a forced check's answer, null = current
+    page: null,
+    // (origin) — whose page this connection speaks for
     flash: null,
     // (msg, sel)
     badgeControls: (groups2) => [groups2.map(packBadgeGroup)],
@@ -3966,135 +3970,6 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     stale: (msg) => !!msg && typeof msg.dbgov === "number" && msg.dbgov !== PROTOCOL_VERSION
   };
 
-  // src/app/bridge.js
-  var port = null;
-  var watching = null;
-  var rowsTimer = 0;
-  var last = /* @__PURE__ */ new Map();
-  var toolLast = /* @__PURE__ */ new Map();
-  function send(name, ...args) {
-    if (!port) return;
-    try {
-      port.postMessage(Protocol.state(name, ...args));
-    } catch {
-      port = null;
-      Panel.docked(false);
-    }
-  }
-  function roster() {
-    return TOOLS.map((t) => ({
-      id: t.id,
-      icon: t.icon,
-      title: t.title,
-      fam: t.family || null,
-      roles: Tools.rolesOf(t)
-    }));
-  }
-  function backlogs() {
-    for (const t of Tools.withHook("timeline", true)) {
-      try {
-        send("events", t.id, t.timeline.call(t) || [], true);
-      } catch {
-      }
-    }
-  }
-  function hello() {
-    send("tools", roster(), CONFIG.VERSION);
-    for (const [id, v] of toolLast) send("tool", id, v);
-    for (const [name, args] of last) send(name, ...args);
-    backlogs();
-  }
-  function pushRows() {
-    if (!watching) return;
-    const q = Panel.onRowsFor?.(watching);
-    if (q) send("rows", watching, q.rows, q.empty);
-  }
-  function queueRows() {
-    if (!watching) return;
-    clearTimeout(rowsTimer);
-    rowsTimer = setTimeout(pushRows, 30);
-  }
-  function command({ name, args }) {
-    switch (name) {
-      case "hello":
-        hello();
-        break;
-      case "toggle":
-        Panel.onToggle?.();
-        break;
-      case "tool":
-        Panel.onTool?.(args[0]);
-        break;
-      case "sweep":
-        Panel.onSweep?.();
-        break;
-      case "copy":
-        Panel.onCopy?.();
-        break;
-      case "clear":
-        Panel.onClear?.();
-        break;
-      case "badgeControl":
-        Panel.onBadgeControl?.(args[0]);
-        break;
-      /* the cockpit's list: the view travels with every row command, so the
-         index resolves against the list the COCKPIT rendered — never against
-         whatever the in-page popover happens to show */
-      case "openView":
-        watching = args[0] || null;
-        break;
-      case "rowActivate":
-        Panel.onRowActivate?.(args[1], args[0]);
-        break;
-      case "rowRemove":
-        Panel.onRowRemove?.(args[1], args[0]);
-        break;
-      case "rowChange":
-        Panel.onRowChange?.(args[1], args[2], args[0]);
-        break;
-    }
-    pushRows();
-  }
-  var Bridge = {
-    /** Wired by boot as Panel.onState — cache everything, forward when live. */
-    state(name, ...args) {
-      if (name === "tool") toolLast.set(args[0], args[1]);
-      else if (name !== "flash") last.set(name, args);
-      send(name, ...args);
-      if (name === "tool" && args[1]) setTimeout(backlogs, 0);
-      queueRows();
-    },
-    /** Wired by boot as Controller.onToolEvent — a runtime's moment becomes a
-     *  cockpit timeline entry the instant it happens. */
-    toolEvent(id, e) {
-      send("events", id, [e], false);
-    },
-    init() {
-      const runtime = typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onConnect ? chrome.runtime : null;
-      if (!runtime) return;
-      runtime.onConnect.addListener((p) => {
-        if (p.name !== "debug-overlay-cockpit") return;
-        try {
-          port?.disconnect();
-        } catch {
-        }
-        port = p;
-        watching = null;
-        Panel.docked(true);
-        p.onMessage.addListener((msg) => {
-          const m = Protocol.read(msg);
-          if (m && m.kind === "cmd") command(m);
-        });
-        p.onDisconnect.addListener(() => {
-          if (port !== p) return;
-          port = null;
-          watching = null;
-          Panel.docked(false);
-        });
-      });
-    }
-  };
-
   // src/app/updates.js
   function newer(a, b) {
     const A = String(a).split(".").map(Number);
@@ -4174,7 +4049,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       } else {
         window.open(CONFIG.INSTALL_URL, "_blank");
       }
-      Updates.menu(x, y, true);
+      if (x != null) Updates.menu(x, y, true);
     },
     /** The ⏻ menu — the same cursor menu right-click already speaks.
      *  A manual check REOPENS the menu with its answer where the question
@@ -4208,6 +4083,146 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     },
     schedule() {
       setTimeout(() => Updates.check(false), CONFIG.UPDATE.BOOT_DELAY);
+    }
+  };
+
+  // src/app/bridge.js
+  var port = null;
+  var watching = null;
+  var rowsTimer = 0;
+  var last = /* @__PURE__ */ new Map();
+  var toolLast = /* @__PURE__ */ new Map();
+  function send(name, ...args) {
+    if (!port) return;
+    try {
+      port.postMessage(Protocol.state(name, ...args));
+    } catch {
+      port = null;
+      Panel.docked(false);
+    }
+  }
+  function roster() {
+    return TOOLS.map((t) => ({
+      id: t.id,
+      icon: t.icon,
+      title: t.title,
+      fam: t.family || null,
+      roles: Tools.rolesOf(t)
+    }));
+  }
+  function backlogs() {
+    for (const t of Tools.withHook("timeline", true)) {
+      try {
+        send("events", t.id, t.timeline.call(t) || [], true);
+      } catch {
+      }
+    }
+  }
+  function hello() {
+    send("tools", roster(), CONFIG.VERSION);
+    send("page", location.origin);
+    for (const [id, v] of toolLast) send("tool", id, v);
+    for (const [name, args] of last) send(name, ...args);
+    backlogs();
+  }
+  function pushRows() {
+    if (!watching) return;
+    const q = Panel.onRowsFor?.(watching);
+    if (q) send("rows", watching, q.rows, q.empty);
+  }
+  function queueRows() {
+    if (!watching) return;
+    clearTimeout(rowsTimer);
+    rowsTimer = setTimeout(pushRows, 30);
+  }
+  function command({ name, args }) {
+    switch (name) {
+      case "hello":
+        hello();
+        break;
+      case "toggle":
+        Panel.onToggle?.();
+        break;
+      case "tool":
+        Panel.onTool?.(args[0]);
+        break;
+      case "sweep":
+        Panel.onSweep?.();
+        break;
+      case "copy":
+        Panel.onCopy?.();
+        break;
+      case "clear":
+        Panel.onClear?.();
+        break;
+      case "badgeControl":
+        Panel.onBadgeControl?.(args[0]);
+        break;
+      /* the cockpit's list: the view travels with every row command, so the
+         index resolves against the list the COCKPIT rendered — never against
+         whatever the in-page popover happens to show */
+      case "openView":
+        watching = args[0] || null;
+        break;
+      case "rowActivate":
+        Panel.onRowActivate?.(args[1], args[0]);
+        break;
+      case "rowRemove":
+        Panel.onRowRemove?.(args[1], args[0]);
+        break;
+      case "rowChange":
+        Panel.onRowChange?.(args[1], args[2], args[0]);
+        break;
+      /* a found update announces itself through Panel.setUpdate as ever; the
+         explicit 'checked' answer exists because "you are current" has no
+         announcement, and a button that does nothing visible is worse than
+         no button */
+      case "updateCheck":
+        Promise.resolve(Updates.check(true)).then((v) => send("checked", v || null));
+        break;
+      case "updateApply":
+        Updates.apply();
+        break;
+    }
+    pushRows();
+  }
+  var Bridge = {
+    /** Wired by boot as Panel.onState — cache everything, forward when live. */
+    state(name, ...args) {
+      if (name === "tool") toolLast.set(args[0], args[1]);
+      else if (name !== "flash") last.set(name, args);
+      send(name, ...args);
+      if (name === "tool" && args[1]) setTimeout(backlogs, 0);
+      queueRows();
+    },
+    /** Wired by boot as Controller.onToolEvent — a runtime's moment becomes a
+     *  cockpit timeline entry the instant it happens. */
+    toolEvent(id, e) {
+      send("events", id, [e], false);
+    },
+    init() {
+      const runtime = typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onConnect ? chrome.runtime : null;
+      if (!runtime) return;
+      runtime.onConnect.addListener((p) => {
+        if (p.name !== "debug-overlay-cockpit") return;
+        try {
+          port?.disconnect();
+        } catch {
+        }
+        port = p;
+        watching = null;
+        Panel.docked(true);
+        p.onMessage.addListener((msg) => {
+          const m = Protocol.read(msg);
+          if (m && m.kind === "cmd") command(m);
+        });
+        p.onDisconnect.addListener(() => {
+          if (port !== p) return;
+          port = null;
+          watching = null;
+          Panel.docked(false);
+        });
+      });
     }
   };
 

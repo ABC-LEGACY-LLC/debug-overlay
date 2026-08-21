@@ -710,22 +710,62 @@ let cockpitChecked = false;
         k.querySelectorAll('#timeline .tlrow.freeze').length >= 2,
         'Monitor → ctx.event → bridge → port → cockpit broke somewhere');
 
-      // a message from a different protocol version answers "reload this page"
-      lastPair[0].postMessage({ dbgov: 999, kind: 'state', name: 'on', args: [true] });
-      ok('a version mismatch is named, never half-worked-around',
-        k.body.dataset.mode === 'stale', 'mixed versions would limp along silently');
+      console.log('\nTHE COCKPIT POLISH (phase 5)');
+      ok('the header names whose page this is',
+        /example\.test/.test(k.querySelector('#status').textContent),
+        'a cockpit that does not say which page it controls invites mistakes');
+      // Escape closes the open view — the same one-layer ladder the bar keeps
+      ok('a view is open before Escape', k.querySelector('#rowsBox').classList.contains('show'));
+      k.dispatchEvent(new w2.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      ok('Escape closes the open view, and only that',
+        !k.querySelector('#rowsBox').classList.contains('show') &&
+        k.body.dataset.mode === 'main',
+        'Escape must peel the top layer, never the session');
+      let optOpened = 0;
+      w2.chrome.runtime.openOptionsPage = () => { optOpened++; };
+      k.querySelector('#optBtn').dispatchEvent(click2());
+      ok('the header gear opens the extension options', optOpened === 1,
+        'the updater must be one press away from the cockpit');
 
-      // undock on disconnect: side panel closed → the bar comes back
-      lastPair[1].disconnect();
-      ok('closing the cockpit gives the page its bar back',
-        !c3.bar.classList.contains('dbgov-docked'),
-        'the bar stayed hidden with nothing left to replace it');
+      /* updates, both answers. The content window has no network; the stub
+         IS the wire format the checker parses. */
+      const CUR = JSON.parse(fs.readFileSync(path.join(__dirname, 'userscript.json'), 'utf8')).version;
+      c3.w.fetch = () => Promise.resolve({ ok: true, text: () => Promise.resolve('// @version ' + CUR) });
+      k.querySelector('[data-upd]').dispatchEvent(click2());
+      whenPainted(() => /✓ current/.test(k.querySelector('[data-upd]').textContent), () => {
+        ok('a check that finds nothing still answers: ✓ current',
+          /✓ current/.test(k.querySelector('[data-upd]').textContent),
+          'a button that does nothing visible is worse than no button');
+        c3.w.fetch = () => Promise.resolve({ ok: true, text: () => Promise.resolve('// @version 99.9.9') });
+        k.querySelector('[data-upd]').dispatchEvent(click2());
+        whenPainted(() => k.querySelector('#upd').classList.contains('show'), () => {
+          ok('a found update raises the banner — and the page ⏻ dot agrees',
+            /99\.9\.9/.test(k.querySelector('#updTxt').textContent) &&
+            c3.bar.querySelector('.dbgov-pwr').classList.contains('dbgov-upd'),
+            'the two faces must tell one update story');
+          k.querySelector('#updGo').dispatchEvent(click2());
+          ok('opening the updater says the next step out loud',
+            /refresh this page/.test(k.querySelector('#updTxt').textContent),
+            'the page cannot know the install finished; the words must say so');
 
-      c1.d.window.close();
-      c2.d.window.close();
-      c3.d.window.close();
-      w2.close();
-      cockpitChecked = true;
+          // a message from a different protocol version answers "reload this page"
+          lastPair[0].postMessage({ dbgov: 999, kind: 'state', name: 'on', args: [true] });
+          ok('a version mismatch is named, never half-worked-around',
+            k.body.dataset.mode === 'stale', 'mixed versions would limp along silently');
+
+          // undock on disconnect: side panel closed → the bar comes back
+          lastPair[1].disconnect();
+          ok('closing the cockpit gives the page its bar back',
+            !c3.bar.classList.contains('dbgov-docked'),
+            'the bar stayed hidden with nothing left to replace it');
+
+          c1.d.window.close();
+          c2.d.window.close();
+          c3.d.window.close();
+          w2.close();
+          cockpitChecked = true;
+        });
+      });
     });
   });
 }

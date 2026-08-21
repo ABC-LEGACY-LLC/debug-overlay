@@ -22,7 +22,11 @@
   .dot { width: 8px; height: 8px; border-radius: 50%; background: #8f8f96; margin-left: auto; flex: none; }
   .dot.ok { background: #b5e853; }
   .dot.bad { background: #ffd54f; }
-  #status { color: #8f8f96; font-size: 11px; }
+  #status { color: #8f8f96; font-size: 11px; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; min-width: 0; }
+  .iconbtn { flex: none; width: 26px; height: 26px; padding: 0; border-radius: 7px;
+    display: inline-flex; align-items: center; justify-content: center; }
+  .iconbtn svg { width: 14px; height: 14px; }
 
   /* full-screen answers for the states where there is no page to mirror */
   .screen { padding: 28px 18px; color: #b9b9c0; display: none; }
@@ -115,7 +119,9 @@
 
   #upd { display: none; margin: 0 0 14px; padding: 8px 10px; border: 1px solid #5a4a1a;
     background: #2a2417; border-radius: 8px; color: #ffd54f; font-size: 12px; }
-  #upd.show { display: block; }
+  #upd.show { display: flex; align-items: center; gap: 8px; }
+  #upd #updTxt { flex: 1; min-width: 0; }
+  #upd .mini { flex: none; }
 
   /* the timeline: history the page cannot hold — newest first */
   #tlHead { display: flex; align-items: center; gap: 8px; }
@@ -147,6 +153,8 @@
     <span class="ver" id="ver"></span>
     <span id="status">connecting…</span>
     <span class="dot" id="dot" aria-hidden="true"></span>
+    <button id="optBtn" class="iconbtn" title="Extension options — updates &amp; repair"
+      aria-label="Extension options"></button>
   </header>
 
   <div class="screen" id="scrWaiting">
@@ -161,7 +169,7 @@
   </div>
 
   <main>
-    <div id="upd"></div>
+    <div id="upd"><span id="updTxt"></span> <button id="updGo" class="mini">Open the updater</button></div>
     <section>
       <button id="power" aria-pressed="false"></button>
     </section>
@@ -179,6 +187,7 @@
         <button data-sweep><span class="ic"></span><span>Audit the whole page</span><span class="n"></span></button>
         <button data-copy><span class="ic"></span><span>Copy report</span></button>
         <button data-clear><span class="ic"></span><span>Clear pins</span><span class="n" data-c></span></button>
+        <button data-upd><span class="ic"></span><span>Check for updates</span></button>
       </div>
     </section>
     <section class="whenOn">

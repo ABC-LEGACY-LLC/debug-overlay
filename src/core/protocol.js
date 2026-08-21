@@ -37,7 +37,9 @@ const STATE = {
         count: null,              // (n)
         swept: null,              // (showing, n)
         removeMode: null,         // (bool)
-        update: null,             // (version)
+        update: null,             // (version) — a KNOWN newer version exists
+        checked: null,            // (version|null) — a forced check's answer, null = current
+        page: null,               // (origin) — whose page this connection speaks for
         flash: null,              // (msg, sel)
         badgeControls: (groups) => [groups.map(packBadgeGroup)],
         rows: (view, rows, empty) => [view, rows.map(packRow), empty],

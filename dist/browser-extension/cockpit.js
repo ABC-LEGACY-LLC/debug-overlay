@@ -15,7 +15,11 @@
     removeMode: null,
     // (bool)
     update: null,
-    // (version)
+    // (version) — a KNOWN newer version exists
+    checked: null,
+    // (version|null) — a forced check's answer, null = current
+    page: null,
+    // (origin) — whose page this connection speaks for
     flash: null,
     // (msg, sel)
     badgeControls: (groups) => [groups.map(packBadgeGroup)],
@@ -118,7 +122,7 @@
   };
 
   // browser-extension-source/cockpit.js
-  var VERSION = "3.8.106";
+  var VERSION = "3.8.107";
   var $ = (s) => document.querySelector(s);
   var body = document.body;
   var IC = {
@@ -127,7 +131,8 @@
     copy: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>',
     clear: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
     pin: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>',
-    gear: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>'
+    gear: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>',
+    refresh: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>'
   };
   var isSvg = (s) => /^<svg[\s>]/.test(s || "");
   var putIcon = (el, svg) => {
@@ -140,11 +145,13 @@
     ["[data-sweep]", IC.sweep],
     ["[data-copy]", IC.copy],
     ["[data-clear]", IC.clear],
+    ["[data-upd]", IC.refresh],
     ['[data-view="findings"]', IC.sweep],
     ['[data-view="pins"]', IC.pin],
     ['[data-view="settings"]', IC.gear]
   ])
     putIcon($(sel + " .ic"), ic);
+  putIcon($("#optBtn"), IC.gear);
   var flashing = /* @__PURE__ */ new Map();
   function flash(msg, sel) {
     const b = $(sel);
@@ -428,9 +435,18 @@
       $('#views [data-view="findings"] .n').textContent = v ? String(n) : "";
     },
     update([v]) {
-      const u = $("#upd");
-      u.textContent = `v${v} is available — the overlay updates from its own ⏻ menu on the page, or reinstall from the options page.`;
-      u.classList.add("show");
+      $("#updTxt").textContent = `v${v} is available — this cockpit runs v${VERSION}.`;
+      $("#upd").classList.add("show");
+    },
+    /* a forced check's answer. A found version also announces as 'update';
+       the null answer exists because "you are current" has no announcement,
+       and a button that does nothing visible is worse than no button. */
+    checked([v]) {
+      if (v) render.update([v]);
+      else flash("✓ current", "[data-upd]");
+    },
+    page([origin]) {
+      status("connected · " + String(origin || "").replace(/^\w+:\/\//, ""), "ok");
     },
     badgeControls([groups]) {
       const box = $("#badge");
@@ -579,6 +595,22 @@
   $("#tlClear").addEventListener("click", () => {
     tl().entries = [];
     renderTimeline();
+  });
+  $("#optBtn").addEventListener("click", () => chrome.runtime.openOptionsPage?.());
+  $("[data-upd]").addEventListener("click", () => {
+    flash("checking…", "[data-upd]");
+    post(Protocol.cmd("updateCheck"));
+  });
+  $("#updGo").addEventListener("click", () => {
+    if (port) post(Protocol.cmd("updateApply"));
+    else chrome.runtime.openOptionsPage?.();
+    $("#updTxt").textContent = "The updater opened — press Update there, then refresh this page.";
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const tag = e.target && e.target.tagName;
+    if (tag === "INPUT" || tag === "SELECT") return;
+    if (myView) setView(myView);
   });
   bind();
 })();

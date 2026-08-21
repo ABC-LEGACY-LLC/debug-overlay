@@ -113,7 +113,9 @@ export const Updates = {
           } else {
             window.open(CONFIG.INSTALL_URL, '_blank');
           }
-          Updates.menu(x, y, true);
+          // the cursor menu only makes sense where a cursor asked — the
+          // cockpit calls this with no coordinates and shows its own next step
+          if (x != null) Updates.menu(x, y, true);
         },
 
         /** The ⏻ menu — the same cursor menu right-click already speaks.
