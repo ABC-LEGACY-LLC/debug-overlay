@@ -2205,6 +2205,88 @@ console.log('\nWHAT A LIVE UX AUDIT FOUND');
   w1.close();
 }
 
+console.log('\nSTALENESS ANNOUNCES ITSELF');
+/**
+ * The update checker: one endpoint, three doors (worker / GM_xmlhttpRequest /
+ * fetch), daily automatic floor plus a manual "check now" that always answers.
+ * jsdom has neither chrome nor GM, so these drive the fetch door with a stub —
+ * which is exactly the door the dev page uses.
+ */
+{
+  const opts = { url: 'https://example.test/', pretendToBeVisual: true,
+                 runScripts: 'outside-only', virtualConsole: new VirtualConsole() };
+  const boot = (metaVersion, fail) => {
+    const d = new JSDOM('<!doctype html><html><body><div id="a">a</div></body></html>', opts);
+    const w = d.window;
+    w.fetch = () => (fail
+      ? Promise.reject(new Error('offline'))
+      : Promise.resolve({ ok: true, text: () => Promise.resolve(
+          `// ==UserScript==\n// @version      ${metaVersion}\n// ==/UserScript==`) }));
+    let opened = null;
+    w.open = (u) => { opened = u; return null; };
+    w.eval(source);
+    w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+    return { w, opened: () => opened };
+  };
+  const menuRows = (w) => [...w.document.querySelectorAll('#__dbgov-menu button')]
+    .map((b) => b.textContent);
+  const rclickPwr = (w) => w.document.querySelector('#__dbgov-bar .dbgov-pwr')
+    .dispatchEvent(new w.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+
+  // a newer version, found by the MANUAL check — the user asking
+  const hi = boot('99.0.0');
+  rclickPwr(hi.w);
+  ok('right-click ⏻ opens the update menu with a manual check',
+    menuRows(hi.w).some((x) => /Check for updates now/.test(x)),
+    menuRows(hi.w).join(' | ') || '(no menu)');
+  [...hi.w.document.querySelectorAll('#__dbgov-menu button')]
+    .find((b) => /Check for updates/.test(b.textContent))
+    .dispatchEvent(new hi.w.MouseEvent('click', { bubbles: true }));
+  pendingChecks.push(() => {
+    ok('a found update RESTS on ⏻ — a dot, and the tooltip says how',
+      hi.w.document.querySelector('.dbgov-pwr').classList.contains('dbgov-upd') &&
+      /v99\.0\.0 available/.test(hi.w.document.querySelector('.dbgov-pwr').title),
+      hi.w.document.querySelector('.dbgov-pwr').title);
+    rclickPwr(hi.w);
+    ok('and the menu now offers the install',
+      menuRows(hi.w).some((x) => /Update to v99\.0\.0/.test(x)),
+      menuRows(hi.w).join(' | '));
+    [...hi.w.document.querySelectorAll('#__dbgov-menu button')]
+      .find((b) => /Update to/.test(b.textContent))
+      .dispatchEvent(new hi.w.MouseEvent('click', { bubbles: true }));
+    ok('pressing it opens the pinned install URL — the manager finishes the job',
+      /debug-overlay\.user\.js$/.test(hi.w.__opened || hi.opened() || ''),
+      String(hi.opened()));
+    hi.w.close();
+  });
+
+  // current version: the manual check must still ANSWER
+  const same = boot('0.0.1');
+  rclickPwr(same.w);
+  [...same.w.document.querySelectorAll('#__dbgov-menu button')]
+    .find((b) => /Check for updates/.test(b.textContent))
+    .dispatchEvent(new same.w.MouseEvent('click', { bubbles: true }));
+  pendingChecks.push(() => {
+    ok('being current is an answer, not silence — and no dot appears',
+      !same.w.document.querySelector('.dbgov-pwr').classList.contains('dbgov-upd'),
+      'an old version left a dot, or the check never ran');
+    same.w.close();
+  });
+
+  // offline: silent — a false nag teaches the eye to ignore a true one
+  const off = boot('99.0.0', true);
+  rclickPwr(off.w);
+  [...off.w.document.querySelectorAll('#__dbgov-menu button')]
+    .find((b) => /Check for updates/.test(b.textContent))
+    .dispatchEvent(new off.w.MouseEvent('click', { bubbles: true }));
+  pendingChecks.push(() => {
+    ok('a failed check is silent',
+      !off.w.document.querySelector('.dbgov-pwr').classList.contains('dbgov-upd'),
+      'offline produced a nag');
+    off.w.close();
+  });
+}
+
 console.log('\nTHE SESSION SURVIVES THE REFRESH');
 /**
  * DevTools survives a reload because it lives outside the page; a userscript

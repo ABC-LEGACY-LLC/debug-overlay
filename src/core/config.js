@@ -13,6 +13,13 @@
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
     VERSION: '__VERSION__',
+    // Substituted like VERSION: where the update checker asks, and what the
+    // userscript's one-click update opens. One source (userscript.json), no
+    // second copy to drift.
+    META_URL: '__META_URL__',
+    INSTALL_URL: '__INSTALL_URL__',
+    // daily automatic floor; the manual "check now" row ignores it
+    UPDATE: { EVERY: 86400000, BOOT_DELAY: 4000 },
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has

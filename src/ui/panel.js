@@ -150,6 +150,7 @@ import { List } from './list.js';
     const api = {
       el,
       onToggle: null, onTool: null, onBadgeControl: null, onCopy: null,
+      onUpdateMenu: null,
       onClear: null, onListOpen: null, onRowActivate: null, onRowRemove: null,
       onSweep: null, onRowChange: null,
       setOn(v) {
@@ -201,6 +202,17 @@ import { List } from './list.js';
       setBadgeControls(groups) {
         badgeGroups = groups;
         renderBadgeFly();
+      },
+      /**
+       * A newer version exists. The mark RESTS (counts rest, never flash)
+       * and the tooltip says both what and how — a dot with no explanation
+       * is a mystery, and a mystery on the power button is worse.
+       */
+      setUpdate(v) {
+        const b = el.querySelector('.dbgov-pwr');
+        b.classList.add('dbgov-upd');
+        b.title = `Power (Alt+Shift+D) · v${CONFIG.VERSION} — v${v} available, right-click to update`;
+        b.setAttribute('aria-label', `Power — update to v${v} available`);
       },
       /* A flyout is an overlay, so Escape has to reach it — it did not, and
          the comment above the fam-btn handler claimed otherwise. Shaped like
@@ -306,6 +318,13 @@ import { List } from './list.js';
       .forEach((b) => b.setAttribute('aria-pressed', 'false'));
 
     el.querySelector('.dbgov-pwr').addEventListener('click', () => api.onToggle?.());
+    /* right-click ⏻ = the update menu — the grammar the panel already
+       speaks (right-click a button → menu about that button), asked of the
+       button that OWNS the version: its tooltip carries v${...} today. */
+    el.querySelector('.dbgov-pwr').addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      api.onUpdateMenu?.(e.clientX, e.clientY);
+    });
     /* The family flyout: click the mark to slide the members out; click it
        again, pick a member, press Escape via the panel path, or click
        anywhere else to close. Only ever one open. */

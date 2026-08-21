@@ -35,6 +35,8 @@ const DIST = path.join(ROOT, 'dist');
 const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'userscript.json'), 'utf8'));
 /** Placeholder in src/core/config.js, replaced with the real version at bundle time. */
 const VERSION_TOKEN = '__VERSION__';
+const META_TOKEN = '__META_URL__';
+const INSTALL_TOKEN = '__INSTALL_URL__';
 
 function bump(v, kind) {
   const [a, b, c] = v.split('.').map(Number);
@@ -54,6 +56,9 @@ function metaBlock(version) {
     ['author', cfg.author],
     ...cfg.match.map((m) => ['match', m]),
     ...(cfg.grant?.length ? cfg.grant : ['none']).map((g) => ['grant', g]),
+    // @connect whitelists the update checker's host at install time, so the
+    // manager's network door opens with NO per-use prompt — and only to here
+    ...(cfg.connect || []).map((c) => ['connect', c]),
     ...(cfg.noframes ? [['noframes', '']] : []),
     ['run-at', 'document-idle'],
     ['updateURL', `${cfg.rawBase}/${cfg.metaFile}`],
@@ -120,7 +125,9 @@ function build(kind) {
                   'overlay its version, and a stale install would look current');
     process.exit(1);
   }
-  bundled = bundled.replace(VERSION_TOKEN, version);
+  bundled = bundled.replace(VERSION_TOKEN, version)
+    .replace(META_TOKEN, `${cfg.rawBase}/${cfg.metaFile}`)
+    .replace(INSTALL_TOKEN, `${cfg.rawBase}/${cfg.distFile}`);
 
   const banner = fs.readFileSync(path.join(SRC, 'banner.js'), 'utf8');
   const docs = fs.readFileSync(path.join(ROOT, 'DOCS.txt'), 'utf8').trim();

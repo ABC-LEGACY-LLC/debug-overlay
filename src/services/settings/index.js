@@ -151,6 +151,7 @@ import { State, Store } from '../../core/state.js';
         [`Hold ${CONFIG.REMOVE_KEY.replace('Key', '')}`, 'show ✕ on every pin'],
         ['Esc', 'close the panel, then the pins'],
         ['Right-click a tool', 'its own options, without the others'],
+        ['Right-click ⏻', 'updates — check now, or install the one waiting'],
         [hot, 'power on and off'],
       ];
       for (const t of Tools.withHook('gestures'))

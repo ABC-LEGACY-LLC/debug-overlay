@@ -227,6 +227,12 @@ import { CONFIG } from '../core/config.js';
       font-size: 15px; background: #3a3a40; color: #9a9aa2;
       display: flex; align-items: center; justify-content: center; transition: background .15s; }
     #__dbgov-bar.dbgov-on .dbgov-pwr { background: #b5e853; color: #1a1a1a; }
+    /* a newer version exists — RESTS until updated, like every count that
+       matters; amber because it asks for a decision, not because it burns */
+    #__dbgov-bar .dbgov-pwr.dbgov-upd::after { content: ''; position: absolute;
+      top: 1px; right: 1px; width: 9px; height: 9px; border-radius: 50%;
+      background: #ffd54f; border: 2px solid #16161a; }
+    #__dbgov-bar .dbgov-pwr { position: relative; }
     #__dbgov-bar .dbgov-st { font-size: 10px; font-weight: 800; letter-spacing: .5px; color: #8f8f96; }
     #__dbgov-bar.dbgov-on .dbgov-st { color: #b5e853; }
     #__dbgov-bar.dbgov-removing .dbgov-pwr { background: #ff5c5c; color: #fff; }

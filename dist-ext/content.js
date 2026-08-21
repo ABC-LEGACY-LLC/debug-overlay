@@ -1,4 +1,4 @@
-/* dbgov v3.8.88 — extension gate; same bundle as the userscript */
+/* dbgov v3.8.89 — extension gate; same bundle as the userscript */
 (function () {
   'use strict';
 /* NOT a module and NOT bundled: build.js injects this text at the very top
@@ -34,7 +34,14 @@
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.88",
+    VERSION: "3.8.89",
+    // Substituted like VERSION: where the update checker asks, and what the
+    // userscript's one-click update opens. One source (userscript.json), no
+    // second copy to drift.
+    META_URL: "https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/debug-overlay.meta.js",
+    INSTALL_URL: "https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/debug-overlay.user.js",
+    // daily automatic floor; the manual "check now" row ignores it
+    UPDATE: { EVERY: 864e5, BOOT_DELAY: 4e3 },
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -2172,6 +2179,12 @@
       font-size: 15px; background: #3a3a40; color: #9a9aa2;
       display: flex; align-items: center; justify-content: center; transition: background .15s; }
     #__dbgov-bar.dbgov-on .dbgov-pwr { background: #b5e853; color: #1a1a1a; }
+    /* a newer version exists — RESTS until updated, like every count that
+       matters; amber because it asks for a decision, not because it burns */
+    #__dbgov-bar .dbgov-pwr.dbgov-upd::after { content: ''; position: absolute;
+      top: 1px; right: 1px; width: 9px; height: 9px; border-radius: 50%;
+      background: #ffd54f; border: 2px solid #16161a; }
+    #__dbgov-bar .dbgov-pwr { position: relative; }
     #__dbgov-bar .dbgov-st { font-size: 10px; font-weight: 800; letter-spacing: .5px; color: #8f8f96; }
     #__dbgov-bar.dbgov-on .dbgov-st { color: #b5e853; }
     #__dbgov-bar.dbgov-removing .dbgov-pwr { background: #ff5c5c; color: #fff; }
@@ -2684,6 +2697,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         onTool: null,
         onBadgeControl: null,
         onCopy: null,
+        onUpdateMenu: null,
         onClear: null,
         onListOpen: null,
         onRowActivate: null,
@@ -2734,6 +2748,17 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         setBadgeControls(groups2) {
           badgeGroups = groups2;
           renderBadgeFly();
+        },
+        /**
+         * A newer version exists. The mark RESTS (counts rest, never flash)
+         * and the tooltip says both what and how — a dot with no explanation
+         * is a mystery, and a mystery on the power button is worse.
+         */
+        setUpdate(v) {
+          const b = el2.querySelector(".dbgov-pwr");
+          b.classList.add("dbgov-upd");
+          b.title = `Power (Alt+Shift+D) · v${CONFIG.VERSION} — v${v} available, right-click to update`;
+          b.setAttribute("aria-label", `Power — update to v${v} available`);
         },
         /* A flyout is an overlay, so Escape has to reach it — it did not, and
            the comment above the fam-btn handler claimed otherwise. Shaped like
@@ -2828,6 +2853,10 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       });
       el2.querySelectorAll("[data-tool], [data-view]").forEach((b) => b.setAttribute("aria-pressed", "false"));
       el2.querySelector(".dbgov-pwr").addEventListener("click", () => api.onToggle?.());
+      el2.querySelector(".dbgov-pwr").addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        api.onUpdateMenu?.(e.clientX, e.clientY);
+      });
       el2.querySelectorAll(".dbgov-fam-btn").forEach((b) => {
         b.addEventListener("click", () => {
           const fam = b.parentElement;
@@ -3674,6 +3703,99 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     }
   };
 
+  // src/app/updates.js
+  function newer(a, b) {
+    const A = String(a).split(".").map(Number);
+    const B = String(b).split(".").map(Number);
+    for (let i = 0; i < Math.max(A.length, B.length); i++) {
+      const d = (A[i] || 0) - (B[i] || 0);
+      if (d) return d > 0;
+    }
+    return false;
+  }
+  function fetchText(url) {
+    if (typeof chrome !== "undefined" && chrome.runtime?.id) {
+      return new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({ type: "dbgov-fetch", url }, (r) => {
+          if (chrome.runtime.lastError || !r?.ok) reject(new Error(r?.error || "no worker"));
+          else resolve(r.text);
+        });
+      });
+    }
+    if (typeof GM_xmlhttpRequest !== "undefined") {
+      return new Promise((resolve, reject) => {
+        GM_xmlhttpRequest({
+          method: "GET",
+          url,
+          nocache: true,
+          onload: (r) => r.status >= 200 && r.status < 300 ? resolve(r.responseText) : reject(new Error("http " + r.status)),
+          onerror: () => reject(new Error("network")),
+          ontimeout: () => reject(new Error("timeout"))
+        });
+      });
+    }
+    return fetch(url, { cache: "no-store" }).then((r) => {
+      if (!r.ok) throw new Error("http " + r.status);
+      return r.text();
+    });
+  }
+  var Updates = {
+    latest: null,
+    // a KNOWN newer version, or null
+    async check(force) {
+      let saved = {};
+      try {
+        saved = JSON.parse(Store.get("__dbgov_upd") || "{}") || {};
+      } catch {
+      }
+      if (!force && Date.now() - (saved.t || 0) < CONFIG.UPDATE.EVERY) {
+        if (saved.v && newer(saved.v, CONFIG.VERSION)) Updates.found(saved.v);
+        return Updates.latest;
+      }
+      try {
+        const meta = await fetchText(CONFIG.META_URL);
+        const v = (/@version\s+([\d.]+)/.exec(meta) || [])[1];
+        Store.set("__dbgov_upd", JSON.stringify({ t: Date.now(), v: v || null }));
+        if (v && newer(v, CONFIG.VERSION)) Updates.found(v);
+        else Updates.latest = null;
+      } catch {
+      }
+      return Updates.latest;
+    },
+    found(v) {
+      Updates.latest = v;
+      Panel.setUpdate(v);
+    },
+    /** What pressing Update DOES, per gate. The userscript's manager owns
+     *  installation, so its click opens the install URL and Tampermonkey's
+     *  own dialog finishes the job in one more click. The extension's
+     *  self-updater arrives with its options page; until then, honesty. */
+    apply() {
+      if (typeof chrome !== "undefined" && chrome.runtime?.id) {
+        Panel.flash("git pull", ".dbgov-pwr");
+        return;
+      }
+      window.open(CONFIG.INSTALL_URL, "_blank");
+    },
+    /** The ⏻ menu — the same cursor menu right-click already speaks. */
+    menu(x, y) {
+      const rows = [{
+        label: "Check for updates now",
+        run: async () => {
+          const v = await Updates.check(true);
+          Panel.flash(v ? `v${v}!` : "✓ current", ".dbgov-pwr");
+        }
+      }];
+      if (Updates.latest) {
+        rows.push({ label: `Update to v${Updates.latest}`, run: () => Updates.apply() });
+      }
+      Menu.open(x, y, rows);
+    },
+    schedule() {
+      setTimeout(() => Updates.check(false), CONFIG.UPDATE.BOOT_DELAY);
+    }
+  };
+
   // src/services/settings/index.js
   var Settings = {
     carried: {},
@@ -3809,6 +3931,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         [`Hold ${CONFIG.REMOVE_KEY.replace("Key", "")}`, "show ✕ on every pin"],
         ["Esc", "close the panel, then the pins"],
         ["Right-click a tool", "its own options, without the others"],
+        ["Right-click ⏻", "updates — check now, or install the one waiting"],
         [hot, "power on and off"]
       ];
       for (const t of Tools.withHook("gestures"))
@@ -4339,6 +4462,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
   Panel.onToggle = Controller.togglePower;
   Panel.onTool = Controller.toggleTool;
   Panel.onBadgeControl = Controller.badgeControl;
+  Panel.onUpdateMenu = Updates.menu;
   Panel.onCopy = Report.copy;
   Panel.onSweep = Controller.sweep;
   Panel.onClear = Controller.clearPins;
@@ -4353,5 +4477,6 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
   Interactions.install(Controller);
   Controller.restorePins();
   Controller.setPower(Store.get(`${CONFIG.POWER_KEY}:${location.origin}`) === "1");
+  Updates.schedule();
 })();
 })();
