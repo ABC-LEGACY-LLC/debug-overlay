@@ -66,6 +66,7 @@ function fetchText(url) {
 
 export const Updates = {
         latest: null,          // a KNOWN newer version, or null
+        applied: false,        // the user pressed Update THIS page-session
 
         async check(force) {
           let saved = {};
@@ -96,15 +97,23 @@ export const Updates = {
          *  installation, so its click opens the install URL and Tampermonkey's
          *  own dialog finishes the job in one more click. The extension's
          *  self-updater arrives with its options page; until then, honesty. */
-        apply() {
+        apply(x, y) {
+          /* THE PAGE CANNOT KNOW the install finished: the manager swaps the
+             script on disk, but this page keeps RUNNING the old one until it
+             reloads, and the running code only knows its own baked version —
+             a user updated, saw nothing change, and rightly asked why. So
+             pressing Update immediately reopens the menu with the next step
+             spelled out and a Refresh button that does it. */
+          Updates.applied = true;
           if (typeof chrome !== 'undefined' && chrome.runtime?.id) {
             // the self-updater lives on the options page — the FS permission
             // re-grant needs a user gesture in an extension context, and a
             // content script is neither. The worker opens it.
             try { chrome.runtime.sendMessage({ type: 'debug-overlay-open-options' }); } catch {}
-            return;   // the updater page opening IS the feedback
+          } else {
+            window.open(CONFIG.INSTALL_URL, '_blank');
           }
-          window.open(CONFIG.INSTALL_URL, '_blank');
+          Updates.menu(x, y, true);
         },
 
         /** The ⏻ menu — the same cursor menu right-click already speaks.
@@ -113,8 +122,15 @@ export const Updates = {
          *  where a sentence cannot fit, and painted as smear. */
         menu(x, y, answered) {
           const rows = [];
-          if (Updates.latest) {
-            rows.push({ label: `Update to v${Updates.latest}`, run: () => Updates.apply() });
+          if (Updates.applied && Updates.latest) {
+            // the update is installed (or installing) — this PAGE still runs
+            // the old code, and only a reload changes that
+            rows.push({ label: `↻ Refresh page — activate v${Updates.latest}`,
+                        run: () => location.reload() });
+            rows.push({ label: 'Open the install page again',
+                        run: () => Updates.apply(x, y) });
+          } else if (Updates.latest) {
+            rows.push({ label: `Update to v${Updates.latest}`, run: () => Updates.apply(x, y) });
           } else if (answered) {
             rows.push({ label: `✓ current — v${CONFIG.VERSION}`, run: () => {} });
           }

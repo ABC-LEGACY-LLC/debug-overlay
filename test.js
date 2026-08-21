@@ -2278,6 +2278,12 @@ console.log('\nSTALENESS ANNOUNCES ITSELF');
     ok('pressing it opens the pinned install URL — the manager finishes the job',
       /debug-overlay\.user\.js$/.test(hi.w.__opened || hi.opened() || ''),
       String(hi.opened()));
+    /* …and the menu reopens ITSELF with the missing step: the page keeps
+       running the old code until it reloads, and a user who updated saw
+       nothing change and was told nothing. Refresh is now a button. */
+    ok('after Update, the menu says the page must refresh — as a button',
+      menuRows(hi.w).some((x) => /↻ Refresh page — activate v99\.0\.0/.test(x)),
+      menuRows(hi.w).join(' | ') || '(menu closed)');
     hi.w.close();
   });
 

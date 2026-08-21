@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.95
+// @version      3.8.96
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -352,7 +352,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.95",
+    VERSION: "3.8.96",
     // Substituted like VERSION: where the update checker asks, and what the
     // userscript's one-click update opens. One source (userscript.json), no
     // second copy to drift.
@@ -4069,6 +4069,8 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
   var Updates = {
     latest: null,
     // a KNOWN newer version, or null
+    applied: false,
+    // the user pressed Update THIS page-session
     async check(force) {
       let saved = {};
       try {
@@ -4097,15 +4099,17 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
      *  installation, so its click opens the install URL and Tampermonkey's
      *  own dialog finishes the job in one more click. The extension's
      *  self-updater arrives with its options page; until then, honesty. */
-    apply() {
+    apply(x, y) {
+      Updates.applied = true;
       if (typeof chrome !== "undefined" && chrome.runtime?.id) {
         try {
           chrome.runtime.sendMessage({ type: "debug-overlay-open-options" });
         } catch {
         }
-        return;
+      } else {
+        window.open(CONFIG.INSTALL_URL, "_blank");
       }
-      window.open(CONFIG.INSTALL_URL, "_blank");
+      Updates.menu(x, y, true);
     },
     /** The ⏻ menu — the same cursor menu right-click already speaks.
      *  A manual check REOPENS the menu with its answer where the question
@@ -4113,8 +4117,17 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
      *  where a sentence cannot fit, and painted as smear. */
     menu(x, y, answered) {
       const rows = [];
-      if (Updates.latest) {
-        rows.push({ label: `Update to v${Updates.latest}`, run: () => Updates.apply() });
+      if (Updates.applied && Updates.latest) {
+        rows.push({
+          label: `↻ Refresh page — activate v${Updates.latest}`,
+          run: () => location.reload()
+        });
+        rows.push({
+          label: "Open the install page again",
+          run: () => Updates.apply(x, y)
+        });
+      } else if (Updates.latest) {
+        rows.push({ label: `Update to v${Updates.latest}`, run: () => Updates.apply(x, y) });
       } else if (answered) {
         rows.push({ label: `✓ current — v${CONFIG.VERSION}`, run: () => {
         } });

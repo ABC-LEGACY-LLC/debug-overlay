@@ -79,7 +79,7 @@ document.getElementById('apply').onclick = async () => {
       await w.close();
       log('wrote ' + f);
     }
-    log('reloading extension…');
+    log('reloading extension — REFRESH your open tabs to run the new version');
     chrome.runtime.reload();
   } catch (e) { log('failed: ' + e.message); }
 };
