@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.105
+// @version      3.8.106
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -352,7 +352,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.105",
+    VERSION: "3.8.106",
     // Substituted like VERSION: where the update checker asks, and what the
     // userscript's one-click update opens. One source (userscript.json), no
     // second copy to drift.
@@ -574,9 +574,66 @@ HOW TO USE
      * `typeof` on an undeclared name is the only safe way to ask.
      */
     _gm: typeof GM_getValue === "function" && typeof GM_setValue === "function",
+    _ext: null,
+    // Map cache over chrome.storage.local, or null
+    _extApi: null,
+    /**
+     * chrome.storage is async-only and every reader here is sync, so the
+     * extension gate loads EVERYTHING into a cache once, before boot, and
+     * writes through after. Returns a promise ONLY on that backend — the GM
+     * gate, the dev page and the suite all boot synchronously, and the suite
+     * asserts against the DOM in the same breath as eval, so the sync paths
+     * must stay sync. GM wins over chrome.storage if both ever exist:
+     * existing installs keep their data.
+     */
+    init() {
+      if (Store._gm) return null;
+      const ext = typeof chrome !== "undefined" && chrome.storage && chrome.storage.local;
+      if (!ext) return null;
+      return new Promise((res) => {
+        try {
+          ext.get(null, (all) => {
+            Store._ext = new Map(Object.entries(all || {}));
+            Store._extApi = ext;
+            try {
+              chrome.storage.onChanged.addListener((changes, area) => {
+                if (area !== "local" || !Store._ext) return;
+                for (const k of Object.keys(changes)) {
+                  const v = changes[k].newValue;
+                  if (v === void 0) Store._ext.delete(k);
+                  else Store._ext.set(k, v);
+                }
+              });
+            } catch {
+            }
+            res();
+          });
+        } catch {
+          res();
+        }
+      });
+    },
     /** The stored string for `key`, or null. Never throws. */
     get(key) {
       try {
+        if (Store._ext) {
+          const v2 = Store._ext.get(key);
+          if (v2 !== void 0 && v2 !== null) return String(v2);
+          const old2 = localStorage.getItem(key);
+          if (old2 !== null) {
+            Store._ext.set(key, old2);
+            try {
+              Store._extApi.set({ [key]: old2 });
+            } catch {
+            }
+            try {
+              localStorage.removeItem(key);
+            } catch {
+            }
+            return old2;
+          }
+          return null;
+        }
         if (!Store._gm) return localStorage.getItem(key);
         const v = GM_getValue(key);
         if (v !== void 0 && v !== null) return String(v);
@@ -597,6 +654,14 @@ HOW TO USE
     /** Persist `value` (a string). Storage being unavailable is not an error. */
     set(key, value) {
       try {
+        if (Store._ext) {
+          Store._ext.set(key, value);
+          try {
+            Store._extApi.set({ [key]: value });
+          } catch {
+          }
+          return;
+        }
         if (Store._gm) GM_setValue(key, value);
         else localStorage.setItem(key, value);
       } catch {
@@ -5134,32 +5199,37 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
   };
 
   // src/boot.js
-  initDom();
-  initList();
-  initMenu();
-  initPanel();
-  Panel.onToggle = Controller.togglePower;
-  Panel.onTool = Controller.toggleTool;
-  Panel.onBadgeControl = Controller.badgeControl;
-  Panel.onUpdateMenu = Updates.menu;
-  Panel.onCopy = Report.copy;
-  Panel.onSweep = Controller.sweep;
-  Panel.onClear = Controller.clearPins;
-  Panel.onListOpen = (view) => Panel.setList(Controller.rows(view), Controller.emptyFor(view));
-  Panel.onRowActivate = Controller.revealRow;
-  Panel.onRowRemove = Controller.removeRow;
-  Panel.onRowChange = Controller.changeRow;
-  Panel.onRowsFor = (view) => ({ rows: Controller.rows(view), empty: Controller.emptyFor(view) });
-  Render.onPinsPruned = Controller.pinsPruned;
-  Panel.onState = Bridge.state;
-  Controller.onToolEvent = Bridge.toolEvent;
-  Bridge.init();
-  Settings.load();
-  Controller.refreshBadge();
-  Controller.loadTools();
-  Interactions.install(Controller);
-  Controller.restorePins();
-  Controller.setPower(Store.get(`${CONFIG.POWER_KEY}:${location.origin}`) === "1");
-  Updates.schedule();
+  function start() {
+    initDom();
+    initList();
+    initMenu();
+    initPanel();
+    Panel.onToggle = Controller.togglePower;
+    Panel.onTool = Controller.toggleTool;
+    Panel.onBadgeControl = Controller.badgeControl;
+    Panel.onUpdateMenu = Updates.menu;
+    Panel.onCopy = Report.copy;
+    Panel.onSweep = Controller.sweep;
+    Panel.onClear = Controller.clearPins;
+    Panel.onListOpen = (view) => Panel.setList(Controller.rows(view), Controller.emptyFor(view));
+    Panel.onRowActivate = Controller.revealRow;
+    Panel.onRowRemove = Controller.removeRow;
+    Panel.onRowChange = Controller.changeRow;
+    Panel.onRowsFor = (view) => ({ rows: Controller.rows(view), empty: Controller.emptyFor(view) });
+    Render.onPinsPruned = Controller.pinsPruned;
+    Panel.onState = Bridge.state;
+    Controller.onToolEvent = Bridge.toolEvent;
+    Bridge.init();
+    Settings.load();
+    Controller.refreshBadge();
+    Controller.loadTools();
+    Interactions.install(Controller);
+    Controller.restorePins();
+    Controller.setPower(Store.get(`${CONFIG.POWER_KEY}:${location.origin}`) === "1");
+    Updates.schedule();
+  }
+  var deferred = Store.init();
+  if (deferred) deferred.then(start);
+  else start();
 })();
 })();

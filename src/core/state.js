@@ -12,8 +12,22 @@
         the user on every domain they visit. GM_getValue is per SCRIPT, and it
         rides Tampermonkey's own sync to a new machine.
 
-        Both backends store the same JSON strings, so what is already in
-        localStorage is readable as-is and gets adopted on first run.
+        THREE backends, one meaning, chosen in this order:
+          GM_*            the userscript gate — per script, manager-synced
+          chrome.storage  the extension gate — a content script's ONE store
+                          that follows the extension rather than the origin.
+                          Without it the extension fell back to localStorage
+                          and the user's choices split per site: ⚡ armed on
+                          one origin arrived disarmed on the next, which is
+                          the exact failure this Store exists to end.
+          localStorage    the dev page and the tests — per origin, and fine
+                          there, where one origin is all there is.
+
+        All three store the same JSON strings, so what is already in
+        localStorage is readable as-is and gets adopted on first use, per
+        key — an upgrade must never reset anybody. Anything per SITE stays
+        per site by carrying the origin in its KEY (power, pins), so a
+        global backend does not globalise it.
      ====================================================================== */
   export const Store = {
     /**
@@ -23,10 +37,64 @@
      * `typeof` on an undeclared name is the only safe way to ask.
      */
     _gm: typeof GM_getValue === 'function' && typeof GM_setValue === 'function',
+    _ext: null,      // Map cache over chrome.storage.local, or null
+    _extApi: null,
+
+    /**
+     * chrome.storage is async-only and every reader here is sync, so the
+     * extension gate loads EVERYTHING into a cache once, before boot, and
+     * writes through after. Returns a promise ONLY on that backend — the GM
+     * gate, the dev page and the suite all boot synchronously, and the suite
+     * asserts against the DOM in the same breath as eval, so the sync paths
+     * must stay sync. GM wins over chrome.storage if both ever exist:
+     * existing installs keep their data.
+     */
+    init() {
+      if (Store._gm) return null;
+      const ext = typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local;
+      if (!ext) return null;
+      return new Promise((res) => {
+        try {
+          ext.get(null, (all) => {
+            Store._ext = new Map(Object.entries(all || {}));
+            Store._extApi = ext;
+            /* other tabs write to the same store; keep the cache honest so a
+               later read here agrees. (Values loaded into State at boot are
+               boot's business, same as under GM.) */
+            try {
+              chrome.storage.onChanged.addListener((changes, area) => {
+                if (area !== 'local' || !Store._ext) return;
+                for (const k of Object.keys(changes)) {
+                  const v = changes[k].newValue;
+                  if (v === undefined) Store._ext.delete(k);
+                  else Store._ext.set(k, v);
+                }
+              });
+            } catch {}
+            res();
+          });
+        } catch { res(); }   // storage refused: the localStorage life, honestly
+      });
+    },
 
     /** The stored string for `key`, or null. Never throws. */
     get(key) {
       try {
+        if (Store._ext) {
+          const v = Store._ext.get(key);
+          if (v !== undefined && v !== null) return String(v);
+          // first meeting of this key on this backend: adopt what THIS
+          // origin's localStorage held from the per-site days — the same
+          // move the GM gate made the day it was granted storage
+          const old = localStorage.getItem(key);
+          if (old !== null) {
+            Store._ext.set(key, old);
+            try { Store._extApi.set({ [key]: old }); } catch {}
+            try { localStorage.removeItem(key); } catch {}
+            return old;
+          }
+          return null;
+        }
         if (!Store._gm) return localStorage.getItem(key);
         const v = GM_getValue(key);
         if (v !== undefined && v !== null) return String(v);
@@ -50,6 +118,11 @@
     /** Persist `value` (a string). Storage being unavailable is not an error. */
     set(key, value) {
       try {
+        if (Store._ext) {
+          Store._ext.set(key, value);
+          try { Store._extApi.set({ [key]: value }); } catch {}
+          return;
+        }
         if (Store._gm) GM_setValue(key, value);
         else localStorage.setItem(key, value);
       } catch {}

@@ -404,9 +404,13 @@ Ctrl, because Ctrl+click is the context menu on macOS.
 The header grants `GM_getValue`/`GM_setValue`, because `localStorage` is scoped
 to one origin and `@match` is every site — so everything the user chose was
 chosen again on the next domain. `Store` (in `core/state.js`) is the only way to
-persist anything; it falls back to `localStorage` where the API is absent (dev
-page, tests) and adopts existing `localStorage` values on first run, so an
-upgrade never resets somebody. Do not call `localStorage` directly again.
+persist anything; it picks its backend in order — GM, then
+`chrome.storage.local` (the extension gate's per-install store; async-only, so
+boot defers on that ONE backend via `Store.init()`), then `localStorage` (dev
+page, tests) — and adopts existing per-origin values on first use of a better
+backend, so an upgrade never resets somebody. Do not call `localStorage`
+directly again, and keep the non-ext paths synchronous: the suite, map.js and
+compare.js all read the DOM in the same breath as eval.
 
 Asking for any GM API moves the script into the manager's sandbox, where
 `window` is a wrapper around the page's. Two consequences, both already handled

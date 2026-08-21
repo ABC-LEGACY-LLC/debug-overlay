@@ -21,6 +21,15 @@ import { Settings } from './services/settings/index.js';
 import { CONFIG } from './core/config.js';
 import { Store } from './core/state.js';
 
+/* Everything below runs as one synchronous sequence — except that under the
+   EXTENSION gate it starts one tick late: chrome.storage is async-only, so
+   Store.init() loads its cache first and boot waits on that single promise.
+   Every other backend returns null and boot stays synchronous, which the
+   suite, map.js and compare.js all rely on (they eval the bundle and read
+   the DOM in the same breath). Module side effects — the manifest's tool
+   registrations — still run at import time either way; only the init calls
+   defer, together, in their original order. */
+function start() {
 initDom();
 initList();
 initMenu();
@@ -72,3 +81,8 @@ Interactions.install(Controller);
 Controller.restorePins();
 Controller.setPower(Store.get(`${CONFIG.POWER_KEY}:${location.origin}`) === '1');
 Updates.schedule();
+}
+
+const deferred = Store.init();
+if (deferred) deferred.then(start);
+else start();

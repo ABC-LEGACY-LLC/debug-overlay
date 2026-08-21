@@ -194,13 +194,19 @@ Two things to expect:
 ### What syncs, what stays per site
 
 Which tools are armed, the panel position, and everything under ⚙ are kept
-with `GM_setValue`, which is scoped to the **script** rather than to one
-origin — choose an 8px grid on one site and every other site already knows,
-and Tampermonkey's own sync carries it all to a new machine.
+in a store that follows the **install**, not the site — under Tampermonkey
+that is `GM_setValue` (scoped to the script, carried to new machines by the
+manager's own sync); under the browser extension it is
+`chrome.storage.local` (scoped to the extension). Choose an 8px grid on one
+site and every other site already knows. Before the extension gate had this,
+it fell back to per-origin `localStorage` and choices silently split across
+sites — arm ⚡ on one origin and it arrived disarmed on the next.
 
 Two things are deliberately **not** global: power (per site — debugging one
 site must not switch the overlay on across the whole browser) and pins (per
-page, saved as selectors and re-resolved on reload).
+page, saved as selectors and re-resolved on reload). They stay per-site by
+carrying the origin in their storage **key**, so the global backend does not
+globalise them.
 
 The grants are not free. `GM_getValue`/`GM_setValue` exist because
 `localStorage` is per-origin and `@match *://*/*` would reset settings on
@@ -210,9 +216,12 @@ fetches — and can call that one host, nowhere else. Any GM grant moves the
 script into the manager's **sandbox**, where `window` is a wrapper; two
 things in `src/banner.js` exist because of it (the `frameElement` frame check
 and the ask-the-document single-instance guard). `Store` in
-`src/core/state.js` falls back to `localStorage` wherever the GM API is
-absent, and adopts existing values on first run so an upgrade never resets
-anybody.
+`src/core/state.js` picks its backend in order — GM, then
+`chrome.storage.local`, then `localStorage` (the dev page and the tests) —
+and adopts existing per-origin values on first use of a better backend, so
+an upgrade never resets anybody. `chrome.storage` is async-only, so on that
+one backend boot waits for a single storage snapshot before initialising;
+everywhere else it stays synchronous.
 
 ---
 

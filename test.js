@@ -730,6 +730,80 @@ let cockpitChecked = false;
   });
 }
 
+console.log('\nONE STORAGE, TWO GATES');
+/**
+ * The extension gate's Store now rides chrome.storage.local — the one store
+ * a content script has that follows the EXTENSION rather than the origin.
+ * This is the fix for a failure measured live: ⚡ armed on one site arrived
+ * disarmed on the next, because the fallback (localStorage) is per origin.
+ * Async backend, so these stages wait on the deferred boot; every other
+ * backend boots synchronously, which the rest of this suite proves by
+ * asserting against the DOM in the same breath as eval.
+ */
+let storageChecked = false;
+{
+  const mkExtWin = (bag, url) => {
+    const dom = new JSDOM('<!doctype html><html><body><div id="a">x</div></body></html>',
+      { url, pretendToBeVisual: true, runScripts: 'outside-only',
+        virtualConsole: new VirtualConsole() });
+    const w = dom.window;
+    w.chrome = { runtime: {}, storage: {
+      local: {
+        get: (q, cb) => cb(Object.assign({}, bag)),
+        set: (obj, cb) => { Object.assign(bag, obj); if (cb) cb(); },
+        remove: (k, cb) => { delete bag[k]; if (cb) cb(); },
+      },
+      onChanged: { addListener() {} },
+    } };
+    w.eval(source);
+    return { dom, w, bar: () => w.document.getElementById('__dbgov-bar') };
+  };
+  const hotkey = (w) => w.dispatchEvent(new w.KeyboardEvent('keydown',
+    { altKey: true, shiftKey: true, ctrlKey: false, code: 'KeyD', bubbles: true }));
+
+  const bag = {};
+  const s1 = mkExtWin(bag, 'https://a.test/');
+  whenPainted(() => !!s1.bar(), () => {
+    console.log('\nONE STORAGE (after the deferred boot)');
+    ok('the extension gate boots — one tick late, then whole',
+      !!s1.bar(), 'chrome.storage present and no bar: the deferred start never ran');
+    ok('boot already wrote through — the seen set is in extension storage',
+      typeof bag['__dbgov_seen'] === 'string', Object.keys(bag).join(', '));
+    hotkey(s1.w);
+    s1.bar().querySelector('[data-tool="perf"]')
+      .dispatchEvent(new s1.w.MouseEvent('click', { bubbles: true }));
+    ok('arming ⚡ on site A lands in extension storage',
+      (bag['__dbgov_tools'] || '').includes('perf'), bag['__dbgov_tools']);
+
+    const s2 = mkExtWin(bag, 'https://b.test/');
+    whenPainted(() => !!s2.bar(), () => {
+      ok('site B boots with ⚡ STILL ARMED — the split is over',
+        s2.bar().querySelector('[data-tool="perf"]').classList.contains('dbgov-armed'),
+        'the exact live failure: armed on one origin, disarmed on the next');
+      ok('while power stays per site, carried by its KEY',
+        !s2.bar().classList.contains('dbgov-on'),
+        'a global backend must not globalise a per-site choice');
+
+      // adoption: an install that lived the per-origin life keeps its choices
+      const bag2 = {};
+      const s3 = mkExtWin(bag2, 'https://c.test/');
+      s3.w.localStorage.setItem('__dbgov_tools', JSON.stringify(['grid']));
+      const s3b = mkExtWin(bag2, 'https://c.test/');
+      whenPainted(() => !!s3b.bar(), () => {
+        ok('per-origin values are ADOPTED into extension storage, then removed',
+          (bag2['__dbgov_tools'] || '').includes('grid') &&
+          s3b.w.localStorage.getItem('__dbgov_tools') === null,
+          'an upgrade reset somebody, or left two answers to one question');
+        s1.dom.window.close();
+        s2.dom.window.close();
+        s3.dom.window.close();
+        s3b.dom.window.close();
+        storageChecked = true;
+      });
+    });
+  });
+}
+
 console.log('\nSTYLESHEET');
 // Malformed CSS never fails loudly: the parser drops the broken rule and
 // every rule after it in that sheet, and raises nothing. Each sheet is
@@ -3053,7 +3127,7 @@ function whenPainted(ready, run, waited = 0) {
   setTimeout(() => whenPainted(ready, run, waited + 25), 25);
 }
 
-whenPainted(() => perfChecked && cockpitChecked &&
+whenPainted(() => perfChecked && cockpitChecked && storageChecked &&
                   window.document.querySelector('#__dbgov-root .dbgov-flag') &&
                   w3.document.querySelector('#__dbgov-root .dbgov-badge'), () => {
   console.log('\nREVIEW FIXES (after a frame)');
