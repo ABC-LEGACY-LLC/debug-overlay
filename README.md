@@ -1,63 +1,20 @@
 # Debug Overlay
 
-A screenshot-friendly UI inspector that runs on any page via Tampermonkey.
-Hover to read sizes, Shift+click two elements to measure between them, then
-copy a structured report to paste into an AI chat alongside the screenshot.
+A screenshot-friendly UI inspector that runs on any page. Hover to read sizes,
+click to pin, Shift+click two elements to measure between them, run a
+whole-page audit, then copy a structured report to paste into an AI chat
+alongside the screenshot.
 
-Edited as many small files, shipped as one userscript that every machine
-updates by itself after a `git push`.
+One codebase, two ways to install: a **Tampermonkey userscript** that updates
+itself after every `git push`, and a **browser extension** built from the
+byte-identical bundle, with a one-press self-updater. Sessions survive a page
+refresh; a performance monitor (⚡) can watch a pinned component's cost live.
 
----
-
-## Everyday use
-
-```bash
-npm install            # once — jsdom (tests) + esbuild (bundler)
-npm run dev            # local page + rebuild on save — look at it first
-npm run check          # rebuild (no bump) + architecture rules + fake-DOM boot
-node build.js          # patch bump + bundle + syntax check
-node build.js --minor  # feature bump
-```
-
-`npm run check` deliberately builds with `--same`, so verifying a change never
-inflates the version. The bump belongs to the release step — `node build.js` —
-right before you commit.
-
-Then:
-
-```bash
-git add -A && git commit -m "measure: fix diagonal spans" && git push
-```
-
-Every machine picks the new version up on its own. No copy-paste.
-
----
-
-## Seeing a change before shipping it
-
-Tampermonkey is production: it only ever runs what has been built, bumped,
-committed and pushed. For anything visual that round trip is far too slow, so
-there is a local one:
-
-```bash
-npm run dev        # http://localhost:8080  (PORT=3000 npm run dev to move it)
-```
-
-It serves `development/index.html` with the built bundle loaded by a plain `<script>`
-tag. The script asks for `GM_getValue`/`GM_setValue` but never assumes them —
-`Store` falls back to `localStorage`, which is what happens here. `build.js --watch` runs alongside it, and the page reloads itself when a
-rebuild lands, so saving a file in `src/` is the entire loop.
-
-The page carries something for each tool on purpose: padding and gaps off the
-the spacing grid, a paragraph that fails AA contrast, and boxes worth measuring
-between.
-
-Open it in a **real browser tab**. The bundle skips frames by design
-(`banner.js`), so an embedded editor preview renders the page with no
-overlay at all — the page says so if it detects it is framed.
-
-The dev loop never bumps the version: `--watch` builds with `--same`, so it
-cannot burn version numbers that Tampermonkey would then skip past.
+**Jump to:** [Install](#install) ·
+[First 60 seconds](#first-60-seconds-after-installing) ·
+[Troubleshooting](#if-something-looks-wrong) ·
+[Developing](#developing) · [Architecture](#architecture) ·
+[Adding a tool](#adding-a-tool)
 
 ---
 
@@ -77,7 +34,7 @@ two copies would fight over the page.
 ### Option A — Userscript with Tampermonkey *(recommended)*
 
 **Step 1.** Install the Tampermonkey extension from your browser's store
-(chrome web store / Edge add-ons / Firefox add-ons — search "Tampermonkey").
+(Chrome Web Store / Edge Add-ons / Firefox Add-ons — search "Tampermonkey").
 
 **Step 2 (Chrome/Edge only).** Open `chrome://extensions` and switch
 **Developer mode** ON (top-right). Chrome requires it for userscripts to run
@@ -146,9 +103,16 @@ use Option A there.
 | hover | live badge with sizes, spacing, font |
 | click | select an element (📌 armed = it pins) |
 | Shift+click ×2 | measure between two elements |
-| ⌕ | audit the whole page, findings marked in place |
+| Ctrl+Shift+click | chain to the previous pin — read a rhythm off one screenshot |
+| ⌕ | audit the whole page, findings marked and labelled in place |
+| ⚡ (arm it first) | freezes, FPS, and a pinned component's live cost |
 | ⧉ | copy a structured report for an AI chat |
+| right-click a target | copy its selector or text |
 | right-click ⏻ | updates: check now / install / refresh |
+
+Every mark and abbreviation the overlay prints is explained under
+⚙ → **Legend**. Refreshing the page keeps your session: power stays on (per
+site) and pins come back by selector, with losses counted.
 
 **Optional but recommended — Tampermonkey Sync** (Option A): Dashboard →
 Settings → Sync to Google Drive / Dropbox / OneDrive. A brand-new machine
@@ -168,7 +132,7 @@ then only needs you to sign in; the script arrives on its own.
 ### For a different account / fork
 
 The repo must be **public** (Tampermonkey fetches raw URLs without
-credentials). Change `rawBase` in `userscript.json`, run `node build.js`,
+credentials). Change `rawBase` in `userscript.json`, run `npm run ship`,
 push — every URL (header, checker, installer, updater) derives from that one
 field. The repo was once `AlonurKomilov/debug-overlay-abc`; do not use the
 old name — the redirect dies the day anyone claims it, silently.
@@ -200,46 +164,82 @@ legacy-bridge copies at `dist/` — each as two files:
 | `debug-overlay.meta.js` | header only (`@updateURL`) — a few hundred bytes, so update checks are cheap |
 
 Tampermonkey periodically fetches the meta file and **only installs the new
-version if `@version` is higher**. That is why `build.js` bumps the version
+version if `@version` is higher**. That is why the build bumps the version
 automatically — forgetting to bump is the classic reason "I pushed but nothing
-updated".
+updated". The overlay also checks that same meta file itself, daily and on
+demand (right-click ⏻), so a stale install announces itself instead of
+looking current.
 
 Two things to expect:
 
 - GitHub's raw CDN caches for a few minutes, so updates are not instant.
-  Tampermonkey dashboard → the script's row → *Check for updates* forces it.
 - Chrome requires **Developer mode** (`chrome://extensions`) for Tampermonkey
   to run userscripts at all under Manifest V3.
 
-### What syncs
+### What syncs, what stays per site
 
-Panel position, which tools are armed, and everything chosen under ⚙ are kept
+Which tools are armed, the panel position, and everything under ⚙ are kept
 with `GM_setValue`, which is scoped to the **script** rather than to one
-origin. Choose an 8px grid on one site and every other site already knows. They
-ride Tampermonkey's own sync to a new machine too, so a fresh laptop needs the
-sign-in and nothing else.
+origin — choose an 8px grid on one site and every other site already knows,
+and Tampermonkey's own sync carries it all to a new machine.
 
-This is why the header carries `@grant GM_getValue` / `@grant GM_setValue`
-instead of `@grant none`. `localStorage` is scoped to one origin, and with
-`@match *://*/*` that meant every new domain started from the defaults again —
-a setup step handed back to the user on each site they visited.
+Two things are deliberately **not** global: power (per site — debugging one
+site must not switch the overlay on across the whole browser) and pins (per
+page, saved as selectors and re-resolved on reload).
 
-The grant is not free. Asking for any GM API moves the script from page context
-into the manager's **sandbox**, where `window` is a wrapper rather than the
-page's own object. Two things in `src/banner.js` exist because of it:
+The grants are not free. `GM_getValue`/`GM_setValue` exist because
+`localStorage` is per-origin and `@match *://*/*` would reset settings on
+every new domain; `GM_xmlhttpRequest` + `@connect raw.githubusercontent.com`
+exist so the update check works even on pages whose CSP blocks outbound
+fetches — and can call that one host, nowhere else. Any GM grant moves the
+script into the manager's **sandbox**, where `window` is a wrapper; two
+things in `src/banner.js` exist because of it (the `frameElement` frame check
+and the ask-the-document single-instance guard). `Store` in
+`src/core/state.js` falls back to `localStorage` wherever the GM API is
+absent, and adopts existing values on first run so an upgrade never resets
+anybody.
 
-- the frame check reads `window.frameElement` rather than comparing
-  `window.top` to `window.self` — that comparison can be true in the *top*
-  frame under a sandbox, which would disable the overlay everywhere, silently.
-  `@noframes` covers the cross-origin frames the script cannot recognise.
-- the single-instance guard asks the **document** for an existing root, not
-  just a flag on `window`. A re-injection on soft navigation can arrive with a
-  fresh sandbox and the same page.
+---
 
-`Store` in `src/core/state.js` falls back to `localStorage` wherever the GM API
-is absent — the dev page, the tests, a manager that does not implement it — and
-adopts anything already in `localStorage` on first run, so upgrading does not
-reset what you had.
+## Developing
+
+```bash
+npm install          # once — jsdom (tests) + esbuild (bundler)
+npm run dev          # local harness at http://localhost:8080, rebuilds on save
+npm run check        # rebuild (no bump) + architecture audit + jsdom suite
+npm run map          # what the panel looks like, asked of the running registry
+npm run ship         # verify, BUMP, rebuild — the release step, run before commit
+npm run shipped      # did the push actually reach the URL installs poll?
+```
+
+The everyday loop:
+
+```bash
+npm run check                                   # judge by EXIT CODE, not output
+npm run ship
+git add -A && git commit -m "…" && git push
+npm run shipped                                 # "vX is live" is the only proof
+```
+
+`check` builds with `--same` so verifying never burns a version number;
+Tampermonkey only updates on a HIGHER `@version`, which is why `ship` refuses
+to finish if the version did not move.
+
+### Seeing a change before shipping it
+
+Installed copies are production: they only ever run what was built, bumped
+and pushed. The local loop is `npm run dev` — it serves
+`development/index.html` with the built bundle in a plain `<script>` tag and
+reloads the page when a rebuild lands, so saving a file in `src/` is the
+entire loop. The harness page carries deliberate fodder for every tool:
+off-grid gaps, a failing-contrast line, boxes to measure between, and
+buttons that hurt the page in honest ways for ⚡ (a 400ms block, a mutation
+storm). Open it in a **real browser tab** — the bundle skips frames by
+design, so an embedded editor preview shows nothing.
+
+`development/perf-probe.user.js` is a standalone instrument: install it in
+Tampermonkey for a minute to see which performance-observer tiers actually
+fire under the manager's sandbox on a given browser.
 
 ---
 
@@ -247,43 +247,54 @@ reset what you had.
 
 [ARCHITECTURE.md](ARCHITECTURE.md) is the reference: the pipeline (input →
 components → services → your eyes), the three species derived from hooks
-(COMPONENT / SOURCE / ACTION), the four SERVICES a component fills from inside
-its own file, the three layers of every surface, and what `audit.js` enforces
-about each. `npm run map` prints
-the living version from the same shared definition (`hooks.js`).
+(COMPONENT / SOURCE / ACTION), the four SERVICES a component fills from
+inside its own file, the three layers of every surface, and what `audit.js`
+enforces about each. `npm run map` prints the living version from the same
+shared definition (`hooks.js`), so the document and the enforcement cannot
+quietly disagree.
 
 ## Layout
 
 ```
-src/
-  banner.js            the guard — injected by build.js around the bundle
-  boot.js              the entry module: init order + wiring
-  tools/               ← one FOLDER per armable TOOL, auto-discovered
-    colour/            ← DOMAIN folder (no index.js): the colour family
-      contrast/        index · service (Colour) · badge · rule · draw · report
-    geometry/          ← DOMAIN folder: the geometry family
-      measure/         index · badge · report · draw
-    dupid/             index · badge · rule · draw · report
-    grid/              index · service (Scale) · badge · lens · rule · draw
-                       · report · options
-    pin/               index · keep — SELECTION chooses, this KEEPS the choice
-    select/            index · service · form · rows
-  services/            the four collectors — never edited for a new tool
-    badge/  findings/  report/  settings/
+src/                        the overlay — everything here becomes the bundle
+  banner.js                 the guard — injected by build.js around the bundle
+  boot.js                   the entry module: init order + wiring
+  tools/                    ← one FOLDER per armable TOOL, auto-discovered
+    colour/contrast/        index · service (Colour) · badge · rule · draw · report
+    geometry/measure/       index · badge · report · draw
+    dupid/                  index · badge · rule · draw · report
+    grid/                   index · service (Scale) · badge · lens · rule · draw · report
+    perf/                   index · service (Monitor) · target · badge · rows · rule · draw
+    pin/                    index · keep — SELECTION chooses, this KEEPS the choice
+    select/                 index · service · form · rows
+  services/                 the four collectors — never edited for a new tool
+    badge/ (index · options — the 🏷 face) · findings/ · report/ · settings/
   subjects/
-    geometry.js        shared drawing maths — measure and select both consult it
-  core/                config · state+Store · utils · registry
-  ui/                  styles · dom · controls · list · panel · placement
-                       · renderer
-  app/                 interactions · controller
+    geometry.js             shared rectangle maths — measure and select consult it
+  core/                     config · state+Store · utils · registry
+  ui/                       styles · dom · controls · list · menu · panel
+                            · placement · renderer
+  app/                      interactions · controller · updates
+
+browser-extension-source/   the extension gate's templates (options page);
+                            build.js substitutes and emits dist/browser-extension/
+development/                the dev harness, its server, and the perf probe —
+                            instruments that never ship
+dist/                       build output only — never edit (see table above)
+
+hooks.js                    ONE definition of hooks/surfaces/species — audit.js
+                            enforces it, map.js prints it, test.js checks by it
+audit.js · test.js          the architecture rules and the jsdom suite
+compare.js                  boots two bundles through one scripted session and
+                            diffs 24 observation groups — the migration gate
+build.js · ship.js          bundle both gates · bump-and-verify release step
 ```
 
-Real ES modules, bundled by esbuild into the same single userscript. Execution
-order is the import graph; `build.js` generates `src/manifest.js` (gitignored)
-importing every `tools/*/index.js`, so a new tool is one new folder
-and nothing else. The migration that produced this tree was verified phase by
-phase with `node compare.js <old> <new>` — one scripted session, 24
-observation groups, zero behavioural differences end to end.
+Real ES modules, bundled by esbuild. Execution order is the import graph;
+`build.js` generates `src/manifest.js` (gitignored) importing every
+`tools/*/index.js`, so **a new tool is one new folder and nothing else** —
+the same bundle ships as the userscript and as the extension's
+`content.js`, byte-identical, with a suite assertion locking the identity.
 
 ## Adding a tool
 
@@ -295,27 +306,36 @@ import { badge } from './badge.js';
 
 defineTool({
   id: 'zindex',
-  icon: '≡',
+  icon: '<svg viewBox="0 0 24 24" …>…</svg>',   // an inline Lucide SVG, declared as a literal
   title: 'Stacking — z-index & position',
   badge,
 });
 ```
 
 and put `badge()` in `badge.js` beside it. That is everything — the button,
-⚙ rows, right-click menu and report arrive through the registry. Grow it by
-adding files to the folder (`rule.js`, `draw.js`, `service.js` for its
-backend), never by editing anything outside it.
+⚙ rows, right-click menu, report and audit arrive through the registry. Grow
+it by adding files to the folder: `rule.js` + `draw.js` to produce findings,
+`options()` for settings, `legend()` to document its marks, `service.js` for
+its backend, `watch()`/`unwatch()` if it needs a runtime — never by editing
+anything outside its folder.
 
-## Rules the audit enforces
+## Rules the audit and the suite enforce
 
 - `core/utils.js` is pure — it never reads state, builds DOM, or owns markup.
-- No component imports or names another — no `Tools.byId('grid')`, no
-  `t.id === 'grid'`. A lens reaches the tools; the tools never reach back.
-- Every name in `HOOKS` is consumed by some file — no hook exists that
+- No tool imports or names another — no `Tools.byId('grid')`, no
+  `t.id === 'grid'`. Capabilities ride in through hook contexts (`redraw`,
+  `marks`, `toClipboard`); a lens reaches the tools, the tools never reach
+  back.
+- A tool imports only `core/`, `subjects/` and its own folder — a backend two
+  tools want is a SUBJECT.
+- Every name in `HOOKS` is consumed by some core file — no hook exists that
   nothing would ever call.
-- `subjects/geometry.js` knows only rectangles, never tools or the panel.
-- `ui/panel.js` never touches state and never learns what a "pair" is.
-- `ui/renderer.js`, `app/interactions.js`, `app/controller.js` never hardcode a
-  tool id; they go through hooks and `CONFIG.PIN_KIND`.
+- `ui/panel.js` never touches state and never learns what a "pair" is;
+  `ui/` never imports `app/`.
+- Every class the overlay emits or styles carries the `dbgov-` namespace, and
+  the suite proves a hostile host stylesheet changes nothing — our elements
+  live in the page's cascade, and a bare class name is an invitation.
+- A rule must show WHERE (findings mark and label their elements), a tool must
+  be worth arming alone, and a count that matters rests instead of flashing.
 
 Each rule is there because that boundary was broken once already.
