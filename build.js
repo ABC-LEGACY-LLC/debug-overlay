@@ -201,11 +201,15 @@ function build(kind) {
     `    chrome.runtime.openOptionsPage();\n` +
     `  }\n` +
     `});\n`);
-  // the self-updater — real template files in browser-extension/, base substituted here
+  /* the self-updater — real template files in browser-extension-source/,
+     base substituted here. SOURCE and OUTPUT deliberately do NOT share a
+     name: two folders both called browser-extension read as a duplicate in
+     any file explorer, when one is what you edit and the other is what the
+     build emits — the same relationship src/ has to dist/. */
   const extBase = cfg.rawBase.replace(/\/script$/, '/browser-extension');
-  fs.copyFileSync(path.join(ROOT, 'browser-extension', 'options.html'), path.join(EXT, 'options.html'));
+  fs.copyFileSync(path.join(ROOT, 'browser-extension-source', 'options.html'), path.join(EXT, 'options.html'));
   fs.writeFileSync(path.join(EXT, 'options.js'),
-    fs.readFileSync(path.join(ROOT, 'browser-extension', 'options.js'), 'utf8')
+    fs.readFileSync(path.join(ROOT, 'browser-extension-source', 'options.js'), 'utf8')
       .replace('__EXT_BASE__', extBase));
   try {
     cp.execSync(`node --check "${path.join(EXT, 'content.js')}"`, { stdio: 'pipe' });
