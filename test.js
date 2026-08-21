@@ -451,7 +451,7 @@ ok('reviews sort below anything measured',
 // A zero that means "nothing was checked" and a zero that means "nothing is
 // wrong" must not print the same line, so the scope travels with the count.
 ok('the report says what was checked',
-  /· whole page · 3 rules · \d+ elements/.test(swept),
+  /· whole page · 4 rules · \d+ elements/.test(swept),
   swept.slice(swept.indexOf('## findings')).split('\n')[0]);
 // Arming decides what is DRAWN. With the only rule disarmed the page still
 // has the same problems, and the audit still has to find them.
@@ -580,7 +580,7 @@ console.log('\nHONEST ZERO');
   wc.dispatchEvent(new wc.KeyboardEvent('keydown', { ...hot, bubbles: true }));
   barc.querySelector('[data-sweep]').dispatchEvent(new wc.MouseEvent('click', { bubbles: true }));
   const msg = (wc.document.querySelector('#__dbgov-list .dbgov-empty') || {}).textContent || '';
-  ok('a clean page reports its scope, not a mood', /3 rules over \d+ elements/.test(msg), msg);
+  ok('a clean page reports its scope, not a mood', /4 rules over \d+ elements/.test(msg), msg);
   ok('and never claims every rule is happy', !/happy/.test(msg), msg);
   clean.window.close();
 }
@@ -1089,7 +1089,7 @@ console.log('\nCATEGORIES');
 
   ok('settings from different owners share a category',
     under('Detect').slice().sort().join(', ')
-      === 'Freeze threshold, Grid step, Ignore above, Judge width & height, WCAG level',
+      === 'Churn threshold, Freeze threshold, Grid step, Ignore above, Judge width & height, WCAG level',
     under('Detect').join(', '));
 
   // ---- roles, derived from hooks, plural only where that is true ----------
@@ -2235,8 +2235,57 @@ let perfChecked = false;
     ok('re-arming starts a fresh log',
       /no blocks over the threshold/.test(report()),
       (report().match(/main thread[^\n]*/) || ['no line'])[0]);
-    perfChecked = true;
-    w.close();
+
+    /* PHASE 2 — the targeted half, with a REAL MutationObserver. Pin an
+       element, storm its subtree the way a re-render loop would, and the
+       watch record must read the rate, the badge must go amber, the rule
+       must turn it into a finding WITH the element, and a freeze during
+       the storm must blame the stormed subtree. */
+    const box = w.document.getElementById('a');
+    w.document.elementFromPoint = () => box;
+    box.dispatchEvent(new w.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
+    // the heartbeat syncs targets on its next frame; then storm ~600 mutations
+    whenPainted(() => /watched #a/.test(report()), () => {
+      for (let k = 0; k < 300; k++) {
+        const d = w.document.createElement('i');
+        box.append(d);
+        d.remove();
+      }
+      /* a freeze WHOSE WORK IS the churn — the real shape: a re-render
+         loop blocks the thread, and MutationObserver delivers its records
+         when the task ends, timestamps inside the freeze window */
+      w.setTimeout(() => {
+        for (let k = 0; k < 300; k++) {
+          const d = w.document.createElement('i');
+          box.append(d);
+          d.remove();
+        }
+        const t0 = Date.now();
+        while (Date.now() - t0 < 350);
+      }, 20);
+      // gate on the LAST artefact (the correlation line), not the first —
+      // the mutation rate alone is visible before the delayed freeze fires,
+      // and asserting then is a race the suite lost one run in five
+      whenPainted(() => /during the /.test(report()), () => {
+        const r2 = report();
+        ok('a watched element reads its own mutation rate',
+          /watched #a: mut [1-9]\d*\/s/.test(r2),
+          (r2.match(/watched[^\n]*/) || ['no watched line'])[0]);
+        // the storm is a finding on THAT element, through the ordinary sweep
+        bar.querySelector('[data-sweep]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+        const r3 = report();
+        ok('a re-render storm is a finding with a WHERE',
+          /perf-churn[^\n]*mutations\/s/.test(r3) && /perf-churn[\s\S]*?#a/.test(r3),
+          (r3.match(/\[warn\] perf-churn[^\n]*/) || ['no churn finding'])[0]);
+        ok('and the rule documents itself in ## rules',
+          /## rules[\s\S]*perf-churn/.test(r3), 'no rules doc');
+        ok('a freeze during the storm blames the stormed subtree',
+          /during the \d+m?s? ?\w* block: .*×\d+ mutations/.test(r3) || /during: /.test(r3),
+          (r3.match(/during[^\n]*/) || ['no correlation line'])[0]);
+        perfChecked = true;
+        w.close();
+      });
+    });
   });
 }
 

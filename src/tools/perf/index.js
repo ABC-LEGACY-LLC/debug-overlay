@@ -3,6 +3,8 @@ import { CONFIG } from '../../core/config.js';
 import { watch, unwatch } from './service.js';
 import { badge, compact, legend } from './badge.js';
 import { listRows, reportTail } from './rows.js';
+import { audit, rules } from './rule.js';
+import { draw } from './draw.js';
 
 /* index — REGISTRATION ONLY. The tool's behaviour lives in the files
    beside this one; what is declared here is identity, appearance and wiring.
@@ -26,10 +28,16 @@ defineTool({
         legend,
         listRows,
         reportTail,
+        audit,
+        rules,
+        draw,
         options() {
           return [
             { key: 'freeze', label: 'Freeze threshold', def: CONFIG.PERF.FREEZE_MS,
               type: 'number', min: 100, max: 5000, step: 50, suffix: 'ms',
+              affects: 'detect' },
+            { key: 'churn', label: 'Churn threshold', def: CONFIG.PERF.CHURN,
+              type: 'number', min: 10, max: 1000, step: 10, suffix: '/s',
               affects: 'detect' },
           ];
         },

@@ -59,7 +59,11 @@
     // The perf monitor's thresholds. FREEZE_MS is what counts as "stuck" —
     // 250ms is where humans stop reading an interaction as instant; a user
     // tunes it per project through the tool's own options().
-    PERF: { FREEZE_MS: 250, LOG_MAX: 30, FPS_WINDOW: 1000 },
+    // CHURN is mutations/second on a WATCHED subtree before it counts as a
+    // re-render storm (a React loop reads in the hundreds); RATE_WINDOW is
+    // how far back the rolling rate looks.
+    PERF: { FREEZE_MS: 250, LOG_MAX: 30, FPS_WINDOW: 1000,
+            CHURN: 60, RATE_WINDOW: 2000 },
     // The badge service's VIEW axis, in order. 'compact' leads because it is
     // the shipped default — a full badge is a lot of ink over a page you came
     // to read one number off. A third view is one new entry here plus its

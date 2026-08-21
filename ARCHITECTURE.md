@@ -229,6 +229,15 @@ would be the overlay lying. `dev/perf-probe.user.js` is the Phase-0 instrument:
 install it beside dbgov to measure which tiers fire under a manager's sandbox
 on a given browser.
 
+The TARGETED half reuses the overlay's own targeting — selection chooses, pin
+keeps, perf watches what they chose. Observers attach only to watched
+subtrees (mutation rate; slow inputs and layout shifts routed to whichever
+watched subtree they landed in), a storm past the churn threshold becomes an
+ordinary ⌕ finding WITH its element, and a freeze that overlaps a churning
+subtree carries the blame in its log entry. That correlation — freeze window
+× subtree activity — is the per-component attribution the platform actually
+permits.
+
 ## The audit is a flow, not a place
 
 ⌕ runs `app/sweep.js` once over every visible element and keeps the result in

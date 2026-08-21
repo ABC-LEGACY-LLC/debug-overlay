@@ -1,5 +1,8 @@
 import { CONFIG } from '../../core/config.js';
 import { Tools } from '../../core/registry.js';
+import { State } from '../../core/state.js';
+import { U } from '../../core/utils.js';
+import { Targets } from './target.js';
 
 /**
  * The MONITOR — the first backend in this codebase that runs for a SPAN of
@@ -30,7 +33,7 @@ export const Monitor = {
         fps: null,           // rolling frames-per-second, null until measured
         startedAt: 0,
         _owner: null,        // the tool, for Tools.setting — set by watch()
-        _obs: null, _raf: 0, _last: 0, _frames: 0, _fpsT: 0,
+        _obs: null, _obs2: [], _raf: 0, _last: 0, _frames: 0, _fpsT: 0,
         _onVis: null,
 
         threshold() {
@@ -39,6 +42,15 @@ export const Monitor = {
         },
 
         push(ev) {
+          /* CORRELATION — the honest per-component attribution. During the
+             block, which watched subtree was churning? "frozen 1.2s" is a
+             fact; "frozen 1.2s while #cards mutated 412 times" is a lead. */
+          let worst = null;
+          for (const [el] of Targets.map) {
+            const n = Targets.countIn(el, ev.t - ev.ms, ev.t);
+            if (n && (!worst || n > worst.n)) worst = { el, n };
+          }
+          if (worst) ev.blame = `${U.labelOf(worst.el)} ×${worst.n}`;
           Monitor.log.push(ev);
           if (Monitor.log.length > CONFIG.PERF.LOG_MAX) Monitor.log.shift();
         },
@@ -86,6 +98,28 @@ export const Monitor = {
             Monitor.tier = 'heartbeat';
           }
 
+          /* the ATTRIBUTION observers — page events routed to whichever
+             watched subtree they landed in. Guarded per browser; absence
+             just means those badge fields never appear. */
+          Monitor._obs2 = [];
+          if (types.includes('event')) {
+            const o = new PerformanceObserver((list) => {
+              for (const e of list.getEntries())
+                Targets.attribute(e.target, 'event', Math.round(e.duration));
+            });
+            o.observe({ type: 'event', durationThreshold: 104 });
+            Monitor._obs2.push(o);
+          }
+          if (types.includes('layout-shift')) {
+            const o = new PerformanceObserver((list) => {
+              for (const e of list.getEntries())
+                for (const s of e.sources || [])
+                  Targets.attribute(s.node, 'shift', e.value);
+            });
+            o.observe({ type: 'layout-shift' });
+            Monitor._obs2.push(o);
+          }
+
           /* The heartbeat: FPS always; freezes only on the bottom tier, so a
              block never logs twice. A hidden tab stops rAF entirely — that
              gap is the browser being frugal, not the page being stuck — so
@@ -110,6 +144,8 @@ export const Monitor = {
               Monitor._fpsT = t;
             }
             Monitor._last = t;
+            // what is targeted follows the session: pins + the selection
+            Targets.sync([...State.pins.map((p) => p.el), State.current]);
             Monitor._raf = requestAnimationFrame(tick);
           };
           Monitor._raf = requestAnimationFrame(tick);
@@ -120,6 +156,9 @@ export const Monitor = {
           Monitor.running = false;
           Monitor._obs?.disconnect();
           Monitor._obs = null;
+          Monitor._obs2.forEach((o) => o.disconnect());
+          Monitor._obs2 = [];
+          Targets.clear();
           cancelAnimationFrame(Monitor._raf);
           document.removeEventListener('visibilitychange', Monitor._onVis);
           Monitor._last = 0;

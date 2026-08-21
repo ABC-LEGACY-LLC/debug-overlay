@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.84
+// @version      3.8.85
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -149,10 +149,21 @@ HOW TO USE
                  ## performance section that names its measuring tier —
                  frame attribution (Chrome names the script that ate the
                  frame), long tasks, or the everywhere-fallback heartbeat.
-                 OFF by default for cost, not caution: observers and a
-                 heartbeat run for as long as it is armed, and a meter you
-                 did not ask for is overhead pretending to be help.
-                 Freeze threshold under ⚙ (250ms default).
+                 And the TARGETED half: PIN a component (or just select
+                 it) and perf watches that subtree — its badge stops showing
+                 the page and starts showing ITS cost: mut 140/s (DOM
+                 mutations under it — a re-render loop reads in the
+                 hundreds), resp 380ms (its slowest answered input), shift
+                 0.02 (layout shift it caused). Past the churn threshold it
+                 is a ⌕ finding on that element, and a freeze that happens
+                 while a watched subtree churns is blamed in the log:
+                 "during the 1.2s block: #cards ×412 mutations" — the
+                 honest attribution, since per-element CPU%% does not exist
+                 in the platform and this tool does not pretend otherwise.
+                 OFF by default for cost, not caution: observers run only
+                 on watched subtrees, only while armed, and a meter you did
+                 not ask for is overhead pretending to be help. Freeze and
+                 churn thresholds under ⚙.
 
   Every tool fills one or more of four ROLES, derived from the hooks it
   implements and shown in its tooltip: Select (what you are looking at),
@@ -327,7 +338,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.84",
+    VERSION: "3.8.85",
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -379,7 +390,16 @@ HOW TO USE
     // The perf monitor's thresholds. FREEZE_MS is what counts as "stuck" —
     // 250ms is where humans stop reading an interaction as instant; a user
     // tunes it per project through the tool's own options().
-    PERF: { FREEZE_MS: 250, LOG_MAX: 30, FPS_WINDOW: 1e3 },
+    // CHURN is mutations/second on a WATCHED subtree before it counts as a
+    // re-render storm (a React loop reads in the hundreds); RATE_WINDOW is
+    // how far back the rolling rate looks.
+    PERF: {
+      FREEZE_MS: 250,
+      LOG_MAX: 30,
+      FPS_WINDOW: 1e3,
+      CHURN: 60,
+      RATE_WINDOW: 2e3
+    },
     // The badge service's VIEW axis, in order. 'compact' leads because it is
     // the shipped default — a full badge is a lot of ink over a page you came
     // to read one number off. A third view is one new entry here plus its
@@ -1716,6 +1736,72 @@ HOW TO USE
     // through uses: above.
   });
 
+  // src/tools/perf/target.js
+  var Targets = {
+    map: /* @__PURE__ */ new Map(),
+    // el -> { mo, times: [ts…], worstEvt, shift }
+    /** Rolling mutations/second over the rate window. */
+    rate(el2) {
+      const t = Targets.map.get(el2);
+      if (!t) return null;
+      const cut = Date.now() - CONFIG.PERF.RATE_WINDOW;
+      while (t.times.length && t.times[0] < cut) t.times.shift();
+      return Math.round(t.times.length * 1e3 / CONFIG.PERF.RATE_WINDOW);
+    },
+    /** Mutations inside [from, to] — the freeze-correlation question. */
+    countIn(el2, from, to) {
+      const t = Targets.map.get(el2);
+      if (!t) return 0;
+      return t.times.reduce((n, ts) => n + (ts >= from && ts <= to ? 1 : 0), 0);
+    },
+    stats(el2) {
+      const t = Targets.map.get(el2);
+      if (!t) return null;
+      return { rate: Targets.rate(el2), worstEvt: t.worstEvt, shift: t.shift };
+    },
+    /** Reconcile with what is targeted NOW. Cheap: pins are user-made
+     *  and few, and this only ever attaches/detaches the difference. */
+    sync(els) {
+      const want = new Set(els.filter((el2) => el2 && document.contains(el2)));
+      for (const [el2, t] of Targets.map) {
+        if (want.has(el2)) continue;
+        t.mo.disconnect();
+        Targets.map.delete(el2);
+      }
+      for (const el2 of want) {
+        if (Targets.map.has(el2)) continue;
+        const rec = { mo: null, times: [], worstEvt: null, shift: 0 };
+        rec.mo = new MutationObserver((muts) => {
+          const now = Date.now();
+          for (let i = 0; i < muts.length; i++) rec.times.push(now);
+          const cut = now - CONFIG.PERF.RATE_WINDOW;
+          while (rec.times.length && rec.times[0] < cut) rec.times.shift();
+        });
+        rec.mo.observe(el2, {
+          subtree: true,
+          childList: true,
+          attributes: true,
+          characterData: true
+        });
+        Targets.map.set(el2, rec);
+      }
+    },
+    /** A slow-input or layout-shift entry, attributed if its node sits
+     *  inside a watched subtree. Called by service.js's observers. */
+    attribute(node, kind, value) {
+      if (!node) return;
+      for (const [el2, t] of Targets.map) {
+        if (el2 !== node && !el2.contains(node)) continue;
+        if (kind === "event" && value > (t.worstEvt || 0)) t.worstEvt = value;
+        if (kind === "shift") t.shift += value;
+      }
+    },
+    clear() {
+      for (const [, t] of Targets.map) t.mo.disconnect();
+      Targets.map.clear();
+    }
+  };
+
   // src/tools/perf/service.js
   var Monitor = {
     running: false,
@@ -1729,6 +1815,7 @@ HOW TO USE
     _owner: null,
     // the tool, for Tools.setting — set by watch()
     _obs: null,
+    _obs2: [],
     _raf: 0,
     _last: 0,
     _frames: 0,
@@ -1739,6 +1826,12 @@ HOW TO USE
       return Number(v) || CONFIG.PERF.FREEZE_MS;
     },
     push(ev) {
+      let worst = null;
+      for (const [el2] of Targets.map) {
+        const n = Targets.countIn(el2, ev.t - ev.ms, ev.t);
+        if (n && (!worst || n > worst.n)) worst = { el: el2, n };
+      }
+      if (worst) ev.blame = `${U.labelOf(worst.el)} ×${worst.n}`;
       Monitor.log.push(ev);
       if (Monitor.log.length > CONFIG.PERF.LOG_MAX) Monitor.log.shift();
     },
@@ -1786,6 +1879,24 @@ HOW TO USE
       } else {
         Monitor.tier = "heartbeat";
       }
+      Monitor._obs2 = [];
+      if (types.includes("event")) {
+        const o = new PerformanceObserver((list) => {
+          for (const e of list.getEntries())
+            Targets.attribute(e.target, "event", Math.round(e.duration));
+        });
+        o.observe({ type: "event", durationThreshold: 104 });
+        Monitor._obs2.push(o);
+      }
+      if (types.includes("layout-shift")) {
+        const o = new PerformanceObserver((list) => {
+          for (const e of list.getEntries())
+            for (const s of e.sources || [])
+              Targets.attribute(s.node, "shift", e.value);
+        });
+        o.observe({ type: "layout-shift" });
+        Monitor._obs2.push(o);
+      }
       Monitor._onVis = () => {
         Monitor._last = 0;
         Monitor._frames = 0;
@@ -1809,6 +1920,7 @@ HOW TO USE
           Monitor._fpsT = t;
         }
         Monitor._last = t;
+        Targets.sync([...State.pins.map((p) => p.el), State.current]);
         Monitor._raf = requestAnimationFrame(tick);
       };
       Monitor._raf = requestAnimationFrame(tick);
@@ -1818,6 +1930,9 @@ HOW TO USE
       Monitor.running = false;
       Monitor._obs?.disconnect();
       Monitor._obs = null;
+      Monitor._obs2.forEach((o) => o.disconnect());
+      Monitor._obs2 = [];
+      Targets.clear();
       cancelAnimationFrame(Monitor._raf);
       document.removeEventListener("visibilitychange", Monitor._onVis);
       Monitor._last = 0;
@@ -1834,20 +1949,36 @@ HOW TO USE
   }
 
   // src/tools/perf/badge.js
-  function badge5() {
+  function badge5(i) {
     if (!Monitor.running) return null;
+    const s = Targets.stats(i.el);
+    if (s) {
+      const churn = Number(Tools.setting(this, "churn")) || CONFIG.PERF.CHURN;
+      const mut = s.rate >= churn ? `<span class="dbgov-warn">mut ${s.rate}/s</span>` : `mut ${s.rate}/s`;
+      const bits = [`⚡ ${mut}`];
+      if (s.worstEvt) bits.push(`resp ${fmt(s.worstEvt)}`);
+      if (s.shift > 5e-3) bits.push(`shift ${s.shift.toFixed(2)}`);
+      return `<span class="dbgov-sp">${bits.join(" · ")}</span>`;
+    }
     const fps = Monitor.fps == null ? "–" : Monitor.fps;
     const n = Monitor.log.length;
     return `<span class="dbgov-sp">⚡ ${fps}fps</span>` + (n ? ` <span class="dbgov-warn">${n}× worst ${fmt(Monitor.worst())}</span>` : "");
   }
-  function compact5() {
-    if (!Monitor.running || !Monitor.log.length) return null;
-    return `<span class="dbgov-warn">⚡${fmt(Monitor.worst())}</span>`;
+  function compact5(i) {
+    if (!Monitor.running) return null;
+    const s = Targets.stats(i.el);
+    const churn = Number(Tools.setting(this, "churn")) || CONFIG.PERF.CHURN;
+    if (s && s.rate >= churn) return `<span class="dbgov-warn">⚡mut ${s.rate}/s</span>`;
+    if (!s && Monitor.log.length) return `<span class="dbgov-warn">⚡${fmt(Monitor.worst())}</span>`;
+    return null;
   }
   function legend5() {
     return [
       { mark: "⚡ 58fps", means: "the PAGE, not this element: frames per second while monitoring" },
-      { mark: "⚡1.2s", means: "amber: the longest main-thread freeze since arming" }
+      { mark: "⚡1.2s", means: "amber: the longest main-thread freeze since arming" },
+      { mark: "⚡ mut 140/s", means: "a PINNED element: DOM mutations per second under it — a re-render storm reads in the hundreds" },
+      { mark: "resp 380ms", means: "the slowest input this element answered (where the browser reports it)" },
+      { mark: "shift 0.02", means: "layout shift this element caused (where the browser reports it)" }
     ];
   }
 
@@ -1861,7 +1992,7 @@ HOW TO USE
     return Monitor.log.slice().reverse().map((e) => ({
       tag: "⚡",
       label: `main thread blocked ${fmt(e.ms)}`,
-      detail: `${ago(e.t)}${e.src ? " · " + e.src : ""}`
+      detail: `${ago(e.t)}${e.src ? " · " + e.src : ""}${e.blame ? " · during: " + e.blame : ""}`
     }));
   }
   function reportTail2() {
@@ -1877,8 +2008,64 @@ HOW TO USE
       if (Monitor.tier !== "frame-attribution") {
         L.push("(no script attribution on this browser — Chrome reports which script ate the frame)");
       }
+      const blamed = Monitor.log.filter((e) => e.blame);
+      for (const e of blamed.slice(-3))
+        L.push(`  during the ${fmt(e.ms)} block: ${e.blame} mutations`);
+    }
+    for (const [el2] of Targets.map) {
+      const s = Targets.stats(el2);
+      if (!s || !document.contains(el2)) continue;
+      const bits = [`mut ${s.rate}/s`];
+      if (s.worstEvt) bits.push(`worst input ${fmt(s.worstEvt)}`);
+      if (s.shift > 5e-3) bits.push(`layout shift ${s.shift.toFixed(2)}`);
+      L.push(`watched ${U.selectorOf(el2)}: ${bits.join(" · ")}`);
     }
     return L;
+  }
+
+  // src/tools/perf/rule.js
+  function audit3(i) {
+    if (!Monitor.running) return [];
+    const s = Targets.stats(i.el);
+    if (!s) return [];
+    const out = [];
+    const churn = Number(Tools.setting(this, "churn")) || CONFIG.PERF.CHURN;
+    if (s.rate >= churn) {
+      out.push({
+        el: i.el,
+        verdict: "fail",
+        severity: "warn",
+        rule: "perf-churn",
+        message: `${s.rate} mutations/s under this element — a re-render storm`,
+        key: `perf-churn:${s.rate}`
+      });
+    }
+    if (s.worstEvt && s.worstEvt >= Monitor.threshold()) {
+      out.push({
+        el: i.el,
+        verdict: "fail",
+        severity: "warn",
+        rule: "perf-input",
+        message: `an input on this element took ${fmt(s.worstEvt)} to answer`,
+        key: `perf-input:${s.worstEvt}`
+      });
+    }
+    return out;
+  }
+  var rules4 = {
+    "perf-churn": {
+      help: "DOM mutations per second under a watched element, against the churn threshold in ⚙. Only elements you pinned or selected are watched, and only while ⚡ is armed.",
+      why: "A component mutating the DOM hundreds of times a second is re-rendering in a loop — work the user cannot see, spent heating the main thread. It is the most common way one component eats a page."
+    },
+    "perf-input": {
+      help: "The slowest input event a watched element answered, against the freeze threshold in ⚙. Reported where the browser supports the Event Timing API.",
+      why: "An input that takes hundreds of milliseconds to answer is the stutter a user actually feels — and it names the component responsible, which a page-wide freeze cannot."
+    }
+  };
+
+  // src/tools/perf/draw.js
+  function draw5({ marks, found }) {
+    marks(found);
   }
 
   // src/tools/perf/index.js
@@ -1895,6 +2082,9 @@ HOW TO USE
     legend: legend5,
     listRows,
     reportTail: reportTail2,
+    audit: audit3,
+    rules: rules4,
+    draw: draw5,
     options() {
       return [
         {
@@ -1906,6 +2096,17 @@ HOW TO USE
           max: 5e3,
           step: 50,
           suffix: "ms",
+          affects: "detect"
+        },
+        {
+          key: "churn",
+          label: "Churn threshold",
+          def: CONFIG.PERF.CHURN,
+          type: "number",
+          min: 10,
+          max: 1e3,
+          step: 10,
+          suffix: "/s",
           affects: "detect"
         }
       ];

@@ -1,4 +1,6 @@
 import { Monitor, fmt } from './service.js';
+import { Targets } from './target.js';
+import { U } from '../../core/utils.js';
 
 /**
  * Hook: the freeze log, newest first, in the panel's list. These rows own
@@ -15,7 +17,7 @@ export function listRows() {
         return Monitor.log.slice().reverse().map((e) => ({
           tag: '⚡',
           label: `main thread blocked ${fmt(e.ms)}`,
-          detail: `${ago(e.t)}${e.src ? ' · ' + e.src : ''}`,
+          detail: `${ago(e.t)}${e.src ? ' · ' + e.src : ''}${e.blame ? ' · during: ' + e.blame : ''}`,
         }));
 }
 
@@ -39,6 +41,18 @@ export function reportTail() {
           if (Monitor.tier !== 'frame-attribution') {
             L.push('(no script attribution on this browser — Chrome reports which script ate the frame)');
           }
+          const blamed = Monitor.log.filter((e) => e.blame);
+          for (const e of blamed.slice(-3))
+            L.push(`  during the ${fmt(e.ms)} block: ${e.blame} mutations`);
+        }
+        // the watched elements — what each one is costing right now
+        for (const [el] of Targets.map) {
+          const s = Targets.stats(el);
+          if (!s || !document.contains(el)) continue;
+          const bits = [`mut ${s.rate}/s`];
+          if (s.worstEvt) bits.push(`worst input ${fmt(s.worstEvt)}`);
+          if (s.shift > 0.005) bits.push(`layout shift ${s.shift.toFixed(2)}`);
+          L.push(`watched ${U.selectorOf(el)}: ${bits.join(' · ')}`);
         }
         return L;
 }

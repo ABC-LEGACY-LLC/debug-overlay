@@ -133,10 +133,21 @@ HOW TO USE
                  ## performance section that names its measuring tier —
                  frame attribution (Chrome names the script that ate the
                  frame), long tasks, or the everywhere-fallback heartbeat.
-                 OFF by default for cost, not caution: observers and a
-                 heartbeat run for as long as it is armed, and a meter you
-                 did not ask for is overhead pretending to be help.
-                 Freeze threshold under ⚙ (250ms default).
+                 And the TARGETED half: PIN a component (or just select
+                 it) and perf watches that subtree — its badge stops showing
+                 the page and starts showing ITS cost: mut 140/s (DOM
+                 mutations under it — a re-render loop reads in the
+                 hundreds), resp 380ms (its slowest answered input), shift
+                 0.02 (layout shift it caused). Past the churn threshold it
+                 is a ⌕ finding on that element, and a freeze that happens
+                 while a watched subtree churns is blamed in the log:
+                 "during the 1.2s block: #cards ×412 mutations" — the
+                 honest attribution, since per-element CPU%% does not exist
+                 in the platform and this tool does not pretend otherwise.
+                 OFF by default for cost, not caution: observers run only
+                 on watched subtrees, only while armed, and a meter you did
+                 not ask for is overhead pretending to be help. Freeze and
+                 churn thresholds under ⚙.
 
   Every tool fills one or more of four ROLES, derived from the hooks it
   implements and shown in its tooltip: Select (what you are looking at),
