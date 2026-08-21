@@ -203,8 +203,66 @@ function build(kind) {
     process.exit(1);
   }
 
+  /* ONE LINK for the extension too. Chrome will not install from a URL
+     outside its store, but it will happily Load-unpacked an extracted
+     folder — so the build ships a ZIP of dist-ext/ at a stable raw URL,
+     and installing becomes: download, extract, Load unpacked. The ZIP is
+     written here in ~40 lines (store method, CRC32) because depending on
+     a system zip binary would make the build machine-specific. */
+  const zipStore = (files) => {
+    const CRC = (() => {
+      const T = new Int32Array(256);
+      for (let n = 0; n < 256; n++) {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+        T[n] = c;
+      }
+      return (buf) => {
+        let c = -1;
+        for (let i = 0; i < buf.length; i++) c = T[(c ^ buf[i]) & 0xFF] ^ (c >>> 8);
+        return (c ^ -1) >>> 0;
+      };
+    })();
+    const chunks = [];
+    const central = [];
+    let offset = 0;
+    for (const [name, data] of files) {
+      const nameB = Buffer.from(name);
+      const crc = CRC(data);
+      const local = Buffer.alloc(30);
+      local.writeUInt32LE(0x04034b50, 0);
+      local.writeUInt16LE(20, 4);                 // version needed
+      local.writeUInt32LE(crc, 14);
+      local.writeUInt32LE(data.length, 18);       // compressed (stored)
+      local.writeUInt32LE(data.length, 22);       // uncompressed
+      local.writeUInt16LE(nameB.length, 26);
+      chunks.push(local, nameB, data);
+      const cd = Buffer.alloc(46);
+      cd.writeUInt32LE(0x02014b50, 0);
+      cd.writeUInt16LE(20, 4); cd.writeUInt16LE(20, 6);
+      cd.writeUInt32LE(crc, 16);
+      cd.writeUInt32LE(data.length, 20);
+      cd.writeUInt32LE(data.length, 24);
+      cd.writeUInt16LE(nameB.length, 28);
+      cd.writeUInt32LE(offset, 42);
+      central.push(cd, nameB);
+      offset += 30 + nameB.length + data.length;
+    }
+    const cdBuf = Buffer.concat(central);
+    const eocd = Buffer.alloc(22);
+    eocd.writeUInt32LE(0x06054b50, 0);
+    eocd.writeUInt16LE(files.length, 8);
+    eocd.writeUInt16LE(files.length, 10);
+    eocd.writeUInt32LE(cdBuf.length, 12);
+    eocd.writeUInt32LE(offset, 16);
+    return Buffer.concat([...chunks, cdBuf, eocd]);
+  };
+  const extFiles = fs.readdirSync(EXT).sort()
+    .map((f) => [f, fs.readFileSync(path.join(EXT, f))]);
+  fs.writeFileSync(path.join(DIST, 'dbgov-extension.zip'), zipStore(extFiles));
+
   const kb = (Buffer.byteLength(out) / 1024).toFixed(1);
-  console.log(`✓ v${version}  ${discovered} discovered + core → dist/${cfg.distFile}  (${kb} KB) + dist-ext/`);
+  console.log(`✓ v${version}  ${discovered} discovered + core → dist/${cfg.distFile}  (${kb} KB) + dist-ext/ + dist/dbgov-extension.zip`);
   return distPath;
 }
 

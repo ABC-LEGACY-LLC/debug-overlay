@@ -295,6 +295,12 @@ console.log('\nTWO GATES, ONE CORE');
   ok('the worker can open the updater for the content script',
     fs.readFileSync(path.join(extDir, 'sw.js'), 'utf8').includes('openOptionsPage'),
     'no route from the ⏻ menu to the options page');
+  // the one-link install: a real ZIP at a stable raw URL
+  const zip = fs.readFileSync(path.join(__dirname, 'dist', 'dbgov-extension.zip'));
+  ok('the extension ships as a ZIP too',
+    zip.length > 1000 && zip.readUInt32LE(0) === 0x04034b50 &&
+    zip.includes(Buffer.from('manifest.json')),
+    `zip ${zip.length} bytes, magic ${zip.readUInt32LE(0).toString(16)}`);
 }
 
 console.log('\nSTYLESHEET');
@@ -2285,6 +2291,11 @@ console.log('\nSTALENESS ANNOUNCES ITSELF');
     ok('being current is an answer, not silence — and no dot appears',
       !same.w.document.querySelector('.dbgov-pwr').classList.contains('dbgov-upd'),
       'an old version left a dot, or the check never ran');
+    // the answer lives IN the menu that asked — it reopened itself with the
+    // result, because a sentence flashed into the round ⏻ painted as smear
+    ok('…and the answer appears in the menu, readably',
+      menuRows(same.w).some((x) => /✓ current — v/.test(x)),
+      menuRows(same.w).join(' | ') || '(menu closed)');
     same.w.close();
   });
 

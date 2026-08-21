@@ -36,8 +36,22 @@ export const Menu = {
           el.classList.add('dbgov-open');
           // clamp AFTER the rows exist — the box has no size before they do
           const w = el.offsetWidth, h = el.offsetHeight;
-          el.style.left = Math.max(4, Math.min(x, innerWidth - w - 4)) + 'px';
-          el.style.top = Math.max(4, Math.min(y, innerHeight - h - 4)) + 'px';
+          let px = Math.max(4, Math.min(x, innerWidth - w - 4));
+          let py = Math.max(4, Math.min(y, innerHeight - h - 4));
+          /* NEVER under the bar. The bar is the later sibling in the root, so
+             it paints — and hit-tests — above this menu; opened beside it (the
+             ⏻ update menu is), the bar swallowed the clicks and clipped the
+             text. Same trap List.place() documents; same fix: step aside. */
+          const bar = document.getElementById('__dbgov-bar');
+          if (bar) {
+            const b = bar.getBoundingClientRect();
+            if (px < b.right && px + w > b.left && py < b.bottom && py + h > b.top) {
+              px = b.left >= w + 12 ? b.left - w - 8
+                : Math.min(b.right + 8, innerWidth - w - 4);
+            }
+          }
+          el.style.left = px + 'px';
+          el.style.top = py + 'px';
         },
         close() {
           if (!el) return;

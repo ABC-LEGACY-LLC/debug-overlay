@@ -1,4 +1,4 @@
-/* dbgov v3.8.90 — extension gate; same bundle as the userscript */
+/* dbgov v3.8.91 — extension gate; same bundle as the userscript */
 (function () {
   'use strict';
 /* NOT a module and NOT bundled: build.js injects this text at the very top
@@ -34,7 +34,7 @@
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.90",
+    VERSION: "3.8.91",
     // Substituted like VERSION: where the update checker asks, and what the
     // userscript's one-click update opens. One source (userscript.json), no
     // second copy to drift.
@@ -2579,8 +2579,17 @@
       }
       el.classList.add("dbgov-open");
       const w = el.offsetWidth, h = el.offsetHeight;
-      el.style.left = Math.max(4, Math.min(x, innerWidth - w - 4)) + "px";
-      el.style.top = Math.max(4, Math.min(y, innerHeight - h - 4)) + "px";
+      let px = Math.max(4, Math.min(x, innerWidth - w - 4));
+      let py = Math.max(4, Math.min(y, innerHeight - h - 4));
+      const bar = document.getElementById("__dbgov-bar");
+      if (bar) {
+        const b = bar.getBoundingClientRect();
+        if (px < b.right && px + w > b.left && py < b.bottom && py + h > b.top) {
+          px = b.left >= w + 12 ? b.left - w - 8 : Math.min(b.right + 8, innerWidth - w - 4);
+        }
+      }
+      el.style.left = px + "px";
+      el.style.top = py + "px";
     },
     close() {
       if (!el) return;
@@ -3776,23 +3785,29 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           chrome.runtime.sendMessage({ type: "dbgov-open-options" });
         } catch {
         }
-        Panel.flash("→ updater", ".dbgov-pwr");
         return;
       }
       window.open(CONFIG.INSTALL_URL, "_blank");
     },
-    /** The ⏻ menu — the same cursor menu right-click already speaks. */
-    menu(x, y) {
-      const rows = [{
-        label: "Check for updates now",
-        run: async () => {
-          const v = await Updates.check(true);
-          Panel.flash(v ? `v${v}!` : "✓ current", ".dbgov-pwr");
-        }
-      }];
+    /** The ⏻ menu — the same cursor menu right-click already speaks.
+     *  A manual check REOPENS the menu with its answer where the question
+     *  was asked: "✓ current" was being flashed into the round ⏻ button,
+     *  where a sentence cannot fit, and painted as smear. */
+    menu(x, y, answered) {
+      const rows = [];
       if (Updates.latest) {
         rows.push({ label: `Update to v${Updates.latest}`, run: () => Updates.apply() });
+      } else if (answered) {
+        rows.push({ label: `✓ current — v${CONFIG.VERSION}`, run: () => {
+        } });
       }
+      rows.push({
+        label: answered ? "Check again" : "Check for updates now",
+        run: async () => {
+          await Updates.check(true);
+          Updates.menu(x, y, true);
+        }
+      });
       Menu.open(x, y, rows);
     },
     schedule() {

@@ -102,24 +102,29 @@ export const Updates = {
             // re-grant needs a user gesture in an extension context, and a
             // content script is neither. The worker opens it.
             try { chrome.runtime.sendMessage({ type: 'dbgov-open-options' }); } catch {}
-            Panel.flash('→ updater', '.dbgov-pwr');
-            return;
+            return;   // the updater page opening IS the feedback
           }
           window.open(CONFIG.INSTALL_URL, '_blank');
         },
 
-        /** The ⏻ menu — the same cursor menu right-click already speaks. */
-        menu(x, y) {
-          const rows = [{
-            label: 'Check for updates now',
-            run: async () => {
-              const v = await Updates.check(true);
-              Panel.flash(v ? `v${v}!` : '✓ current', '.dbgov-pwr');
-            },
-          }];
+        /** The ⏻ menu — the same cursor menu right-click already speaks.
+         *  A manual check REOPENS the menu with its answer where the question
+         *  was asked: "✓ current" was being flashed into the round ⏻ button,
+         *  where a sentence cannot fit, and painted as smear. */
+        menu(x, y, answered) {
+          const rows = [];
           if (Updates.latest) {
             rows.push({ label: `Update to v${Updates.latest}`, run: () => Updates.apply() });
+          } else if (answered) {
+            rows.push({ label: `✓ current — v${CONFIG.VERSION}`, run: () => {} });
           }
+          rows.push({
+            label: answered ? 'Check again' : 'Check for updates now',
+            run: async () => {
+              await Updates.check(true);
+              Updates.menu(x, y, true);
+            },
+          });
           Menu.open(x, y, rows);
         },
 

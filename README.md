@@ -91,8 +91,14 @@ The same build also emits `dist-ext/` — a Manifest V3 extension whose
 locks that). For machines where you would rather not run a userscript
 manager:
 
-1. `chrome://extensions` → enable **Developer mode** → **Load unpacked**
-2. Point it at `dist-ext/` (or a copy of it outside the repo — see below)
+1. Download the one link:
+   `https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/dbgov-extension.zip`
+2. Extract it somewhere permanent (e.g. `~/dbgov-ext/`)
+3. `chrome://extensions` → enable **Developer mode** → **Load unpacked** → that folder
+
+That is the floor the browser allows: Chrome refuses URL-installs outside its
+store, but happily loads an extracted folder. After the one-time updater
+setup below, every later update is one press inside the overlay.
 
 Updates: the userscript self-updates on push. The unpacked extension has its
 own SELF-UPDATER — one-time setup on its options page ("grant dbgov its
