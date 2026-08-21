@@ -2418,6 +2418,26 @@ console.log('\nTHE SESSION SURVIVES THE REFRESH');
     w4.document.querySelector('#__dbgov-bar [data-st]').textContent === 'OFF',
     w4.document.querySelector('#__dbgov-bar [data-st]').textContent);
   w4.close();
+
+  // THE RUNTIME survives too: ⚡ armed before the reload is armed AND
+  // MONITORING after it — watch() re-fires from the restored session, with
+  // a fresh log by design (a freeze from before the reload is a stale claim
+  // about a dead document; the ## load section covers the page's birth).
+  const w5 = boot('<div id="a">a</div>');
+  w5.dispatchEvent(new w5.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  w5.document.querySelector('[data-tool="perf"]')
+    .dispatchEvent(new w5.MouseEvent('click', { bubbles: true }));
+  persist(w5); w5.close();
+  const w6 = boot('<div id="a">a</div>');
+  let rep6 = null;
+  Object.defineProperty(w6.navigator, 'clipboard',
+    { value: { writeText: async (x) => { rep6 = x; } }, configurable: true });
+  w6.document.querySelector('[data-copy]').dispatchEvent(new w6.MouseEvent('click', { bubbles: true }));
+  ok('⚡ survives the reload armed — and the monitor restarted itself',
+    w6.document.querySelector('[data-tool="perf"]').classList.contains('dbgov-armed') &&
+    /## performance/.test(rep6 || '') && /no blocks over the threshold/.test(rep6 || ''),
+    (rep6 || '').match(/## performance[^\n]*/)?.[0] || 'no performance section after reload');
+  w6.close();
 }
 
 console.log('\nPERF MONITOR');
