@@ -137,6 +137,12 @@ then only needs you to sign in; the script arrives on its own.
   updates now* forces it, and `npm run shipped` answers what the world sees.
 - **Updated but nothing changed:** the open tab still runs the old code —
   press **↻ Refresh page** in the ⏻ menu.
+- **Extension updater says "Updated" but the version stays put:** the granted
+  folder is not the one Chrome loads — a second copy swallows updates
+  silently. Find the real folder at `chrome://extensions` → Debug Overlay →
+  **Details** → **Source**, then re-do **Choose install folder…** with that
+  exact folder. The updater now proves the folder is live (it writes a probe
+  and fetches it through the extension's own URL) and refuses a dead copy.
 
 ### For a different account / fork
 

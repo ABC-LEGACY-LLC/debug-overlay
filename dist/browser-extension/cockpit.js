@@ -118,7 +118,7 @@
   };
 
   // browser-extension-source/cockpit.js
-  var VERSION = "3.8.104";
+  var VERSION = "3.8.105";
   var $ = (s) => document.querySelector(s);
   var body = document.body;
   var IC = {
@@ -478,6 +478,7 @@
   var port = null;
   var timer = null;
   var live = false;
+  var retryDelay = 900;
   function mode(m) {
     body.dataset.mode = m;
   }
@@ -530,6 +531,7 @@
       if (m.kind !== "state") return;
       if (!live) {
         live = true;
+        retryDelay = 900;
         mode("main");
         status("connected", "ok");
         pageReturned();
@@ -537,13 +539,16 @@
       render[m.name]?.(m.args);
     });
     p.onDisconnect.addListener(() => {
+      const gone = chrome.runtime.lastError;
       if (port !== p) return;
       port = null;
+      const everSpoke = live;
       live = false;
-      tl().pendingReload = true;
+      if (everSpoke) tl().pendingReload = true;
       mode("waiting");
       status("waiting for page…", "bad");
-      retry(900);
+      retryDelay = everSpoke || !gone ? 900 : Math.min(retryDelay * 2, 5e3);
+      retry(retryDelay);
     });
     post(Protocol.cmd("hello"));
     if (myView) post(Protocol.cmd("openView", myView));

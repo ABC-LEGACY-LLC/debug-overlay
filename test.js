@@ -397,6 +397,29 @@ console.log('\nTWO GATES, ONE CORE');
     optJs.includes('holds no extension install') &&
     optJs.includes('refusing to write'),
     'an update into the wrong folder is a success message over nothing');
+  /* the wrong-COPY trap, caught on a real machine: the granted folder held a
+     genuine install of this extension, so the name check passed — but Chrome
+     was loaded from a different folder, so every "successful" update changed
+     nothing and v3.8.101 kept running. The probe is the definitive answer:
+     write a file into the granted folder, fetch it through the extension's
+     own URL — it serves ONLY from the folder Chrome actually loaded. */
+  ok('the updater PROVES the folder is the one Chrome runs',
+    optJs.includes('proveLive') && optJs.includes('chrome.runtime.getURL(') &&
+    optJs.includes('removeEntry'),
+    'a second copy of the install would swallow updates forever');
+  ok('and refuses a proven-dead copy, pointing at Details → Source',
+    optJs.includes('Chrome is not running from') &&
+    optJs.includes('"Source" names the loaded path'),
+    'the refusal must say where the real folder is written down');
+  ok('the version cross-check backs the probe up',
+    optJs.includes('v.mismatch'),
+    'a copy holding v3.8.100 under a running v3.8.101 was the live signature');
+  // the cockpit's knock on a tab with no content script is its NORMAL retry
+  // path — unread, every knock lands on the Errors page as a scary entry
+  const ckJs = fs.readFileSync(path.join(extDir, 'cockpit.js'), 'utf8');
+  ok('the cockpit acknowledges lastError — no Errors-page noise',
+    ckJs.includes('chrome.runtime.lastError'),
+    'a morning of retries filled the Errors page on a real install');
   ok('the worker can open the updater for the content script',
     fs.readFileSync(path.join(extDir, 'sw.js'), 'utf8').includes('openOptionsPage'),
     'no route from the ⏻ menu to the options page');
@@ -492,7 +515,7 @@ let cockpitChecked = false;
   let target = c1;                  // which content window connect() reaches
   let lastPair = null;
   let fireUpdated = null;
-  w2.chrome = { tabs: {
+  w2.chrome = { runtime: {}, tabs: {
     query: async () => [{ id: 7 }],
     connect: (id, opts) => {
       const [contentEnd, cockpitEnd] = mkPipe();

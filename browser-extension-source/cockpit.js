@@ -389,7 +389,7 @@ const render = {
 
 /* ---- the port: bind the active tab, reconnect forever --------------- */
 
-let tabId = null, port = null, timer = null, live = false;
+let tabId = null, port = null, timer = null, live = false, retryDelay = 900;
 
 function mode(m) { body.dataset.mode = m; }
 function status(txt, dot) {
@@ -417,20 +417,32 @@ function connect() {
     const m = Protocol.read(msg);
     if (!m) { if (Protocol.stale(msg)) mode('stale'); return; }
     if (m.kind !== 'state') return;
-    if (!live) { live = true; mode('main'); status('connected', 'ok'); pageReturned(); }
+    if (!live) { live = true; retryDelay = 900; mode('main'); status('connected', 'ok'); pageReturned(); }
     render[m.name]?.(m.args);
   });
   p.onDisconnect.addListener(() => {
+    /* read lastError = acknowledged. A tab with no content script (browser
+       pages, a page mid-load) is this panel's NORMAL retry path, and every
+       unread lastError lands on the chrome://extensions Errors page as
+       "Could not establish connection" — a real install collected a page
+       of them in a morning. */
+    const gone = chrome.runtime.lastError;
     if (port !== p) return;
     port = null;
+    const everSpoke = live;
     live = false;
     /* the page hung up on its own — a reload or a navigation. drop() never
        lands here (disconnecting a port fires only the FAR side), so a tab
-       switch does not forge a reload divider. */
-    tl().pendingReload = true;
+       switch does not forge a reload divider. Only a connection that ever
+       SPOKE marks a reload: a knock nobody answered is not a navigation. */
+    if (everSpoke) tl().pendingReload = true;
     mode('waiting');
     status('waiting for page…', 'bad');
-    retry(900);   // a reload's content script needs a moment; keep knocking
+    /* a reload's content script needs a moment — knock again soon, then ease
+       off: a chrome:// tab will never answer, and knocking it every 900ms
+       forever is churn for nothing */
+    retryDelay = everSpoke || !gone ? 900 : Math.min(retryDelay * 2, 5000);
+    retry(retryDelay);
   });
   post(Protocol.cmd('hello'));
   // the open view survives the reconnect: ask the fresh page for its rows

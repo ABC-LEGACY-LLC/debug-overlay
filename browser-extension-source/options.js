@@ -93,7 +93,11 @@ async function showFolder() {
 /** Is this folder actually where THIS extension lives? Writing anywhere else
  *  reports success while the browser keeps running the old copy — the silent
  *  miss. An install folder holds a manifest, and that manifest carries our
- *  name; a folder failing either test is the wrong folder, said out loud. */
+ *  name; a folder failing either test is the wrong folder, said out loud.
+ *  The folder's version is returned too: holding a DIFFERENT version than
+ *  the running extension is the signature of a copy Chrome never loads —
+ *  measured on a real machine, where an update written to such a copy
+ *  "succeeded" forever while v3.8.101 kept running. */
 async function vet(dir) {
   try {
     const fh = await dir.getFileHandle('manifest.json');
@@ -101,11 +105,37 @@ async function vet(dir) {
     if (m.name !== chrome.runtime.getManifest().name) {
       return { ok: false, why: `"${dir.name}" holds a different extension ("${m.name}")` };
     }
-    return { ok: true, version: m.version };
+    return { ok: true, version: m.version, mismatch: m.version !== MINE };
   } catch {
     return { ok: false, why: `"${dir.name}" holds no extension install (no manifest.json)` };
   }
 }
+
+/** The definitive current-source check: write a probe file into the granted
+ *  folder, then fetch it through the extension's OWN url. Chrome serves an
+ *  unpacked extension's files straight off the loaded folder, so the fetch
+ *  succeeds ONLY if this folder is the one chrome://extensions loaded.
+ *  true = proven live · false = proven NOT the loaded folder · null = the
+ *  probe itself failed, so say nothing rather than guess. */
+async function proveLive(dir) {
+  const name = 'updater-probe-' + Math.random().toString(36).slice(2) + '.txt';
+  try {
+    const fh = await dir.getFileHandle(name, { create: true });
+    const w = await fh.createWritable();
+    await w.write('Debug Overlay updater probe — safe to delete');
+    await w.close();
+    let live = false;
+    try {
+      const r = await fetch(chrome.runtime.getURL(name), { cache: 'no-store' });
+      live = !!r.ok;
+    } catch {}
+    try { await dir.removeEntry(name); } catch {}
+    return live;
+  } catch { return null; }
+}
+
+const FIND_IT = 'find the real folder: chrome://extensions → Debug Overlay → ' +
+  'Details — "Source" names the loaded path. Choose THAT folder in step 1.';
 
 async function check() {
   status('', 'Checking for updates…');
@@ -143,6 +173,24 @@ async function run(repairing) {
       log('refusing to write: ' + v.why, 'err');
       log('choose the folder this extension was loaded unpacked from (step 1) — ' +
           'for a fresh install somewhere new, use the install page instead', 'warn');
+      return;
+    }
+    /* the wrong-copy trap: a folder can hold a REAL install of this extension
+       and still not be the one Chrome loads (a second copy, a parent, an old
+       home). Writing there reports success while the old version keeps
+       running. The probe proves it either way; the version cross-check backs
+       it up when the probe cannot run. */
+    const live = await proveLive(dir);
+    if (live === false) {
+      log(`refusing to write: Chrome is not running from "${dir.name}" — ` +
+          `an update written there changes nothing`, 'err');
+      log(FIND_IT, 'warn');
+      return;
+    }
+    if (live === null && v.mismatch) {
+      log(`refusing to write: "${dir.name}" holds v${v.version} while the running ` +
+          `extension is v${MINE} — this looks like a copy Chrome does not load`, 'err');
+      log(FIND_IT, 'warn');
       return;
     }
     const remote = await (await fetch(BASE + '/manifest.json', { cache: 'no-store' })).json();
@@ -216,11 +264,24 @@ $('pick').addEventListener('click', async () => {
   }
   await kvSet('dir', dir);
   const v = await vet(dir);
-  if (v.ok) {
-    log(`✓ folder granted: ${dir.name} — holds this extension (v${v.version})`, 'good');
-  } else {
+  if (!v.ok) {
     log('⚠ folder granted, but ' + v.why, 'warn');
-    log('if Debug Overlay was loaded unpacked from a different folder, choose that one instead', 'warn');
+    log(FIND_IT, 'warn');
+  } else {
+    const live = await proveLive(dir);
+    if (live === true) {
+      log(`✓ folder granted: ${dir.name} — PROVEN to be the folder Chrome is running (v${v.version})`, 'good');
+    } else if (live === false) {
+      log(`⚠ "${dir.name}" holds this extension (v${v.version}) but Chrome is NOT running from it — ` +
+          'updates written there would change nothing', 'warn');
+      log(FIND_IT, 'warn');
+    } else if (v.mismatch) {
+      log(`⚠ "${dir.name}" holds v${v.version} while the running extension is v${MINE} — ` +
+          'this may be a copy Chrome does not load', 'warn');
+      log(FIND_IT, 'warn');
+    } else {
+      log(`✓ folder granted: ${dir.name} — holds this extension (v${v.version})`, 'good');
+    }
   }
   await showFolder();
   check();   // the hint under the status may change now a folder exists
