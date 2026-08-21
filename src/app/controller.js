@@ -34,6 +34,9 @@ import { Render } from '../ui/renderer.js';
     },
     setPower(v) {
       State.enabled = v;
+      // the session survives the refresh: per-origin, so debugging one site
+      // does not switch the overlay on across the whole browser
+      Store.set(`${CONFIG.POWER_KEY}:${location.origin}`, v ? '1' : '0');
       // every overlay goes with the session: Escape is gated on State.enabled,
       // so anything left open when the power goes off can never be closed
       if (!v) Menu.close();
@@ -113,7 +116,10 @@ import { Render } from '../ui/renderer.js';
            control at all. It rides on the title ROW — same array, same
            index the panel hands back — because a control living outside
            rows(view) is how ✕ deleted the wrong pin once already. */
-        return { title: 'Pins', detail: `${n} pinned element${n === 1 ? '' : 's'}`,
+        return { title: 'Pins',
+                 detail: `${n} pinned element${n === 1 ? '' : 's'}` +
+                         (Controller._lost
+                           ? ` · ${Controller._lost} did not survive the reload` : ''),
                  removable: n > 0, rmTitle: 'Clear all pins — the audit\'s marks stay',
                  pins: State.pins.slice() };
       }
@@ -262,6 +268,50 @@ import { Render } from '../ui/renderer.js';
      * referred to nothing and could not be read off a screenshot.
      */
     pinsChanged() {
+      Controller.persistPins();
+      Render.schedule();
+      Controller.refreshList();
+    },
+
+    /**
+     * THE SESSION SURVIVES THE REFRESH — by address, honestly. A pin holds a
+     * live element and the reload destroys the document, so what persists is
+     * each pin's SELECTOR, re-resolved against the new page at boot. Keyed by
+     * origin+path: a pin on /live-map is not a pin on /settings. A selector
+     * that no longer matches is DROPPED and the Pins header says how many —
+     * an element that is gone is gone, and a silent loss is how ✕ deleted
+     * the wrong pin once. The honest limit, stated: a selector is an address,
+     * and on a changed page it can name a different element.
+     */
+    _pinsKey: () => `${CONFIG.PINS_KEY}:${location.origin}${location.pathname}`,
+    _lost: 0,
+    persistPins() {
+      Controller._lost = 0;   // any change supersedes the reload note
+      const cur = State.current && document.contains(State.current)
+        ? U.selectorOf(State.current) : null;
+      const pins = State.pins.filter((p) => document.contains(p.el))
+        .map((p) => ({ s: U.selectorOf(p.el), id: p.id, kind: p.kind }));
+      Store.set(Controller._pinsKey(),
+                pins.length || cur ? JSON.stringify({ pins, cur }) : '');
+    },
+    restorePins() {
+      let saved = null;
+      try { saved = JSON.parse(Store.get(Controller._pinsKey()) || 'null'); } catch {}
+      if (!saved) return;
+      const seen = new Set();
+      for (const p of saved.pins || []) {
+        let el = null;
+        try { el = document.querySelector(p.s); } catch {}
+        if (!el || seen.has(el)) { Controller._lost++; continue; }
+        seen.add(el);
+        State.pins.push({ el, id: p.id, kind: p.kind });
+      }
+      if (saved.cur) {
+        try {
+          const el = document.querySelector(saved.cur);
+          if (el && !seen.has(el)) State.current = el;
+        } catch {}
+      }
       Render.schedule();
       Controller.refreshList();
     },

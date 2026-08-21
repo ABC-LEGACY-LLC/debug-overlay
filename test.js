@@ -2181,6 +2181,94 @@ console.log('\nWHAT A LIVE UX AUDIT FOUND');
   w1.close();
 }
 
+console.log('\nTHE SESSION SURVIVES THE REFRESH');
+/**
+ * DevTools survives a reload because it lives outside the page; a userscript
+ * cannot, so the session is REBUILT: power per origin, pins by selector,
+ * losses counted rather than hidden. Two windows, one storage, is a refresh.
+ */
+{
+  const opts = { url: 'https://example.test/page', pretendToBeVisual: true,
+                 runScripts: 'outside-only', virtualConsole: new VirtualConsole() };
+  const storage = {};
+  const boot = (html) => {
+    const d = new JSDOM(`<!doctype html><html><body>${html}</body></html>`, opts);
+    const w = d.window;
+    for (const [k, v] of Object.entries(storage)) w.localStorage.setItem(k, v);
+    w.localStorage.setItem('__dbgov_seen', JSON.stringify(idsOnDisk));
+    w.eval(source);
+    return w;
+  };
+  const persist = (w) => {
+    for (let i = 0; i < w.localStorage.length; i++) {
+      const k = w.localStorage.key(i);
+      storage[k] = w.localStorage.getItem(k);
+    }
+  };
+  const pinIt = (w, id, mods = {}) => {
+    const el = w.document.getElementById(id);
+    w.document.elementFromPoint = () => el;
+    el.dispatchEvent(new w.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5, ...mods }));
+  };
+
+  // session one: power on, pin two elements
+  const w1 = boot('<div id="a">a</div><div id="b">b</div><div id="c">c</div>');
+  w1.dispatchEvent(new w1.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  pinIt(w1, 'a');
+  pinIt(w1, 'b', { shiftKey: true });
+  persist(w1);
+  w1.close();
+
+  // "refresh": same page, same storage, a fresh document
+  const w2 = boot('<div id="a">a</div><div id="b">b</div><div id="c">c</div>');
+  const bar2 = w2.document.getElementById('__dbgov-bar');
+  ok('power survives the reload — per origin',
+    bar2.querySelector('[data-st]').textContent === 'ON',
+    bar2.querySelector('[data-st]').textContent);
+  bar2.querySelector('[data-c]').dispatchEvent(new w2.MouseEvent('click', { bubbles: true }));
+  const tags2 = [...w2.document.querySelectorAll('#__dbgov-list .dbgov-row .dbgov-tag')]
+    .map((x) => x.textContent);
+  // #2 is a pair pin still waiting for its partner, so select's list row
+  // shows it as '#2…' — the pending state survived the reload too
+  ok('pins survive by selector, with their numbers',
+    tags2.includes('#1') && tags2.some((x) => x.startsWith('#2')),
+    tags2.join(' ') || '(no rows)');
+  const kinds2 = JSON.parse(w2.localStorage.getItem(
+    '__dbgov_pins:https://example.test/page') || '{}');
+  ok('and a pin keeps its KIND across the reload',
+    (kinds2.pins || []).some((p) => p.kind === 'pair'),
+    JSON.stringify(kinds2.pins || []));
+  persist(w2);
+  w2.close();
+
+  // a reload onto a page that CHANGED: #b is gone — dropped, and said
+  const w3 = boot('<div id="a">a</div><div id="c">c</div>');
+  const bar3 = w3.document.getElementById('__dbgov-bar');
+  bar3.querySelector('[data-c]').dispatchEvent(new w3.MouseEvent('click', { bubbles: true }));
+  const head3 = w3.document.querySelector('#__dbgov-list .dbgov-viewhead');
+  ok('a pin whose element is gone is dropped AND counted',
+    /1 did not survive the reload/.test(head3?.textContent || ''),
+    head3?.textContent || '(no header)');
+  const tags3 = [...w3.document.querySelectorAll('#__dbgov-list .dbgov-row .dbgov-tag')]
+    .map((x) => x.textContent);
+  ok('the surviving pin is still #1', tags3.includes('#1') && !tags3.includes('#2'),
+    tags3.join(' '));
+  // the next user action supersedes the note, and ✕ clears the store
+  bar3.querySelector('[data-clear]').dispatchEvent(new w3.MouseEvent('click', { bubbles: true }));
+  ok('✕ clears the persisted session too',
+    !(w3.localStorage.getItem('__dbgov_pins:https://example.test/page') || ''),
+    w3.localStorage.getItem('__dbgov_pins:https://example.test/page'));
+  // power OFF persists too — the next "reload" must stay off
+  w3.dispatchEvent(new w3.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  persist(w3);
+  w3.close();
+  const w4 = boot('<div id="a">a</div>');
+  ok('power OFF survives the reload as well',
+    w4.document.querySelector('#__dbgov-bar [data-st]').textContent === 'OFF',
+    w4.document.querySelector('#__dbgov-bar [data-st]').textContent);
+  w4.close();
+}
+
 console.log('\nPERF MONITOR');
 /**
  * The first tool with a RUNTIME: watch() when armed and powered, unwatch()

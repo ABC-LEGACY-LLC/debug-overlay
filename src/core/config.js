@@ -31,6 +31,13 @@
     EDGE_MARGIN: 8,
     BADGE_MARGIN: 6,
     POS_KEY: '__dbgov_pos',
+    // PER-ORIGIN, unlike everything else in the store: "debugging THIS site"
+    // is a session fact about one origin, where a grid step is a fact about
+    // the project. Global power would pop the overlay onto every site the
+    // browser visits. Pins add the PATH: a pin on /live-map is not a pin on
+    // /settings.
+    POWER_KEY: '__dbgov_on',
+    PINS_KEY: '__dbgov_pins',
     TOOLS_KEY: '__dbgov_tools',
     SETTINGS_KEY: '__dbgov_settings',
     // Which tool ids this install has already met. Without it a saved armed

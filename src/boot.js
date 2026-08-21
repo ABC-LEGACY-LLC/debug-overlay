@@ -16,6 +16,8 @@ import { Report } from './services/report/index.js';
 import { Interactions } from './app/interactions.js';
 import { Controller } from './app/controller.js';
 import { Settings } from './services/settings/index.js';
+import { CONFIG } from './core/config.js';
+import { Store } from './core/state.js';
 
 initDom();
 initList();
@@ -44,4 +46,9 @@ Settings.load();
 Controller.refreshBadge();   // the 🏷 members show the values just loaded
 Controller.loadTools();
 Interactions.install(Controller);
-Controller.setPower(false);
+/* THE SESSION SURVIVES THE REFRESH. Power is restored per origin, and the
+   pins come back by selector — resolved against the page that exists NOW,
+   with losses counted rather than hidden. Restored before the first paint,
+   so a reload reads as a blink, not a reset. */
+Controller.restorePins();
+Controller.setPower(Store.get(`${CONFIG.POWER_KEY}:${location.origin}`) === '1');

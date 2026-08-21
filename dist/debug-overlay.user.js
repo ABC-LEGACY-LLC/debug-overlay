@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.86
+// @version      3.8.87
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -101,6 +101,18 @@ HOW TO USE
                         showing.
   Panel ............... drag by ⋮⋮; snaps to nearest edge; while OFF it tucks
                         away after ~2s leaving a 10px peek. Position remembered.
+  Refresh ............. THE SESSION SURVIVES IT. Power is remembered per
+                        SITE (this one stays on; other sites stay off), and
+                        pins come back by their selector, same numbers, same
+                        kinds — resolved against the page that exists now. A
+                        pin whose element is gone is dropped and the Pins
+                        header says how many. Honest limit: a selector is an
+                        address, and on a changed page it can name a
+                        different element. With ⚡ armed the report also
+                        gains "## load — this navigation": server, DOM
+                        ready, first paint, and the long tasks that ran
+                        before the overlay was even awake (buffered
+                        observers reach back).
 
   POWER vs TOOLS
   --------------
@@ -338,7 +350,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.86",
+    VERSION: "3.8.87",
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -359,6 +371,13 @@ HOW TO USE
     EDGE_MARGIN: 8,
     BADGE_MARGIN: 6,
     POS_KEY: "__dbgov_pos",
+    // PER-ORIGIN, unlike everything else in the store: "debugging THIS site"
+    // is a session fact about one origin, where a grid step is a fact about
+    // the project. Global power would pop the overlay onto every site the
+    // browser visits. Pins add the PATH: a pin on /live-map is not a pin on
+    // /settings.
+    POWER_KEY: "__dbgov_on",
+    PINS_KEY: "__dbgov_pins",
     TOOLS_KEY: "__dbgov_tools",
     SETTINGS_KEY: "__dbgov_settings",
     // Which tool ids this install has already met. Without it a saved armed
@@ -1823,6 +1842,10 @@ HOW TO USE
     _onVis: null,
     _redraw: null,
     _drewT: 0,
+    load: null,
+    // this navigation's timings — static per page
+    pre: [],
+    // long tasks from BEFORE arming (buffered entries)
     threshold() {
       const v = Monitor._owner && Tools.setting(Monitor._owner, "freeze");
       return Number(v) || CONFIG.PERF.FREEZE_MS;
@@ -1848,37 +1871,52 @@ HOW TO USE
       Monitor.log = [];
       Monitor.fps = null;
       Monitor.startedAt = Date.now();
+      Monitor._armedAtPerf = performance.now();
+      Monitor.pre = [];
+      Monitor.load = null;
+      try {
+        const nav = performance.getEntriesByType?.("navigation")?.[0];
+        if (nav) {
+          const fcp = performance.getEntriesByType?.("paint")?.find((e) => e.name === "first-contentful-paint");
+          Monitor.load = {
+            server: Math.round(nav.responseStart - nav.startTime),
+            dom: Math.round(nav.domContentLoadedEventEnd - nav.startTime),
+            done: nav.loadEventEnd ? Math.round(nav.loadEventEnd - nav.startTime) : null,
+            fcp: fcp ? Math.round(fcp.startTime) : null
+          };
+        }
+      } catch {
+      }
       const types = typeof PerformanceObserver !== "undefined" && PerformanceObserver.supportedEntryTypes || [];
+      const classify = (e, src) => {
+        if (e.startTime + e.duration <= Monitor._armedAtPerf) {
+          Monitor.pre.push({ ms: Math.round(e.duration), src });
+          if (Monitor.pre.length > 10) Monitor.pre.shift();
+        } else if (e.duration >= Monitor.threshold()) {
+          Monitor.push({
+            t: Date.now(),
+            ms: Math.round(e.duration),
+            src,
+            via: src ? "frame" : "task"
+          });
+        }
+      };
       if (types.includes("long-animation-frame")) {
         Monitor.tier = "frame-attribution";
         Monitor._obs = new PerformanceObserver((list) => {
           for (const e of list.getEntries()) {
-            if (e.duration < Monitor.threshold()) continue;
             const s = e.scripts && e.scripts[0];
             const src = s && (s.sourceURL || s.invoker || s.name) || null;
-            Monitor.push({
-              t: Date.now(),
-              ms: Math.round(e.duration),
-              src: src && String(src).split("/").pop().split("?")[0],
-              via: "frame"
-            });
+            classify(e, src && String(src).split("/").pop().split("?")[0]);
           }
         });
-        Monitor._obs.observe({ type: "long-animation-frame" });
+        Monitor._obs.observe({ type: "long-animation-frame", buffered: true });
       } else if (types.includes("longtask")) {
         Monitor.tier = "long-tasks";
         Monitor._obs = new PerformanceObserver((list) => {
-          for (const e of list.getEntries()) {
-            if (e.duration < Monitor.threshold()) continue;
-            Monitor.push({
-              t: Date.now(),
-              ms: Math.round(e.duration),
-              src: null,
-              via: "task"
-            });
-          }
+          for (const e of list.getEntries()) classify(e, null);
         });
-        Monitor._obs.observe({ type: "longtask" });
+        Monitor._obs.observe({ type: "longtask", buffered: true });
       } else {
         Monitor.tier = "heartbeat";
       }
@@ -2026,6 +2064,20 @@ HOW TO USE
       if (s.worstEvt) bits.push(`worst input ${fmt(s.worstEvt)}`);
       if (s.shift > 5e-3) bits.push(`layout shift ${s.shift.toFixed(2)}`);
       L.push(`watched ${U.selectorOf(el2)}: ${bits.join(" · ")}`);
+    }
+    if (Monitor.load || Monitor.pre.length) {
+      L.push("", "## load — this navigation");
+      const ld = Monitor.load;
+      if (ld) {
+        const bits = [`server ${fmt(ld.server)}`, `DOM ready ${fmt(ld.dom)}`];
+        if (ld.done) bits.push(`loaded ${fmt(ld.done)}`);
+        if (ld.fcp) bits.push(`first paint ${fmt(ld.fcp)}`);
+        L.push(bits.join(" · "));
+      }
+      if (Monitor.pre.length) {
+        const worst = Monitor.pre.reduce((m, e) => e.ms > m.ms ? e : m);
+        L.push(`${Monitor.pre.length} long task${Monitor.pre.length === 1 ? "" : "s"} before arming, worst ${fmt(worst.ms)}` + (worst.src ? ` (${worst.src})` : ""));
+      }
     }
     return L;
   }
@@ -4188,6 +4240,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     },
     setPower(v) {
       State.enabled = v;
+      Store.set(`${CONFIG.POWER_KEY}:${location.origin}`, v ? "1" : "0");
       if (!v) Menu.close();
       if (!v) State.hoverEl = null;
       if (v) {
@@ -4250,7 +4303,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         const n = State.pins.length;
         return {
           title: "Pins",
-          detail: `${n} pinned element${n === 1 ? "" : "s"}`,
+          detail: `${n} pinned element${n === 1 ? "" : "s"}` + (Controller._lost ? ` · ${Controller._lost} did not survive the reload` : ""),
           removable: n > 0,
           rmTitle: "Clear all pins — the audit's marks stay",
           pins: State.pins.slice()
@@ -4375,6 +4428,59 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
      * referred to nothing and could not be read off a screenshot.
      */
     pinsChanged() {
+      Controller.persistPins();
+      Render.schedule();
+      Controller.refreshList();
+    },
+    /**
+     * THE SESSION SURVIVES THE REFRESH — by address, honestly. A pin holds a
+     * live element and the reload destroys the document, so what persists is
+     * each pin's SELECTOR, re-resolved against the new page at boot. Keyed by
+     * origin+path: a pin on /live-map is not a pin on /settings. A selector
+     * that no longer matches is DROPPED and the Pins header says how many —
+     * an element that is gone is gone, and a silent loss is how ✕ deleted
+     * the wrong pin once. The honest limit, stated: a selector is an address,
+     * and on a changed page it can name a different element.
+     */
+    _pinsKey: () => `${CONFIG.PINS_KEY}:${location.origin}${location.pathname}`,
+    _lost: 0,
+    persistPins() {
+      Controller._lost = 0;
+      const cur = State.current && document.contains(State.current) ? U.selectorOf(State.current) : null;
+      const pins = State.pins.filter((p) => document.contains(p.el)).map((p) => ({ s: U.selectorOf(p.el), id: p.id, kind: p.kind }));
+      Store.set(
+        Controller._pinsKey(),
+        pins.length || cur ? JSON.stringify({ pins, cur }) : ""
+      );
+    },
+    restorePins() {
+      let saved = null;
+      try {
+        saved = JSON.parse(Store.get(Controller._pinsKey()) || "null");
+      } catch {
+      }
+      if (!saved) return;
+      const seen = /* @__PURE__ */ new Set();
+      for (const p of saved.pins || []) {
+        let el2 = null;
+        try {
+          el2 = document.querySelector(p.s);
+        } catch {
+        }
+        if (!el2 || seen.has(el2)) {
+          Controller._lost++;
+          continue;
+        }
+        seen.add(el2);
+        State.pins.push({ el: el2, id: p.id, kind: p.kind });
+      }
+      if (saved.cur) {
+        try {
+          const el2 = document.querySelector(saved.cur);
+          if (el2 && !seen.has(el2)) State.current = el2;
+        } catch {
+        }
+      }
       Render.schedule();
       Controller.refreshList();
     },
@@ -4561,6 +4667,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
   Controller.refreshBadge();
   Controller.loadTools();
   Interactions.install(Controller);
-  Controller.setPower(false);
+  Controller.restorePins();
+  Controller.setPower(Store.get(`${CONFIG.POWER_KEY}:${location.origin}`) === "1");
 })();
 })();

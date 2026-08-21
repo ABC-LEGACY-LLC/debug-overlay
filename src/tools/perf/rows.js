@@ -54,5 +54,22 @@ export function reportTail() {
           if (s.shift > 0.005) bits.push(`layout shift ${s.shift.toFixed(2)}`);
           L.push(`watched ${U.selectorOf(el)}: ${bits.join(' · ')}`);
         }
+        // the page's birth — static facts a live-only monitor never sees
+        if (Monitor.load || Monitor.pre.length) {
+          L.push('', '## load — this navigation');
+          const ld = Monitor.load;
+          if (ld) {
+            const bits = [`server ${fmt(ld.server)}`, `DOM ready ${fmt(ld.dom)}`];
+            if (ld.done) bits.push(`loaded ${fmt(ld.done)}`);
+            if (ld.fcp) bits.push(`first paint ${fmt(ld.fcp)}`);
+            L.push(bits.join(' · '));
+          }
+          if (Monitor.pre.length) {
+            const worst = Monitor.pre.reduce((m, e) => (e.ms > m.ms ? e : m));
+            L.push(`${Monitor.pre.length} long task${Monitor.pre.length === 1 ? '' : 's'}` +
+                   ` before arming, worst ${fmt(worst.ms)}` +
+                   (worst.src ? ` (${worst.src})` : ''));
+          }
+        }
         return L;
 }

@@ -35,6 +35,8 @@ export const Monitor = {
         _owner: null,        // the tool, for Tools.setting — set by watch()
         _obs: null, _obs2: [], _raf: 0, _last: 0, _frames: 0, _fpsT: 0,
         _onVis: null, _redraw: null, _drewT: 0,
+        load: null,          // this navigation's timings — static per page
+        pre: [],             // long tasks from BEFORE arming (buffered entries)
 
         threshold() {
           const v = Monitor._owner && Tools.setting(Monitor._owner, 'freeze');
@@ -69,32 +71,59 @@ export const Monitor = {
           Monitor.log = [];
           Monitor.fps = null;
           Monitor.startedAt = Date.now();
+          Monitor._armedAtPerf = performance.now();
+          Monitor.pre = [];
+
+          /* THE LOAD ITSELF — the thing a live-only monitor can never see.
+             Navigation and paint timing are static facts about this page's
+             birth, and the buffered observers below can hand us long tasks
+             from before this script even ran. Guarded per browser: absent
+             APIs just mean an absent section, never a wrong one. */
+          Monitor.load = null;
+          try {
+            const nav = performance.getEntriesByType?.('navigation')?.[0];
+            if (nav) {
+              const fcp = performance.getEntriesByType?.('paint')
+                ?.find((e) => e.name === 'first-contentful-paint');
+              Monitor.load = {
+                server: Math.round(nav.responseStart - nav.startTime),
+                dom: Math.round(nav.domContentLoadedEventEnd - nav.startTime),
+                done: nav.loadEventEnd ? Math.round(nav.loadEventEnd - nav.startTime) : null,
+                fcp: fcp ? Math.round(fcp.startTime) : null,
+              };
+            }
+          } catch {}
 
           const types = (typeof PerformanceObserver !== 'undefined' &&
                          PerformanceObserver.supportedEntryTypes) || [];
+          /* buffered: true — entries from before arming land in `pre`, the
+             startup story; entries after arming are the live log. Split by
+             the arming timestamp so the two never mix a WHEN. */
+          const classify = (e, src) => {
+            if (e.startTime + e.duration <= Monitor._armedAtPerf) {
+              Monitor.pre.push({ ms: Math.round(e.duration), src });
+              if (Monitor.pre.length > 10) Monitor.pre.shift();
+            } else if (e.duration >= Monitor.threshold()) {
+              Monitor.push({ t: Date.now(), ms: Math.round(e.duration), src,
+                             via: src ? 'frame' : 'task' });
+            }
+          };
           if (types.includes('long-animation-frame')) {
             Monitor.tier = 'frame-attribution';
             Monitor._obs = new PerformanceObserver((list) => {
               for (const e of list.getEntries()) {
-                if (e.duration < Monitor.threshold()) continue;
                 const s = e.scripts && e.scripts[0];
                 const src = s && (s.sourceURL || s.invoker || s.name) || null;
-                Monitor.push({ t: Date.now(), ms: Math.round(e.duration),
-                               src: src && String(src).split('/').pop().split('?')[0],
-                               via: 'frame' });
+                classify(e, src && String(src).split('/').pop().split('?')[0]);
               }
             });
-            Monitor._obs.observe({ type: 'long-animation-frame' });
+            Monitor._obs.observe({ type: 'long-animation-frame', buffered: true });
           } else if (types.includes('longtask')) {
             Monitor.tier = 'long-tasks';
             Monitor._obs = new PerformanceObserver((list) => {
-              for (const e of list.getEntries()) {
-                if (e.duration < Monitor.threshold()) continue;
-                Monitor.push({ t: Date.now(), ms: Math.round(e.duration),
-                               src: null, via: 'task' });
-              }
+              for (const e of list.getEntries()) classify(e, null);
             });
-            Monitor._obs.observe({ type: 'longtask' });
+            Monitor._obs.observe({ type: 'longtask', buffered: true });
           } else {
             Monitor.tier = 'heartbeat';
           }

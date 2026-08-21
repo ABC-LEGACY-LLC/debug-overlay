@@ -85,6 +85,18 @@ HOW TO USE
                         showing.
   Panel ............... drag by ⋮⋮; snaps to nearest edge; while OFF it tucks
                         away after ~2s leaving a 10px peek. Position remembered.
+  Refresh ............. THE SESSION SURVIVES IT. Power is remembered per
+                        SITE (this one stays on; other sites stay off), and
+                        pins come back by their selector, same numbers, same
+                        kinds — resolved against the page that exists now. A
+                        pin whose element is gone is dropped and the Pins
+                        header says how many. Honest limit: a selector is an
+                        address, and on a changed page it can name a
+                        different element. With ⚡ armed the report also
+                        gains "## load — this navigation": server, DOM
+                        ready, first paint, and the long tasks that ran
+                        before the overlay was even awake (buffered
+                        observers reach back).
 
   POWER vs TOOLS
   --------------
