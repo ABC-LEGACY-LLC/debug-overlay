@@ -295,6 +295,19 @@ console.log('\nTWO GATES, ONE CORE');
   ok('the worker can open the updater for the content script',
     fs.readFileSync(path.join(extDir, 'sw.js'), 'utf8').includes('openOptionsPage'),
     'no route from the ⏻ menu to the options page');
+  // the no-cmd installer: a page carrying the runtime files INSIDE itself —
+  // an embedded copy is a second copy, so the suite holds it byte-identical
+  const inst = fs.readFileSync(path.join(extDir, 'install.html'), 'utf8');
+  const fjson = (inst.match(/const FILES = (\{.*\});/) || [])[1];
+  ok('install.html embeds the runtime files, byte-identical to disk',
+    !!fjson && (() => {
+      const files = JSON.parse(fjson.replace(/<\\\//g, '</'));
+      return ['manifest.json', 'content.js', 'sw.js', 'options.html', 'options.js']
+        .every((f) => files[f] === fs.readFileSync(path.join(extDir, f), 'utf8'));
+    })(),
+    'the installer would write files that differ from the gate it ships in');
+  ok('and no embedded file can close the installer\'s script tag',
+    !!fjson && !fjson.includes('</script>'), 'unescaped </script> in the JSON');
   // the one-link install: a real ZIP at a stable raw URL
   const zip = fs.readFileSync(path.join(extDir, 'debug-overlay-extension.zip'));
   ok('the extension ships as a ZIP too',

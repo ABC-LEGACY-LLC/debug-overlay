@@ -278,6 +278,21 @@ function build(kind) {
     eocd.writeUInt32LE(offset, 16);
     return Buffer.concat([...chunks, cdBuf, eocd]);
   };
+  /* install.html — the no-cmd installer: a self-contained page carrying
+     every runtime file inline, writing them out via the File System Access
+     API. Exists because install.bat met a real machine where administrators
+     disable the command prompt; a browser page they cannot disable. The
+     JSON's '</' is escaped so no embedded file can close the script tag. */
+  const RUNTIME = ['manifest.json', 'content.js', 'sw.js', 'options.html', 'options.js'];
+  const filesJson = JSON.stringify(Object.fromEntries(
+    RUNTIME.map((f) => [f, fs.readFileSync(path.join(EXT, f), 'utf8')])))
+    .replace(/<\//g, '<\\/');
+  /* function replacement: the JSON is full of '$' sequences that string
+     replacement would interpret as capture references and corrupt */
+  fs.writeFileSync(path.join(EXT, 'install.html'),
+    fs.readFileSync(path.join(ROOT, 'browser-extension-source', 'install.html'), 'utf8')
+      .replace('const FILES = __FILES_JSON__;', () => `const FILES = ${filesJson};`));
+
   const extFiles = fs.readdirSync(EXT).sort()
     .filter((f) => !f.endsWith('.zip'))   // or the second build zips the zip
     .map((f) => [f, fs.readFileSync(path.join(EXT, f))]);

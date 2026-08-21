@@ -66,12 +66,13 @@ keeps running the old version until it reloads.
 https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/browser-extension/debug-overlay-extension.zip
 ```
 
-**Step 2 (Windows).** Extract the ZIP anywhere and double-click
-**`install.bat`** — it copies the files to a permanent home
-(`%LOCALAPPDATA%\debug-overlay-extension`) and opens the extensions page,
-then prints the two clicks that remain. *(Mac/Linux, or by hand: extract to a
-permanent folder yourself — not Downloads, not inside a git checkout — the
-browser reads it from there forever and the updater writes into it.)*
+**Step 2.** Extract the ZIP anywhere and double-click **`install.html`** —
+it opens in the browser (no command prompt involved, so it works even where
+administrators disable cmd), and its one button writes the extension into a
+permanent folder you choose — for example a new `debug-overlay-extension`
+folder in Documents. It then walks the remaining clicks. *(Windows machines
+where cmd IS allowed can use `install.bat` instead; or do it by hand —
+extract to a permanent folder yourself, not Downloads, not a git checkout.)*
 
 **Step 3.** On the page that opened: **Developer mode** ON →
 **Load unpacked** → select that folder. These two clicks are the browser's

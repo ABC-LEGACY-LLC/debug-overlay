@@ -1,0 +1,81 @@
+<!doctype html>
+<meta charset="utf-8"><title>Debug Overlay — installer</title>
+<style>
+  body { font: 15px/1.7 system-ui, sans-serif; background: #16161a; color: #eaeaea;
+         max-width: 640px; margin: 40px auto; padding: 0 16px; }
+  h1 { font-size: 20px; }
+  .step { background: #1f1f24; border-radius: 12px; padding: 16px 20px; margin: 14px 0; }
+  .step b { color: #b5e853; }
+  button { font: inherit; padding: 10px 16px; border: 0; border-radius: 8px;
+           background: #58c4ff; color: #0d1b24; cursor: pointer; }
+  button.quiet { background: #2c2c31; color: #eaeaea; }
+  code { background: #2c2c31; border-radius: 6px; padding: 2px 8px; }
+  #done1 { color: #b5e853; display: none; }
+  .muted { color: #9a9aa4; font-size: 13px; }
+</style>
+<h1>Debug Overlay — installer</h1>
+<p class="muted">This page carries the whole extension inside itself and needs
+no command prompt — it works even where administrators disable cmd. The
+browser reserves two clicks for you; everything else happens here.</p>
+
+<div class="step">
+  <b>Step 1 — write the files.</b><br>
+  Press the button, then <i>create or choose</i> a permanent folder — for
+  example a new folder called <code>debug-overlay-extension</code> in your
+  Documents. Not Downloads: the browser will read this folder forever.<br><br>
+  <button id="write">Choose install folder &amp; write files…</button>
+  <div id="done1"></div>
+</div>
+
+<div class="step">
+  <b>Step 2 — open the extensions page.</b><br>
+  A web page is not allowed to open it for you. Copy the address and paste it
+  into the address bar:<br><br>
+  <code id="addr">chrome://extensions</code>
+  <button class="quiet" id="copy">Copy</button>
+  <span class="muted">(Edge: <code>edge://extensions</code>)</span>
+</div>
+
+<div class="step">
+  <b>Step 3 — the two clicks the browser requires from a human.</b><br>
+  On that page: switch ON <b>Developer mode</b> (top-right), press
+  <b>Load unpacked</b>, and select the folder from Step&nbsp;1.<br>
+  Then open any website and press <b>Alt+Shift+D</b>.
+</div>
+
+<div class="step">
+  <b>Optional, once — one-press future updates.</b><br>
+  Extension's <b>Details → Extension options → Choose install folder…</b> →
+  select the same folder → Allow. From then on updates are a single press
+  inside the overlay.
+</div>
+
+<script>
+// The FILES literal below is substituted by build.js with the real contents.
+const FILES = __FILES_JSON__;
+
+document.getElementById('copy').onclick = async () => {
+  try { await navigator.clipboard.writeText('chrome://extensions'); } catch {}
+  document.getElementById('copy').textContent = 'Copied ✓';
+};
+
+document.getElementById('write').onclick = async () => {
+  const done = document.getElementById('done1');
+  try {
+    const dir = await showDirectoryPicker({ mode: 'readwrite' });
+    for (const [name, text] of Object.entries(FILES)) {
+      const fh = await dir.getFileHandle(name, { create: true });
+      const w = await fh.createWritable();
+      await w.write(text);
+      await w.close();
+    }
+    done.style.display = 'block';
+    done.textContent = '✓ ' + Object.keys(FILES).length +
+      ' files written to "' + dir.name + '" — continue with Step 2.';
+  } catch (e) {
+    done.style.display = 'block';
+    done.style.color = '#ff8a8a';
+    done.textContent = 'Nothing written: ' + e.message;
+  }
+};
+</script>
