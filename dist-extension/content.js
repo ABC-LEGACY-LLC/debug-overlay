@@ -1,4 +1,4 @@
-/* dbgov v3.8.91 — extension gate; same bundle as the userscript */
+/* Debug Overlay v3.8.92 — extension gate; same bundle as the userscript */
 (function () {
   'use strict';
 /* NOT a module and NOT bundled: build.js injects this text at the very top
@@ -34,7 +34,7 @@
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.91",
+    VERSION: "3.8.92",
     // Substituted like VERSION: where the update checker asks, and what the
     // userscript's one-click update opens. One source (userscript.json), no
     // second copy to drift.
@@ -3725,7 +3725,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
   function fetchText(url) {
     if (typeof chrome !== "undefined" && chrome.runtime?.id) {
       return new Promise((resolve, reject) => {
-        chrome.runtime.sendMessage({ type: "dbgov-fetch", url }, (r) => {
+        chrome.runtime.sendMessage({ type: "debug-overlay-fetch", url }, (r) => {
           if (chrome.runtime.lastError || !r?.ok) reject(new Error(r?.error || "no worker"));
           else resolve(r.text);
         });
@@ -3782,7 +3782,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     apply() {
       if (typeof chrome !== "undefined" && chrome.runtime?.id) {
         try {
-          chrome.runtime.sendMessage({ type: "dbgov-open-options" });
+          chrome.runtime.sendMessage({ type: "debug-overlay-open-options" });
         } catch {
         }
         return;

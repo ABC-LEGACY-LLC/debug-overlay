@@ -1,5 +1,5 @@
 <!doctype html>
-<meta charset="utf-8"><title>dbgov — updater</title>
+<meta charset="utf-8"><title>Debug Overlay — updater</title>
 <style>
   body { font: 14px/1.6 ui-monospace, monospace; background: #16161a; color: #eaeaea;
          max-width: 560px; margin: 40px auto; padding: 0 16px; }
@@ -9,11 +9,11 @@
   button.quiet { background: #2c2c31; color: #eaeaea; }
   #log { margin-top: 16px; color: #9a9aa4; white-space: pre-wrap; }
 </style>
-<h1>dbgov self-updater</h1>
-<p>One-time setup: grant dbgov access to its own install folder (the folder you
+<h1>Debug Overlay — self-updater</h1>
+<p>One-time setup: grant Debug Overlay access to its own install folder (the folder you
 loaded unpacked). After that, updating is one press: fetch from the repo, write
 the files, reload the extension.</p>
-<p><b>Load a COPY of dist-ext/ from outside a git checkout</b> — the updater
+<p><b>Load a COPY of dist-extension/ from outside a git checkout</b> — the updater
 writes files, and writes inside a repo would dirty it.</p>
 <button id="pick" class="quiet">Choose install folder…</button>
 <button id="apply">Check &amp; apply update</button>

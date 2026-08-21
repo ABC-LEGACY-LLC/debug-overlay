@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.91
+// @version      3.8.92
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -352,7 +352,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.91",
+    VERSION: "3.8.92",
     // Substituted like VERSION: where the update checker asks, and what the
     // userscript's one-click update opens. One source (userscript.json), no
     // second copy to drift.
@@ -4043,7 +4043,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
   function fetchText(url) {
     if (typeof chrome !== "undefined" && chrome.runtime?.id) {
       return new Promise((resolve, reject) => {
-        chrome.runtime.sendMessage({ type: "dbgov-fetch", url }, (r) => {
+        chrome.runtime.sendMessage({ type: "debug-overlay-fetch", url }, (r) => {
           if (chrome.runtime.lastError || !r?.ok) reject(new Error(r?.error || "no worker"));
           else resolve(r.text);
         });
@@ -4100,7 +4100,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     apply() {
       if (typeof chrome !== "undefined" && chrome.runtime?.id) {
         try {
-          chrome.runtime.sendMessage({ type: "dbgov-open-options" });
+          chrome.runtime.sendMessage({ type: "debug-overlay-open-options" });
         } catch {
         }
         return;

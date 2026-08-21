@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         dbgov perf probe
+// @name         Debug Overlay perf probe
 // @namespace    alonur.tools
 // @version      0.1
 // @description  Phase-0 probe: which performance APIs actually fire under this manager's sandbox, on this browser, on this page. Install temporarily, read the box, uninstall.
@@ -8,9 +8,9 @@
 // @noframes     true
 // ==/UserScript==
 
-/* Not part of the bundle — a throwaway instrument. dbgov's perf tool assumes
+/* Not part of the bundle — a throwaway instrument. Debug Overlay's perf tool assumes
    these APIs behave under the Tampermonkey sandbox; this is the assumption,
-   measured. The @grant matters: it forces the same sandbox dbgov runs in, so
+   measured. The @grant matters: it forces the same sandbox Debug Overlay runs in, so
    what fires here fires there. */
 (() => {
   'use strict';
@@ -20,7 +20,7 @@
     'background:#111;color:#9f9;font:11px/1.6 monospace;padding:10px 14px;' +
     'border-radius:8px;max-width:340px;pointer-events:auto;white-space:pre';
   const paint = () => {
-    box.textContent = 'dbgov perf probe\n' +
+    box.textContent = 'Debug Overlay perf probe\n' +
       Object.entries(out).map(([k, v]) => `${v ? '✓' : '✗'} ${k}${typeof v === 'string' ? ' — ' + v : ''}`).join('\n') +
       '\n(click to dismiss)';
   };

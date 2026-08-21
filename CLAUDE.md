@@ -1,4 +1,4 @@
-# Working on dbgov with Claude Code
+# Working on Debug Overlay with Claude Code
 
 `npm install` once — jsdom (smoke test) and esbuild (the bundler).
 

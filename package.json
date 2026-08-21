@@ -1,5 +1,5 @@
 {
-  "name": "dbgov",
+  "name": "debug-overlay",
   "private": true,
   "description": "Debug Overlay — a screenshot-friendly UI inspector shipped as a Tampermonkey userscript. The shipped version number lives in userscript.json, not here — build.js owns it.",
   "scripts": {

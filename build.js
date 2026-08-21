@@ -156,10 +156,10 @@ function build(kind) {
      byte-identical inside, which is what makes drift impossible — there is
      no "extension version of the code" to disagree with the userscript.
      Load it via chrome://extensions → Developer mode → Load unpacked. */
-  const EXT = path.join(ROOT, 'dist-ext');
+  const EXT = path.join(ROOT, 'dist-extension');
   fs.mkdirSync(EXT, { recursive: true });
   fs.writeFileSync(path.join(EXT, 'content.js'),
-    `/* dbgov v${version} — extension gate; same bundle as the userscript */\n` +
+    `/* Debug Overlay v${version} — extension gate; same bundle as the userscript */\n` +
     `(function () {\n  'use strict';\n${banner}\n${bundled}})();\n`);
   fs.writeFileSync(path.join(EXT, 'manifest.json'), JSON.stringify({
     manifest_version: 3,
@@ -173,22 +173,22 @@ function build(kind) {
     options_ui: { page: 'options.html', open_in_tab: true },
   }, null, 2) + '\n');
   fs.writeFileSync(path.join(EXT, 'sw.js'),
-    `// dbgov service worker — the extension's network door.\n` +
+    `// Debug Overlay service worker — the extension's network door.\n` +
     `// A page's CSP cannot reach in here, so update checks work everywhere.\n` +
     `chrome.runtime.onMessage.addListener((msg, sender, respond) => {\n` +
-    `  if (msg && msg.type === 'dbgov-fetch' && typeof msg.url === 'string' &&\n` +
+    `  if (msg && msg.type === 'debug-overlay-fetch' && typeof msg.url === 'string' &&\n` +
     `      msg.url.startsWith(${JSON.stringify(cfg.rawBase + '/')})) {\n` +
     `    fetch(msg.url, { cache: 'no-store' })\n` +
     `      .then((r) => r.text()).then((text) => respond({ ok: true, text }))\n` +
     `      .catch((e) => respond({ ok: false, error: String(e) }));\n` +
     `    return true;   // async response\n` +
     `  }\n` +
-    `  if (msg && msg.type === 'dbgov-open-options') {\n` +
+    `  if (msg && msg.type === 'debug-overlay-open-options') {\n` +
     `    chrome.runtime.openOptionsPage();\n` +
     `  }\n` +
     `});\n`);
   // the self-updater — real template files in ext/, base substituted here
-  const extBase = cfg.rawBase.replace(/\/dist$/, '/dist-ext');
+  const extBase = cfg.rawBase.replace(/\/dist$/, '/dist-extension');
   fs.copyFileSync(path.join(ROOT, 'ext', 'options.html'), path.join(EXT, 'options.html'));
   fs.writeFileSync(path.join(EXT, 'options.js'),
     fs.readFileSync(path.join(ROOT, 'ext', 'options.js'), 'utf8')
@@ -199,13 +199,13 @@ function build(kind) {
     cp.execSync(`node --check "${path.join(EXT, 'options.js')}"`, { stdio: 'pipe' });
     JSON.parse(fs.readFileSync(path.join(EXT, 'manifest.json'), 'utf8'));
   } catch (e) {
-    console.error('✗ dist-ext is broken:\n' + (e.stderr ? e.stderr.toString() : e.message));
+    console.error('✗ dist-extension is broken:\n' + (e.stderr ? e.stderr.toString() : e.message));
     process.exit(1);
   }
 
   /* ONE LINK for the extension too. Chrome will not install from a URL
      outside its store, but it will happily Load-unpacked an extracted
-     folder — so the build ships a ZIP of dist-ext/ at a stable raw URL,
+     folder — so the build ships a ZIP of dist-extension/ at a stable raw URL,
      and installing becomes: download, extract, Load unpacked. The ZIP is
      written here in ~40 lines (store method, CRC32) because depending on
      a system zip binary would make the build machine-specific. */
@@ -259,10 +259,10 @@ function build(kind) {
   };
   const extFiles = fs.readdirSync(EXT).sort()
     .map((f) => [f, fs.readFileSync(path.join(EXT, f))]);
-  fs.writeFileSync(path.join(DIST, 'dbgov-extension.zip'), zipStore(extFiles));
+  fs.writeFileSync(path.join(DIST, 'debug-overlay-extension.zip'), zipStore(extFiles));
 
   const kb = (Buffer.byteLength(out) / 1024).toFixed(1);
-  console.log(`✓ v${version}  ${discovered} discovered + core → dist/${cfg.distFile}  (${kb} KB) + dist-ext/ + dist/dbgov-extension.zip`);
+  console.log(`✓ v${version}  ${discovered} discovered + core → dist/${cfg.distFile}  (${kb} KB) + dist-extension/ + dist/debug-overlay-extension.zip`);
   return distPath;
 }
 

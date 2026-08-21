@@ -1,11 +1,11 @@
-// dbgov self-updater — template in ext/, emitted by build.js with the repo
+// Debug Overlay self-updater — template in ext/, emitted by build.js with the repo
 // base substituted. The one place the extension WRITES: its own install
 // folder, through a directory handle the user granted once. Updates only
 // ever come from the pinned repo base, only when the version INCREASES, and
 // only on a click — silent self-update is the store's job, and remote-code
 // tricks stay refused: the browser runs what is ON DISK after the reload.
 'use strict';
-const BASE = 'https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist-ext';
+const BASE = 'https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist-extension';
 const FILES = ['manifest.json', 'content.js', 'sw.js', 'options.html', 'options.js'];
 const log = (s) => { document.getElementById('log').textContent += s + '\n'; };
 
@@ -22,7 +22,7 @@ const newer = (a, b) => {
 };
 
 const DB = () => new Promise((res, rej) => {
-  const r = indexedDB.open('dbgov-updater', 1);
+  const r = indexedDB.open('debug-overlay-updater', 1);
   r.onupgradeneeded = () => r.result.createObjectStore('kv');
   r.onsuccess = () => res(r.result);
   r.onerror = () => rej(r.error);

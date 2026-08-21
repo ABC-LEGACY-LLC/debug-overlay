@@ -39,7 +39,7 @@ function fetchText(url) {
         // extension content script: the worker's door
         if (typeof chrome !== 'undefined' && chrome.runtime?.id) {
           return new Promise((resolve, reject) => {
-            chrome.runtime.sendMessage({ type: 'dbgov-fetch', url }, (r) => {
+            chrome.runtime.sendMessage({ type: 'debug-overlay-fetch', url }, (r) => {
               if (chrome.runtime.lastError || !r?.ok) reject(new Error(r?.error || 'no worker'));
               else resolve(r.text);
             });
@@ -101,7 +101,7 @@ export const Updates = {
             // the self-updater lives on the options page — the FS permission
             // re-grant needs a user gesture in an extension context, and a
             // content script is neither. The worker opens it.
-            try { chrome.runtime.sendMessage({ type: 'dbgov-open-options' }); } catch {}
+            try { chrome.runtime.sendMessage({ type: 'debug-overlay-open-options' }); } catch {}
             return;   // the updater page opening IS the feedback
           }
           window.open(CONFIG.INSTALL_URL, '_blank');

@@ -50,7 +50,7 @@ const bar = d.getElementById('__dbgov-bar');
 if (!bar) { console.error('✗ the bundle booted without building a panel'); process.exit(1); }
 
 const from = origins();
-console.log(`\ndbgov v${cfg.version} — the panel, and where it comes from\n`);
+console.log(`\nDebug Overlay v${cfg.version} — the panel, and where it comes from\n`);
 
 console.log('BAR');
 /* Name each control by what it IS, not by its class list: the icons are inline

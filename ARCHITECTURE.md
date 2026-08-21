@@ -1,4 +1,4 @@
-# dbgov — the architecture, as it actually is
+# Debug Overlay — the architecture, as it actually is
 
 This is the reference the map command prints from. Where a claim here can be
 derived from the code, it is — `hooks.js` holds the one definition, and
@@ -226,7 +226,7 @@ is what lets the suite block the event loop for real and watch the monitor
 notice. A real profiler needs a response header the page must send; per-element
 CPU and GPU numbers do not exist in the platform, and pretending otherwise
 would be the overlay lying. `dev/perf-probe.user.js` is the Phase-0 instrument:
-install it beside dbgov to measure which tiers fire under a manager's sandbox
+install it beside Debug Overlay to measure which tiers fire under a manager's sandbox
 on a given browser.
 
 The TARGETED half reuses the overlay's own targeting — selection chooses, pin

@@ -1,4 +1,4 @@
-# dbgov — Debug Overlay
+# Debug Overlay
 
 A screenshot-friendly UI inspector that runs on any page via Tampermonkey.
 Hover to read sizes, Shift+click two elements to measure between them, then
@@ -86,14 +86,14 @@ Tampermonkey offers to install it. Done — that machine now self-updates.
 
 ### The second gate: an unpacked browser extension (optional)
 
-The same build also emits `dist-ext/` — a Manifest V3 extension whose
+The same build also emits `dist-extension/` — a Manifest V3 extension whose
 `content.js` is byte-for-byte the userscript's bundle (a suite assertion
 locks that). For machines where you would rather not run a userscript
 manager:
 
 1. Download the one link:
-   `https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/dbgov-extension.zip`
-2. Extract it somewhere permanent (e.g. `~/dbgov-ext/`)
+   `https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/debug-overlay-extension.zip`
+2. Extract it somewhere permanent (e.g. `~/debug-overlay-extension/`)
 3. `chrome://extensions` → enable **Developer mode** → **Load unpacked** → that folder
 
 That is the floor the browser allows: Chrome refuses URL-installs outside its
@@ -101,13 +101,13 @@ store, but happily loads an extracted folder. After the one-time updater
 setup below, every later update is one press inside the overlay.
 
 Updates: the userscript self-updates on push. The unpacked extension has its
-own SELF-UPDATER — one-time setup on its options page ("grant dbgov its
+own SELF-UPDATER — one-time setup on its options page ("grant Debug Overlay its
 install folder", the browser's File System Access permission), and from then
 on the ⏻ update menu's "Update to vX" opens the updater, one press fetches
 the new files from the repo, writes them, and reloads the extension. Rules it
 lives by: only the pinned repo base, only a version that increases, fetch
 everything before writing anything, and never silently — that is the store's
-job. Load a COPY of `dist-ext/` from outside the repo (the updater writes
+job. Load a COPY of `dist-extension/` from outside the repo (the updater writes
 files, and writes inside a checkout would dirty it). Firefox has no File
 System Access API, so there the notification means `git pull`.
 
