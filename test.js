@@ -14,6 +14,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const cp = require('child_process');
 const { JSDOM, VirtualConsole } = require('jsdom');
 
 const ROOT = __dirname;
@@ -256,6 +257,55 @@ console.log('\nHOST CSS CANNOT REACH IN');
       diffs.slice(0, 3).join(' | ') || `only ${clean.size} elements compared`);
     wClean.close(); wDirty.close();
   });
+}
+
+console.log('\nTHE PROTOCOL');
+/**
+ * core/protocol.js is the bar's callback contract made transportable — the
+ * vocabulary the cockpit and the content script must agree on. It is pure
+ * ESM shared by both bundles, so the suite exercises it directly in a module
+ * subprocess: packing must strip everything structured clone would choke on,
+ * and read() must ignore every message that is not ours.
+ */
+{
+  const out = cp.execSync('node --input-type=module -e "' + `
+    import { Protocol, packRow, PROTOCOL_VERSION } from './src/core/protocol.js';
+    const el = { fake: 'dom' };
+    const row = { tag: '#1', label: 'alpha', detail: '12x4', accent: 'warn',
+                  activatable: true, removable: true, el,
+                  pins: [{ el, id: 1 }, { el, id: 2 }],
+                  tool: { id: 'x' }, opt: { key: 'k' },
+                  onChange: () => {}, control: { kind: 'toggle', on: true } };
+    const m = Protocol.state('rows', 'pins', [row], 'empty text');
+    const r = Protocol.read(JSON.parse(JSON.stringify(m)));
+    const packed = r.args[1][0];
+    const results = {
+      roundtrips: r.kind === 'state' && r.name === 'rows' && r.args[0] === 'pins',
+      stripped: !('el' in packed) && !('pins' in packed) && !('tool' in packed) &&
+                !('opt' in packed) && !('onChange' in packed),
+      kept: packed.tag === '#1' && packed.label === 'alpha' &&
+            packed.control.kind === 'toggle' && packed.pinCount === 2 &&
+            packed.activatable === true,
+      cmdOk: Protocol.read(Protocol.cmd('rowActivate', 'pins', 3)) !== null,
+      foreignIgnored: Protocol.read({ type: 'debug-overlay-fetch', url: 'x' }) === null &&
+                      Protocol.read(null) === null && Protocol.read({}) === null,
+      unknownThrows: (() => { try { Protocol.cmd('nope'); return false; }
+                              catch { return true; } })(),
+      staleDetected: Protocol.stale({ dbgov: PROTOCOL_VERSION + 1 }) &&
+                     !Protocol.stale({ dbgov: PROTOCOL_VERSION }) &&
+                     !Protocol.stale({ type: 'other' }),
+    };
+    console.log(JSON.stringify(results));
+  `.replace(/"/g, '\\"') + '"', { cwd: __dirname }).toString();
+  const r = JSON.parse(out.trim());
+  ok('a message survives the wire (JSON roundtrip) intact', r.roundtrips, out.trim());
+  ok('packing strips what structured clone would choke on', r.stripped, out.trim());
+  ok('and keeps everything a renderer needs — pins as a count', r.kept, out.trim());
+  ok('commands read back; foreign messages are ignored, never thrown on',
+    r.cmdOk && r.foreignIgnored, out.trim());
+  ok('an unknown name throws at BUILD time, not on the wire', r.unknownThrows, out.trim());
+  ok('a version mismatch is DETECTED, for a "refresh this page" answer',
+    r.staleDetected, out.trim());
 }
 
 console.log('\nTWO GATES, ONE CORE');
