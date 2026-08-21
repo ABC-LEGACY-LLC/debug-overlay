@@ -201,11 +201,11 @@ function build(kind) {
     `    chrome.runtime.openOptionsPage();\n` +
     `  }\n` +
     `});\n`);
-  // the self-updater — real template files in ext/, base substituted here
+  // the self-updater — real template files in browser-extension/, base substituted here
   const extBase = cfg.rawBase.replace(/\/script$/, '/browser-extension');
-  fs.copyFileSync(path.join(ROOT, 'ext', 'options.html'), path.join(EXT, 'options.html'));
+  fs.copyFileSync(path.join(ROOT, 'browser-extension', 'options.html'), path.join(EXT, 'options.html'));
   fs.writeFileSync(path.join(EXT, 'options.js'),
-    fs.readFileSync(path.join(ROOT, 'ext', 'options.js'), 'utf8')
+    fs.readFileSync(path.join(ROOT, 'browser-extension', 'options.js'), 'utf8')
       .replace('__EXT_BASE__', extBase));
   try {
     cp.execSync(`node --check "${path.join(EXT, 'content.js')}"`, { stdio: 'pipe' });

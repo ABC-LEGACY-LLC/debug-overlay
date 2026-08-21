@@ -225,7 +225,7 @@ requestAnimationFrame heartbeat that works everywhere including jsdom — which
 is what lets the suite block the event loop for real and watch the monitor
 notice. A real profiler needs a response header the page must send; per-element
 CPU and GPU numbers do not exist in the platform, and pretending otherwise
-would be the overlay lying. `dev/perf-probe.user.js` is the Phase-0 instrument:
+would be the overlay lying. `development/perf-probe.user.js` is the Phase-0 instrument:
 install it beside Debug Overlay to measure which tiers fire under a manager's sandbox
 on a given browser.
 

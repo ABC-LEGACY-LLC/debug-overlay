@@ -43,7 +43,7 @@ there is a local one:
 npm run dev        # http://localhost:8080  (PORT=3000 npm run dev to move it)
 ```
 
-It serves `dev/index.html` with the built bundle loaded by a plain `<script>`
+It serves `development/index.html` with the built bundle loaded by a plain `<script>`
 tag. The script asks for `GM_getValue`/`GM_setValue` but never assumes them —
 `Store` falls back to `localStorage`, which is what happens here. `build.js --watch` runs alongside it, and the page reloads itself when a
 rebuild lands, so saving a file in `src/` is the entire loop.

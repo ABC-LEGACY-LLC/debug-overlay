@@ -1,4 +1,4 @@
-// Debug Overlay self-updater — template in ext/, emitted by build.js with the repo
+// Debug Overlay self-updater — template in browser-extension/, emitted by build.js with the repo
 // base substituted. The one place the extension WRITES: its own install
 // folder, through a directory handle the user granted once. Updates only
 // ever come from the pinned repo base, only when the version INCREASES, and

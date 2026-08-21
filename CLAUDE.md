@@ -32,7 +32,7 @@ non-zero.
 mean it.
 
 ## Looking at a change before shipping it
-`npm run dev` serves `dev/index.html` with the built bundle and rebuilds on
+`npm run dev` serves `development/index.html` with the built bundle and rebuilds on
 save. Tampermonkey is production — it only ever sees pushed, version-bumped
 builds — so use the dev page for anything visual.
 

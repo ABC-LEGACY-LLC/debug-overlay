@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * dev/serve.js — the local loop, so a change can be looked at before it is
+ * development/serve.js — the local loop, so a change can be looked at before it is
  * ever pushed to Tampermonkey.
  *
- *   node dev/serve.js        serve dev/index.html and rebuild on every save
- *   PORT=3000 node dev/serve.js
+ *   node development/serve.js   serve development/index.html and rebuild on every save
+ *   PORT=3000 node development/serve.js
  *
  * Tampermonkey is production: it only ever sees what has been built, version
  * bumped, committed and pushed. This serves dist/ straight off the disk
@@ -45,7 +45,7 @@ const server = http.createServer((req, res) => {
     return res.end(JSON.stringify({ rev }));
   }
 
-  const rel = url.pathname === '/' ? 'dev/index.html' : url.pathname.slice(1);
+  const rel = url.pathname === '/' ? 'development/index.html' : url.pathname.slice(1);
   const file = path.join(ROOT, rel);
   // stay inside the repo — a dev server still should not hand out /etc/passwd
   if (!file.startsWith(ROOT + path.sep)) {
