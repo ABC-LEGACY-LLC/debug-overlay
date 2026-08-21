@@ -46,12 +46,22 @@ function roster() {
   }));
 }
 
+/** Every armed runtime's story so far, one backlog push per tool. A backlog
+ *  REPLACES that tool's entries for this page visit on the cockpit side, so
+ *  sending it again (a re-arm, a reconnect) never doubles history. */
+function backlogs() {
+  for (const t of Tools.withHook('timeline', true)) {
+    try { send('events', t.id, t.timeline.call(t) || [], true); } catch {}
+  }
+}
+
 function hello() {
   // version rides with the roster: a cockpit updated under a page that was
   // not refreshed can SAY "reload this page" instead of half-working
   send('tools', roster(), CONFIG.VERSION);
   for (const [id, v] of toolLast) send('tool', id, v);
   for (const [name, args] of last) send(name, ...args);
+  backlogs();
 }
 
 /** The watched view's rows, fresh from the controller via the panel's query
@@ -102,9 +112,19 @@ export const Bridge = {
     if (name === 'tool') toolLast.set(args[0], args[1]);
     else if (name !== 'flash') last.set(name, args);   // a flash is transient by definition
     send(name, ...args);
+    // arming starts a runtime, and starting fills its load/startup story —
+    // but the announce fires BEFORE syncRuntimes starts it, so the backlog
+    // waits one tick (replace semantics make repeats harmless anyway)
+    if (name === 'tool' && args[1]) setTimeout(backlogs, 0);
     // page-side changes (a click pinning, a sweep landing) announce here,
     // and the watched rows follow — coalesced, since announcements burst
     queueRows();
+  },
+
+  /** Wired by boot as Controller.onToolEvent — a runtime's moment becomes a
+   *  cockpit timeline entry the instant it happens. */
+  toolEvent(id, e) {
+    send('events', id, [e], false);
   },
 
   init() {

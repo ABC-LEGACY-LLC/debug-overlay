@@ -55,17 +55,24 @@ export const Monitor = {
           if (worst) ev.blame = `${U.labelOf(worst.el)} ×${worst.n}`;
           Monitor.log.push(ev);
           if (Monitor.log.length > CONFIG.PERF.LOG_MAX) Monitor.log.shift();
+          /* the moment, handed up as history: the cockpit's timeline outlives
+             this page, so a freeze is worth telling the moment it lands.
+             `at` is page time (ms since navigation) — the one clock a reload
+             visibly resets, which is exactly what a timeline wants to show. */
+          Monitor._event?.({ kind: 'freeze', at: Math.round(performance.now()),
+                             ms: ev.ms, via: ev.via, blame: ev.blame || null });
         },
 
         worst() {
           return Monitor.log.reduce((m, e) => Math.max(m, e.ms), 0);
         },
 
-        start(owner, redraw) {
+        start(owner, ctx) {
           if (Monitor.running) return;
           Monitor.running = true;
           Monitor._owner = owner;
-          Monitor._redraw = redraw || null;
+          Monitor._redraw = ctx?.redraw || null;
+          Monitor._event = ctx?.event || null;
           // a fresh session starts a fresh log — the page moved on, and a
           // freeze from before the power cycle is a stale claim about it
           Monitor.log = [];
@@ -193,6 +200,7 @@ export const Monitor = {
         stop() {
           if (!Monitor.running) return;
           Monitor.running = false;
+          Monitor._event = null;   // a stood-down monitor tells no more history
           Monitor._obs?.disconnect();
           Monitor._obs = null;
           Monitor._obs2.forEach((o) => o.disconnect());
@@ -214,5 +222,25 @@ export function fmt(ms) {
 
 /** Hook: the runtime lifecycle. `this` is the tool — the settings owner;
  *  ctx carries capabilities in, the way intercept's does. */
-export function watch(ctx) { Monitor.start(this, ctx?.redraw); }
+export function watch(ctx) { Monitor.start(this, ctx); }
 export function unwatch() { Monitor.stop(); }
+
+/**
+ * This page visit's story so far, as plain data for whoever keeps history —
+ * the load's own timings, the buffered startup tasks, then every logged
+ * freeze. `at` is ms since navigation (null when the platform buffered a
+ * task without saying when). The cockpit pulls this as a BACKLOG when it
+ * connects or the tool arms, then rides the live events; the two sources
+ * never mix because a backlog replaces.
+ */
+export function timeline() {
+  const out = [];
+  if (Monitor.load) out.push({ kind: 'load', at: 0, ...Monitor.load });
+  for (const p of Monitor.pre) out.push({ kind: 'pre', at: null, ms: p.ms, src: p.src || null });
+  const navStart = Date.now() - performance.now();
+  for (const e of Monitor.log) {
+    out.push({ kind: 'freeze', at: Math.max(0, Math.round(e.t - navStart)),
+               ms: e.ms, via: e.via, blame: e.blame || null });
+  }
+  return out;
+}

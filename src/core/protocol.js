@@ -41,6 +41,8 @@ const STATE = {
         flash: null,              // (msg, sel)
         badgeControls: (groups) => [groups.map(packBadgeGroup)],
         rows: (view, rows, empty) => [view, rows.map(packRow), empty],
+        events: null,             // (toolId, events[], isBacklog) — timeline entries, plain data;
+                                  // a backlog REPLACES that tool's entries for this page visit
         bye: null,                // the page is unloading — expect a reconnect
 };
 

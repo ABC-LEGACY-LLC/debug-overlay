@@ -54,6 +54,9 @@ Render.onPinsPruned = Controller.pinsPruned;
    userscript gate Bridge.init finds no chrome.runtime.onConnect and goes
    inert; onState stays cheap either way. */
 Panel.onState = Bridge.state;
+// a runtime's moments (a freeze landing) become cockpit timeline entries —
+// same announce shape, and inert under the userscript gate like the rest
+Controller.onToolEvent = Bridge.toolEvent;
 Bridge.init();
 
 // before loadTools: a tool's options decide what its rules do, and arming

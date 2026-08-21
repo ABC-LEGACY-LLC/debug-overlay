@@ -20,6 +20,9 @@
     // (msg, sel)
     badgeControls: (groups) => [groups.map(packBadgeGroup)],
     rows: (view, rows, empty) => [view, rows.map(packRow), empty],
+    events: null,
+    // (toolId, events[], isBacklog) — timeline entries, plain data;
+    // a backlog REPLACES that tool's entries for this page visit
     bye: null
     // the page is unloading — expect a reconnect
   };
@@ -115,7 +118,7 @@
   };
 
   // browser-extension-source/cockpit.js
-  var VERSION = "3.8.103";
+  var VERSION = "3.8.104";
   var $ = (s) => document.querySelector(s);
   var body = document.body;
   var IC = {
@@ -289,6 +292,92 @@
     }
     return document.createElement("span");
   }
+  var TL_MAX = 120;
+  var timelines = /* @__PURE__ */ new Map();
+  var toolIcons = {};
+  function tl() {
+    let r = timelines.get(tabId);
+    if (!r) {
+      r = { gen: 0, pendingReload: false, entries: [] };
+      timelines.set(tabId, r);
+    }
+    return r;
+  }
+  function pageReturned() {
+    const r = tl();
+    if (!r.pendingReload) return;
+    r.pendingReload = false;
+    r.gen++;
+    if (r.entries.length) r.entries.push({ gen: r.gen, marker: true });
+    renderTimeline();
+  }
+  function tlPush(tool, evs, backlog) {
+    const r = tl();
+    if (backlog) r.entries = r.entries.filter((x) => !(x.gen === r.gen && x.tool === tool));
+    for (const e of evs) r.entries.push({ gen: r.gen, tool, e });
+    if (r.entries.length > TL_MAX) r.entries.splice(0, r.entries.length - TL_MAX);
+    renderTimeline();
+  }
+  function renderTimeline() {
+    const box = $("#timeline");
+    const r = tl();
+    box.textContent = "";
+    $("#tlClear").hidden = !r.entries.length;
+    if (!r.entries.length) {
+      const e = document.createElement("div");
+      e.className = "empty";
+      e.textContent = "Nothing yet — page loads and freezes land here as they happen, and the history survives reloads.";
+      box.append(e);
+      return;
+    }
+    for (let i = r.entries.length - 1; i >= 0; i--) {
+      const x = r.entries[i];
+      if (x.marker) {
+        const d = document.createElement("div");
+        d.className = "tl-reload";
+        d.textContent = "reload";
+        box.append(d);
+        continue;
+      }
+      const row = document.createElement("div");
+      row.className = "tlrow" + (x.e.kind === "freeze" ? " freeze" : "");
+      const when = document.createElement("span");
+      when.className = "when";
+      when.textContent = x.e.at == null ? "startup" : "+" + (x.e.at / 1e3).toFixed(1) + "s";
+      const what = document.createElement("span");
+      what.className = "what";
+      const ic = document.createElement("span");
+      putIcon(ic, toolIcons[x.tool]);
+      if (ic.firstChild) what.append(ic, " ");
+      const b = document.createElement("b");
+      const why = document.createElement("span");
+      why.className = "why";
+      if (x.e.kind === "load") {
+        b.textContent = "page load";
+        why.textContent = " — " + [
+          x.e.server != null ? `server ${x.e.server}ms` : null,
+          x.e.fcp != null ? `first paint ${x.e.fcp}ms` : null,
+          x.e.dom != null ? `DOM ${x.e.dom}ms` : null,
+          x.e.done != null ? `done ${x.e.done}ms` : null
+        ].filter(Boolean).join(" · ");
+      } else if (x.e.kind === "pre") {
+        b.textContent = `startup task ${x.e.ms}ms`;
+        if (x.e.src) why.textContent = " — " + x.e.src;
+      } else if (x.e.kind === "freeze") {
+        b.textContent = `freeze ${x.e.ms}ms`;
+        why.textContent = [
+          x.e.via ? ` via ${x.e.via}` : "",
+          x.e.blame ? ` — while ${x.e.blame}` : ""
+        ].join("");
+      } else {
+        b.textContent = x.e.kind || "event";
+      }
+      what.append(b, why);
+      row.append(when, what);
+      row.title = [when.textContent, b.textContent, why.textContent].filter(Boolean).join(" ");
+      box.append(row);
+    }
+  }
   var render = {
     on([v]) {
       body.dataset.on = v ? "1" : "";
@@ -300,6 +389,7 @@
       const box = $("#tools");
       box.textContent = "";
       for (const t of roster) {
+        toolIcons[t.id] = t.icon;
         const b = document.createElement("button");
         b.dataset.tool = t.id;
         b.setAttribute("aria-pressed", "false");
@@ -374,6 +464,9 @@
     rows([view, rows, empty]) {
       renderRows(view, rows, empty);
     },
+    events([toolId, evs, backlog]) {
+      tlPush(toolId, evs || [], !!backlog);
+    },
     flash([msg, sel]) {
       flash(msg, sel);
     },
@@ -439,6 +532,7 @@
         live = true;
         mode("main");
         status("connected", "ok");
+        pageReturned();
       }
       render[m.name]?.(m.args);
     });
@@ -446,6 +540,7 @@
       if (port !== p) return;
       port = null;
       live = false;
+      tl().pendingReload = true;
       mode("waiting");
       status("waiting for page…", "bad");
       retry(900);
@@ -476,5 +571,9 @@
   $("[data-clear]").addEventListener("click", () => post(Protocol.cmd("clear")));
   for (const b of document.querySelectorAll("#views [data-view]"))
     b.addEventListener("click", () => setView(b.dataset.view));
+  $("#tlClear").addEventListener("click", () => {
+    tl().entries = [];
+    renderTimeline();
+  });
   bind();
 })();

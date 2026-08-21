@@ -21,15 +21,24 @@ import { Render } from '../ui/renderer.js';
      * no tool named, so the next monitor ships without touching this file.
      */
     _running: new Set(),
+    /* Announce-and-let-boot-decide, for tool events: syncRuntimes hands each
+       runtime an `event` capability that lands here. Today the cockpit
+       bridge listens; nothing here knows that. */
+    onToolEvent: null,
     syncRuntimes() {
       for (const t of Tools.withHook('watch', false)) {
         const should = State.enabled && State.tools.has(t.id);
         const is = Controller._running.has(t);
         /* capabilities ride IN, the way intercept receives redraw: a live
            gauge has to repaint on its own clock, and a tool may not import
-           the renderer to ask */
-        if (should && !is) { Controller._running.add(t); t.watch.call(t, { redraw: Render.schedule }); }
-        else if (!should && is) { Controller._running.delete(t); t.unwatch?.call(t); }
+           the renderer to ask. `event` is the same door outward — a moment
+           worth history (a freeze landing) is handed up as plain data, and
+           boot decides who listens; today that is the cockpit bridge. */
+        if (should && !is) {
+          Controller._running.add(t);
+          t.watch.call(t, { redraw: Render.schedule,
+                            event: (e) => Controller.onToolEvent?.(t.id, e) });
+        } else if (!should && is) { Controller._running.delete(t); t.unwatch?.call(t); }
       }
     },
     setPower(v) {

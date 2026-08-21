@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.103 — extension gate; same bundle as the userscript */
+/* Debug Overlay v3.8.104 — extension gate; same bundle as the userscript */
 (function () {
   'use strict';
 /* NOT a module and NOT bundled: build.js injects this text at the very top
@@ -34,7 +34,7 @@
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.103",
+    VERSION: "3.8.104",
     // Substituted like VERSION: where the update checker asks, and what the
     // userscript's one-click update opens. One source (userscript.json), no
     // second copy to drift.
@@ -1550,15 +1550,23 @@
       if (worst) ev.blame = `${U.labelOf(worst.el)} ×${worst.n}`;
       Monitor.log.push(ev);
       if (Monitor.log.length > CONFIG.PERF.LOG_MAX) Monitor.log.shift();
+      Monitor._event?.({
+        kind: "freeze",
+        at: Math.round(performance.now()),
+        ms: ev.ms,
+        via: ev.via,
+        blame: ev.blame || null
+      });
     },
     worst() {
       return Monitor.log.reduce((m, e) => Math.max(m, e.ms), 0);
     },
-    start(owner, redraw) {
+    start(owner, ctx) {
       if (Monitor.running) return;
       Monitor.running = true;
       Monitor._owner = owner;
-      Monitor._redraw = redraw || null;
+      Monitor._redraw = ctx?.redraw || null;
+      Monitor._event = ctx?.event || null;
       Monitor.log = [];
       Monitor.fps = null;
       Monitor.startedAt = Date.now();
@@ -1664,6 +1672,7 @@
     stop() {
       if (!Monitor.running) return;
       Monitor.running = false;
+      Monitor._event = null;
       Monitor._obs?.disconnect();
       Monitor._obs = null;
       Monitor._obs2.forEach((o) => o.disconnect());
@@ -1678,10 +1687,26 @@
     return ms < 1e3 ? `${ms}ms` : `${(ms / 1e3).toFixed(1)}s`;
   }
   function watch(ctx) {
-    Monitor.start(this, ctx?.redraw);
+    Monitor.start(this, ctx);
   }
   function unwatch() {
     Monitor.stop();
+  }
+  function timeline() {
+    const out = [];
+    if (Monitor.load) out.push({ kind: "load", at: 0, ...Monitor.load });
+    for (const p of Monitor.pre) out.push({ kind: "pre", at: null, ms: p.ms, src: p.src || null });
+    const navStart = Date.now() - performance.now();
+    for (const e of Monitor.log) {
+      out.push({
+        kind: "freeze",
+        at: Math.max(0, Math.round(e.t - navStart)),
+        ms: e.ms,
+        via: e.via,
+        blame: e.blame || null
+      });
+    }
+    return out;
   }
 
   // src/tools/perf/badge.js
@@ -1827,6 +1852,7 @@
     startsOn: false,
     watch,
     unwatch,
+    timeline,
     badge: badge5,
     compact: compact5,
     legend: legend5,
@@ -3778,6 +3804,9 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     // (msg, sel)
     badgeControls: (groups2) => [groups2.map(packBadgeGroup)],
     rows: (view, rows, empty) => [view, rows.map(packRow), empty],
+    events: null,
+    // (toolId, events[], isBacklog) — timeline entries, plain data;
+    // a backlog REPLACES that tool's entries for this page visit
     bye: null
     // the page is unloading — expect a reconnect
   };
@@ -3896,10 +3925,19 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       roles: Tools.rolesOf(t)
     }));
   }
+  function backlogs() {
+    for (const t of Tools.withHook("timeline", true)) {
+      try {
+        send("events", t.id, t.timeline.call(t) || [], true);
+      } catch {
+      }
+    }
+  }
   function hello() {
     send("tools", roster(), CONFIG.VERSION);
     for (const [id, v] of toolLast) send("tool", id, v);
     for (const [name, args] of last) send(name, ...args);
+    backlogs();
   }
   function pushRows() {
     if (!watching) return;
@@ -3958,7 +3996,13 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       if (name === "tool") toolLast.set(args[0], args[1]);
       else if (name !== "flash") last.set(name, args);
       send(name, ...args);
+      if (name === "tool" && args[1]) setTimeout(backlogs, 0);
       queueRows();
+    },
+    /** Wired by boot as Controller.onToolEvent — a runtime's moment becomes a
+     *  cockpit timeline entry the instant it happens. */
+    toolEvent(id, e) {
+      send("events", id, [e], false);
     },
     init() {
       const runtime = typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onConnect ? chrome.runtime : null;
@@ -4338,13 +4382,20 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
      * no tool named, so the next monitor ships without touching this file.
      */
     _running: /* @__PURE__ */ new Set(),
+    /* Announce-and-let-boot-decide, for tool events: syncRuntimes hands each
+       runtime an `event` capability that lands here. Today the cockpit
+       bridge listens; nothing here knows that. */
+    onToolEvent: null,
     syncRuntimes() {
       for (const t of Tools.withHook("watch", false)) {
         const should = State.enabled && State.tools.has(t.id);
         const is = Controller._running.has(t);
         if (should && !is) {
           Controller._running.add(t);
-          t.watch.call(t, { redraw: Render.schedule });
+          t.watch.call(t, {
+            redraw: Render.schedule,
+            event: (e) => Controller.onToolEvent?.(t.id, e)
+          });
         } else if (!should && is) {
           Controller._running.delete(t);
           t.unwatch?.call(t);
@@ -4783,6 +4834,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
   Panel.onRowsFor = (view) => ({ rows: Controller.rows(view), empty: Controller.emptyFor(view) });
   Render.onPinsPruned = Controller.pinsPruned;
   Panel.onState = Bridge.state;
+  Controller.onToolEvent = Bridge.toolEvent;
   Bridge.init();
   Settings.load();
   Controller.refreshBadge();

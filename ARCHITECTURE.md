@@ -250,6 +250,23 @@ announcements, coalesced, because announcements burst. The open view is
 re-requested on every reconnect, so it survives the reload along with
 everything else.
 
+The timeline is the one surface that lives cockpit-side, because that is
+its point: a reload kills the content script and its Monitor log, but not
+the side panel. Two doors feed it, both generic. A runtime's watch ctx
+carries an `event` capability beside `redraw` — a moment worth history (a
+freeze landing) is handed up as plain data, through
+`Controller.onToolEvent`, announce-and-let-boot-decide like everything
+else. And the `timeline` hook is the pull side: a tool returns this page
+visit's story so far (the load's timings, buffered startup tasks, logged
+freezes), which the bridge sends as a BACKLOG on hello and on arming. A
+backlog replaces that tool's entries for the current page visit on the
+cockpit side — generation-numbered, so reconnects and re-arms never double
+history and a fresh page never erases an old one. The reload draws its own
+divider: a port that dies without the cockpit asking is a navigation, and
+the next successful connect bumps the generation. Times are page time
+(`at` = ms since navigation) — the one clock a reload visibly resets,
+which is exactly what a timeline should show.
+
 While a cockpit is connected the bar steps aside (`Panel.docked`) — the
 BAR, not the overlay: pins, marks and badges are the page's annotations and
 stay. The port dropping undocks it, so closing the side panel gives the

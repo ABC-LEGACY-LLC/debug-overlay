@@ -116,6 +116,29 @@
   #upd { display: none; margin: 0 0 14px; padding: 8px 10px; border: 1px solid #5a4a1a;
     background: #2a2417; border-radius: 8px; color: #ffd54f; font-size: 12px; }
   #upd.show { display: block; }
+
+  /* the timeline: history the page cannot hold — newest first */
+  #tlHead { display: flex; align-items: center; gap: 8px; }
+  .mini { padding: 1px 8px; font-size: 10px; font-weight: 600; border-radius: 999px;
+    text-transform: none; letter-spacing: 0; }
+  #timeline { background: #202026; border: 1px solid #2e2e34; border-radius: 10px;
+    padding: 6px; max-height: 34vh; overflow: auto; }
+  #timeline .empty { color: #8f8f96; font-size: 12px; padding: 8px; }
+  .tlrow { display: flex; align-items: baseline; gap: 8px; padding: 4px 8px;
+    border-radius: 6px; font-size: 12px; }
+  .tlrow:hover { background: #26262c; }
+  .tlrow .when { flex: none; min-width: 52px; color: #8f8f96;
+    font-variant-numeric: tabular-nums; font-size: 11px; }
+  .tlrow .what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; }
+  .tlrow .what b { font-weight: 600; }
+  .tlrow.freeze .what b { color: #ffd54f; }
+  .tlrow .why { color: #8f8f96; }
+  .tl-reload { display: flex; align-items: center; gap: 8px; color: #58c4ff;
+    font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    padding: 6px 8px 2px; }
+  .tl-reload::before, .tl-reload::after { content: ''; flex: 1; height: 1px;
+    background: #2e3a44; }
 </style>
 </head>
 <body data-mode="waiting">
@@ -166,6 +189,11 @@
         <button data-view="settings" aria-pressed="false"><span class="ic"></span>Settings</button>
       </div>
       <div id="rowsBox"></div>
+    </section>
+    <section>
+      <h2 id="tlHead">Timeline <button id="tlClear" class="mini" hidden>clear</button></h2>
+      <div id="timeline"><div class="empty">Nothing yet — page loads and freezes land
+        here as they happen, and the history survives reloads.</div></div>
     </section>
   </main>
 

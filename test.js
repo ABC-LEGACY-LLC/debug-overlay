@@ -591,6 +591,25 @@ let cockpitChecked = false;
       /compact/.test(badgeBox.textContent) && /Issue/.test(badgeBox.textContent),
       'two chips both reading "Badge view" told nobody apart');
 
+    /* THE TIMELINE — history the page cannot hold. Wire-shape locks first:
+       these literals ARE the events contract. */
+    const tlBox = k.querySelector('#timeline');
+    lastPair[0].postMessage({ dbgov: 1, kind: 'state', name: 'events',
+      args: ['perf', [{ kind: 'freeze', at: 8300, ms: 412, via: 'task', blame: null }], false] });
+    ok('a live event becomes a timeline row, stamped in page time',
+      /\+8\.3s/.test(tlBox.textContent) && /freeze 412ms/.test(tlBox.textContent),
+      'the events message never rendered');
+    lastPair[0].postMessage({ dbgov: 1, kind: 'state', name: 'events',
+      args: ['x', [{ kind: 'load', at: 0, server: 120, fcp: 800, dom: 900, done: 1500 }], true] });
+    ok('a backlog lands as history — the load with its timings',
+      /server 120ms/.test(tlBox.textContent) && /first paint 800ms/.test(tlBox.textContent),
+      'load timings never rendered');
+    lastPair[0].postMessage({ dbgov: 1, kind: 'state', name: 'events',
+      args: ['x', [{ kind: 'load', at: 0, server: 130, fcp: 800, dom: 900, done: 1500 }], true] });
+    ok('and a repeated backlog REPLACES, never doubles',
+      /server 130ms/.test(tlBox.textContent) && !/server 120ms/.test(tlBox.textContent),
+      'reconnect or re-arm would stack the same history twice');
+
     k.querySelector('#power').dispatchEvent(click2());
     k.querySelector('[data-sweep]').dispatchEvent(click2());
     k.querySelector('#views [data-view="findings"]').dispatchEvent(click2());
@@ -651,23 +670,40 @@ let cockpitChecked = false;
       k.body.dataset.mode === 'main' && rowsBox.classList.contains('show') &&
       !!rowsBox.querySelector('.empty'),
       'the fresh page has no sweep, so the honest answer is the empty text');
+    ok('and the reload draws its divider in the timeline',
+      !!tlBox.querySelector('.tl-reload') &&
+      /freeze 412ms/.test(tlBox.textContent),
+      'history from before the reload must survive it, separated, not erased');
 
-    // a message from a different protocol version answers "reload this page"
-    lastPair[0].postMessage({ dbgov: 999, kind: 'state', name: 'on', args: [true] });
-    ok('a version mismatch is named, never half-worked-around',
-      k.body.dataset.mode === 'stale', 'mixed versions would limp along silently');
+    /* END TO END: a REAL freeze on the fresh page, armed from the cockpit,
+       detected by the Monitor's heartbeat, handed up through ctx.event,
+       across the port, into the timeline — the whole phase in one row. */
+    k.querySelector('#power').dispatchEvent(click2());
+    k.querySelector('#tools [data-tool="perf"]').dispatchEvent(click2());
+    c3.w.eval('setTimeout(function () { var t0 = Date.now(); while (Date.now() - t0 < 400) ; }, 60);');
+    whenPainted(() => k.querySelectorAll('#timeline .tlrow.freeze').length >= 2, () => {
+      console.log('\nTHE COCKPIT TIMELINE (after a real freeze)');
+      ok('a real freeze crosses the whole seam into the timeline',
+        k.querySelectorAll('#timeline .tlrow.freeze').length >= 2,
+        'Monitor → ctx.event → bridge → port → cockpit broke somewhere');
 
-    // undock on disconnect: side panel closed → the bar comes back
-    lastPair[1].disconnect();
-    ok('closing the cockpit gives the page its bar back',
-      !c3.bar.classList.contains('dbgov-docked'),
-      'the bar stayed hidden with nothing left to replace it');
+      // a message from a different protocol version answers "reload this page"
+      lastPair[0].postMessage({ dbgov: 999, kind: 'state', name: 'on', args: [true] });
+      ok('a version mismatch is named, never half-worked-around',
+        k.body.dataset.mode === 'stale', 'mixed versions would limp along silently');
 
-    c1.d.window.close();
-    c2.d.window.close();
-    c3.d.window.close();
-    w2.close();
-    cockpitChecked = true;
+      // undock on disconnect: side panel closed → the bar comes back
+      lastPair[1].disconnect();
+      ok('closing the cockpit gives the page its bar back',
+        !c3.bar.classList.contains('dbgov-docked'),
+        'the bar stayed hidden with nothing left to replace it');
+
+      c1.d.window.close();
+      c2.d.window.close();
+      c3.d.window.close();
+      w2.close();
+      cockpitChecked = true;
+    });
   });
 }
 

@@ -1,6 +1,6 @@
 import { defineTool } from '../../core/registry.js';
 import { CONFIG } from '../../core/config.js';
-import { watch, unwatch } from './service.js';
+import { watch, unwatch, timeline } from './service.js';
 import { badge, compact, legend } from './badge.js';
 import { listRows, reportTail } from './rows.js';
 import { audit, rules } from './rule.js';
@@ -23,6 +23,7 @@ defineTool({
 
         watch,
         unwatch,
+        timeline,
         badge,
         compact,
         legend,
