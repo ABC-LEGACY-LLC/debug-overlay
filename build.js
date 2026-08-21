@@ -134,9 +134,23 @@ function build(kind) {
   const out = `${metaBlock(version)}\n\n/*\n${docs}\n*/\n\n` +
     `(function () {\n  'use strict';\n${banner}\n${bundled}})();\n`;
 
+  /* dist/ is organised by GATE:
+       dist/script/            the userscript — canonical home
+       dist/browser-extension/ the extension + its install ZIP
+       dist/debug-overlay.*    LEGACY BRIDGE, never remove: every install
+                               from before the restructure polls THIS path
+                               forever. The copies are byte-identical and
+                               their headers point at dist/script/, so an
+                               old install's next update quietly migrates
+                               it to the new home. Deleting them is the
+                               dead-@updateURL failure — silent, forever. */
   fs.mkdirSync(DIST, { recursive: true });
-  const distPath = path.join(DIST, cfg.distFile);
+  const SCRIPT = path.join(DIST, 'script');
+  fs.mkdirSync(SCRIPT, { recursive: true });
+  const distPath = path.join(SCRIPT, cfg.distFile);
   fs.writeFileSync(distPath, out);
+  fs.writeFileSync(path.join(SCRIPT, cfg.metaFile), metaBlock(version) + '\n');
+  fs.writeFileSync(path.join(DIST, cfg.distFile), out);
   fs.writeFileSync(path.join(DIST, cfg.metaFile), metaBlock(version) + '\n');
 
   // never ship something that does not parse
@@ -156,7 +170,7 @@ function build(kind) {
      byte-identical inside, which is what makes drift impossible — there is
      no "extension version of the code" to disagree with the userscript.
      Load it via chrome://extensions → Developer mode → Load unpacked. */
-  const EXT = path.join(ROOT, 'dist-extension');
+  const EXT = path.join(DIST, 'browser-extension');
   fs.mkdirSync(EXT, { recursive: true });
   fs.writeFileSync(path.join(EXT, 'content.js'),
     `/* Debug Overlay v${version} — extension gate; same bundle as the userscript */\n` +
@@ -188,7 +202,7 @@ function build(kind) {
     `  }\n` +
     `});\n`);
   // the self-updater — real template files in ext/, base substituted here
-  const extBase = cfg.rawBase.replace(/\/dist$/, '/dist-extension');
+  const extBase = cfg.rawBase.replace(/\/script$/, '/browser-extension');
   fs.copyFileSync(path.join(ROOT, 'ext', 'options.html'), path.join(EXT, 'options.html'));
   fs.writeFileSync(path.join(EXT, 'options.js'),
     fs.readFileSync(path.join(ROOT, 'ext', 'options.js'), 'utf8')
@@ -199,13 +213,13 @@ function build(kind) {
     cp.execSync(`node --check "${path.join(EXT, 'options.js')}"`, { stdio: 'pipe' });
     JSON.parse(fs.readFileSync(path.join(EXT, 'manifest.json'), 'utf8'));
   } catch (e) {
-    console.error('✗ dist-extension is broken:\n' + (e.stderr ? e.stderr.toString() : e.message));
+    console.error('✗ dist/browser-extension is broken:\n' + (e.stderr ? e.stderr.toString() : e.message));
     process.exit(1);
   }
 
   /* ONE LINK for the extension too. Chrome will not install from a URL
      outside its store, but it will happily Load-unpacked an extracted
-     folder — so the build ships a ZIP of dist-extension/ at a stable raw URL,
+     folder — so the build ships a ZIP of the extension at a stable raw URL,
      and installing becomes: download, extract, Load unpacked. The ZIP is
      written here in ~40 lines (store method, CRC32) because depending on
      a system zip binary would make the build machine-specific. */
@@ -258,11 +272,12 @@ function build(kind) {
     return Buffer.concat([...chunks, cdBuf, eocd]);
   };
   const extFiles = fs.readdirSync(EXT).sort()
+    .filter((f) => !f.endsWith('.zip'))   // or the second build zips the zip
     .map((f) => [f, fs.readFileSync(path.join(EXT, f))]);
-  fs.writeFileSync(path.join(DIST, 'debug-overlay-extension.zip'), zipStore(extFiles));
+  fs.writeFileSync(path.join(EXT, 'debug-overlay-extension.zip'), zipStore(extFiles));
 
   const kb = (Buffer.byteLength(out) / 1024).toFixed(1);
-  console.log(`✓ v${version}  ${discovered} discovered + core → dist/${cfg.distFile}  (${kb} KB) + dist-extension/ + dist/debug-overlay-extension.zip`);
+  console.log(`✓ v${version}  ${discovered} discovered + core → dist/script/${cfg.distFile}  (${kb} KB) + dist/browser-extension/ (+ legacy bridge at dist/)`);
   return distPath;
 }
 

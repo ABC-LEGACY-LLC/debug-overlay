@@ -265,7 +265,7 @@ console.log('\nTWO GATES, ONE CORE');
  * These assertions are the lock on that claim.
  */
 {
-  const extDir = path.join(__dirname, 'dist-extension');
+  const extDir = path.join(__dirname, 'dist', 'browser-extension');
   const manifest = JSON.parse(fs.readFileSync(path.join(extDir, 'manifest.json'), 'utf8'));
   const content = fs.readFileSync(path.join(extDir, 'content.js'), 'utf8');
   const cfgNow = JSON.parse(fs.readFileSync(path.join(__dirname, 'userscript.json'), 'utf8'));
@@ -286,7 +286,7 @@ console.log('\nTWO GATES, ONE CORE');
   const optJs = fs.readFileSync(path.join(extDir, 'options.js'), 'utf8');
   ok('the updater exists and its base is the pinned repo, nowhere else',
     manifest.options_ui?.page === 'options.html' &&
-    /const BASE = 'https:\/\/raw\.githubusercontent\.com\/[^']*\/dist-extension'/.test(optJs),
+    /const BASE = 'https:\/\/raw\.githubusercontent\.com\/[^']*\/browser-extension'/.test(optJs),
     (optJs.match(/const BASE = '[^']*'/) || ['no BASE'])[0]);
   ok('and it writes exactly the files the gate ships',
     ['manifest.json', 'content.js', 'sw.js', 'options.html', 'options.js']
@@ -296,7 +296,7 @@ console.log('\nTWO GATES, ONE CORE');
     fs.readFileSync(path.join(extDir, 'sw.js'), 'utf8').includes('openOptionsPage'),
     'no route from the ⏻ menu to the options page');
   // the one-link install: a real ZIP at a stable raw URL
-  const zip = fs.readFileSync(path.join(__dirname, 'dist', 'debug-overlay-extension.zip'));
+  const zip = fs.readFileSync(path.join(extDir, 'debug-overlay-extension.zip'));
   ok('the extension ships as a ZIP too',
     zip.length > 1000 && zip.readUInt32LE(0) === 0x04034b50 &&
     zip.includes(Buffer.from('manifest.json')),

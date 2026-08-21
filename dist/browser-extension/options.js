@@ -5,7 +5,7 @@
 // only on a click — silent self-update is the store's job, and remote-code
 // tricks stay refused: the browser runs what is ON DISK after the reload.
 'use strict';
-const BASE = 'https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist-extension';
+const BASE = 'https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/browser-extension';
 const FILES = ['manifest.json', 'content.js', 'sw.js', 'options.html', 'options.js'];
 const log = (s) => { document.getElementById('log').textContent += s + '\n'; };
 

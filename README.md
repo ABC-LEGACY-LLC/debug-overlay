@@ -68,13 +68,13 @@ matters — Tampermonkey fetches the raw URL without credentials) and
 `userscript.json` already points at it:
 
 ```json
-"rawBase": "https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist"
+"rawBase": "https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/script"
 ```
 
 **Install once per machine** — open this URL in the browser:
 
 ```
-https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/debug-overlay.user.js
+https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/script/debug-overlay.user.js
 ```
 
 The repo was once `AlonurKomilov/debug-overlay-abc`, and GitHub still redirects
@@ -86,13 +86,13 @@ Tampermonkey offers to install it. Done — that machine now self-updates.
 
 ### The second gate: an unpacked browser extension (optional)
 
-The same build also emits `dist-extension/` — a Manifest V3 extension whose
+The same build also emits `dist/browser-extension/` — a Manifest V3 extension whose
 `content.js` is byte-for-byte the userscript's bundle (a suite assertion
 locks that). For machines where you would rather not run a userscript
 manager:
 
 1. Download the one link:
-   `https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/debug-overlay-extension.zip`
+   `https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/browser-extension/debug-overlay-extension.zip`
 2. Extract it somewhere permanent (e.g. `~/debug-overlay-extension/`)
 3. `chrome://extensions` → enable **Developer mode** → **Load unpacked** → that folder
 
@@ -117,6 +117,22 @@ you to sign in; the script arrives on its own and keeps updating from GitHub.
 
 Forking this for a different account? Change `rawBase` in `userscript.json`,
 run `node build.js`, and push — the header is generated from that one field.
+
+### What lives where in dist/
+
+```
+dist/
+  script/                the userscript — canonical home
+    debug-overlay.user.js
+    debug-overlay.meta.js
+  browser-extension/     the extension gate
+    manifest.json  content.js  sw.js  options.html  options.js
+    debug-overlay-extension.zip     ← the one-link install
+  debug-overlay.user.js  LEGACY BRIDGE — never delete: installs from before
+  debug-overlay.meta.js  the restructure poll this path forever; these
+                         byte-identical copies point at script/, so an old
+                         install's next update migrates it automatically
+```
 
 ### How the auto-update actually works
 

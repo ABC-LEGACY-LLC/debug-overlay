@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.92 — extension gate; same bundle as the userscript */
+/* Debug Overlay v3.8.93 — extension gate; same bundle as the userscript */
 (function () {
   'use strict';
 /* NOT a module and NOT bundled: build.js injects this text at the very top
@@ -34,12 +34,12 @@
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.92",
+    VERSION: "3.8.93",
     // Substituted like VERSION: where the update checker asks, and what the
     // userscript's one-click update opens. One source (userscript.json), no
     // second copy to drift.
-    META_URL: "https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/debug-overlay.meta.js",
-    INSTALL_URL: "https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/debug-overlay.user.js",
+    META_URL: "https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/script/debug-overlay.meta.js",
+    INSTALL_URL: "https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/script/debug-overlay.user.js",
     // daily automatic floor; the manual "check now" row ignores it
     UPDATE: { EVERY: 864e5, BOOT_DELAY: 4e3 },
     Z: 2147483647,
