@@ -26,6 +26,8 @@ import { Tools, TOOLS } from '../core/registry.js';
 import { Panel } from '../ui/panel.js';
 
 let port = null;
+let watching = null;          // the view the cockpit holds open, or null
+let rowsTimer = 0;
 const last = new Map();       // state name → latest args (scalars)
 const toolLast = new Map();   // tool id → armed (per-id, or replay loses all but one)
 
@@ -52,6 +54,24 @@ function hello() {
   for (const [name, args] of last) send(name, ...args);
 }
 
+/** The watched view's rows, fresh from the controller via the panel's query
+ *  slot — the SAME pair the popover renders, packed for the wire. */
+function pushRows() {
+  if (!watching) return;
+  const q = Panel.onRowsFor?.(watching);
+  if (q) send('rows', watching, q.rows, q.empty);
+}
+
+/** Announcements arrive in bursts (one interaction moves count AND swept AND
+ *  the badge), so announce-triggered refreshes coalesce into one push. A
+ *  command-triggered refresh stays synchronous instead — the cockpit that
+ *  caused the change reads the result in the same breath. */
+function queueRows() {
+  if (!watching) return;
+  clearTimeout(rowsTimer);
+  rowsTimer = setTimeout(pushRows, 30);
+}
+
 function command({ name, args }) {
   switch (name) {
     case 'hello': hello(); break;
@@ -61,10 +81,19 @@ function command({ name, args }) {
     case 'copy': Panel.onCopy?.(); break;
     case 'clear': Panel.onClear?.(); break;
     case 'badgeControl': Panel.onBadgeControl?.(args[0]); break;
-    // openView / rowActivate / rowRemove / rowChange / updateCheck /
-    // updateApply: the cockpit's list views arrive in the next phase;
-    // an unwired command is dropped here, never half-handled
+    /* the cockpit's list: the view travels with every row command, so the
+       index resolves against the list the COCKPIT rendered — never against
+       whatever the in-page popover happens to show */
+    case 'openView': watching = args[0] || null; break;
+    case 'rowActivate': Panel.onRowActivate?.(args[1], args[0]); break;
+    case 'rowRemove': Panel.onRowRemove?.(args[1], args[0]); break;
+    case 'rowChange': Panel.onRowChange?.(args[1], args[2], args[0]); break;
+    // updateCheck / updateApply: a later phase; an unwired command is
+    // dropped here, never half-handled
   }
+  // every command can move the rows (a removal, a changed setting, a sweep);
+  // answering in the same breath is what lets the cockpit trust its list
+  pushRows();
 }
 
 export const Bridge = {
@@ -73,6 +102,9 @@ export const Bridge = {
     if (name === 'tool') toolLast.set(args[0], args[1]);
     else if (name !== 'flash') last.set(name, args);   // a flash is transient by definition
     send(name, ...args);
+    // page-side changes (a click pinning, a sweep landing) announce here,
+    // and the watched rows follow — coalesced, since announcements burst
+    queueRows();
   },
 
   init() {
@@ -83,6 +115,7 @@ export const Bridge = {
       if (p.name !== 'debug-overlay-cockpit') return;
       try { port?.disconnect(); } catch {}
       port = p;
+      watching = null;   // the new cockpit says which view it holds, if any
       Panel.docked(true);
       p.onMessage.addListener((msg) => {
         const m = Protocol.read(msg);
@@ -91,6 +124,7 @@ export const Bridge = {
       p.onDisconnect.addListener(() => {
         if (port !== p) return;   // already replaced by a newer cockpit
         port = null;
+        watching = null;
         Panel.docked(false);
       });
     });

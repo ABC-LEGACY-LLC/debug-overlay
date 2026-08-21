@@ -158,6 +158,11 @@ import { List } from './list.js';
          never learns who listens; today it is the cockpit bridge, mirroring
          the bar's state to the extension's side panel. */
       onState: null,
+      /* The query twin of onListOpen: "what would that view show?" — wired by
+         boot to the same rows and empty text the popover renders, asked by
+         the bridge for a view the cockpit holds open. A query, not a push,
+         because the asker names the view. */
+      onRowsFor: null,
       setOn(v) {
         /* NO `inert` here, ever. It was added to take the overlay out of the
            tab order when powered off — but inert covers the WHOLE subtree, and

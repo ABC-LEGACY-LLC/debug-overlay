@@ -68,7 +68,50 @@
   #badge .grp { margin: 0 0 8px; }
   #badge .grp > .lbl { color: #8f8f96; font-size: 11px; margin: 0 0 4px; }
   #badge .members { display: flex; flex-wrap: wrap; gap: 5px; }
-  #badge .members button { padding: 4px 9px; border-radius: 999px; font-size: 12px; }
+  #badge .members button { padding: 4px 9px; border-radius: 999px; font-size: 12px;
+    display: inline-flex; align-items: center; gap: 6px; }
+  #badge .members svg { width: 13px; height: 13px; }
+
+  /* the lists: three view buttons, one rows panel under them */
+  #views { display: flex; gap: 6px; margin: 0 0 8px; }
+  #views button { flex: 1; display: flex; align-items: center; justify-content: center;
+    gap: 7px; padding: 7px 4px; font-size: 12px; }
+  #views .n { color: #8f8f96; font-variant-numeric: tabular-nums; }
+  #views button[aria-pressed="true"] .n { color: inherit; }
+
+  #rowsBox { display: none; background: #202026; border: 1px solid #2e2e34;
+    border-radius: 10px; padding: 6px; max-height: 44vh; overflow: auto; }
+  #rowsBox.show { display: block; }
+  .rowhead { font-size: 10px; font-weight: 800; letter-spacing: 1px; color: #8f8f96;
+    text-transform: uppercase; padding: 8px 8px 4px; display: flex; align-items: center; gap: 8px; }
+  .rowhead .note { font-weight: 400; text-transform: none; letter-spacing: 0; }
+  .viewhead { font-size: 12px; font-weight: 700; padding: 8px 8px 4px;
+    display: flex; align-items: center; gap: 8px; }
+  .empty { color: #8f8f96; font-size: 12px; padding: 10px 8px; }
+  .rrow { display: flex; align-items: center; gap: 8px; padding: 5px 8px;
+    border-radius: 7px; font-size: 12px; }
+  .rrow:hover { background: #26262c; }
+  .rrow.inert { opacity: .6; }
+  .rrow .tag { flex: none; min-width: 34px; color: #8f8f96; font-weight: 600;
+    display: inline-flex; align-items: center; }
+  .rrow .tag svg { width: 14px; height: 14px; }
+  .rrow .lbl { flex: 1 1 55%; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; }
+  .rrow .det { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; color: #8f8f96; }
+  .rrow[data-accent="warn"] .tag { color: #ffd54f; }
+  .rrow[data-accent="error"] .tag, .rrow[data-accent="bad"] .tag { color: #ff5c5c; }
+  .rrow .go { flex: 1; display: flex; align-items: center; gap: 8px; background: none;
+    border: 0; padding: 0; text-align: left; min-width: 0; font-size: inherit; cursor: pointer; }
+  .rrow .go:hover { background: none; }
+  .rm { flex: none; background: none; border: 0; color: #8f8f96; padding: 2px 6px;
+    border-radius: 6px; font-size: 12px; cursor: pointer; }
+  .rm:hover { color: #ff5c5c; background: #2c2228; }
+  .rrow select, .rrow input[type="number"] { font: inherit; color: inherit;
+    background: #17171b; border: 1px solid #3a3a42; border-radius: 6px; padding: 3px 6px; }
+  .rrow input[type="number"] { width: 64px; }
+  .rrow input[type="checkbox"] { accent-color: #b5e853; width: 15px; height: 15px; }
+  .rrow .unit { color: #8f8f96; font-size: 11px; margin-left: 4px; }
 
   #upd { display: none; margin: 0 0 14px; padding: 8px 10px; border: 1px solid #5a4a1a;
     background: #2a2417; border-radius: 8px; color: #ffd54f; font-size: 12px; }
@@ -114,6 +157,15 @@
         <button data-copy><span class="ic"></span><span>Copy report</span></button>
         <button data-clear><span class="ic"></span><span>Clear pins</span><span class="n" data-c></span></button>
       </div>
+    </section>
+    <section class="whenOn">
+      <h2>Lists</h2>
+      <div id="views">
+        <button data-view="findings" aria-pressed="false"><span class="ic"></span>Findings<span class="n"></span></button>
+        <button data-view="pins" aria-pressed="false"><span class="ic"></span>Pins<span class="n"></span></button>
+        <button data-view="settings" aria-pressed="false"><span class="ic"></span>Settings</button>
+      </div>
+      <div id="rowsBox"></div>
     </section>
   </main>
 

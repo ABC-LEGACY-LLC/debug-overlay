@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.102
+// @version      3.8.103
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -352,7 +352,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.102",
+    VERSION: "3.8.103",
     // Substituted like VERSION: where the update checker asks, and what the
     // userscript's one-click update opens. One source (userscript.json), no
     // second copy to drift.
@@ -3042,6 +3042,11 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
            never learns who listens; today it is the cockpit bridge, mirroring
            the bar's state to the extension's side panel. */
         onState: null,
+        /* The query twin of onListOpen: "what would that view show?" — wired by
+           boot to the same rows and empty text the popover renders, asked by
+           the bridge for a view the cockpit holds open. A query, not a push,
+           because the asker names the view. */
+        onRowsFor: null,
         setOn(v) {
           el2.classList.toggle("dbgov-on", v);
           el2.querySelector("[data-st]").textContent = v ? "ON" : "OFF";
@@ -3414,10 +3419,15 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           glyph: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M12 3v18" /></svg>',
           // lucide 'columns-2'
           title: "View — how much ink; press to choose",
+          /* `label` is the member's SHORT name for faces that print text
+             beside the glyph (the cockpit's chips) — the first clause of
+             these titles is the axis name, so deriving it there printed
+             "Badge view" on both members and nothing told them apart */
           rows: view.values.map((v) => ({
             key: `${view.key}:${v}`,
             glyph: (view.glyphs || {})[v] || String(v),
             title: `${view.label} — ${v}`,
+            label: String(v),
             armed: Tools.setting(this, view.key) === v
           }))
         },
@@ -3432,12 +3442,14 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
               glyph: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><line x1="5" x2="19" y1="9" y2="9" /><line x1="5" x2="19" y1="15" y2="15" /></svg>',
               armed: true,
               // lucide 'equal'
-              title: "Current — the component's own fields. Always on: this is the badge itself"
+              title: "Current — the component's own fields. Always on: this is the badge itself",
+              label: "Current"
             },
             ...opts.filter((o) => o.type === "toggle").map((o) => ({
               key: o.key,
               glyph: o.glyph || o.label,
               title: o.label,
+              label: o.label.split(" — ")[0],
               armed: !!Tools.setting(this, o.key)
             }))
           ]
@@ -4140,6 +4152,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         key: r.key,
         glyph: r.glyph,
         title: r.title,
+        label: r.label,
         armed: !!r.armed,
         fixed: !!r.fixed
       }))
@@ -4179,6 +4192,8 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
 
   // src/app/bridge.js
   var port = null;
+  var watching = null;
+  var rowsTimer = 0;
   var last = /* @__PURE__ */ new Map();
   var toolLast = /* @__PURE__ */ new Map();
   function send(name, ...args) {
@@ -4204,6 +4219,16 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     for (const [id, v] of toolLast) send("tool", id, v);
     for (const [name, args] of last) send(name, ...args);
   }
+  function pushRows() {
+    if (!watching) return;
+    const q = Panel.onRowsFor?.(watching);
+    if (q) send("rows", watching, q.rows, q.empty);
+  }
+  function queueRows() {
+    if (!watching) return;
+    clearTimeout(rowsTimer);
+    rowsTimer = setTimeout(pushRows, 30);
+  }
   function command({ name, args }) {
     switch (name) {
       case "hello":
@@ -4227,7 +4252,23 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       case "badgeControl":
         Panel.onBadgeControl?.(args[0]);
         break;
+      /* the cockpit's list: the view travels with every row command, so the
+         index resolves against the list the COCKPIT rendered — never against
+         whatever the in-page popover happens to show */
+      case "openView":
+        watching = args[0] || null;
+        break;
+      case "rowActivate":
+        Panel.onRowActivate?.(args[1], args[0]);
+        break;
+      case "rowRemove":
+        Panel.onRowRemove?.(args[1], args[0]);
+        break;
+      case "rowChange":
+        Panel.onRowChange?.(args[1], args[2], args[0]);
+        break;
     }
+    pushRows();
   }
   var Bridge = {
     /** Wired by boot as Panel.onState — cache everything, forward when live. */
@@ -4235,6 +4276,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       if (name === "tool") toolLast.set(args[0], args[1]);
       else if (name !== "flash") last.set(name, args);
       send(name, ...args);
+      queueRows();
     },
     init() {
       const runtime = typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onConnect ? chrome.runtime : null;
@@ -4246,6 +4288,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         } catch {
         }
         port = p;
+        watching = null;
         Panel.docked(true);
         p.onMessage.addListener((msg) => {
           const m = Protocol.read(msg);
@@ -4254,6 +4297,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         p.onDisconnect.addListener(() => {
           if (port !== p) return;
           port = null;
+          watching = null;
           Panel.docked(false);
         });
       });
@@ -4709,8 +4753,13 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
      * that view's rows — indexing settings by a number that came from the pin
      * list would write the wrong setting entirely.
      */
-    changeRow(i, raw) {
-      const row = Controller.rows(Panel.view())[i];
+    /* The `view` parameter on the three row handlers: the in-page list never
+       passes it (the popover's own view is the default, as ever), but the
+       cockpit's rows live in another window and name their view explicitly —
+       resolving its index against whatever the POPOVER happens to show would
+       be the off-by-a-list bug with extra steps. */
+    changeRow(i, raw, view = Panel.view()) {
+      const row = Controller.rows(view)[i];
       if (!row) return;
       if (row.onChange) {
         row.onChange(raw);
@@ -4969,8 +5018,8 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       const view = Panel.view();
       Panel.setList(Controller.rows(view), Controller.emptyFor(view));
     },
-    revealRow(i) {
-      const row = Controller.rows(Panel.view())[i];
+    revealRow(i, view = Panel.view()) {
+      const row = Controller.rows(view)[i];
       if (!row) return;
       let pins = row.pins;
       if (!pins || !pins.length) {
@@ -4989,10 +5038,9 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         Render.schedule();
       }, 900);
     },
-    removeRow(i) {
-      const row = Controller.rows(Panel.view())[i];
+    removeRow(i, view = Panel.view()) {
+      const row = Controller.rows(view)[i];
       if (!row || !row.pins) return;
-      if (!row) return;
       row.pins.forEach((p) => {
         const k = State.pins.indexOf(p);
         if (k >= 0) State.pins.splice(k, 1);
@@ -5050,6 +5098,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
   Panel.onRowActivate = Controller.revealRow;
   Panel.onRowRemove = Controller.removeRow;
   Panel.onRowChange = Controller.changeRow;
+  Panel.onRowsFor = (view) => ({ rows: Controller.rows(view), empty: Controller.emptyFor(view) });
   Render.onPinsPruned = Controller.pinsPruned;
   Panel.onState = Bridge.state;
   Bridge.init();

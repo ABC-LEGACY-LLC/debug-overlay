@@ -66,17 +66,23 @@ export const BadgeFace = defineService({
           return [
             { key: 'view', glyph: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M12 3v18" /></svg>',   // lucide 'columns-2'
               title: 'View — how much ink; press to choose',
+              /* `label` is the member's SHORT name for faces that print text
+                 beside the glyph (the cockpit's chips) — the first clause of
+                 these titles is the axis name, so deriving it there printed
+                 "Badge view" on both members and nothing told them apart */
               rows: view.values.map((v) => ({
                 key: `${view.key}:${v}`, glyph: (view.glyphs || {})[v] || String(v),
-                title: `${view.label} — ${v}`,
+                title: `${view.label} — ${v}`, label: String(v),
                 armed: Tools.setting(this, view.key) === v })) },
             { key: 'facets', glyph: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z" /></svg>',   // lucide 'diamond'
               title: 'Facets — which kinds of content render; press to choose',
               rows: [
                 { fixed: true, glyph: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><line x1="5" x2="19" y1="9" y2="9" /><line x1="5" x2="19" y1="15" y2="15" /></svg>', armed: true,   // lucide 'equal'
-                  title: "Current — the component's own fields. Always on: this is the badge itself" },
+                  title: "Current — the component's own fields. Always on: this is the badge itself",
+                  label: 'Current' },
                 ...opts.filter((o) => o.type === 'toggle').map((o) => ({
                   key: o.key, glyph: o.glyph || o.label, title: o.label,
+                  label: o.label.split(' — ')[0],
                   armed: !!Tools.setting(this, o.key) })),
               ] },
           ];

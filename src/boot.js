@@ -38,6 +38,9 @@ Panel.onListOpen = (view) =>
 Panel.onRowActivate = Controller.revealRow;
 Panel.onRowRemove = Controller.removeRow;
 Panel.onRowChange = Controller.changeRow;
+// the cockpit asks for a view's rows by name; the answer is the same pair
+// the popover renders, so the two lists cannot diverge
+Panel.onRowsFor = (view) => ({ rows: Controller.rows(view), empty: Controller.emptyFor(view) });
 
 // the page can remove a pinned element at any time; the list must not go on
 // showing rows that no longer index into anything

@@ -237,6 +237,19 @@ jsdom, not in Chrome), and activation travels as the row's index, resolved
 against `rows(view)` on the page side — the row-index law, doing the job it
 was written for.
 
+The lists follow the same grammar. The cockpit opens a view by name
+(`openView`), the bridge answers with that view's rows through
+`Panel.onRowsFor` — the query twin of `onListOpen`, wired by boot to the
+same rows and empty text the popover renders, so the two lists cannot
+diverge — and every row command carries `(view, index)` so the controller
+resolves it against the list the COCKPIT rendered, never against whatever
+the in-page popover happens to show (the three row handlers take an
+explicit view now, defaulting to the popover's own). Command-triggered
+refreshes answer in the same breath; page-side changes ride the state
+announcements, coalesced, because announcements burst. The open view is
+re-requested on every reconnect, so it survives the reload along with
+everything else.
+
 While a cockpit is connected the bar steps aside (`Panel.docked`) — the
 BAR, not the overlay: pins, marks and badges are the page's annotations and
 stay. The port dropping undocks it, so closing the side panel gives the

@@ -78,7 +78,7 @@ export function packRow(row) {
 function packBadgeGroup(g) {
         return { key: g.key, glyph: g.glyph, title: g.title,
                  rows: (g.rows || []).map((r) => ({
-                   key: r.key, glyph: r.glyph, title: r.title,
+                   key: r.key, glyph: r.glyph, title: r.title, label: r.label,
                    armed: !!r.armed, fixed: !!r.fixed })) };
 }
 

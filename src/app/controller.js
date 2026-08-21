@@ -138,8 +138,13 @@ import { Render } from '../ui/renderer.js';
      * that view's rows — indexing settings by a number that came from the pin
      * list would write the wrong setting entirely.
      */
-    changeRow(i, raw) {
-      const row = Controller.rows(Panel.view())[i];
+    /* The `view` parameter on the three row handlers: the in-page list never
+       passes it (the popover's own view is the default, as ever), but the
+       cockpit's rows live in another window and name their view explicitly —
+       resolving its index against whatever the POPOVER happens to show would
+       be the off-by-a-list bug with extra steps. */
+    changeRow(i, raw, view = Panel.view()) {
+      const row = Controller.rows(view)[i];
       if (!row) return;
       // a tool's own row carries its own handler; a settings row carries the
       // option it was built from
@@ -414,8 +419,8 @@ import { Render } from '../ui/renderer.js';
       const view = Panel.view();
       Panel.setList(Controller.rows(view), Controller.emptyFor(view));
     },
-    revealRow(i) {
-      const row = Controller.rows(Panel.view())[i];
+    revealRow(i, view = Panel.view()) {
+      const row = Controller.rows(view)[i];
       if (!row) return;
       // A finding has no pin, so clicking one pins the element on the way to
       // it. That is the useful move anyway: the badge, the measurements and
@@ -434,13 +439,12 @@ import { Render } from '../ui/renderer.js';
       clearTimeout(Controller._flash);
       Controller._flash = setTimeout(() => { State.flashPins = null; Render.schedule(); }, 900);
     },
-    removeRow(i) {
+    removeRow(i, view = Panel.view()) {
       /* rows(view), not pinList(): the panel hands back the index of what it
          RENDERED, and that array now carries a title row. Indexing a different
          list is how ✕ removed the wrong pin before. */
-      const row = Controller.rows(Panel.view())[i];
+      const row = Controller.rows(view)[i];
       if (!row || !row.pins) return;
-      if (!row) return;
       row.pins.forEach((p) => {
         const k = State.pins.indexOf(p);
         if (k >= 0) State.pins.splice(k, 1);

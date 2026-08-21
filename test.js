@@ -453,6 +453,9 @@ let cockpitChecked = false;
     let onConnect = null;
     w.chrome = { runtime: { onConnect: { addListener: (f) => { onConnect = f; } } } };
     w.eval(source);
+    // reveal scrolls the page; jsdom needs a spy where a browser has motion
+    w.eval('Element.prototype.scrollIntoView = function () {' +
+           ' document.__scrolled = (document.__scrolled || 0) + 1; };');
     return { d, w, bar: w.document.getElementById('__dbgov-bar'),
              accept: (end) => onConnect && onConnect(end),
              ready: () => typeof onConnect === 'function' };
@@ -573,6 +576,82 @@ let cockpitChecked = false;
       k.body.dataset.on !== '1',
       'a ghost of the old page state survived the reload');
 
+    console.log('\nTHE COCKPIT LISTS (phase 2)');
+    /* The list views, from the side of the wire the user sits on: the view
+       travels with every row command and the index resolves page-side
+       against rows(view) — the row-index law crossing the port. Every
+       push here is command-triggered, so all of it asserts synchronously. */
+    const click2 = () => new w2.MouseEvent('click', { bubbles: true });
+    const badgeBox = k.querySelector('#badge');
+    ok('badge chips draw icons, never markup-as-text',
+      badgeBox.querySelectorAll('svg').length >= 3 &&
+      !badgeBox.textContent.includes('<svg'),
+      'the first live install showed raw <svg …> strings as chip labels');
+    ok('and each member says its short name',
+      /compact/.test(badgeBox.textContent) && /Issue/.test(badgeBox.textContent),
+      'two chips both reading "Badge view" told nobody apart');
+
+    k.querySelector('#power').dispatchEvent(click2());
+    k.querySelector('[data-sweep]').dispatchEvent(click2());
+    k.querySelector('#views [data-view="findings"]').dispatchEvent(click2());
+    const rowsBox = k.querySelector('#rowsBox');
+    ok('a view opens with rows pushed in the same breath',
+      rowsBox.classList.contains('show') && rowsBox.querySelectorAll('.rrow').length > 0,
+      'openView answered with nothing');
+    const act = [...rowsBox.querySelectorAll('.rrow')].find((r) => r.querySelector('.go'));
+    ok('a finding row is activatable across the wire', !!act,
+      'activatable never survived packing');
+    act.querySelector('.go').dispatchEvent(click2());
+    ok('activating it reveals the element ON THE PAGE',
+      (c2.w.document.__scrolled || 0) >= 1,
+      'the command did not reach Controller.revealRow');
+
+    k.querySelector('#views [data-view="pins"]').dispatchEvent(click2());
+    ok('the reveal pinned on the way, and the pins view lists it',
+      /#1/.test(rowsBox.textContent),
+      'rows(pins) never showed the pin the reveal created');
+    const rm = rowsBox.querySelector('.rrow .rm');
+    ok('the pin row carries its ✕', !!rm, 'removable never crossed');
+    rm.dispatchEvent(click2());
+    ok('removing it from the cockpit empties the page pins',
+      !!rowsBox.querySelector('.empty') && !/#1/.test(rowsBox.textContent),
+      '(view, index) resolved against the wrong list');
+
+    k.querySelector('#views [data-view="settings"]').dispatchEvent(click2());
+    ok('settings arrive grouped under their headings',
+      rowsBox.querySelectorAll('.rowhead').length >= 2,
+      'the affects grouping flattened in transit');
+    ok('rows carry the owners\' real icons',
+      rowsBox.querySelectorAll('.rrow .tag svg').length > 0,
+      'svg tags were not gated through');
+    const sel = rowsBox.querySelector('.rrow select');
+    ok('a choice renders as a select', !!sel, 'control descriptors lost their kind');
+    const to = (sel.selectedIndex + 1) % sel.options.length;
+    sel.selectedIndex = to;
+    sel.dispatchEvent(new w2.Event('change', { bubbles: true }));
+    const sel2 = rowsBox.querySelector('.rrow select');
+    ok('changing it writes the PAGE setting and the echo agrees',
+      sel2 && sel2 !== sel && sel2.selectedIndex === to,
+      'the cockpit shows a value the page is not using — a control lying');
+    ok('and toggles render as checkboxes',
+      !!rowsBox.querySelector('.rrow input[type="checkbox"]'),
+      'toggle descriptors fell through to the unknown-kind span');
+
+    k.querySelector('#views [data-view="settings"]').dispatchEvent(click2());
+    ok('pressing the open view again closes it',
+      !rowsBox.classList.contains('show'), 'a list with no exit');
+
+    /* the OPEN VIEW survives the refresh too: reconnect re-requests it */
+    k.querySelector('#views [data-view="findings"]').dispatchEvent(click2());
+    const c3 = bootContent();
+    target = c3;
+    lastPair[0].disconnect();
+    fireUpdated(7, { status: 'complete' });
+    ok('the open view rides through a reload — re-requested, fresh truth',
+      k.body.dataset.mode === 'main' && rowsBox.classList.contains('show') &&
+      !!rowsBox.querySelector('.empty'),
+      'the fresh page has no sweep, so the honest answer is the empty text');
+
     // a message from a different protocol version answers "reload this page"
     lastPair[0].postMessage({ dbgov: 999, kind: 'state', name: 'on', args: [true] });
     ok('a version mismatch is named, never half-worked-around',
@@ -581,11 +660,12 @@ let cockpitChecked = false;
     // undock on disconnect: side panel closed → the bar comes back
     lastPair[1].disconnect();
     ok('closing the cockpit gives the page its bar back',
-      !c2.bar.classList.contains('dbgov-docked'),
+      !c3.bar.classList.contains('dbgov-docked'),
       'the bar stayed hidden with nothing left to replace it');
 
     c1.d.window.close();
     c2.d.window.close();
+    c3.d.window.close();
     w2.close();
     cockpitChecked = true;
   });
