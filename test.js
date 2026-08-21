@@ -2263,11 +2263,20 @@ let perfChecked = false;
         const t0 = Date.now();
         while (Date.now() - t0 < 350);
       }, 20);
-      // gate on the LAST artefact (the correlation line), not the first —
-      // the mutation rate alone is visible before the delayed freeze fires,
-      // and asserting then is a race the suite lost one run in five
-      whenPainted(() => /during the /.test(report()), () => {
+      /* gate on EVERY artefact asserted below — the correlation line in the
+         report AND the live badge in the DOM. The badge repaints on the
+         runtime's own 500ms clock, so a gate on the report alone raced it
+         and read the DOM one paint too early. */
+      const badgeTxt = () => [...w.document.querySelectorAll('#__dbgov-root .dbgov-badge')]
+        .map((b) => b.textContent).join(' | ');
+      whenPainted(() => /during the /.test(report()) && /mut \d+\/s/.test(badgeTxt()), () => {
         const r2 = report();
+        /* THE LIVE GAUGE, on screen, with NO mouse event in this whole
+           window: the runtime's own clock repainted the badge, or this
+           text could not exist — renders were otherwise mouse-driven and
+           a motionless user watched a stale number wearing a live label */
+        ok('the pinned badge shows its live cost without a mouse move',
+          /mut \d+\/s/.test(badgeTxt()), badgeTxt().slice(0, 80) || '(no badges painted)');
         ok('a watched element reads its own mutation rate',
           /watched #a: mut [1-9]\d*\/s/.test(r2),
           (r2.match(/watched[^\n]*/) || ['no watched line'])[0]);

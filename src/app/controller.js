@@ -25,7 +25,10 @@ import { Render } from '../ui/renderer.js';
       for (const t of Tools.withHook('watch', false)) {
         const should = State.enabled && State.tools.has(t.id);
         const is = Controller._running.has(t);
-        if (should && !is) { Controller._running.add(t); t.watch.call(t); }
+        /* capabilities ride IN, the way intercept receives redraw: a live
+           gauge has to repaint on its own clock, and a tool may not import
+           the renderer to ask */
+        if (should && !is) { Controller._running.add(t); t.watch.call(t, { redraw: Render.schedule }); }
         else if (!should && is) { Controller._running.delete(t); t.unwatch?.call(t); }
       }
     },

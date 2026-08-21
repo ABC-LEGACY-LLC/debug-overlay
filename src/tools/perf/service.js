@@ -34,7 +34,7 @@ export const Monitor = {
         startedAt: 0,
         _owner: null,        // the tool, for Tools.setting — set by watch()
         _obs: null, _obs2: [], _raf: 0, _last: 0, _frames: 0, _fpsT: 0,
-        _onVis: null,
+        _onVis: null, _redraw: null, _drewT: 0,
 
         threshold() {
           const v = Monitor._owner && Tools.setting(Monitor._owner, 'freeze');
@@ -59,10 +59,11 @@ export const Monitor = {
           return Monitor.log.reduce((m, e) => Math.max(m, e.ms), 0);
         },
 
-        start(owner) {
+        start(owner, redraw) {
           if (Monitor.running) return;
           Monitor.running = true;
           Monitor._owner = owner;
+          Monitor._redraw = redraw || null;
           // a fresh session starts a fresh log — the page moved on, and a
           // freeze from before the power cycle is a stale claim about it
           Monitor.log = [];
@@ -146,6 +147,15 @@ export const Monitor = {
             Monitor._last = t;
             // what is targeted follows the session: pins + the selection
             Targets.sync([...State.pins.map((p) => p.el), State.current]);
+            /* A LIVE gauge repaints on its own clock. Renders are otherwise
+               driven by the mouse, so a motionless user watched a stale
+               number wearing a live label. Every ~500ms, and only when the
+               overlay is showing something of ours that moves. */
+            if (Monitor._redraw && t - (Monitor._drewT || 0) >= 500 &&
+                (Targets.map.size || Monitor.log.length || State.hoverEl)) {
+              Monitor._drewT = t;
+              Monitor._redraw();
+            }
             Monitor._raf = requestAnimationFrame(tick);
           };
           Monitor._raf = requestAnimationFrame(tick);
@@ -173,6 +183,7 @@ export function fmt(ms) {
         return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
 }
 
-/** Hook: the runtime lifecycle. `this` is the tool — the settings owner. */
-export function watch() { Monitor.start(this); }
+/** Hook: the runtime lifecycle. `this` is the tool — the settings owner;
+ *  ctx carries capabilities in, the way intercept's does. */
+export function watch(ctx) { Monitor.start(this, ctx?.redraw); }
 export function unwatch() { Monitor.stop(); }

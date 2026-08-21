@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.85
+// @version      3.8.86
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -338,7 +338,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.85",
+    VERSION: "3.8.86",
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -1821,6 +1821,8 @@ HOW TO USE
     _frames: 0,
     _fpsT: 0,
     _onVis: null,
+    _redraw: null,
+    _drewT: 0,
     threshold() {
       const v = Monitor._owner && Tools.setting(Monitor._owner, "freeze");
       return Number(v) || CONFIG.PERF.FREEZE_MS;
@@ -1838,10 +1840,11 @@ HOW TO USE
     worst() {
       return Monitor.log.reduce((m, e) => Math.max(m, e.ms), 0);
     },
-    start(owner) {
+    start(owner, redraw) {
       if (Monitor.running) return;
       Monitor.running = true;
       Monitor._owner = owner;
+      Monitor._redraw = redraw || null;
       Monitor.log = [];
       Monitor.fps = null;
       Monitor.startedAt = Date.now();
@@ -1921,6 +1924,10 @@ HOW TO USE
         }
         Monitor._last = t;
         Targets.sync([...State.pins.map((p) => p.el), State.current]);
+        if (Monitor._redraw && t - (Monitor._drewT || 0) >= 500 && (Targets.map.size || Monitor.log.length || State.hoverEl)) {
+          Monitor._drewT = t;
+          Monitor._redraw();
+        }
         Monitor._raf = requestAnimationFrame(tick);
       };
       Monitor._raf = requestAnimationFrame(tick);
@@ -1941,8 +1948,8 @@ HOW TO USE
   function fmt(ms) {
     return ms < 1e3 ? `${ms}ms` : `${(ms / 1e3).toFixed(1)}s`;
   }
-  function watch() {
-    Monitor.start(this);
+  function watch(ctx) {
+    Monitor.start(this, ctx?.redraw);
   }
   function unwatch() {
     Monitor.stop();
@@ -4172,7 +4179,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         const is = Controller._running.has(t);
         if (should && !is) {
           Controller._running.add(t);
-          t.watch.call(t);
+          t.watch.call(t, { redraw: Render.schedule });
         } else if (!should && is) {
           Controller._running.delete(t);
           t.unwatch?.call(t);
