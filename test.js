@@ -343,6 +343,16 @@ console.log('\nTWO GATES, ONE CORE');
      'cockpit.html', 'cockpit.js']
       .every((f) => optJs.includes(`'${f}'`) && fs.existsSync(path.join(extDir, f))),
     'the FILES list and the emitted files disagree');
+  /* the file SET travels with the version: the updater asks the SERVER what
+     to write (files.json), because a baked-in list answers for the build
+     that shipped it — the v3.8.98 five-name list would have written the
+     cockpit's manifest while never fetching the cockpit */
+  const shipped = JSON.parse(fs.readFileSync(path.join(extDir, 'files.json'), 'utf8'));
+  ok('the updater learns its file list from the repo, not from itself',
+    optJs.includes("'/files.json'") &&
+    shipped.includes('files.json') &&
+    shipped.every((f) => fs.existsSync(path.join(extDir, f))),
+    'a version that adds a file would update into a broken folder');
   ok('the worker can open the updater for the content script',
     fs.readFileSync(path.join(extDir, 'sw.js'), 'utf8').includes('openOptionsPage'),
     'no route from the ⏻ menu to the options page');
@@ -353,9 +363,8 @@ console.log('\nTWO GATES, ONE CORE');
   ok('install.html embeds the runtime files, byte-identical to disk',
     !!fjson && (() => {
       const files = JSON.parse(fjson.replace(/<\\\//g, '</'));
-      return ['manifest.json', 'content.js', 'sw.js', 'options.html', 'options.js',
-              'cockpit.html', 'cockpit.js']
-        .every((f) => files[f] === fs.readFileSync(path.join(extDir, f), 'utf8'));
+      return JSON.stringify(Object.keys(files).sort()) === JSON.stringify([...shipped].sort()) &&
+        shipped.every((f) => files[f] === fs.readFileSync(path.join(extDir, f), 'utf8'));
     })(),
     'the installer would write files that differ from the gate it ships in');
   ok('and no embedded file can close the installer\'s script tag',

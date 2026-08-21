@@ -6,8 +6,12 @@
 // tricks stay refused: the browser runs what is ON DISK after the reload.
 'use strict';
 const BASE = '__EXT_BASE__';
+// the FALLBACK list — the set this build shipped with. The live list comes
+// from the repo's files.json at update time, because the set can change
+// between versions (the cockpit arrived in one): an updater writing the new
+// manifest by an old list leaves a folder naming files it never fetched.
 const FILES = ['manifest.json', 'content.js', 'sw.js', 'options.html', 'options.js',
-               'cockpit.html', 'cockpit.js'];
+               'cockpit.html', 'cockpit.js', 'files.json'];
 const log = (s) => { document.getElementById('log').textContent += s + '\n'; };
 
 // segment-wise numeric compare — mirrors app/updates.js `newer()`; this file
@@ -64,16 +68,28 @@ document.getElementById('apply').onclick = async () => {
     const remote = await (await fetch(BASE + '/manifest.json', { cache: 'no-store' })).json();
     if (!newer(remote.version, mine)) { log('already current: v' + mine); return; }
     log('v' + mine + ' -> v' + remote.version + ' — fetching…');
+    // the NEW version's own file list, so a version that adds files updates
+    // whole; the baked-in list only answers if the repo predates files.json.
+    // Plain names only — a list is data, never a path.
+    let files = FILES;
+    const fl = await fetch(BASE + '/files.json', { cache: 'no-store' });
+    if (fl.ok) {
+      files = JSON.parse(await fl.text());
+      if (!Array.isArray(files) || !files.includes('manifest.json') ||
+          !files.every((f) => typeof f === 'string' && /^[a-z0-9_.-]+$/i.test(f))) {
+        throw new Error('files.json is not a sane file list');
+      }
+    }
     // fetch EVERYTHING first, write only when all of it arrived — a half
     // update on disk is a broken extension
     const texts = {};
-    for (const f of FILES) {
+    for (const f of files) {
       const r = await fetch(BASE + '/' + f, { cache: 'no-store' });
       if (!r.ok) throw new Error(f + ': http ' + r.status);
       texts[f] = await r.text();
     }
     JSON.parse(texts['manifest.json']);   // refuse a torn manifest
-    for (const f of FILES) {
+    for (const f of files) {
       const fh = await dir.getFileHandle(f, { create: true });
       const w = await fh.createWritable();
       await w.write(texts[f]);

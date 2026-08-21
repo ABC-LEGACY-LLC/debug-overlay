@@ -114,7 +114,7 @@
   };
 
   // browser-extension-source/cockpit.js
-  var VERSION = "3.8.99";
+  var VERSION = "3.8.100";
   var $ = (s) => document.querySelector(s);
   var body = document.body;
   var IC = {

@@ -1,0 +1,10 @@
+[
+  "manifest.json",
+  "content.js",
+  "sw.js",
+  "options.html",
+  "options.js",
+  "cockpit.html",
+  "cockpit.js",
+  "files.json"
+]

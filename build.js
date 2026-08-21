@@ -317,8 +317,16 @@ function build(kind) {
      JSON's '</' is escaped so no embedded file can close the script tag. */
   const RUNTIME = ['manifest.json', 'content.js', 'sw.js', 'options.html', 'options.js',
                    'cockpit.html', 'cockpit.js'];
+  /* files.json — the runtime file SET, published beside the files. The
+     self-updater fetches THIS to learn what to write, because a baked-in
+     list answers for the build that shipped it, not the one being fetched:
+     the v3.8.98 updater's five-name list would have written the cockpit's
+     manifest while never fetching the cockpit, leaving a folder Chrome
+     refuses. The list names itself so the disk copy stays current too. */
+  const SHIPPED = [...RUNTIME, 'files.json'];
+  fs.writeFileSync(path.join(EXT, 'files.json'), JSON.stringify(SHIPPED, null, 2) + '\n');
   const filesJson = JSON.stringify(Object.fromEntries(
-    RUNTIME.map((f) => [f, fs.readFileSync(path.join(EXT, f), 'utf8')])))
+    SHIPPED.map((f) => [f, fs.readFileSync(path.join(EXT, f), 'utf8')])))
     .replace(/<\//g, '<\\/');
   /* function replacement: the JSON is full of '$' sequences that string
      replacement would interpret as capture references and corrupt */
