@@ -1,18 +1,25 @@
-// Debug Overlay self-updater — template in browser-extension-source/, emitted by build.js with the repo
-// base substituted. The one place the extension WRITES: its own install
-// folder, through a directory handle the user granted once. Updates only
-// ever come from the pinned repo base, only when the version INCREASES, and
-// only on a click — silent self-update is the store's job, and remote-code
+// Debug Overlay update screen — template in browser-extension-source/, emitted by
+// build.js with the repo base substituted. The one place the extension
+// WRITES: its own install folder, through a directory handle the user
+// granted once. Updates only ever come from the pinned repo base and only
+// on a click — silent self-update is the store's job, and remote-code
 // tricks stay refused: the browser runs what is ON DISK after the reload.
+//
+// Two buttons share one write path: UPDATE requires a newer version to
+// exist; REPAIR rewrites the CURRENT version's files — the answer to a
+// torn folder (an interrupted update, or an old updater that wrote a new
+// manifest without the files it names).
 'use strict';
 const BASE = 'https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/browser-extension';
 // the FALLBACK list — the set this build shipped with. The live list comes
-// from the repo's files.json at update time, because the set can change
+// from the repo's files.json at write time, because the set can change
 // between versions (the cockpit arrived in one): an updater writing the new
 // manifest by an old list leaves a folder naming files it never fetched.
 const FILES = ['manifest.json', 'content.js', 'sw.js', 'options.html', 'options.js',
                'cockpit.html', 'cockpit.js', 'files.json'];
-const log = (s) => { document.getElementById('log').textContent += s + '\n'; };
+
+const $ = (id) => document.getElementById(id);
+const MINE = chrome.runtime.getManifest().version;
 
 // segment-wise numeric compare — mirrors app/updates.js `newer()`; this file
 // is a standalone adapter outside the bundle, so the tiny copy is deliberate
@@ -26,6 +33,7 @@ const newer = (a, b) => {
   return false;
 };
 
+/* ---- the folder handle, kept across visits ------------------------- */
 const DB = () => new Promise((res, rej) => {
   const r = indexedDB.open('debug-overlay-updater', 1);
   r.onupgradeneeded = () => r.result.createObjectStore('kv');
@@ -49,25 +57,76 @@ const kvSet = async (k, v) => {
   });
 };
 
-document.getElementById('pick').onclick = async () => {
-  try {
-    const dir = await showDirectoryPicker({ mode: 'readwrite' });
-    await kvSet('dir', dir);
-    log('folder granted: ' + dir.name);
-  } catch (e) { log('cancelled: ' + e.message); }
-};
+/* ---- screen state --------------------------------------------------- */
+let remoteVersion = null;   // null = unknown (offline or still checking)
+let haveFolder = false;
 
-document.getElementById('apply').onclick = async () => {
+function log(line, cls) {
+  const box = $('log');
+  box.classList.add('show');
+  const s = document.createElement('span');
+  if (cls) s.className = cls;
+  s.textContent = line + '\n';
+  box.append(s);
+}
+
+function status(cls, text, hint) {
+  $('status').className = 'card ' + cls;
+  $('statusText').textContent = text;
+  $('statusHint').textContent = hint || '';
+}
+
+function gate() {
+  $('apply').disabled = !(haveFolder && remoteVersion && newer(remoteVersion, MINE));
+  $('repair').disabled = !haveFolder;
+}
+
+async function showFolder() {
+  const dir = await kvGet('dir');
+  haveFolder = !!dir;
+  const el = $('folderState');
+  el.textContent = dir ? `— ${dir.name} ✓` : '— not chosen yet';
+  el.classList.toggle('set', haveFolder);
+  gate();
+}
+
+async function check() {
+  status('', 'Checking for updates…');
+  try {
+    const remote = await (await fetch(BASE + '/manifest.json', { cache: 'no-store' })).json();
+    remoteVersion = remote.version;
+    if (newer(remoteVersion, MINE)) {
+      status('upd', `v${remoteVersion} is available.`,
+        haveFolder ? 'Press Update — it takes a few seconds.'
+                   : 'Choose the install folder below, then press Update.');
+    } else {
+      status('ok', "You're up to date.",
+        `v${MINE} is the latest published version.`);
+    }
+  } catch {
+    remoteVersion = null;
+    status('bad', "Couldn't reach the repository.",
+      'Check your connection, then reopen this page.');
+  }
+  gate();
+}
+
+/* ---- the one write path --------------------------------------------- */
+async function run(repairing) {
+  $('apply').disabled = true;
+  $('repair').disabled = true;
   try {
     const dir = await kvGet('dir');
-    if (!dir) { log('choose the install folder first'); return; }
+    if (!dir) { log('choose the install folder first', 'warn'); return; }
     if (await dir.requestPermission({ mode: 'readwrite' }) !== 'granted') {
-      log('permission not granted'); return;
+      log('folder permission was not granted', 'warn'); return;
     }
-    const mine = chrome.runtime.getManifest().version;
     const remote = await (await fetch(BASE + '/manifest.json', { cache: 'no-store' })).json();
-    if (!newer(remote.version, mine)) { log('already current: v' + mine); return; }
-    log('v' + mine + ' -> v' + remote.version + ' — fetching…');
+    if (!repairing && !newer(remote.version, MINE)) {
+      log('already current: v' + MINE, 'good'); return;
+    }
+    log(repairing ? `repairing — rewriting every v${remote.version} file…`
+                  : `v${MINE} → v${remote.version} — fetching…`);
     // the NEW version's own file list, so a version that adds files updates
     // whole; the baked-in list only answers if the repo predates files.json.
     // Plain names only — a list is data, never a path.
@@ -94,9 +153,42 @@ document.getElementById('apply').onclick = async () => {
       const w = await fh.createWritable();
       await w.write(texts[f]);
       await w.close();
-      log('wrote ' + f);
+      log('✓ wrote ' + f, 'good');
     }
-    log('reloading extension — REFRESH your open tabs to run the new version');
-    chrome.runtime.reload();
-  } catch (e) { log('failed: ' + e.message); }
-};
+    // the banner people must not miss, then the reload — in that order,
+    // because chrome.runtime.reload() takes this page with it
+    $('doneHead').textContent = repairing
+      ? `Repaired — every v${remote.version} file is back in place.`
+      : `Updated to v${remote.version}.`;
+    $('done').classList.add('show');
+    let n = 4;
+    const tick = () => {
+      n--;
+      if (n <= 0) { chrome.runtime.reload(); return; }
+      $('doneCount').textContent = `Reloading the extension in ${n}…`;
+      setTimeout(tick, 1000);
+    };
+    tick();
+  } catch (e) {
+    log('failed: ' + e.message, 'err');
+    status('bad', 'That did not work.', e.message);
+  } finally {
+    gate();
+  }
+}
+
+/* ---- wire up -------------------------------------------------------- */
+$('mine').textContent = 'v' + MINE;
+$('pick').addEventListener('click', async () => {
+  try {
+    const dir = await showDirectoryPicker({ mode: 'readwrite' });
+    await kvSet('dir', dir);
+    log('folder granted: ' + dir.name, 'good');
+    await showFolder();
+    check();   // the hint under the status may change now a folder exists
+  } catch (e) { log('cancelled: ' + e.message, 'warn'); }
+});
+$('apply').addEventListener('click', () => run(false));
+$('repair').addEventListener('click', () => run(true));
+
+showFolder().then(check);

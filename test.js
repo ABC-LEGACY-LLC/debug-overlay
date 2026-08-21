@@ -353,6 +353,23 @@ console.log('\nTWO GATES, ONE CORE');
     shipped.includes('files.json') &&
     shipped.every((f) => fs.existsSync(path.join(extDir, f))),
     'a version that adds a file would update into a broken folder');
+  /* the update screen's three promises: it can put a TORN folder right
+     (write current files without needing a newer version — the rescue for
+     an old updater that wrote a manifest naming files it never fetched),
+     it checks on open rather than making the user press to find out, and
+     its page keeps all behaviour in options.js (MV3 forbids inline). */
+  const optHtml = fs.readFileSync(path.join(extDir, 'options.html'), 'utf8');
+  ok('the update screen can repair a torn install',
+    /repairing/.test(optJs) && optJs.includes('!repairing && !newer') &&
+    optHtml.includes('id="repair"'),
+    'a broken folder would have no way back but a reinstall');
+  ok('and it checks for updates on open, not on demand',
+    optJs.includes('showFolder().then(check)'),
+    'staleness the user must ask about goes unasked');
+  ok('and its page carries no inline script',
+    (optHtml.match(/<script\b/g) || []).length === 1 &&
+    optHtml.includes('src="options.js"'),
+    'MV3 CSP would silently refuse it');
   ok('the worker can open the updater for the content script',
     fs.readFileSync(path.join(extDir, 'sw.js'), 'utf8').includes('openOptionsPage'),
     'no route from the ⏻ menu to the options page');
