@@ -8,4 +8,7 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
       .catch((e) => respond({ ok: false, error: String(e) }));
     return true;   // async response
   }
+  if (msg && msg.type === 'dbgov-open-options') {
+    chrome.runtime.openOptionsPage();
+  }
 });

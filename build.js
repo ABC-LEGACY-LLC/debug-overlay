@@ -170,6 +170,7 @@ function build(kind) {
     // the update checker's CSP-immune door: the worker fetches, pages cannot block it
     host_permissions: [`${new URL(cfg.rawBase).origin}/*`],
     background: { service_worker: 'sw.js' },
+    options_ui: { page: 'options.html', open_in_tab: true },
   }, null, 2) + '\n');
   fs.writeFileSync(path.join(EXT, 'sw.js'),
     `// dbgov service worker — the extension's network door.\n` +
@@ -182,10 +183,20 @@ function build(kind) {
     `      .catch((e) => respond({ ok: false, error: String(e) }));\n` +
     `    return true;   // async response\n` +
     `  }\n` +
+    `  if (msg && msg.type === 'dbgov-open-options') {\n` +
+    `    chrome.runtime.openOptionsPage();\n` +
+    `  }\n` +
     `});\n`);
+  // the self-updater — real template files in ext/, base substituted here
+  const extBase = cfg.rawBase.replace(/\/dist$/, '/dist-ext');
+  fs.copyFileSync(path.join(ROOT, 'ext', 'options.html'), path.join(EXT, 'options.html'));
+  fs.writeFileSync(path.join(EXT, 'options.js'),
+    fs.readFileSync(path.join(ROOT, 'ext', 'options.js'), 'utf8')
+      .replace('__EXT_BASE__', extBase));
   try {
     cp.execSync(`node --check "${path.join(EXT, 'content.js')}"`, { stdio: 'pipe' });
     cp.execSync(`node --check "${path.join(EXT, 'sw.js')}"`, { stdio: 'pipe' });
+    cp.execSync(`node --check "${path.join(EXT, 'options.js')}"`, { stdio: 'pipe' });
     JSON.parse(fs.readFileSync(path.join(EXT, 'manifest.json'), 'utf8'));
   } catch (e) {
     console.error('✗ dist-ext is broken:\n' + (e.stderr ? e.stderr.toString() : e.message));

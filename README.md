@@ -94,11 +94,16 @@ manager:
 1. `chrome://extensions` → enable **Developer mode** → **Load unpacked**
 2. Point it at `dist-ext/` (or a copy of it outside the repo — see below)
 
-Updates are the trade: the userscript self-updates on push; the unpacked
-extension reads files from disk, so updating it means `git pull` and a press
-of ⟳ on the extensions page. The in-overlay update checker tells you when
-that is needed. If you plan to use the coming self-updater, load a COPY of
-`dist-ext/` from outside the repo, so its writes never dirty your checkout.
+Updates: the userscript self-updates on push. The unpacked extension has its
+own SELF-UPDATER — one-time setup on its options page ("grant dbgov its
+install folder", the browser's File System Access permission), and from then
+on the ⏻ update menu's "Update to vX" opens the updater, one press fetches
+the new files from the repo, writes them, and reloads the extension. Rules it
+lives by: only the pinned repo base, only a version that increases, fetch
+everything before writing anything, and never silently — that is the store's
+job. Load a COPY of `dist-ext/` from outside the repo (the updater writes
+files, and writes inside a checkout would dirty it). Firefox has no File
+System Access API, so there the notification means `git pull`.
 
 **Optional but recommended — Tampermonkey Sync.** Dashboard → Settings →
 Sync to Google Drive / Dropbox / OneDrive. A brand-new machine then only needs

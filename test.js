@@ -280,6 +280,21 @@ console.log('\nTWO GATES, ONE CORE');
     (manifest.host_permissions || []).length === 1 &&
     /raw\.githubusercontent\.com/.test(manifest.host_permissions[0]),
     JSON.stringify(manifest.host_permissions));
+  // the self-updater: emitted, syntax-checked by the build, and PINNED —
+  // its runtime is browser-only (FS Access API), so what a suite can hold
+  // is the contract: where it may fetch from, and what it may write
+  const optJs = fs.readFileSync(path.join(extDir, 'options.js'), 'utf8');
+  ok('the updater exists and its base is the pinned repo, nowhere else',
+    manifest.options_ui?.page === 'options.html' &&
+    /const BASE = 'https:\/\/raw\.githubusercontent\.com\/[^']*\/dist-ext'/.test(optJs),
+    (optJs.match(/const BASE = '[^']*'/) || ['no BASE'])[0]);
+  ok('and it writes exactly the files the gate ships',
+    ['manifest.json', 'content.js', 'sw.js', 'options.html', 'options.js']
+      .every((f) => optJs.includes(`'${f}'`) && fs.existsSync(path.join(extDir, f))),
+    'the FILES list and the emitted files disagree');
+  ok('the worker can open the updater for the content script',
+    fs.readFileSync(path.join(extDir, 'sw.js'), 'utf8').includes('openOptionsPage'),
+    'no route from the ⏻ menu to the options page');
 }
 
 console.log('\nSTYLESHEET');

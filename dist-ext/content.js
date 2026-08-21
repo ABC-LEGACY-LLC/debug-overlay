@@ -1,4 +1,4 @@
-/* dbgov v3.8.89 — extension gate; same bundle as the userscript */
+/* dbgov v3.8.90 — extension gate; same bundle as the userscript */
 (function () {
   'use strict';
 /* NOT a module and NOT bundled: build.js injects this text at the very top
@@ -34,7 +34,7 @@
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.89",
+    VERSION: "3.8.90",
     // Substituted like VERSION: where the update checker asks, and what the
     // userscript's one-click update opens. One source (userscript.json), no
     // second copy to drift.
@@ -3772,7 +3772,11 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
      *  self-updater arrives with its options page; until then, honesty. */
     apply() {
       if (typeof chrome !== "undefined" && chrome.runtime?.id) {
-        Panel.flash("git pull", ".dbgov-pwr");
+        try {
+          chrome.runtime.sendMessage({ type: "dbgov-open-options" });
+        } catch {
+        }
+        Panel.flash("→ updater", ".dbgov-pwr");
         return;
       }
       window.open(CONFIG.INSTALL_URL, "_blank");

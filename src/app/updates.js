@@ -98,7 +98,11 @@ export const Updates = {
          *  self-updater arrives with its options page; until then, honesty. */
         apply() {
           if (typeof chrome !== 'undefined' && chrome.runtime?.id) {
-            Panel.flash('git pull', '.dbgov-pwr');
+            // the self-updater lives on the options page — the FS permission
+            // re-grant needs a user gesture in an extension context, and a
+            // content script is neither. The worker opens it.
+            try { chrome.runtime.sendMessage({ type: 'dbgov-open-options' }); } catch {}
+            Panel.flash('→ updater', '.dbgov-pwr');
             return;
           }
           window.open(CONFIG.INSTALL_URL, '_blank');
