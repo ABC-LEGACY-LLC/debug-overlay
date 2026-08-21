@@ -8,10 +8,29 @@
   .step b { color: #b5e853; }
   button { font: inherit; padding: 10px 16px; border: 0; border-radius: 8px;
            background: #58c4ff; color: #0d1b24; cursor: pointer; }
+  button[disabled] { opacity: .5; cursor: default; }
   button.quiet { background: #2c2c31; color: #eaeaea; }
   code { background: #2c2c31; border-radius: 6px; padding: 2px 8px; }
-  #done1 { color: #b5e853; display: none; }
   .muted { color: #9a9aa4; font-size: 13px; }
+
+  /* the status area: ONE element, coloured by CLASS — an inline colour set
+     on an error once stayed for every message after it, which is how a
+     green success came out red */
+  #st { display: none; margin-top: 12px; padding: 10px 12px; border-radius: 8px;
+        background: #17171b; border: 1px solid #2e2e34; }
+  #st.show { display: block; }
+  #st .head { font-weight: 600; }
+  #st .hint { color: #9a9aa4; font-size: 13px; margin-top: 2px; }
+  #st.busy .head { color: #58c4ff; }
+  #st.good { border-color: #b5e853; } #st.good .head { color: #b5e853; }
+  #st.warn { border-color: #ffd54f; } #st.warn .head { color: #ffd54f; }
+  #st.err  { border-color: #ff8a8a; } #st.err .head  { color: #ff8a8a; }
+  #override { display: none; margin-top: 10px; }
+
+  #prog { display: none; margin-top: 10px; font: 13px/1.7 ui-monospace, Consolas, monospace;
+          color: #9a9aa4; white-space: pre-wrap; }
+  #prog.show { display: block; }
+  #prog .ok { color: #b5e853; }
 </style>
 <h1>Debug Overlay — installer</h1>
 <p class="muted">This page carries the whole extension inside itself and needs
@@ -22,9 +41,14 @@ browser reserves two clicks for you; everything else happens here.</p>
   <b>Step 1 — write the files.</b><br>
   Press the button, then <i>create or choose</i> a permanent folder — for
   example a new folder called <code>debug-overlay-extension</code> in your
-  Documents. Not Downloads: the browser will read this folder forever.<br><br>
+  Documents. Not Downloads: the browser will read this folder forever.<br>
+  <span class="muted">Already installed? Pick your <i>existing</i> install
+  folder — the exact folder you loaded unpacked — and this page updates it
+  in place.</span><br><br>
   <button id="write">Choose install folder &amp; write files…</button>
-  <div id="done1"></div>
+  <div id="st"><div class="head"></div><div class="hint"></div>
+    <button id="override" class="quiet"></button></div>
+  <div id="prog"></div>
 </div>
 
 <div class="step">
@@ -40,6 +64,8 @@ browser reserves two clicks for you; everything else happens here.</p>
   <b>Step 3 — the two clicks the browser requires from a human.</b><br>
   On that page: switch ON <b>Developer mode</b> (top-right), press
   <b>Load unpacked</b>, and select the folder from Step&nbsp;1.<br>
+  <span class="muted">Updated an existing folder in Step 1? Then just press
+  ↻ <b>Reload</b> on Debug Overlay instead — it is already loaded.</span><br>
   Then open any website and press <b>Alt+Shift+D</b>.
 </div>
 
@@ -54,28 +80,126 @@ browser reserves two clicks for you; everything else happens here.</p>
 // The FILES literal below is substituted by build.js with the real contents.
 const FILES = __FILES_JSON__;
 
-document.getElementById('copy').onclick = async () => {
+const $ = (id) => document.getElementById(id);
+let pending = null;   // a folder held back by a warning, written only on the override
+
+// every message goes through here, so no state can leak into the next one
+function st(cls, head, hint) {
+  const box = $('st');
+  box.className = 'show ' + cls;
+  box.querySelector('.head').textContent = head;
+  box.querySelector('.hint').textContent = hint || '';
+  $('override').style.display = 'none';
+}
+function offerOverride(dir, label) {
+  pending = dir;
+  const b = $('override');
+  b.textContent = label;
+  b.style.display = 'inline-block';
+}
+function prog(line, cls) {
+  const box = $('prog');
+  box.classList.add('show');
+  const s = document.createElement('span');
+  if (cls) s.className = cls;
+  s.textContent = line + '\n';
+  box.append(s);
+}
+
+$('copy').onclick = async () => {
   try { await navigator.clipboard.writeText('chrome://extensions'); } catch {}
-  document.getElementById('copy').textContent = 'Copied ✓';
+  $('copy').textContent = 'Copied ✓';
 };
 
-document.getElementById('write').onclick = async () => {
-  const done = document.getElementById('done1');
+/** What is already in the chosen folder? An install right here means we are
+ *  UPDATING in place; an install one level down means the wrong folder was
+ *  picked — writing to the parent of a live install is the silent miss where
+ *  everything reports success and the browser keeps reading the old copy. */
+async function scan(dir) {
+  let hasInstall = false;
+  const subInstalls = [];
   try {
-    const dir = await showDirectoryPicker({ mode: 'readwrite' });
+    for await (const [name, h] of dir.entries()) {
+      if (h.kind === 'file' && name === 'manifest.json') hasInstall = true;
+      if (h.kind === 'directory') {
+        try {
+          await h.getFileHandle('manifest.json');
+          await h.getFileHandle('content.js');
+          subInstalls.push(name);
+        } catch {}
+      }
+    }
+  } catch {}
+  return { hasInstall, subInstalls };
+}
+
+async function doWrite(dir, updating) {
+  $('write').disabled = true;
+  $('prog').textContent = '';
+  try {
+    const names = Object.keys(FILES);
+    let i = 0;
     for (const [name, text] of Object.entries(FILES)) {
+      i++;
+      st('busy', `Writing ${i} of ${names.length} — ${name}…`);
       const fh = await dir.getFileHandle(name, { create: true });
       const w = await fh.createWritable();
       await w.write(text);
       await w.close();
+      prog('✓ ' + name, 'ok');
     }
-    done.style.display = 'block';
-    done.textContent = '✓ ' + Object.keys(FILES).length +
-      ' files written to "' + dir.name + '" — continue with Step 2.';
+    if (updating) {
+      st('good', `✓ Updated the install in "${dir.name}" — ${names.length} files rewritten.`,
+        'On the extensions page press ↻ Reload on Debug Overlay, then refresh ' +
+        'your open tabs. No Load unpacked needed — it is already loaded.');
+    } else {
+      st('good', `✓ ${names.length} files written to "${dir.name}".`,
+        'Continue with Step 2.');
+    }
   } catch (e) {
-    done.style.display = 'block';
-    done.style.color = '#ff8a8a';
-    done.textContent = 'Nothing written: ' + e.message;
+    st('err', 'Writing stopped partway — nothing is running from a half-written folder yet.',
+      'Press the button and write again into the same folder (it is safe to repeat). ' +
+      'Details: ' + e.message);
+  } finally {
+    $('write').disabled = false;
   }
+}
+
+$('write').onclick = async () => {
+  pending = null;
+  st('busy', 'Choose or create the folder in the picker dialog…');
+  let dir;
+  try {
+    dir = await showDirectoryPicker({ mode: 'readwrite' });
+  } catch (e) {
+    // a closed dialog is a choice, not a failure — say so in its own voice
+    if (e.name === 'AbortError') {
+      st('warn', 'Cancelled — nothing was written.',
+        'Press the button again when you are ready.');
+    } else {
+      st('err', 'The folder picker could not open.', e.message);
+    }
+    return;
+  }
+  st('busy', `Checking "${dir.name}"…`);
+  const { hasInstall, subInstalls } = await scan(dir);
+  if (!hasInstall && subInstalls.length) {
+    st('warn', `Wait — "${subInstalls[0]}" inside "${dir.name}" already holds an install.`,
+      `If your extension is loaded from "${subInstalls[0]}", press the main button again ` +
+      `and pick that folder — writing here would make a second copy the browser never reads. ` +
+      `Only continue if you really want a fresh install in "${dir.name}".`);
+    offerOverride(dir, `Write a fresh install into "${dir.name}" anyway`);
+    return;
+  }
+  if (/^downloads$/i.test(dir.name)) {
+    st('warn', 'Downloads is not a good home for an extension.',
+      'The browser reads this folder forever, and Downloads gets cleaned. ' +
+      'Press the main button again and pick a permanent folder — or continue anyway.');
+    offerOverride(dir, 'Write into Downloads anyway');
+    return;
+  }
+  doWrite(dir, hasInstall);
 };
+
+$('override').onclick = () => { if (pending) doWrite(pending, false); };
 </script>

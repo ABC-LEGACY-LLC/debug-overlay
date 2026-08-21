@@ -370,12 +370,38 @@ console.log('\nTWO GATES, ONE CORE');
     (optHtml.match(/<script\b/g) || []).length === 1 &&
     optHtml.includes('src="options.js"'),
     'MV3 CSP would silently refuse it');
+  const inst = fs.readFileSync(path.join(extDir, 'install.html'), 'utf8');
+  /* what a real install walked into, one guard each:
+     — success rendered red: an error set style.color inline and it stuck
+       for every later message; status must be class-driven, no inline colour
+     — a plain cancel shown as a raw exception: AbortError is a choice
+     — the silent miss: files written to the PARENT of a live install
+       report success while the browser keeps reading the old copy — both
+       writers vet the folder (installer scans for a nested install and
+       makes overriding explicit; updater refuses a folder without OUR
+       manifest in it) */
+  ok('neither writer paints status with sticky inline colour',
+    !inst.includes('style.color') && !optJs.includes('style.color'),
+    'one error would colour every success after it');
+  ok('a cancelled picker is a choice, not a failure — on both pages',
+    inst.includes("'AbortError'") && optJs.includes("'AbortError'"),
+    'a closed dialog would read as a crash');
+  ok('the installer catches the picked-the-parent mistake',
+    inst.includes('subInstalls') && inst.includes('id="override"') &&
+    inst.includes('.entries()'),
+    'writing beside a live install would report success and change nothing');
+  ok('the installer narrates the write, file by file',
+    inst.includes('Writing ${i} of'),
+    'a stall would look identical to progress');
+  ok('the updater refuses a folder this extension does not live in',
+    optJs.includes('holds no extension install') &&
+    optJs.includes('refusing to write'),
+    'an update into the wrong folder is a success message over nothing');
   ok('the worker can open the updater for the content script',
     fs.readFileSync(path.join(extDir, 'sw.js'), 'utf8').includes('openOptionsPage'),
     'no route from the ⏻ menu to the options page');
   // the no-cmd installer: a page carrying the runtime files INSIDE itself —
   // an embedded copy is a second copy, so the suite holds it byte-identical
-  const inst = fs.readFileSync(path.join(extDir, 'install.html'), 'utf8');
   const fjson = (inst.match(/const FILES = (\{.*\});/) || [])[1];
   ok('install.html embeds the runtime files, byte-identical to disk',
     !!fjson && (() => {

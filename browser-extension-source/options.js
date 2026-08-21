@@ -90,6 +90,23 @@ async function showFolder() {
   gate();
 }
 
+/** Is this folder actually where THIS extension lives? Writing anywhere else
+ *  reports success while the browser keeps running the old copy — the silent
+ *  miss. An install folder holds a manifest, and that manifest carries our
+ *  name; a folder failing either test is the wrong folder, said out loud. */
+async function vet(dir) {
+  try {
+    const fh = await dir.getFileHandle('manifest.json');
+    const m = JSON.parse(await (await fh.getFile()).text());
+    if (m.name !== chrome.runtime.getManifest().name) {
+      return { ok: false, why: `"${dir.name}" holds a different extension ("${m.name}")` };
+    }
+    return { ok: true, version: m.version };
+  } catch {
+    return { ok: false, why: `"${dir.name}" holds no extension install (no manifest.json)` };
+  }
+}
+
 async function check() {
   status('', 'Checking for updates…');
   try {
@@ -121,6 +138,13 @@ async function run(repairing) {
     if (await dir.requestPermission({ mode: 'readwrite' }) !== 'granted') {
       log('folder permission was not granted', 'warn'); return;
     }
+    const v = await vet(dir);
+    if (!v.ok) {
+      log('refusing to write: ' + v.why, 'err');
+      log('choose the folder this extension was loaded unpacked from (step 1) — ' +
+          'for a fresh install somewhere new, use the install page instead', 'warn');
+      return;
+    }
     const remote = await (await fetch(BASE + '/manifest.json', { cache: 'no-store' })).json();
     if (!repairing && !newer(remote.version, MINE)) {
       log('already current: v' + MINE, 'good'); return;
@@ -146,6 +170,7 @@ async function run(repairing) {
       const r = await fetch(BASE + '/' + f, { cache: 'no-store' });
       if (!r.ok) throw new Error(f + ': http ' + r.status);
       texts[f] = await r.text();
+      log('↓ fetched ' + f);
     }
     JSON.parse(texts['manifest.json']);   // refuse a torn manifest
     for (const f of files) {
@@ -180,13 +205,25 @@ async function run(repairing) {
 /* ---- wire up -------------------------------------------------------- */
 $('mine').textContent = 'v' + MINE;
 $('pick').addEventListener('click', async () => {
+  let dir;
   try {
-    const dir = await showDirectoryPicker({ mode: 'readwrite' });
-    await kvSet('dir', dir);
-    log('folder granted: ' + dir.name, 'good');
-    await showFolder();
-    check();   // the hint under the status may change now a folder exists
-  } catch (e) { log('cancelled: ' + e.message, 'warn'); }
+    dir = await showDirectoryPicker({ mode: 'readwrite' });
+  } catch (e) {
+    // a closed dialog is a choice, not a failure
+    if (e.name === 'AbortError') log('cancelled — the folder is unchanged', 'warn');
+    else log('the folder picker could not open: ' + e.message, 'err');
+    return;
+  }
+  await kvSet('dir', dir);
+  const v = await vet(dir);
+  if (v.ok) {
+    log(`✓ folder granted: ${dir.name} — holds this extension (v${v.version})`, 'good');
+  } else {
+    log('⚠ folder granted, but ' + v.why, 'warn');
+    log('if Debug Overlay was loaded unpacked from a different folder, choose that one instead', 'warn');
+  }
+  await showFolder();
+  check();   // the hint under the status may change now a folder exists
 });
 $('apply').addEventListener('click', () => run(false));
 $('repair').addEventListener('click', () => run(true));
