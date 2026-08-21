@@ -208,6 +208,9 @@ function build(kind) {
      build emits — the same relationship src/ has to dist/. */
   const extBase = cfg.rawBase.replace(/\/script$/, '/browser-extension');
   fs.copyFileSync(path.join(ROOT, 'browser-extension-source', 'options.html'), path.join(EXT, 'options.html'));
+  // the Windows helper: rides inside the ZIP so install is download →
+  // extract → double-click → the two clicks the browser reserves for humans
+  fs.copyFileSync(path.join(ROOT, 'browser-extension-source', 'install.bat'), path.join(EXT, 'install.bat'));
   fs.writeFileSync(path.join(EXT, 'options.js'),
     fs.readFileSync(path.join(ROOT, 'browser-extension-source', 'options.js'), 'utf8')
       .replace('__EXT_BASE__', extBase));

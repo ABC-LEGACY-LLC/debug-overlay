@@ -66,12 +66,16 @@ keeps running the old version until it reloads.
 https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/browser-extension/debug-overlay-extension.zip
 ```
 
-**Step 2.** Extract it to a **permanent folder**, e.g. `~/debug-overlay-extension/`
-(not inside a git checkout, and not your Downloads folder — the browser reads
-it from there forever, and the updater writes into it).
+**Step 2 (Windows).** Extract the ZIP anywhere and double-click
+**`install.bat`** — it copies the files to a permanent home
+(`%LOCALAPPDATA%\debug-overlay-extension`) and opens the extensions page,
+then prints the two clicks that remain. *(Mac/Linux, or by hand: extract to a
+permanent folder yourself — not Downloads, not inside a git checkout — the
+browser reads it from there forever and the updater writes into it.)*
 
-**Step 3.** Open `chrome://extensions` → **Developer mode** ON →
-**Load unpacked** → select that folder.
+**Step 3.** On the page that opened: **Developer mode** ON →
+**Load unpacked** → select that folder. These two clicks are the browser's
+own security law — no installer anywhere may add an extension silently.
 
 **Step 4.** Open any website and press **Alt+Shift+D** — the panel appears.
 
