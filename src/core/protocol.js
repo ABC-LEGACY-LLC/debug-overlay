@@ -32,6 +32,7 @@ export const PROTOCOL_VERSION = 1;
    controller already calls; args are what that api takes, packed. */
 const STATE = {
         on: null,                 // (bool)
+        tools: null,              // (roster: [{id, icon, title, fam, roles}], coreVersion) — on hello
         tool: null,               // (id, armed)
         count: null,              // (n)
         swept: null,              // (showing, n)

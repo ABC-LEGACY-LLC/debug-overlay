@@ -212,6 +212,40 @@ differentially: the same bundle driven identically on a clean host and on one
 that defines every name we ever used bare, computed styles diffed over every
 element in the overlay.
 
+## One panel, two faces — the cockpit speaks the panel's own contract
+
+The extension gate has a second face: the **cockpit**, in the browser's side
+panel, where a page refresh cannot reach. It is a RENDERING of the in-page
+panel's state, never a second implementation — the rule that makes that
+cheap is that the panel was already message-shaped. Its standing contract
+("self-contained; talks out only via callbacks") IS a wire protocol, so
+`core/protocol.js` just writes it down: state pushes named after the Panel
+setters the controller calls (`setCount` → `count`), commands named after
+the callbacks the bar's buttons fire (`onTool` → `tool`), one envelope, one
+version field. The file is pure, imports nothing, and is bundled into BOTH
+programs — one vocabulary, two importers, no copy to drift.
+
+`app/bridge.js` is the content-side adapter and is deliberately ignorant:
+it caches what the panel announces (`Panel.onState`, the same
+announce-and-let-boot-decide seam as `Render.onPinsPruned`), replays the
+cache to a cockpit that says hello, forwards live announcements, and lands
+incoming commands on the SAME callback slots boot wired for the bar — so
+arming from the side panel and arming from the bar are one code path from
+the first line. Rows pack by whitelist (elements, pin objects and closures
+stay behind; the test pipe JSON-roundtrips every message so a leak fails in
+jsdom, not in Chrome), and activation travels as the row's index, resolved
+against `rows(view)` on the page side — the row-index law, doing the job it
+was written for.
+
+While a cockpit is connected the bar steps aside (`Panel.docked`) — the
+BAR, not the overlay: pins, marks and badges are the page's annotations and
+stay. The port dropping undocks it, so closing the side panel gives the
+page its bar back. Under the userscript gate none of this exists at
+runtime: `chrome.runtime.onConnect` is only ever granted to a real content
+script, so the bridge goes inert and the bundle stays byte-identical across
+gates. A version mismatch between the faces is detected and answered with
+"reload this page", never limped through.
+
 ## A monitor is a runtime, not a moment — watch() and unwatch()
 
 Every hook before perf was called AT a moment: a click, a frame, a sweep. A

@@ -238,6 +238,12 @@ import { CONFIG } from '../core/config.js';
     #__dbgov-bar.dbgov-removing .dbgov-pwr { background: #ff5c5c; color: #fff; }
     #__dbgov-bar.dbgov-removing .dbgov-st { color: #ff5c5c; }
 
+    /* docked: another surface (the extension's side panel) is presenting the
+       panel's state, so the BAR steps aside — pins, marks and badges are the
+       page's annotations and stay. display, not visibility: the bar must
+       leave the tab order too, or Tab lands on invisible buttons. */
+    #__dbgov-bar.dbgov-docked { display: none; }
+
     /* things that only make sense once powered on */
     #__dbgov-bar .dbgov-whenOn { display: none; }
     #__dbgov-bar.dbgov-on .dbgov-whenOn { display: flex; align-items: center; justify-content: center; }

@@ -185,6 +185,12 @@ function build(kind) {
     host_permissions: [`${new URL(cfg.rawBase).origin}/*`],
     background: { service_worker: 'sw.js' },
     options_ui: { page: 'options.html', open_in_tab: true },
+    /* THE COCKPIT — the extension gate's bigger face. The toolbar button
+       opens it (sw.js declares that); it mirrors the in-page panel over a
+       port and survives the page refresh the in-page bar cannot. */
+    action: { default_title: `${cfg.name} — open the cockpit` },
+    side_panel: { default_path: 'cockpit.html' },
+    permissions: ['sidePanel'],
   }, null, 2) + '\n');
   fs.writeFileSync(path.join(EXT, 'sw.js'),
     `// Debug Overlay service worker — the extension's network door.\n` +
@@ -200,7 +206,10 @@ function build(kind) {
     `  if (msg && msg.type === 'debug-overlay-open-options') {\n` +
     `    chrome.runtime.openOptionsPage();\n` +
     `  }\n` +
-    `});\n`);
+    `});\n` +
+    `// the toolbar button opens the cockpit (declared, so it needs no handler);\n` +
+    `// guarded because browsers without a side panel still run everything else\n` +
+    `chrome.sidePanel?.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});\n`);
   /* the self-updater — real template files in browser-extension-source/,
      base substituted here. SOURCE and OUTPUT deliberately do NOT share a
      name: two folders both called browser-extension read as a duplicate in
@@ -214,10 +223,33 @@ function build(kind) {
   fs.writeFileSync(path.join(EXT, 'options.js'),
     fs.readFileSync(path.join(ROOT, 'browser-extension-source', 'options.js'), 'utf8')
       .replace('__EXT_BASE__', extBase));
+  /* the cockpit: its page is copied, its program is BUNDLED — cockpit.js
+     imports the shared src/core/protocol.js, which is the whole reason the
+     two faces cannot drift: one vocabulary file, two importers. */
+  fs.copyFileSync(path.join(ROOT, 'browser-extension-source', 'cockpit.html'), path.join(EXT, 'cockpit.html'));
+  let cockpit;
+  try {
+    cockpit = esbuild.buildSync({
+      entryPoints: [path.join(ROOT, 'browser-extension-source', 'cockpit.js')],
+      bundle: true, format: 'iife', charset: 'utf8', legalComments: 'none',
+      write: false, target: 'es2020',
+    }).outputFiles[0].text;
+  } catch (e) {
+    console.error('✗ esbuild failed on the cockpit:\n' + (e.errors || [e.message]).map((x) =>
+      typeof x === 'string' ? x : `${x.text} (${x.location?.file}:${x.location?.line})`).join('\n'));
+    process.exit(1);
+  }
+  if (!cockpit.includes(VERSION_TOKEN)) {
+    console.error('✗ __VERSION__ not found in the cockpit bundle — it could not ' +
+                  'tell a stale page from a current one');
+    process.exit(1);
+  }
+  fs.writeFileSync(path.join(EXT, 'cockpit.js'), cockpit.replace(VERSION_TOKEN, version));
   try {
     cp.execSync(`node --check "${path.join(EXT, 'content.js')}"`, { stdio: 'pipe' });
     cp.execSync(`node --check "${path.join(EXT, 'sw.js')}"`, { stdio: 'pipe' });
     cp.execSync(`node --check "${path.join(EXT, 'options.js')}"`, { stdio: 'pipe' });
+    cp.execSync(`node --check "${path.join(EXT, 'cockpit.js')}"`, { stdio: 'pipe' });
     JSON.parse(fs.readFileSync(path.join(EXT, 'manifest.json'), 'utf8'));
   } catch (e) {
     console.error('✗ dist/browser-extension is broken:\n' + (e.stderr ? e.stderr.toString() : e.message));
@@ -283,7 +315,8 @@ function build(kind) {
      API. Exists because install.bat met a real machine where administrators
      disable the command prompt; a browser page they cannot disable. The
      JSON's '</' is escaped so no embedded file can close the script tag. */
-  const RUNTIME = ['manifest.json', 'content.js', 'sw.js', 'options.html', 'options.js'];
+  const RUNTIME = ['manifest.json', 'content.js', 'sw.js', 'options.html', 'options.js',
+                   'cockpit.html', 'cockpit.js'];
   const filesJson = JSON.stringify(Object.fromEntries(
     RUNTIME.map((f) => [f, fs.readFileSync(path.join(EXT, f), 'utf8')])))
     .replace(/<\//g, '<\\/');

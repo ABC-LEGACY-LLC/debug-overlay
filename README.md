@@ -79,6 +79,10 @@ extract to a permanent folder yourself, not Downloads, not a git checkout.)*
 own security law — no installer anywhere may add an extension silently.
 
 **Step 4.** Open any website and press **Alt+Shift+D** — the panel appears.
+The extension also has a **cockpit**: click the Debug Overlay toolbar button
+and the same panel opens in the browser's side panel — bigger, and it
+survives page refreshes (the in-page bar steps aside while it is open, and
+comes back when you close it).
 
 **Step 5 — one-time updater setup** (makes every future update one press):
 `chrome://extensions` → Debug Overlay → **Details** → **Extension options** →
@@ -276,13 +280,17 @@ src/                        the overlay — everything here becomes the bundle
     badge/ (index · options — the 🏷 face) · findings/ · report/ · settings/
   subjects/
     geometry.js             shared rectangle maths — measure and select consult it
-  core/                     config · state+Store · utils · registry
+  core/                     config · state+Store · utils · registry · protocol
+                            (protocol = the panel's contract on a wire — shared
+                            with the cockpit, the one vocabulary both speak)
   ui/                       styles · dom · controls · list · menu · panel
                             · placement · renderer
-  app/                      interactions · controller · updates
+  app/                      interactions · controller · updates · bridge
+                            (bridge = the cockpit adapter; inert as a userscript)
 
-browser-extension-source/   the extension gate's templates (options page);
-                            build.js substitutes and emits dist/browser-extension/
+browser-extension-source/   the extension gate's templates and its own faces
+                            (options page, cockpit side panel); build.js
+                            substitutes/bundles and emits dist/browser-extension/
 development/                the dev harness, its server, and the perf probe —
                             instruments that never ship
 dist/                       build output only — never edit (see table above)

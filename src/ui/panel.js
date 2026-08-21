@@ -153,6 +153,11 @@ import { List } from './list.js';
       onUpdateMenu: null,
       onClear: null, onListOpen: null, onRowActivate: null, onRowRemove: null,
       onSweep: null, onRowChange: null,
+      /* The panel repeats what it is told, to whoever asks — the same
+         announce-and-let-boot-decide shape as Render.onPinsPruned. This file
+         never learns who listens; today it is the cockpit bridge, mirroring
+         the bar's state to the extension's side panel. */
+      onState: null,
       setOn(v) {
         /* NO `inert` here, ever. It was added to take the overlay out of the
            tab order when powered off — but inert covers the WHOLE subtree, and
@@ -167,6 +172,18 @@ import { List } from './list.js';
         el.querySelector('[data-st]').textContent = v ? 'ON' : 'OFF';
         if (!v) { api.toggleList(false); api.closeFlyouts(); }
         if (v) { clearTimeout(tuckTimer); untuck(); } else scheduleTuck();
+        api.onState?.('on', v);
+      },
+      /**
+       * Another surface is presenting this panel's state (the extension's
+       * side panel, today), so the bar steps aside — the BAR, not the
+       * overlay: pins, marks and badges are the page's annotations and
+       * stay. Opaque to this file like everything else: it neither knows
+       * nor asks who docked it.
+       */
+      docked(v) {
+        el.classList.toggle('dbgov-docked', v);
+        if (v) { api.toggleList(false); api.closeFlyouts(); }
       },
       /**
        * Move the pin-count chip to sit right after one tool's button — the
@@ -186,6 +203,7 @@ import { List } from './list.js';
         const fam = b?.closest('.dbgov-fam');
         if (fam) fam.querySelector('.dbgov-fam-btn')
           .classList.toggle('dbgov-armed', !!fam.querySelector('.dbgov-tool.dbgov-armed'));
+        api.onState?.('tool', id, v);
       },
       /**
        * The 🏷 flyout, two levels: AXIS heads at rest, and only the pressed
@@ -202,6 +220,7 @@ import { List } from './list.js';
       setBadgeControls(groups) {
         badgeGroups = groups;
         renderBadgeFly();
+        api.onState?.('badgeControls', groups);
       },
       /**
        * A newer version exists. The mark RESTS (counts rest, never flash)
@@ -213,6 +232,7 @@ import { List } from './list.js';
         b.classList.add('dbgov-upd');
         b.title = `Power (Alt+Shift+D) · v${CONFIG.VERSION} — v${v} available, right-click to update`;
         b.setAttribute('aria-label', `Power — update to v${v} available`);
+        api.onState?.('update', v);
       },
       /* A flyout is an overlay, so Escape has to reach it — it did not, and
          the comment above the fam-btn handler claimed otherwise. Shaped like
@@ -256,13 +276,18 @@ import { List } from './list.js';
           : 'Audit the whole page';
         b.title = what;
         b.setAttribute('aria-label', what);
+        api.onState?.('swept', !!v, n);
       },
       setRemoveMode(v) {
         el.classList.toggle('dbgov-removing', v);
         const st = el.querySelector('[data-st]');
         st.textContent = v ? 'DEL' : (api.isOn() ? 'ON' : 'OFF');
+        api.onState?.('removeMode', v);
       },
-      setCount(n) { el.querySelector('[data-c]').textContent = String(n); },
+      setCount(n) {
+        el.querySelector('[data-c]').textContent = String(n);
+        api.onState?.('count', n);
+      },
 
       // The popover's own surface, forwarded so CONTROLLER and BOOT still have
       // one thing to talk to. What it renders is LIST's business, not this
@@ -279,6 +304,7 @@ import { List } from './list.js';
        * and the button then read "0" forever.
        */
       flash(msg, sel = '[data-copy]') {
+        api.onState?.('flash', msg, sel);
         const b = el.querySelector(sel);
         if (!b) return;
         const live = flashing.get(b);

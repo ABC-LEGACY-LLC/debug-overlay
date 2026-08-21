@@ -1,0 +1,122 @@
+<!doctype html>
+<!-- TEMPLATE — build.js copies this beside a bundled cockpit.js.
+     The cockpit is the extension gate's bigger face: the same panel state
+     the in-page bar renders, presented in the browser's side panel, where
+     a page refresh cannot touch it. MV3 extension pages forbid inline
+     scripts, so all behaviour lives in cockpit.js. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Debug Overlay</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #1b1b20; color: #e8e8ec; min-width: 280px;
+    font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  svg { width: 16px; height: 16px; display: inline-block; vertical-align: -3px; }
+
+  header { display: flex; align-items: center; gap: 8px; padding: 12px 14px;
+    border-bottom: 1px solid #2e2e34; position: sticky; top: 0; background: #1b1b20; }
+  header h1 { font-size: 14px; margin: 0; font-weight: 700; letter-spacing: .2px; }
+  header .ver { color: #8f8f96; font-size: 11px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #8f8f96; margin-left: auto; flex: none; }
+  .dot.ok { background: #b5e853; }
+  .dot.bad { background: #ffd54f; }
+  #status { color: #8f8f96; font-size: 11px; }
+
+  /* full-screen answers for the states where there is no page to mirror */
+  .screen { padding: 28px 18px; color: #b9b9c0; display: none; }
+  .screen b { color: #e8e8ec; }
+  .screen p { margin: 8px 0 0; color: #8f8f96; font-size: 12px; }
+  body[data-mode="waiting"] #scrWaiting, body[data-mode="stale"] #scrStale { display: block; }
+  body[data-mode="waiting"] main, body[data-mode="stale"] main { display: none; }
+
+  main { padding: 12px 14px 20px; }
+  section { margin: 0 0 16px; }
+  h2 { font-size: 10px; font-weight: 800; letter-spacing: 1px; color: #8f8f96;
+    text-transform: uppercase; margin: 0 0 8px; }
+
+  button { font: inherit; color: inherit; background: #26262c; border: 1px solid #33333a;
+    border-radius: 8px; cursor: pointer; padding: 7px 10px; text-align: left; }
+  button:hover { background: #2e2e35; }
+  button:focus-visible { outline: 2px solid #b5e853; outline-offset: 1px; }
+  button[aria-pressed="true"] { border-color: #b5e853; color: #b5e853; background: #262c1f; }
+  button[aria-disabled="true"] { opacity: .5; cursor: default; }
+
+  #power { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; }
+  #power .st { font-weight: 800; font-size: 11px; letter-spacing: .5px; color: #8f8f96; }
+  body[data-on="1"] #power { border-color: #b5e853; }
+  body[data-on="1"] #power svg { color: #b5e853; }
+  body[data-on="1"] #power .st { color: #b5e853; }
+
+  /* everything below power dims until the overlay is on — the bar's .whenOn,
+     said the side-panel way: visible but honest about being unavailable */
+  .whenOn { transition: opacity .15s; }
+  body:not([data-on="1"]) .whenOn { opacity: .45; pointer-events: none; }
+
+  #tools { display: grid; gap: 6px; }
+  #tools button { display: flex; align-items: center; gap: 9px; width: 100%; }
+  #tools .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #tools .fam { color: #8f8f96; font-size: 10px; flex: none; }
+
+  #actions { display: grid; gap: 6px; }
+  #actions button { display: flex; align-items: center; gap: 9px; }
+  #actions .n { margin-left: auto; color: #8f8f96; font-variant-numeric: tabular-nums; }
+  [data-sweep].swept { border-color: #ffd54f; }
+  [data-sweep].swept .n { color: #ffd54f; font-weight: 700; }
+
+  #badge .grp { margin: 0 0 8px; }
+  #badge .grp > .lbl { color: #8f8f96; font-size: 11px; margin: 0 0 4px; }
+  #badge .members { display: flex; flex-wrap: wrap; gap: 5px; }
+  #badge .members button { padding: 4px 9px; border-radius: 999px; font-size: 12px; }
+
+  #upd { display: none; margin: 0 0 14px; padding: 8px 10px; border: 1px solid #5a4a1a;
+    background: #2a2417; border-radius: 8px; color: #ffd54f; font-size: 12px; }
+  #upd.show { display: block; }
+</style>
+</head>
+<body data-mode="waiting">
+  <header>
+    <h1>Debug Overlay</h1>
+    <span class="ver" id="ver"></span>
+    <span id="status">connecting…</span>
+    <span class="dot" id="dot" aria-hidden="true"></span>
+  </header>
+
+  <div class="screen" id="scrWaiting">
+    <b>Waiting for a page…</b>
+    <p>The overlay runs on normal web pages. If one is open here, reload it —
+       browser pages (settings, the web store, blank tabs) never carry it.</p>
+  </div>
+  <div class="screen" id="scrStale">
+    <b>This page is running an older overlay.</b>
+    <p>The extension updated while the page stayed open. Reload the page and
+       the cockpit will reconnect to the new version.</p>
+  </div>
+
+  <main>
+    <div id="upd"></div>
+    <section>
+      <button id="power" aria-pressed="false"></button>
+    </section>
+    <section class="whenOn">
+      <h2>Tools</h2>
+      <div id="tools"></div>
+    </section>
+    <section class="whenOn">
+      <h2>Badge</h2>
+      <div id="badge"></div>
+    </section>
+    <section class="whenOn">
+      <h2>Page</h2>
+      <div id="actions">
+        <button data-sweep><span class="ic"></span><span>Audit the whole page</span><span class="n"></span></button>
+        <button data-copy><span class="ic"></span><span>Copy report</span></button>
+        <button data-clear><span class="ic"></span><span>Clear pins</span><span class="n" data-c></span></button>
+      </div>
+    </section>
+  </main>
+
+  <script src="cockpit.js"></script>
+</body>
+</html>

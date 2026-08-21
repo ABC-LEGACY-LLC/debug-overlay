@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.98
+// @version      3.8.99
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -352,7 +352,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.98",
+    VERSION: "3.8.99",
     // Substituted like VERSION: where the update checker asks, and what the
     // userscript's one-click update opens. One source (userscript.json), no
     // second copy to drift.
@@ -2217,8 +2217,8 @@ HOW TO USE
     const sel = pins.filter((p) => p.kind === K.SHIFT || p.kind === K.CHAIN);
     const runs = [];
     for (const p of sel) {
-      const last = runs[runs.length - 1];
-      if (last && (p.kind === K.CHAIN || last.length === 1)) last.push(p);
+      const last2 = runs[runs.length - 1];
+      if (last2 && (p.kind === K.CHAIN || last2.length === 1)) last2.push(p);
       else runs.push([p]);
     }
     const groups2 = [];
@@ -2507,6 +2507,12 @@ HOW TO USE
     #__dbgov-bar.dbgov-on .dbgov-st { color: #b5e853; }
     #__dbgov-bar.dbgov-removing .dbgov-pwr { background: #ff5c5c; color: #fff; }
     #__dbgov-bar.dbgov-removing .dbgov-st { color: #ff5c5c; }
+
+    /* docked: another surface (the extension's side panel) is presenting the
+       panel's state, so the BAR steps aside — pins, marks and badges are the
+       page's annotations and stay. display, not visibility: the bar must
+       leave the tab order too, or Tab lands on invisible buttons. */
+    #__dbgov-bar.dbgov-docked { display: none; }
 
     /* things that only make sense once powered on */
     #__dbgov-bar .dbgov-whenOn { display: none; }
@@ -3031,6 +3037,11 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         onRowRemove: null,
         onSweep: null,
         onRowChange: null,
+        /* The panel repeats what it is told, to whoever asks — the same
+           announce-and-let-boot-decide shape as Render.onPinsPruned. This file
+           never learns who listens; today it is the cockpit bridge, mirroring
+           the bar's state to the extension's side panel. */
+        onState: null,
         setOn(v) {
           el2.classList.toggle("dbgov-on", v);
           el2.querySelector("[data-st]").textContent = v ? "ON" : "OFF";
@@ -3042,6 +3053,21 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
             clearTimeout(tuckTimer);
             untuck();
           } else scheduleTuck();
+          api.onState?.("on", v);
+        },
+        /**
+         * Another surface is presenting this panel's state (the extension's
+         * side panel, today), so the bar steps aside — the BAR, not the
+         * overlay: pins, marks and badges are the page's annotations and
+         * stay. Opaque to this file like everything else: it neither knows
+         * nor asks who docked it.
+         */
+        docked(v) {
+          el2.classList.toggle("dbgov-docked", v);
+          if (v) {
+            api.toggleList(false);
+            api.closeFlyouts();
+          }
         },
         /**
          * Move the pin-count chip to sit right after one tool's button — the
@@ -3059,6 +3085,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           b?.setAttribute("aria-pressed", String(!!v));
           const fam = b?.closest(".dbgov-fam");
           if (fam) fam.querySelector(".dbgov-fam-btn").classList.toggle("dbgov-armed", !!fam.querySelector(".dbgov-tool.dbgov-armed"));
+          api.onState?.("tool", id, v);
         },
         /**
          * The 🏷 flyout, two levels: AXIS heads at rest, and only the pressed
@@ -3075,6 +3102,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         setBadgeControls(groups2) {
           badgeGroups = groups2;
           renderBadgeFly();
+          api.onState?.("badgeControls", groups2);
         },
         /**
          * A newer version exists. The mark RESTS (counts rest, never flash)
@@ -3086,6 +3114,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           b.classList.add("dbgov-upd");
           b.title = `Power (Alt+Shift+D) · v${CONFIG.VERSION} — v${v} available, right-click to update`;
           b.setAttribute("aria-label", `Power — update to v${v} available`);
+          api.onState?.("update", v);
         },
         /* A flyout is an overlay, so Escape has to reach it — it did not, and
            the comment above the fam-btn handler claimed otherwise. Shaped like
@@ -3130,14 +3159,17 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           const what = v ? `Audit: ${n} distinct problem${n === 1 ? "" : "s"} — click to re-run` : "Audit the whole page";
           b.title = what;
           b.setAttribute("aria-label", what);
+          api.onState?.("swept", !!v, n);
         },
         setRemoveMode(v) {
           el2.classList.toggle("dbgov-removing", v);
           const st = el2.querySelector("[data-st]");
           st.textContent = v ? "DEL" : api.isOn() ? "ON" : "OFF";
+          api.onState?.("removeMode", v);
         },
         setCount(n) {
           el2.querySelector("[data-c]").textContent = String(n);
+          api.onState?.("count", n);
         },
         // The popover's own surface, forwarded so CONTROLLER and BOOT still have
         // one thing to talk to. What it renders is LIST's business, not this
@@ -3153,6 +3185,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
          * and the button then read "0" forever.
          */
         flash(msg, sel = "[data-copy]") {
+          api.onState?.("flash", msg, sel);
           const b = el2.querySelector(sel);
           if (!b) return;
           const live = flashing.get(b);
@@ -4030,6 +4063,203 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     }
   };
 
+  // src/core/protocol.js
+  var PROTOCOL_VERSION = 1;
+  var STATE = {
+    on: null,
+    // (bool)
+    tools: null,
+    // (roster: [{id, icon, title, fam, roles}], coreVersion) — on hello
+    tool: null,
+    // (id, armed)
+    count: null,
+    // (n)
+    swept: null,
+    // (showing, n)
+    removeMode: null,
+    // (bool)
+    update: null,
+    // (version)
+    flash: null,
+    // (msg, sel)
+    badgeControls: (groups2) => [groups2.map(packBadgeGroup)],
+    rows: (view, rows, empty) => [view, rows.map(packRow), empty],
+    bye: null
+    // the page is unloading — expect a reconnect
+  };
+  var CMD = {
+    toggle: null,
+    // power
+    tool: null,
+    // (id) arm/disarm
+    sweep: null,
+    copy: null,
+    clear: null,
+    badgeControl: null,
+    // (key)
+    updateCheck: null,
+    // (force)
+    updateApply: null,
+    openView: null,
+    // (view) — compute and push that view's rows
+    rowActivate: null,
+    // (view, i)
+    rowRemove: null,
+    // (view, i)
+    rowChange: null,
+    // (view, i, raw)
+    hello: null
+    // a cockpit connected — push everything
+  };
+  function packRow(row) {
+    const out = {};
+    for (const k of [
+      "title",
+      "heading",
+      "detail",
+      "tag",
+      "label",
+      "accent",
+      "inert",
+      "removable",
+      "rmTitle",
+      "activatable",
+      "control"
+    ]) {
+      if (row[k] !== void 0) out[k] = row[k];
+    }
+    if (row.pins) out.pinCount = row.pins.length;
+    return out;
+  }
+  function packBadgeGroup(g) {
+    return {
+      key: g.key,
+      glyph: g.glyph,
+      title: g.title,
+      rows: (g.rows || []).map((r) => ({
+        key: r.key,
+        glyph: r.glyph,
+        title: r.title,
+        armed: !!r.armed,
+        fixed: !!r.fixed
+      }))
+    };
+  }
+  function envelope(kind, table, name, args) {
+    if (!(name in table)) throw new Error(`unknown ${kind}: ${name}`);
+    const pack = table[name];
+    return {
+      dbgov: PROTOCOL_VERSION,
+      kind,
+      name,
+      args: pack ? pack(...args) : args
+    };
+  }
+  var Protocol = {
+    /** Build a state-push message. */
+    state: (name, ...args) => envelope("state", STATE, name, args),
+    /** Build a command message. */
+    cmd: (name, ...args) => envelope("cmd", CMD, name, args),
+    /**
+     * Read a message from the wire. Returns { kind, name, args } for a
+     * valid message of OUR protocol, and null for everything else —
+     * the extension's worker traffic (debug-overlay-fetch and friends)
+     * and any other extension's noise pass through untouched.
+     */
+    read(msg) {
+      if (!msg || msg.dbgov !== PROTOCOL_VERSION) return null;
+      const table = msg.kind === "state" ? STATE : msg.kind === "cmd" ? CMD : null;
+      if (!table || !(msg.name in table) || !Array.isArray(msg.args)) return null;
+      return { kind: msg.kind, name: msg.name, args: msg.args };
+    },
+    /** A different-version message of ours — worth telling the user
+     *  "refresh this page" instead of silently ignoring. */
+    stale: (msg) => !!msg && typeof msg.dbgov === "number" && msg.dbgov !== PROTOCOL_VERSION
+  };
+
+  // src/app/bridge.js
+  var port = null;
+  var last = /* @__PURE__ */ new Map();
+  var toolLast = /* @__PURE__ */ new Map();
+  function send(name, ...args) {
+    if (!port) return;
+    try {
+      port.postMessage(Protocol.state(name, ...args));
+    } catch {
+      port = null;
+      Panel.docked(false);
+    }
+  }
+  function roster() {
+    return TOOLS.map((t) => ({
+      id: t.id,
+      icon: t.icon,
+      title: t.title,
+      fam: t.family || null,
+      roles: Tools.rolesOf(t)
+    }));
+  }
+  function hello() {
+    send("tools", roster(), CONFIG.VERSION);
+    for (const [id, v] of toolLast) send("tool", id, v);
+    for (const [name, args] of last) send(name, ...args);
+  }
+  function command({ name, args }) {
+    switch (name) {
+      case "hello":
+        hello();
+        break;
+      case "toggle":
+        Panel.onToggle?.();
+        break;
+      case "tool":
+        Panel.onTool?.(args[0]);
+        break;
+      case "sweep":
+        Panel.onSweep?.();
+        break;
+      case "copy":
+        Panel.onCopy?.();
+        break;
+      case "clear":
+        Panel.onClear?.();
+        break;
+      case "badgeControl":
+        Panel.onBadgeControl?.(args[0]);
+        break;
+    }
+  }
+  var Bridge = {
+    /** Wired by boot as Panel.onState — cache everything, forward when live. */
+    state(name, ...args) {
+      if (name === "tool") toolLast.set(args[0], args[1]);
+      else if (name !== "flash") last.set(name, args);
+      send(name, ...args);
+    },
+    init() {
+      const runtime = typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onConnect ? chrome.runtime : null;
+      if (!runtime) return;
+      runtime.onConnect.addListener((p) => {
+        if (p.name !== "debug-overlay-cockpit") return;
+        try {
+          port?.disconnect();
+        } catch {
+        }
+        port = p;
+        Panel.docked(true);
+        p.onMessage.addListener((msg) => {
+          const m = Protocol.read(msg);
+          if (m && m.kind === "cmd") command(m);
+        });
+        p.onDisconnect.addListener(() => {
+          if (port !== p) return;
+          port = null;
+          Panel.docked(false);
+        });
+      });
+    }
+  };
+
   // src/app/updates.js
   function newer(a, b) {
     const A = String(a).split(".").map(Number);
@@ -4821,6 +5051,8 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
   Panel.onRowRemove = Controller.removeRow;
   Panel.onRowChange = Controller.changeRow;
   Render.onPinsPruned = Controller.pinsPruned;
+  Panel.onState = Bridge.state;
+  Bridge.init();
   Settings.load();
   Controller.refreshBadge();
   Controller.loadTools();

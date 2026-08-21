@@ -12,3 +12,6 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
     chrome.runtime.openOptionsPage();
   }
 });
+// the toolbar button opens the cockpit (declared, so it needs no handler);
+// guarded because browsers without a side panel still run everything else
+chrome.sidePanel?.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});

@@ -14,6 +14,7 @@ import { initPanel, Panel } from './ui/panel.js';
 import { Render } from './ui/renderer.js';
 import { Report } from './services/report/index.js';
 import { Interactions } from './app/interactions.js';
+import { Bridge } from './app/bridge.js';
 import { Updates } from './app/updates.js';
 import { Controller } from './app/controller.js';
 import { Settings } from './services/settings/index.js';
@@ -41,6 +42,16 @@ Panel.onRowChange = Controller.changeRow;
 // the page can remove a pinned element at any time; the list must not go on
 // showing rows that no longer index into anything
 Render.onPinsPruned = Controller.pinsPruned;
+
+/* The cockpit bridge listens to what the panel announces and replays it to
+   the extension's side panel; commands come back on the callback slots wired
+   above, so both faces are one code path. Wired BEFORE Settings.load and
+   loadTools so its cache catches every setter call boot makes — a cockpit
+   that connects later gets the truth replayed, not a blank bar. Under the
+   userscript gate Bridge.init finds no chrome.runtime.onConnect and goes
+   inert; onState stays cheap either way. */
+Panel.onState = Bridge.state;
+Bridge.init();
 
 // before loadTools: a tool's options decide what its rules do, and arming
 // one immediately schedules a render that asks

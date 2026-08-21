@@ -6,7 +6,8 @@
 // tricks stay refused: the browser runs what is ON DISK after the reload.
 'use strict';
 const BASE = 'https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/browser-extension';
-const FILES = ['manifest.json', 'content.js', 'sw.js', 'options.html', 'options.js'];
+const FILES = ['manifest.json', 'content.js', 'sw.js', 'options.html', 'options.js',
+               'cockpit.html', 'cockpit.js'];
 const log = (s) => { document.getElementById('log').textContent += s + '\n'; };
 
 // segment-wise numeric compare — mirrors app/updates.js `newer()`; this file
