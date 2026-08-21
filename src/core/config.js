@@ -56,6 +56,10 @@
     // the same finger do different things on different days, and two clicks
     // looked identical until the third betrayed which mode was on.
     PIN_KIND: { PLAIN: 'note', SHIFT: 'pair', CHAIN: 'link' },
+    // The perf monitor's thresholds. FREEZE_MS is what counts as "stuck" —
+    // 250ms is where humans stop reading an interaction as instant; a user
+    // tunes it per project through the tool's own options().
+    PERF: { FREEZE_MS: 250, LOG_MAX: 30, FPS_WINDOW: 1000 },
     // The badge service's VIEW axis, in order. 'compact' leads because it is
     // the shipped default — a full badge is a lot of ink over a page you came
     // to read one number off. A third view is one new entry here plus its

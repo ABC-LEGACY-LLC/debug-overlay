@@ -149,6 +149,10 @@ import { CONFIG } from '../core/config.js';
        CORE, not one tool's: every rule may mark its own findings, and this was
        contrast's private CSS until dupid needed to mark its own too. A class
        more than one tool emits cannot live in either one's sheet. */
+    /* the badge's warn ink — CORE, because grid's lens and perf's pulse both
+       emit it, and a class more than one tool emits cannot live in either
+       one's sheet */
+    .dbgov-badge .dbgov-warn { color: #ffd54f; }
     .dbgov-flag { outline-offset: 1px; }
     .dbgov-flag.dbgov-error  { outline: 2px dashed #ff6b6b; }
     .dbgov-flag.dbgov-warn   { outline: 2px dashed #ffd54f; }

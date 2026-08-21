@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.83
+// @version      3.8.84
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -142,6 +142,17 @@ HOW TO USE
                  slide out sideways:
        ◐ contrast  WCAG text contrast ratio, against AA or AAA (⚙)
     ⌗ dupid      the same id used more than once — a page-wide question
+    ⚡ perf       freezes and jank, WHILE ARMED — the first tool with a
+                 runtime. Arm it and a monitor starts: every badge gains the
+                 page's pulse (⚡ 58fps · 2× worst 1.2s), the pin list logs
+                 each main-thread freeze, and the report grows a
+                 ## performance section that names its measuring tier —
+                 frame attribution (Chrome names the script that ate the
+                 frame), long tasks, or the everywhere-fallback heartbeat.
+                 OFF by default for cost, not caution: observers and a
+                 heartbeat run for as long as it is armed, and a meter you
+                 did not ask for is overhead pretending to be help.
+                 Freeze threshold under ⚙ (250ms default).
 
   Every tool fills one or more of four ROLES, derived from the hooks it
   implements and shown in its tooltip: Select (what you are looking at),
@@ -316,7 +327,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.83",
+    VERSION: "3.8.84",
     Z: 2147483647,
     // The step the "grid" tool checks against. 2, not 4, because that is what
     // the scale in front of us actually is: Tailwind's default spacing has
@@ -365,6 +376,10 @@ HOW TO USE
     // the same finger do different things on different days, and two clicks
     // looked identical until the third betrayed which mode was on.
     PIN_KIND: { PLAIN: "note", SHIFT: "pair", CHAIN: "link" },
+    // The perf monitor's thresholds. FREEZE_MS is what counts as "stuck" —
+    // 250ms is where humans stop reading an interaction as instant; a user
+    // tunes it per project through the tool's own options().
+    PERF: { FREEZE_MS: 250, LOG_MAX: 30, FPS_WINDOW: 1e3 },
     // The badge service's VIEW axis, in order. 'compact' leads because it is
     // the shipped default — a full badge is a lot of ink over a page you came
     // to read one number off. A third view is one new entry here plus its
@@ -582,7 +597,10 @@ HOW TO USE
       key: "select",
       label: "Select",
       note: "how what you click becomes what you are looking at",
-      has: (t) => !!(t.groups || t.listRows || t.pendingIndex || t.keeps)
+      /* NOT listRows: a row in the panel's list is a service contribution —
+         perf's freeze log proved it, when the old predicate filed a monitor
+         under Select and sat it at the top of the bar. */
+      has: (t) => !!(t.groups || t.pendingIndex || t.keeps)
     },
     {
       key: "inspect",
@@ -1673,10 +1691,6 @@ HOW TO USE
 
   // src/tools/grid/index.js
   defineTool({
-    // visuals owned by this tool — appended to the stylesheet at boot
-    css: `
-    .dbgov-badge .dbgov-warn{ color: #ffd54f; }
-    `,
     id: "grid",
     icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M3 9h18" /><path d="M3 15h18" /><path d="M9 3v18" /><path d="M15 3v18" /></svg>',
     // lucide 'grid-3x3' (ISC)
@@ -1700,6 +1714,202 @@ HOW TO USE
     // badge face (was: 'grid' there adopts what anyone saved). The step
     // and ceiling were never grid's either — they are Scale's, reached
     // through uses: above.
+  });
+
+  // src/tools/perf/service.js
+  var Monitor = {
+    running: false,
+    tier: null,
+    // 'frame-attribution' | 'long-tasks' | 'heartbeat'
+    log: [],
+    // ring buffer, oldest first: { t, ms, src, via }
+    fps: null,
+    // rolling frames-per-second, null until measured
+    startedAt: 0,
+    _owner: null,
+    // the tool, for Tools.setting — set by watch()
+    _obs: null,
+    _raf: 0,
+    _last: 0,
+    _frames: 0,
+    _fpsT: 0,
+    _onVis: null,
+    threshold() {
+      const v = Monitor._owner && Tools.setting(Monitor._owner, "freeze");
+      return Number(v) || CONFIG.PERF.FREEZE_MS;
+    },
+    push(ev) {
+      Monitor.log.push(ev);
+      if (Monitor.log.length > CONFIG.PERF.LOG_MAX) Monitor.log.shift();
+    },
+    worst() {
+      return Monitor.log.reduce((m, e) => Math.max(m, e.ms), 0);
+    },
+    start(owner) {
+      if (Monitor.running) return;
+      Monitor.running = true;
+      Monitor._owner = owner;
+      Monitor.log = [];
+      Monitor.fps = null;
+      Monitor.startedAt = Date.now();
+      const types = typeof PerformanceObserver !== "undefined" && PerformanceObserver.supportedEntryTypes || [];
+      if (types.includes("long-animation-frame")) {
+        Monitor.tier = "frame-attribution";
+        Monitor._obs = new PerformanceObserver((list) => {
+          for (const e of list.getEntries()) {
+            if (e.duration < Monitor.threshold()) continue;
+            const s = e.scripts && e.scripts[0];
+            const src = s && (s.sourceURL || s.invoker || s.name) || null;
+            Monitor.push({
+              t: Date.now(),
+              ms: Math.round(e.duration),
+              src: src && String(src).split("/").pop().split("?")[0],
+              via: "frame"
+            });
+          }
+        });
+        Monitor._obs.observe({ type: "long-animation-frame" });
+      } else if (types.includes("longtask")) {
+        Monitor.tier = "long-tasks";
+        Monitor._obs = new PerformanceObserver((list) => {
+          for (const e of list.getEntries()) {
+            if (e.duration < Monitor.threshold()) continue;
+            Monitor.push({
+              t: Date.now(),
+              ms: Math.round(e.duration),
+              src: null,
+              via: "task"
+            });
+          }
+        });
+        Monitor._obs.observe({ type: "longtask" });
+      } else {
+        Monitor.tier = "heartbeat";
+      }
+      Monitor._onVis = () => {
+        Monitor._last = 0;
+        Monitor._frames = 0;
+        Monitor._fpsT = 0;
+      };
+      document.addEventListener("visibilitychange", Monitor._onVis);
+      const tick = (t) => {
+        if (!Monitor.running) return;
+        if (Monitor._last) {
+          const gap = t - Monitor._last;
+          Monitor._frames++;
+          if (t - Monitor._fpsT >= CONFIG.PERF.FPS_WINDOW) {
+            Monitor.fps = Math.round(Monitor._frames * 1e3 / (t - Monitor._fpsT));
+            Monitor._frames = 0;
+            Monitor._fpsT = t;
+          }
+          if (Monitor.tier === "heartbeat" && gap >= Monitor.threshold() && document.visibilityState === "visible") {
+            Monitor.push({ t: Date.now(), ms: Math.round(gap), src: null, via: "heartbeat" });
+          }
+        } else {
+          Monitor._fpsT = t;
+        }
+        Monitor._last = t;
+        Monitor._raf = requestAnimationFrame(tick);
+      };
+      Monitor._raf = requestAnimationFrame(tick);
+    },
+    stop() {
+      if (!Monitor.running) return;
+      Monitor.running = false;
+      Monitor._obs?.disconnect();
+      Monitor._obs = null;
+      cancelAnimationFrame(Monitor._raf);
+      document.removeEventListener("visibilitychange", Monitor._onVis);
+      Monitor._last = 0;
+    }
+  };
+  function fmt(ms) {
+    return ms < 1e3 ? `${ms}ms` : `${(ms / 1e3).toFixed(1)}s`;
+  }
+  function watch() {
+    Monitor.start(this);
+  }
+  function unwatch() {
+    Monitor.stop();
+  }
+
+  // src/tools/perf/badge.js
+  function badge5() {
+    if (!Monitor.running) return null;
+    const fps = Monitor.fps == null ? "–" : Monitor.fps;
+    const n = Monitor.log.length;
+    return `<span class="dbgov-sp">⚡ ${fps}fps</span>` + (n ? ` <span class="dbgov-warn">${n}× worst ${fmt(Monitor.worst())}</span>` : "");
+  }
+  function compact5() {
+    if (!Monitor.running || !Monitor.log.length) return null;
+    return `<span class="dbgov-warn">⚡${fmt(Monitor.worst())}</span>`;
+  }
+  function legend5() {
+    return [
+      { mark: "⚡ 58fps", means: "the PAGE, not this element: frames per second while monitoring" },
+      { mark: "⚡1.2s", means: "amber: the longest main-thread freeze since arming" }
+    ];
+  }
+
+  // src/tools/perf/rows.js
+  function listRows() {
+    const now = Date.now();
+    const ago = (t) => {
+      const s = Math.round((now - t) / 1e3);
+      return s < 60 ? `${s}s ago` : `${Math.round(s / 60)}m ago`;
+    };
+    return Monitor.log.slice().reverse().map((e) => ({
+      tag: "⚡",
+      label: `main thread blocked ${fmt(e.ms)}`,
+      detail: `${ago(e.t)}${e.src ? " · " + e.src : ""}`
+    }));
+  }
+  function reportTail2() {
+    if (!Monitor.running && !Monitor.log.length) return [];
+    const secs = Math.round((Date.now() - Monitor.startedAt) / 1e3);
+    const L = [`## performance — monitored ${secs}s · tier: ${Monitor.tier}`];
+    L.push(Monitor.fps == null ? "fps: (no full window yet)" : `fps: ${Monitor.fps}`);
+    if (!Monitor.log.length) {
+      L.push(`main thread: no blocks over the threshold`);
+    } else {
+      const srcs = [...new Set(Monitor.log.map((e) => e.src).filter(Boolean))];
+      L.push(`main thread: ${Monitor.log.length} block${Monitor.log.length === 1 ? "" : "s"}, worst ${fmt(Monitor.worst())}` + (srcs.length ? ` — ${srcs.join(", ")}` : ""));
+      if (Monitor.tier !== "frame-attribution") {
+        L.push("(no script attribution on this browser — Chrome reports which script ate the frame)");
+      }
+    }
+    return L;
+  }
+
+  // src/tools/perf/index.js
+  defineTool({
+    id: "perf",
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" /></svg>',
+    // lucide 'activity' (ISC)
+    title: "Perf — freezes and jank while armed; the badge shows the page's pulse",
+    startsOn: false,
+    watch,
+    unwatch,
+    badge: badge5,
+    compact: compact5,
+    legend: legend5,
+    listRows,
+    reportTail: reportTail2,
+    options() {
+      return [
+        {
+          key: "freeze",
+          label: "Freeze threshold",
+          def: CONFIG.PERF.FREEZE_MS,
+          type: "number",
+          min: 100,
+          max: 5e3,
+          step: 50,
+          suffix: "ms",
+          affects: "detect"
+        }
+      ];
+    }
   });
 
   // src/tools/pin/keep.js
@@ -1751,7 +1961,7 @@ HOW TO USE
   }
 
   // src/tools/select/rows.js
-  function listRows() {
+  function listRows2() {
     const { groups: groups2, pending } = this._form();
     const rows = groups2.map(([A, B]) => {
       const ra = A.el.getBoundingClientRect(), rb = B.el.getBoundingClientRect();
@@ -1773,7 +1983,7 @@ HOW TO USE
     });
     return rows;
   }
-  function reportTail2() {
+  function reportTail3() {
     const { pending } = this._form();
     return pending ? [`[#${pending.id}] waiting for its pair`] : [];
   }
@@ -1792,8 +2002,8 @@ HOW TO USE
     groups,
     pendingIndex,
     gestures,
-    listRows,
-    reportTail: reportTail2
+    listRows: listRows2,
+    reportTail: reportTail3
   });
 
   // src/ui/styles.js
@@ -1940,6 +2150,10 @@ HOW TO USE
        CORE, not one tool's: every rule may mark its own findings, and this was
        contrast's private CSS until dupid needed to mark its own too. A class
        more than one tool emits cannot live in either one's sheet. */
+    /* the badge's warn ink — CORE, because grid's lens and perf's pulse both
+       emit it, and a class more than one tool emits cannot live in either
+       one's sheet */
+    .dbgov-badge .dbgov-warn { color: #ffd54f; }
     .dbgov-flag { outline-offset: 1px; }
     .dbgov-flag.dbgov-error  { outline: 2px dashed #ff6b6b; }
     .dbgov-flag.dbgov-warn   { outline: 2px dashed #ffd54f; }
@@ -2910,11 +3124,11 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       issues: !!Tools.setting(BadgeFace, "issues"),
       suggest: !!Tools.setting(BadgeFace, "suggest")
     }),
-    build(info, compact5) {
+    build(info, compact6) {
       info.facets = Badges.facets();
       const parts = [];
       for (const t of Tools.active()) {
-        const fn = compact5 ? t.compact || null : t.badge || null;
+        const fn = compact6 ? t.compact || null : t.badge || null;
         if (!fn) continue;
         const html = fn.call(t, info);
         if (html) parts.push(html);
@@ -3599,10 +3813,10 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         out.push({ heading: "Keys", detail: "the parts of this that are not buttons" });
         out.push(...keys);
       }
-      const legend5 = only ? [] : Settings.legendRows();
-      if (legend5.length) {
+      const legend6 = only ? [] : Settings.legendRows();
+      if (legend6.length) {
         out.push({ heading: "Legend", detail: "what the marks and short names mean" });
-        out.push(...legend5);
+        out.push(...legend6);
       }
       return out;
     },
@@ -3742,6 +3956,28 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
 
   // src/app/controller.js
   var Controller = {
+    /**
+     * The RUNTIME lifecycle — the first hook pair with a tense. Every hook
+     * before this was called at a moment (a click, a frame, a sweep); a
+     * MONITOR is on duty for a span of time, so something has to say when
+     * the span starts and ends. watch() when a tool becomes active (armed
+     * AND powered), unwatch() when it stops being either — asked by hook,
+     * no tool named, so the next monitor ships without touching this file.
+     */
+    _running: /* @__PURE__ */ new Set(),
+    syncRuntimes() {
+      for (const t of Tools.withHook("watch", false)) {
+        const should = State.enabled && State.tools.has(t.id);
+        const is = Controller._running.has(t);
+        if (should && !is) {
+          Controller._running.add(t);
+          t.watch.call(t);
+        } else if (!should && is) {
+          Controller._running.delete(t);
+          t.unwatch?.call(t);
+        }
+      }
+    },
     setPower(v) {
       State.enabled = v;
       if (!v) Menu.close();
@@ -3755,6 +3991,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       if (!v) State.sweep = null;
       Panel.setSwept(!!State.sweep, 0);
       Panel.setOn(v);
+      Controller.syncRuntimes();
       Render.schedule();
     },
     togglePower() {
@@ -3886,6 +4123,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       State.tools.has(id) ? State.tools.delete(id) : State.tools.add(id);
       Panel.setTool(id, State.tools.has(id));
       Store.set(CONFIG.TOOLS_KEY, JSON.stringify([...State.tools]));
+      Controller.syncRuntimes();
       Render.schedule();
       Controller.refreshList();
     },
@@ -3916,6 +4154,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       State.tools = new Set(ids.filter((id) => Tools.byId(id)));
       TOOLS.forEach((t) => Panel.setTool(t.id, State.tools.has(t.id)));
       Panel.attachCount(Tools.withHook("keeps", false)[0]?.id ?? null);
+      Controller.syncRuntimes();
     },
     /**
      * Every path that adds or removes a pin ends here.
@@ -4003,7 +4242,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       const claimed = /* @__PURE__ */ new Set();
       for (const t of Tools.active()) {
         for (const row of t.listRows?.call(t) || []) {
-          row.pins.forEach((p) => claimed.add(p));
+          row.pins?.forEach((p) => claimed.add(p));
           rows.push(row);
         }
       }
@@ -4018,9 +4257,9 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           pins: [p]
         });
       }
-      const first = (row) => Math.min(...row.pins.map((p) => p.id));
+      const first = (row) => row.pins?.length ? Math.min(...row.pins.map((p) => p.id)) : Infinity;
       rows.forEach((r) => {
-        r.removable = true;
+        if (r.pins?.length) r.removable = true;
       });
       return rows.sort((a, b) => first(a) - first(b));
     },
@@ -4033,7 +4272,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       const row = Controller.rows(Panel.view())[i];
       if (!row) return;
       let pins = row.pins;
-      if (!pins) {
+      if (!pins || !pins.length) {
         if (!row.el || !document.contains(row.el)) return;
         const had = State.pins.find((p) => p.el === row.el);
         if (!had) Controller.togglePin(row.el, CONFIG.PIN_KIND.PLAIN);

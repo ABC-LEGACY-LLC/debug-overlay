@@ -140,14 +140,14 @@ ok('stylesheet injected', sheets.length > 0 && sheets[0].textContent.length > 0)
 // One sheet per tool is the containment: a parser that gives up takes the
 // rest of ITS sheet with it and nothing else.
 ok('each tool ships its own sheet',
-  ['measure', 'grid', 'contrast'].every((id) => cssOf(id).length > 0),
+  ['measure', 'contrast', 'dupid'].every((id) => cssOf(id).length > 0),
   sheets.map((s) => s.dataset.tool || 'core').join(', '));
 ok('tool CSS reached its sheet', cssOf('measure').includes('.dbgov-line'),
   'measure tool css missing');
-// the lens emits <span class="dbgov-warn"> itself, so its markup and the rule that
-// colours it have to ship from the same file
-ok('lens CSS reached its sheet', cssOf('grid').includes('.dbgov-badge .dbgov-warn'),
-  'grid lens css missing');
+// grid's lens and perf's pulse both emit <span class="dbgov-warn">, so the
+// rule that colours it is CORE — a class two tools emit lives in neither
+ok('the shared warn ink is core\'s', cssOf('core').includes('.dbgov-badge .dbgov-warn'),
+  'the warn rule left the core sheet');
 
 console.log('\nHOST CSS CANNOT REACH IN');
 /**
@@ -1089,7 +1089,7 @@ console.log('\nCATEGORIES');
 
   ok('settings from different owners share a category',
     under('Detect').slice().sort().join(', ')
-      === 'Grid step, Ignore above, Judge width & height, WCAG level',
+      === 'Freeze threshold, Grid step, Ignore above, Judge width & height, WCAG level',
     under('Detect').join(', '));
 
   // ---- roles, derived from hooks, plural only where that is true ----------
@@ -2036,19 +2036,16 @@ console.log('\nWHAT A LIVE UX AUDIT FOUND');
     (pinRow?.title || '').includes('\n'), JSON.stringify(pinRow?.title));
   // Enter activates it — the click path, reached without a mouse
   // Enter on the row's BUTTON does what clicking it does — proven by the
-  // flash it schedules, not by an assertion that is true of any DOM.
-  // jsdom implements no scrollIntoView, so reveal would throw before it got
-  // there; the overlay only ever calls it on a page element.
-  el2.scrollIntoView = () => {};
+  // scroll it performs, SYNCHRONOUSLY, so no other test's timing can eat the
+  // evidence (a 900ms flash did not survive the perf test's real freeze).
+  // jsdom implements no scrollIntoView; the spy is also the stub.
+  let scrolled = 0;
+  el2.scrollIntoView = () => { scrolled++; };
   pinRow.querySelector('.dbgov-go').dispatchEvent(
     new w2.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
   pinRow.querySelector('.dbgov-go').dispatchEvent(new w2.MouseEvent('click', { bubbles: true }));
-  pendingChecks.push(() => {
-    ok('activating a row flashes the element it points at',
-      w2.document.querySelectorAll('#__dbgov-root .dbgov-pinbox.dbgov-flash').length === 1,
-      `${w2.document.querySelectorAll('#__dbgov-root .dbgov-pinbox.dbgov-flash').length} flashed`);
-    w2.close();
-  });
+  ok('activating a row scrolls to the element it points at',
+    scrolled >= 1, `scrollIntoView called ${scrolled} times`);
   bar2.querySelector('[data-settings]').dispatchEvent(new w2.MouseEvent('click', { bubbles: true }));
   const setRow = [...w2.document.querySelectorAll('#__dbgov-list .dbgov-row')]
     .find((r) => r.querySelector('.dbgov-opt'));
@@ -2059,7 +2056,7 @@ console.log('\nWHAT A LIVE UX AUDIT FOUND');
     !w2.document.querySelector('#__dbgov-list button button, #__dbgov-list [role="button"] button, ' +
                                '#__dbgov-list [role="button"] select, #__dbgov-list [role="button"] input'),
     'a control inside a control is invalid and breaks the keyboard');
-  // (w2 is closed by the pendingCheck above, once its frame has landed)
+  w2.close();
 
   // 3) a closed flyout is not in the tab order
   const w3 = boot('<div id="a">a</div>');
@@ -2184,6 +2181,65 @@ console.log('\nWHAT A LIVE UX AUDIT FOUND');
   w1.close();
 }
 
+console.log('\nPERF MONITOR');
+/**
+ * The first tool with a RUNTIME: watch() when armed and powered, unwatch()
+ * when either stops. And the first test whose fixture is the event loop
+ * itself — the freeze below is REAL: a synchronous 400ms block between two
+ * heartbeat frames, noticed by the same rAF-gap tier a browser without
+ * long-task APIs falls back to. jsdom has neither observer type, so this
+ * exercises exactly the tier it claims to.
+ */
+let perfChecked = false;
+{
+  const d = new JSDOM('<!doctype html><html><body><div id="a">a</div></body></html>',
+    { url: 'https://example.test/', pretendToBeVisual: true,
+      runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
+  const w = d.window;
+  w.localStorage.setItem('__dbgov_tools', '["perf","pin"]');
+  w.localStorage.setItem('__dbgov_seen', JSON.stringify(idsOnDisk));
+  w.eval(source);
+  let repText = null;
+  Object.defineProperty(w.navigator, 'clipboard',
+    { value: { writeText: async (t) => { repText = t; } }, configurable: true });
+  const bar = w.document.getElementById('__dbgov-bar');
+  const report = () => {
+    bar.querySelector('[data-copy]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    return repText || '';
+  };
+  w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  // the real freeze, on a timer so a few heartbeat frames land first
+  w.setTimeout(() => { const t0 = Date.now(); while (Date.now() - t0 < 400); }, 40);
+
+  whenPainted(() => /worst \d/.test(report()), () => {
+    const r = report();
+    ok('a real 400ms freeze is noticed and measured',
+      /worst (3[5-9]\d|[4-9]\d\d)ms/.test(r) || /worst \d+\.\ds/.test(r),
+      (r.match(/main thread[^\n]*/) || ['no performance line'])[0]);
+    ok('and the report names the tier that measured it',
+      /tier: heartbeat/.test(r),
+      'jsdom has no long-task observers — anything but heartbeat is a lie here');
+    bar.querySelector('[data-c]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    const row = [...w.document.querySelectorAll('#__dbgov-list .dbgov-row')]
+      .find((x) => /main thread blocked/.test(x.querySelector('.dbgov-lbl')?.textContent || ''));
+    ok('the freeze is a row in the panel list', !!row, 'no freeze row');
+    ok('a log row is information — nothing to remove, nothing to reveal',
+      !!row && !row.querySelector('.dbgov-rm') && !row.querySelector('.dbgov-go'),
+      'a freeze is a WHEN, not a WHERE');
+    // the section leaves the report WITH the arming, like everything else
+    bar.querySelector('[data-tool="perf"]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    ok('disarming removes the performance section',
+      !/## performance/.test(report()), 'a disarmed monitor kept reporting');
+    // re-arm: a fresh session starts a fresh log — the page moved on
+    bar.querySelector('[data-tool="perf"]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    ok('re-arming starts a fresh log',
+      /no blocks over the threshold/.test(report()),
+      (report().match(/main thread[^\n]*/) || ['no line'])[0]);
+    perfChecked = true;
+    w.close();
+  });
+}
+
 console.log('\nFAMILY FLYOUT');
 /**
  * A family with a MARK (a subject wearing the family id) renders as one bar
@@ -2266,7 +2322,8 @@ function whenPainted(ready, run, waited = 0) {
   setTimeout(() => whenPainted(ready, run, waited + 25), 25);
 }
 
-whenPainted(() => window.document.querySelector('#__dbgov-root .dbgov-flag') &&
+whenPainted(() => perfChecked &&
+                  window.document.querySelector('#__dbgov-root .dbgov-flag') &&
                   w3.document.querySelector('#__dbgov-root .dbgov-badge'), () => {
   console.log('\nREVIEW FIXES (after a frame)');
   pendingChecks.forEach((fn) => fn());

@@ -71,6 +71,22 @@
   </section>
 
   <section>
+    <h2>Perf fodder — arm ⚡ and watch it notice</h2>
+    <p style="margin:0 0 12px;color:#6b6b76;font-size:13px">
+      Each button hurts the page in a specific, honest way. The monitor should
+      name the freeze within a frame of it ending.</p>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <button id="perf-block">block the main thread 400ms</button>
+      <button id="perf-storm">mutation storm · 2s</button>
+      <div id="perf-stormbox" style="min-width:120px;font-size:11px;color:#6b6b76"></div>
+      <div id="perf-spin" style="width:24px;height:24px;border-radius:50%;
+        border:3px solid #eef1f6;border-top-color:#5b8def;
+        animation:devspin 1s linear infinite"></div>
+    </div>
+    <style>@keyframes devspin{to{transform:rotate(360deg)}}</style>
+  </section>
+
+  <section>
     <h2>Contrast — first line should fail AA</h2>
     <p class="faint">Faint body text, around 2.8:1 against white.</p>
     <p class="ok">Comfortable body text.</p>
@@ -85,6 +101,26 @@
   if (window.top !== window.self) {
     document.getElementById('iframe-warning').style.display = 'block';
   }
+
+  // perf fodder wiring — the honest ways to hurt a page
+  document.getElementById('perf-block').onclick = () => {
+    const t0 = Date.now();
+    while (Date.now() - t0 < 400);   // a synchronous 400ms block, on purpose
+  };
+  document.getElementById('perf-storm').onclick = () => {
+    const box = document.getElementById('perf-stormbox');
+    let n = 0;
+    const iv = setInterval(() => {
+      for (let i = 0; i < 200; i++) {
+        const d = document.createElement('i');
+        box.append(d);
+        d.remove();
+        n += 2;
+      }
+      box.textContent = n + ' mutations';
+    }, 16);
+    setTimeout(() => clearInterval(iv), 2000);
+  };
 
   // reload when serve.js reports a fresh build, so saving a src/ file is the
   // whole loop

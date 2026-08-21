@@ -52,7 +52,7 @@ species, so the label cannot drift from the behaviour:
 | band | derived from | job |
 |---|---|---|
 | **COMPONENT** | `badge` / `compact` / `annotate` / `audit` / `auditPage` | reads the page, produces content INTO SERVICES |
-| **SOURCE** | `groups` / `listRows` / `pendingIndex` / `keeps` | input side: turns clicks into what components work ON |
+| **SOURCE** | `groups` / `pendingIndex` / `keeps` | input side: turns clicks into what components work ON (`listRows` is a service contribution — perf's freeze log proved it, when it filed a monitor under Select) |
 | **ACTION** | `intercept` | input side: a click becomes a direct effect |
 
 Today: measure, grid, contrast and dupid are components; select and pin are
@@ -211,6 +211,23 @@ is prefixed where the CLASS is built, never in the data. `test.js` proves it
 differentially: the same bundle driven identically on a clean host and on one
 that defines every name we ever used bare, computed styles diffed over every
 element in the overlay.
+
+## A monitor is a runtime, not a moment — watch() and unwatch()
+
+Every hook before perf was called AT a moment: a click, a frame, a sweep. A
+monitor is on duty for a SPAN, so the vocabulary gained its first tense —
+`watch()` when a tool becomes active (armed AND powered), `unwatch()` when it
+stops being either. The controller asks by hook (`Tools.withHook('watch')`),
+so the next monitor ships without touching core. Perf's tiers are the honest
+ladder the platform actually offers a userscript: Long Animation Frames
+(Chrome — the script that ate the frame), Long Tasks (no attribution), and a
+requestAnimationFrame heartbeat that works everywhere including jsdom — which
+is what lets the suite block the event loop for real and watch the monitor
+notice. A real profiler needs a response header the page must send; per-element
+CPU and GPU numbers do not exist in the platform, and pretending otherwise
+would be the overlay lying. `dev/perf-probe.user.js` is the Phase-0 instrument:
+install it beside dbgov to measure which tiers fire under a manager's sandbox
+on a given browser.
 
 ## The audit is a flow, not a place
 

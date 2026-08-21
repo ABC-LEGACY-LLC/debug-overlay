@@ -10,10 +10,6 @@ import { Scale } from './service.js';
    beside this one; what is declared here is identity, appearance and wiring.
    One defineTool per tool folder, which the audit counts. */
   defineTool({
-    // visuals owned by this tool — appended to the stylesheet at boot
-    css: `
-    .dbgov-badge .dbgov-warn{ color: #ffd54f; }
-    `,
       id: 'grid',
       icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M3 9h18" /><path d="M3 15h18" /><path d="M9 3v18" /><path d="M15 3v18" /></svg>',   // lucide 'grid-3x3' (ISC)
       // No number in the title: the step is the user's now, and a title baked

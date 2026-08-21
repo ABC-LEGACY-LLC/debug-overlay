@@ -52,7 +52,10 @@ import { State } from './state.js';
   export const ROLES = [
     { key: 'select', label: 'Select',
       note: 'how what you click becomes what you are looking at',
-      has: (t) => !!(t.groups || t.listRows || t.pendingIndex || t.keeps) },
+      /* NOT listRows: a row in the panel's list is a service contribution —
+         perf's freeze log proved it, when the old predicate filed a monitor
+         under Select and sat it at the top of the bar. */
+      has: (t) => !!(t.groups || t.pendingIndex || t.keeps) },
     { key: 'inspect', label: 'Inspect',
       note: 'what gets shown about it',
       has: (t) => !!(t.badge || t.compact || t.annotate) },

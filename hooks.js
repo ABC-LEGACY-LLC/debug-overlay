@@ -15,7 +15,8 @@ const SRC = path.join(__dirname, 'src');
 
 const HOOKS = ['badge', 'compact', 'report', 'reportTail', 'draw', 'listRows',
                'pendingIndex', 'annotate', 'audit', 'auditPage', 'options',
-               'intercept', 'groups', 'gestures', 'keeps', 'legend'];
+               'intercept', 'groups', 'gestures', 'keeps', 'legend',
+               'watch', 'unwatch'];
 
 /** Comments first: a file that merely EXPLAINS a hook is not implementing it. */
 const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -115,8 +116,7 @@ const bandsOf = (t) => {
   const out = [];
   if (has('badge') || has('compact') || has('annotate') ||
       has('audit') || has('auditPage')) out.push('COMPONENT');
-  if (has('groups') || has('listRows') || has('pendingIndex') ||
-      has('keeps')) out.push('SOURCE');
+  if (has('groups') || has('pendingIndex') || has('keeps')) out.push('SOURCE');
   if (has('intercept')) out.push('ACTION');
   return out;
 };

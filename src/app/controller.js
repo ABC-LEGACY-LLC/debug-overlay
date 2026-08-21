@@ -12,6 +12,23 @@ import { Render } from '../ui/renderer.js';
     CONTROLLER — the only glue
      ====================================================================== */
   export const Controller = {
+    /**
+     * The RUNTIME lifecycle — the first hook pair with a tense. Every hook
+     * before this was called at a moment (a click, a frame, a sweep); a
+     * MONITOR is on duty for a span of time, so something has to say when
+     * the span starts and ends. watch() when a tool becomes active (armed
+     * AND powered), unwatch() when it stops being either — asked by hook,
+     * no tool named, so the next monitor ships without touching this file.
+     */
+    _running: new Set(),
+    syncRuntimes() {
+      for (const t of Tools.withHook('watch', false)) {
+        const should = State.enabled && State.tools.has(t.id);
+        const is = Controller._running.has(t);
+        if (should && !is) { Controller._running.add(t); t.watch.call(t); }
+        else if (!should && is) { Controller._running.delete(t); t.unwatch?.call(t); }
+      }
+    },
     setPower(v) {
       State.enabled = v;
       // every overlay goes with the session: Escape is gated on State.enabled,
@@ -24,6 +41,7 @@ import { Render } from '../ui/renderer.js';
       if (!v) State.sweep = null;   // the page moves on; a stale audit lies
       Panel.setSwept(!!State.sweep, 0);
       Panel.setOn(v);
+      Controller.syncRuntimes();
       Render.schedule();
     },
     togglePower() { Controller.setPower(!State.enabled); },
@@ -184,6 +202,7 @@ import { Render } from '../ui/renderer.js';
       State.tools.has(id) ? State.tools.delete(id) : State.tools.add(id);
       Panel.setTool(id, State.tools.has(id));
       Store.set(CONFIG.TOOLS_KEY, JSON.stringify([...State.tools]));
+      Controller.syncRuntimes();
       Render.schedule();
       Controller.refreshList();
     },
@@ -226,6 +245,7 @@ import { Render } from '../ui/renderer.js';
          `tool:` view name. The count itself still RESTS in the bar — a
          flyout would have hidden the one number that must stay visible. */
       Panel.attachCount(Tools.withHook('keeps', false)[0]?.id ?? null);
+      Controller.syncRuntimes();   // boot is powered off, so this starts nothing — it sets the baseline
     },
 
     /**
@@ -318,7 +338,8 @@ import { Render } from '../ui/renderer.js';
       const claimed = new Set();
       for (const t of Tools.active()) {
         for (const row of (t.listRows?.call(t) || [])) {
-          row.pins.forEach((p) => claimed.add(p));
+          // a row may own pins; a monitor's log rows own none
+          row.pins?.forEach((p) => claimed.add(p));
           rows.push(row);
         }
       }
@@ -329,10 +350,10 @@ import { Render } from '../ui/renderer.js';
         rows.push({ tag: `#${p.id}`, label: U.labelOf(p.el),
                     detail: `${Math.round(r.width)}×${Math.round(r.height)}`, pins: [p] });
       }
-      const first = (row) => Math.min(...row.pins.map((p) => p.id));
+      const first = (row) => (row.pins?.length ? Math.min(...row.pins.map((p) => p.id)) : Infinity);
       // every row here owns pins, so every row here can drop them — the panel
       // renders a ✕ only where the row says one belongs
-      rows.forEach((r) => { r.removable = true; });
+      rows.forEach((r) => { if (r.pins?.length) r.removable = true; });
       return rows.sort((a, b) => first(a) - first(b));
     },
     refreshList() {
@@ -347,7 +368,7 @@ import { Render } from '../ui/renderer.js';
       // it. That is the useful move anyway: the badge, the measurements and
       // the copied report all pick it up from there.
       let pins = row.pins;
-      if (!pins) {
+      if (!pins || !pins.length) {
         if (!row.el || !document.contains(row.el)) return;
         const had = State.pins.find((p) => p.el === row.el);
         if (!had) Controller.togglePin(row.el, CONFIG.PIN_KIND.PLAIN);
