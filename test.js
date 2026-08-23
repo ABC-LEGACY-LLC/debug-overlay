@@ -407,6 +407,20 @@ console.log('\nTWO GATES, ONE CORE');
   ok('and it checks for updates on open, not on demand',
     optJs.includes('showFolder().then(check)'),
     'staleness the user must ask about goes unasked');
+  /* …and ON DEMAND as well: the automatic check answers once, but "did my
+     push land yet?" is asked minutes later, and reloading a settings page to
+     find out is not an answer. Every reply carries the time it was given, so
+     re-checking an unchanged answer still visibly happened. */
+  ok('the update screen can be asked again, by hand',
+    optHtml.includes('id="check"') && optJs.includes("$('check').addEventListener('click', check)"),
+    'the only way to re-check would be reloading the page');
+  ok('and every answer says WHEN it was given',
+    optJs.includes('checkedAt()') && /toLocaleTimeString/.test(optJs),
+    'repainting the same sentence reads as a button that did nothing');
+  ok('the button cannot be pressed twice into the same check',
+    /\$\('check'\)\.disabled = true;/.test(optJs) &&
+    /\$\('check'\)\.disabled = false;/.test(optJs),
+    'a second press mid-flight races the first');
   ok('and its page carries no inline script',
     (optHtml.match(/<script\b/g) || []).length === 1 &&
     optHtml.includes('src="options.js"'),

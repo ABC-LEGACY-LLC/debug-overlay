@@ -36,7 +36,9 @@
     align-items: center; justify-content: center; }
 
   /* the status card changes colour with what it knows */
-  #status { border-left: 3px solid #8f8f96; }
+  #status { border-left: 3px solid #8f8f96; display: flex; align-items: center; gap: 12px; }
+  #statusMain { flex: 1; min-width: 0; }
+  #check { flex: none; }
   #status.ok { border-left-color: #b5e853; }
   #status.upd { border-left-color: #ffd54f; }
   #status.bad { border-left-color: #ff5c5c; }
@@ -95,8 +97,11 @@
   </header>
 
   <div class="card" id="status">
-    <div id="statusText">Checking for updates…</div>
-    <div id="statusHint"></div>
+    <div id="statusMain">
+      <div id="statusText">Checking for updates…</div>
+      <div id="statusHint"></div>
+    </div>
+    <button id="check" title="Ask the repository what the latest version is">Check now</button>
   </div>
 
   <div id="done" role="status">

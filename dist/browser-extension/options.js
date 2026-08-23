@@ -145,24 +145,37 @@ async function proveLive(dir) {
 const FIND_IT = 'find the real folder: chrome://extensions → Debug Overlay → ' +
   'Details — "Source" names the loaded path. Choose THAT folder in step 1.';
 
+/* Every answer carries the TIME it was given. Pressing Check when nothing
+   has changed would otherwise repaint the same sentence and look like a
+   button that does nothing — the same reason the in-page menu answers
+   "✓ current" out loud instead of staying silent. */
+const checkedAt = () => {
+  try {
+    return ' · checked ' +
+      new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch { return ''; }
+};
+
 async function check() {
+  $('check').disabled = true;
   status('', 'Checking for updates…');
   try {
     const remote = await (await fetch(BASE + '/manifest.json', { cache: 'no-store' })).json();
     remoteVersion = remote.version;
     if (newer(remoteVersion, MINE)) {
       status('upd', `v${remoteVersion} is available.`,
-        haveFolder ? 'Press Update — it takes a few seconds.'
-                   : 'Choose the install folder below, then press Update.');
+        (haveFolder ? 'Press Update — it takes a few seconds.'
+                    : 'Choose the install folder below, then press Update.') + checkedAt());
     } else {
       status('ok', "You're up to date.",
-        `v${MINE} is the latest published version.`);
+        `v${MINE} is the latest published version.` + checkedAt());
     }
   } catch {
     remoteVersion = null;
     status('bad', "Couldn't reach the repository.",
-      'Check your connection, then reopen this page.');
+      'Check your connection, then press Check now.' + checkedAt());
   }
+  $('check').disabled = false;
   gate();
 }
 
@@ -301,6 +314,7 @@ $('pick').addEventListener('click', async () => {
   await showFolder();
   check();   // the hint under the status may change now a folder exists
 });
+$('check').addEventListener('click', check);
 $('apply').addEventListener('click', () => run(false));
 $('repair').addEventListener('click', () => run(true));
 
