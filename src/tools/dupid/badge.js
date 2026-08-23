@@ -8,7 +8,7 @@ export function badge({ el }) {
         if (!el.id) return null;
         const n = document.querySelectorAll(
           `[id="${CSS.escape ? CSS.escape(el.id) : el.id}"]`).length;
-        return n > 1 ? `<span class="dbgov-dup">⌗ id ×${n}</span>` : null;
+        return n > 1 ? `<span class="debug-overlay-dup">⌗ id ×${n}</span>` : null;
 }
 
 export function compact(i) { return this.badge(i); }

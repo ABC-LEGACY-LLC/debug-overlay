@@ -10,7 +10,7 @@ import { draw } from './draw.js';
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `
-    .dbgov-badge .dbgov-dup { color: #ff8a65; font-weight: 700; }
+    .debug-overlay-badge .debug-overlay-dup { color: #ff8a65; font-weight: 700; }
     `,
       id: 'dupid',
       // not ⧉ — the copy button already uses that glyph, and two identical

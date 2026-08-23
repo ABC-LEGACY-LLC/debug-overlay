@@ -39,14 +39,14 @@ import { Place } from './placement.js';
         // class comes straight from the pin's kind — no tool ids in here
         const isTarget = State.removeMode && State.removeTarget === p;
         const isFlash = State.flashPins && State.flashPins.includes(p);
-        const kindCls = ` dbgov-${p.kind}` + (waiting ? ' dbgov-waiting' : '') +
-                        (isTarget ? ' dbgov-rmtarget' : '') + (isFlash ? ' dbgov-flash' : '');
+        const kindCls = ` debug-overlay-${p.kind}` + (waiting ? ' debug-overlay-waiting' : '') +
+                        (isTarget ? ' debug-overlay-rmtarget' : '') + (isFlash ? ' debug-overlay-flash' : '');
         const i = U.info(p.el);
         const box = document.createElement('div');
-        box.className = 'dbgov-box dbgov-pinbox' + kindCls;
+        box.className = 'debug-overlay-box debug-overlay-pinbox' + kindCls;
         Place.put(box, i.r.left, i.r.top, i.r.width, i.r.height);
         const n = document.createElement('div');
-        n.className = 'dbgov-pin-num' + kindCls;
+        n.className = 'debug-overlay-pin-num' + kindCls;
         n.textContent = waiting ? p.id + '…' : p.id;
         layer.append(box, n);
         /* A pin scrolled out of view used to have its number CLAMPED to the
@@ -69,7 +69,7 @@ import { Place } from './placement.js';
         // remove mode: a ✕ chip on every pin, enlarged on the one under the cursor
         if (State.removeMode) {
           const rm = document.createElement('div');
-          rm.className = 'dbgov-rmchip' + (isTarget ? ' dbgov-target' : '');
+          rm.className = 'debug-overlay-rmchip' + (isTarget ? ' debug-overlay-target' : '');
           rm.textContent = '✕';
           layer.append(rm);
           const rx = Math.min(innerWidth - 20, Math.max(2, i.r.right - 9));
@@ -92,7 +92,7 @@ import { Place } from './placement.js';
       if (cur) {
         const i = U.info(cur);
         const box = document.createElement('div');
-        box.className = 'dbgov-box dbgov-pinbox dbgov-note';
+        box.className = 'debug-overlay-box debug-overlay-pinbox debug-overlay-note';
         Place.put(box, i.r.left, i.r.top, i.r.width, i.r.height);
         layer.append(box);
       }
@@ -102,7 +102,7 @@ import { Place } from './placement.js';
       if (hoverLive) {
         const i = U.info(State.hoverEl);
         const box = document.createElement('div');
-        box.className = 'dbgov-box dbgov-hover';
+        box.className = 'debug-overlay-box debug-overlay-hover';
         Place.put(box, i.r.left, i.r.top, i.r.width, i.r.height);
         layer.append(box);
       }
@@ -141,8 +141,8 @@ import { Place } from './placement.js';
                colour by accident; now the severity decides it. */
             const cls = f.verdict === 'review' ? 'review' : f.severity;
             if ((CONFIG.SEVERITY[cls] || 0) > (CONFIG.SEVERITY[at.cls] || 0)) {
-              at.box.className = 'dbgov-box dbgov-flag dbgov-' + cls;
-              if (at.tip) at.tip.className = 'dbgov-tip dbgov-' + cls;
+              at.box.className = 'debug-overlay-box debug-overlay-flag debug-overlay-' + cls;
+              if (at.tip) at.tip.className = 'debug-overlay-tip debug-overlay-' + cls;
               at.cls = cls;
             }
             if (at.tip) at.tip.textContent = label(at);
@@ -151,14 +151,14 @@ import { Place } from './placement.js';
           const r = f.el.getBoundingClientRect();
           const cls = f.verdict === 'review' ? 'review' : f.severity;
           const box = document.createElement('div');
-          box.className = 'dbgov-box dbgov-flag dbgov-' + cls;
+          box.className = 'debug-overlay-box debug-overlay-flag debug-overlay-' + cls;
           Place.put(box, r.left, r.top, r.width, r.height);
           layer.append(box);
           const m = { r, cls, n: 1, rules: new Set([f.rule]), tip: null, box };
           marked.set(f.el, m);
           if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue;
           const tip = document.createElement('div');
-          tip.className = 'dbgov-tip dbgov-' + cls;
+          tip.className = 'debug-overlay-tip debug-overlay-' + cls;
           // textContent: a rule id is ours, but a message is not — dupid's
           // carries a page-authored id straight from the document
           tip.textContent = label(m);
@@ -189,8 +189,8 @@ import { Place } from './placement.js';
         const html = Badges.build(i, !full);
         if (!html) return;
         const b = document.createElement('div');
-        b.className = 'dbgov-badge';
-        b.innerHTML = `<span class="dbgov-rad">#${p.id}</span> · ${html}`;
+        b.className = 'debug-overlay-badge';
+        b.innerHTML = `<span class="debug-overlay-rad">#${p.id}</span> · ${html}`;
         layer.append(b);
         Place.smart(b, i.r, { avoid: i.r });
       });
@@ -205,7 +205,7 @@ import { Place } from './placement.js';
           const html = Badges.build(i, !full);
           if (html) {
             const b = document.createElement('div');
-            b.className = 'dbgov-badge';
+            b.className = 'debug-overlay-badge';
             b.innerHTML = html;
             layer.append(b);
             Place.smart(b, i.r, { avoid: i.r });
@@ -219,7 +219,7 @@ import { Place } from './placement.js';
         const html = Badges.build(i, false);
         if (html) {
           const b = document.createElement('div');
-          b.className = 'dbgov-badge';
+          b.className = 'debug-overlay-badge';
           b.innerHTML = html;
           layer.append(b);
           Place.smart(b, i.r, { avoid: i.r });

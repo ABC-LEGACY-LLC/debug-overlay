@@ -19,5 +19,5 @@ export function annotate(html, n, info) {
         // suggestion itself still comes from the subject, so the mark and
         // the fix cannot disagree.
         const fix = info?.facets?.suggest ? `→${Scale.nearest(n)}` : '';
-        return `<span class="dbgov-warn">${html}⚠${fix}</span>`;
+        return `<span class="debug-overlay-warn">${html}⚠${fix}</span>`;
 }

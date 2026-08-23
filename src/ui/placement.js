@@ -61,7 +61,7 @@ import { Panel } from './panel.js';
         const bx = Math.max(best.x, Math.min(ax, best.x + w));
         const by = Math.max(best.y, Math.min(ay, best.y + h));
         const ln = document.createElement('div');
-        ln.className = 'dbgov-leader';
+        ln.className = 'debug-overlay-leader';
         if (Math.abs(bx - ax) >= Math.abs(by - ay))
           put(ln, Math.min(ax, bx), Math.round(ay), Math.abs(bx - ax) || 1, 1);
         else put(ln, Math.round(ax), Math.min(ay, by), 1, Math.abs(by - ay) || 1);

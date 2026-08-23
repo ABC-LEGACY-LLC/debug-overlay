@@ -14,16 +14,16 @@ let el = null;
 
 export function initMenu() {
         el = document.createElement('div');
-        el.id = '__dbgov-menu';
+        el.id = '__debug-overlay-menu';
         root.append(el);
         document.addEventListener('pointerdown', (e) => {
-          if (Menu.isOpen() && !(e.target.closest && e.target.closest('#__dbgov-menu')))
+          if (Menu.isOpen() && !(e.target.closest && e.target.closest('#__debug-overlay-menu')))
             Menu.close();
         }, true);
 }
 
 export const Menu = {
-        isOpen: () => !!el && el.classList.contains('dbgov-open'),
+        isOpen: () => !!el && el.classList.contains('debug-overlay-open'),
         /** rows: [{ label, run }] — label is all this file reads of them. */
         open(x, y, rows) {
           el.textContent = '';
@@ -33,7 +33,7 @@ export const Menu = {
             b.addEventListener('click', () => { Menu.close(); r.run(); });
             el.append(b);
           }
-          el.classList.add('dbgov-open');
+          el.classList.add('debug-overlay-open');
           // clamp AFTER the rows exist — the box has no size before they do
           const w = el.offsetWidth, h = el.offsetHeight;
           let px = Math.max(4, Math.min(x, innerWidth - w - 4));
@@ -42,7 +42,7 @@ export const Menu = {
              it paints — and hit-tests — above this menu; opened beside it (the
              ⏻ update menu is), the bar swallowed the clicks and clipped the
              text. Same trap List.place() documents; same fix: step aside. */
-          const bar = document.getElementById('__dbgov-bar');
+          const bar = document.getElementById('__debug-overlay-bar');
           if (bar) {
             const b = bar.getBoundingClientRect();
             if (px < b.right && px + w > b.left && py < b.bottom && py + h > b.top) {
@@ -55,7 +55,7 @@ export const Menu = {
         },
         close() {
           if (!el) return;
-          el.classList.remove('dbgov-open');
+          el.classList.remove('debug-overlay-open');
           el.textContent = '';
         },
 };

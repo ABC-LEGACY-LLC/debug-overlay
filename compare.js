@@ -39,9 +39,9 @@ async function observe(bundlePath) {
   const dom = new JSDOM(PAGE, { url: 'https://compare.test/', pretendToBeVisual: true,
     runScripts: 'outside-only', virtualConsole: new VirtualConsole() });
   const w = dom.window, d = w.document;
-  w.localStorage.setItem('__dbgov_tools', '["measure","grid","contrast","dupid","select"]');
-  w.localStorage.setItem('__dbgov_seen', '["measure","grid","contrast","dupid","select","pick"]');
-  w.localStorage.setItem('__dbgov_settings',
+  w.localStorage.setItem('__debug_overlay_tools', '["measure","grid","contrast","dupid","select"]');
+  w.localStorage.setItem('__debug_overlay_seen', '["measure","grid","contrast","dupid","select","pick"]');
+  w.localStorage.setItem('__debug_overlay_settings',
     '{"scale":{"step":2,"max":96,"boxes":false},"grid":{"suggest":true},"colour":{"level":"AA"}}');
   let copied = null;
   Object.defineProperty(w.navigator, 'clipboard',
@@ -49,24 +49,24 @@ async function observe(bundlePath) {
   w.eval(src);
 
   const o = {};
-  const bar = d.getElementById('__dbgov-bar');
-  const list = d.getElementById('__dbgov-list');
-  const root = d.getElementById('__dbgov-root');
+  const bar = d.getElementById('__debug-overlay-bar');
+  const list = d.getElementById('__debug-overlay-list');
+  const root = d.getElementById('__debug-overlay-root');
   const click = (sel) => bar.querySelector(sel).dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   const pin = (id, mods = {}) => {
     const el = d.getElementById(id);
     w.document.elementFromPoint = () => el;
     el.dispatchEvent(new w.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5, ...mods }));
   };
-  const rows = () => [...list.querySelectorAll('.dbgov-row')].map((r) => {
-    const c = r.querySelector('.dbgov-opt');
-    const shown = !c ? (r.querySelector('.dbgov-det') || {}).textContent || ''
+  const rows = () => [...list.querySelectorAll('.debug-overlay-row')].map((r) => {
+    const c = r.querySelector('.debug-overlay-opt');
+    const shown = !c ? (r.querySelector('.debug-overlay-det') || {}).textContent || ''
       : c.tagName === 'SELECT' ? c.selectedOptions[0].textContent
         : c.type === 'checkbox' ? String(c.checked) : c.value;
-    return [(r.querySelector('.dbgov-tag') || {}).textContent,
-            (r.querySelector('.dbgov-lbl') || {}).textContent, shown, r.className].join(' | ');
+    return [(r.querySelector('.debug-overlay-tag') || {}).textContent,
+            (r.querySelector('.debug-overlay-lbl') || {}).textContent, shown, r.className].join(' | ');
   });
-  const heads = () => [...list.querySelectorAll('.dbgov-head, .dbgov-viewhead')].map((h) => h.textContent);
+  const heads = () => [...list.querySelectorAll('.debug-overlay-head, .debug-overlay-viewhead')].map((h) => h.textContent);
 
   // ---- the bar, cold ------------------------------------------------------
   o.barButtons = [...bar.querySelectorAll('button')].map((b) =>
@@ -76,13 +76,13 @@ async function observe(bundlePath) {
 
   // ---- power on, pins, pair ----------------------------------------------
   w.dispatchEvent(new w.KeyboardEvent('keydown', { ...HOT, bubbles: true }));
-  o.powerOn = bar.classList.contains('dbgov-on');
+  o.powerOn = bar.classList.contains('debug-overlay-on');
   pin('a');                       // note pin
   pin('b', { shiftKey: true });   // pair 1
   pin('c', { shiftKey: true });   // pair 2
   await sleep(150);
-  o.badges = [...root.querySelectorAll('.dbgov-badge')].map((b) => b.textContent).sort();
-  o.pinChips = [...root.querySelectorAll('.dbgov-pin-num')].map((n) => [n.textContent, n.className].join('|')).sort();
+  o.badges = [...root.querySelectorAll('.debug-overlay-badge')].map((b) => b.textContent).sort();
+  o.pinChips = [...root.querySelectorAll('.debug-overlay-pin-num')].map((n) => [n.textContent, n.className].join('|')).sort();
   click('[data-c]');
   o.pinListRows = rows(); o.pinListHeads = heads();
   o.countChip = bar.querySelector('[data-c]').textContent;
@@ -92,9 +92,9 @@ async function observe(bundlePath) {
   await sleep(150);
   o.findingsRows = rows(); o.findingsHeads = heads();
   o.sweepBtn = [bar.querySelector('[data-sweep]').textContent,
-                bar.querySelector('[data-sweep]').classList.contains('dbgov-swept'),
+                bar.querySelector('[data-sweep]').classList.contains('debug-overlay-swept'),
                 norm(bar.querySelector('[data-sweep]').title)];
-  o.marks = [...root.querySelectorAll('.dbgov-flag')].map((m) => m.className).sort();
+  o.marks = [...root.querySelectorAll('.debug-overlay-flag')].map((m) => m.className).sort();
 
   // ---- settings, both doors ----------------------------------------------
   click('[data-settings]');
@@ -112,8 +112,8 @@ async function observe(bundlePath) {
 
   // ---- Escape closes the layer, Alt passes through ------------------------
   d.body.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-  o.escClosedList = !list.classList.contains('dbgov-open');
-  o.escPowerStays = bar.classList.contains('dbgov-on');
+  o.escClosedList = !list.classList.contains('debug-overlay-open');
+  o.escPowerStays = bar.classList.contains('debug-overlay-on');
   let pageSaw = 0;
   d.getElementById('link').addEventListener('click', () => pageSaw++);
   pin('link', { altKey: true });
@@ -122,11 +122,11 @@ async function observe(bundlePath) {
   // ---- ✕ clears pins AND audit -------------------------------------------
   click('[data-clear]');
   await sleep(120);
-  o.afterClear = [bar.querySelector('[data-sweep]').classList.contains('dbgov-swept'),
-                  root.querySelectorAll('.dbgov-flag').length,
-                  root.querySelectorAll('.dbgov-pin-num').length];
+  o.afterClear = [bar.querySelector('[data-sweep]').classList.contains('debug-overlay-swept'),
+                  root.querySelectorAll('.debug-overlay-flag').length,
+                  root.querySelectorAll('.debug-overlay-pin-num').length];
 
-  o.storage = Object.keys(w.localStorage).filter((k) => k.startsWith('__dbgov'))
+  o.storage = Object.keys(w.localStorage).filter((k) => k.startsWith('__debug_overlay') || k.startsWith('__dbgov'))
     .sort().map((k) => k + '=' + w.localStorage.getItem(k));
   dom.window.close();
   return o;

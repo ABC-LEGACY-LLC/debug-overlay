@@ -205,7 +205,7 @@ wins at any specificity. Measured, not theorised: a Tailwind page's own
 `.fixed { position: fixed }` matched the badge flyout's always-on chip, lifted
 it out of flow onto its neighbour's slot and won the hit test, so one facet
 could not be switched off with a mouse at all; Bootstrap's `.row` reached the
-popover's rows the same way. So every class carries the `dbgov-` namespace,
+popover's rows the same way. So every class carries the `debug-overlay-` namespace,
 and data that doubles as a class token — a pin's kind, a finding's severity —
 is prefixed where the CLASS is built, never in the data. `test.js` proves it
 differentially: the same bundle driven identically on a clean host and on one

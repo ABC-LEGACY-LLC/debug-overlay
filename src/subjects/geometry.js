@@ -57,7 +57,7 @@ import { defineSubject } from '../core/registry.js';
       const dir = vertical ? (y2 >= y1 ? 'down' : 'up') : (x2 >= x1 ? 'right' : 'left');
 
       const line = document.createElement('div');
-      line.className = 'dbgov-line';
+      line.className = 'debug-overlay-line';
       if (vertical) {
         Place.put(line, Math.round(x1) - 1, Math.min(y1, y2), 2, Math.max(len, 1));
         Place.claim(Math.round(x1) - 5, Math.min(y1, y2), 10, Math.max(len, 1));
@@ -69,7 +69,7 @@ import { defineSubject } from '../core/registry.js';
 
       // start: perpendicular tick — "measurement begins exactly here"
       const tick = document.createElement('div');
-      tick.className = 'dbgov-cap';
+      tick.className = 'debug-overlay-cap';
       if (vertical) Place.put(tick, Math.round(x1) - 6, Math.round(y1) - 1, 12, 2);
       else Place.put(tick, Math.round(x1) - 1, Math.round(y1) - 6, 2, 12);
       layer.append(tick);
@@ -77,7 +77,7 @@ import { defineSubject } from '../core/registry.js';
       // end: arrowhead pointing into the target — reads as direction, not a stub
       if (endArrow) {
         const a = document.createElement('div');
-        a.className = 'dbgov-arrow dbgov-' + dir;
+        a.className = 'debug-overlay-arrow debug-overlay-' + dir;
         const P = { up:    [Math.round(x2) - 5, Math.round(y2)],
                     down:  [Math.round(x2) - 5, Math.round(y2) - 7],
                     left:  [Math.round(x2),     Math.round(y2) - 5],
@@ -86,7 +86,7 @@ import { defineSubject } from '../core/registry.js';
         layer.append(a);
       } else {
         const c = document.createElement('div');
-        c.className = 'dbgov-cap';
+        c.className = 'debug-overlay-cap';
         if (vertical) Place.put(c, Math.round(x2) - 6, Math.round(y2) - 1, 12, 2);
         else Place.put(c, Math.round(x2) - 1, Math.round(y2) - 6, 2, 12);
         layer.append(c);
@@ -96,7 +96,7 @@ import { defineSubject } from '../core/registry.js';
       const mx = vertical ? x1 + 12 : (x1 + x2) / 2;
       const my = vertical ? (y1 + y2) / 2 : y1 - 12;
       const lbl = document.createElement('div');
-      lbl.className = 'dbgov-dist' + (vertical ? ' dbgov-vert' : '');
+      lbl.className = 'debug-overlay-dist' + (vertical ? ' debug-overlay-vert' : '');
       lbl.textContent = text;
       layer.append(lbl);
       Place.smart(lbl, { left: mx, top: my, right: mx, bottom: my, width: 0, height: 0 },
@@ -108,7 +108,7 @@ import { defineSubject } from '../core/registry.js';
       if (Math.round(x1) === Math.round(x2) && Math.round(y1) === Math.round(y2)) return;
       const e = document.createElement('div');
       const horizontal = Math.abs(x2 - x1) >= Math.abs(y2 - y1);
-      e.className = 'dbgov-ext' + (horizontal ? '' : ' dbgov-v');
+      e.className = 'debug-overlay-ext' + (horizontal ? '' : ' debug-overlay-v');
       if (horizontal) Place.put(e, Math.min(x1, x2), Math.round(y1), Math.abs(x2 - x1) || 1, 1);
       else Place.put(e, Math.round(x1), Math.min(y1, y2), 1, Math.abs(y2 - y1) || 1);
       layer.append(e);
@@ -131,7 +131,7 @@ import { defineSubject } from '../core/registry.js';
 
       if (axis.kind === 'overlap') {
         const lbl = document.createElement('div');
-        lbl.className = 'dbgov-dist';
+        lbl.className = 'debug-overlay-dist';
         lbl.textContent = `${tag} · overlapping`;
         layer.append(lbl);
         const mx = (Math.max(ra.left, rb.left) + Math.min(ra.right, rb.right)) / 2;

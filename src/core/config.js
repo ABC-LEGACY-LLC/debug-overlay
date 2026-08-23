@@ -37,20 +37,20 @@
     TUCK_DELAY: 2200,         // ms idle before the panel tucks away
     EDGE_MARGIN: 8,
     BADGE_MARGIN: 6,
-    POS_KEY: '__dbgov_pos',
+    POS_KEY: '__debug_overlay_pos',
     // PER-ORIGIN, unlike everything else in the store: "debugging THIS site"
     // is a session fact about one origin, where a grid step is a fact about
     // the project. Global power would pop the overlay onto every site the
     // browser visits. Pins add the PATH: a pin on /live-map is not a pin on
     // /settings.
-    POWER_KEY: '__dbgov_on',
-    PINS_KEY: '__dbgov_pins',
-    TOOLS_KEY: '__dbgov_tools',
-    SETTINGS_KEY: '__dbgov_settings',
+    POWER_KEY: '__debug_overlay_on',
+    PINS_KEY: '__debug_overlay_pins',
+    TOOLS_KEY: '__debug_overlay_tools',
+    SETTINGS_KEY: '__debug_overlay_settings',
     // Which tool ids this install has already met. Without it a saved armed
     // set answers for tools that no longer exist and stays silent about ones
     // shipped since — so a new capability arrives switched off and invisible.
-    SEEN_KEY: '__dbgov_seen',
+    SEEN_KEY: '__debug_overlay_seen',
     FLASH_MS: 1200,           // how long a button shows a transient message
     LIST_GAP: 10,             // px between the bar and the popover it opens
     LIST_PAD: 6,              // px the popover keeps from the viewport edge

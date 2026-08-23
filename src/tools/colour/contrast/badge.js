@@ -5,15 +5,15 @@ export function badge(i) {
         if (!c) return null;
         // say so on hover too — silence here is what taught the eye to trust
         // a page the tool had not actually checked
-        if (c.unknown) return `<span class="dbgov-unk">contrast ?</span>`;
-        const cls = c.pass ? 'dbgov-ok' : 'dbgov-bad';
+        if (c.unknown) return `<span class="debug-overlay-unk">contrast ?</span>`;
+        const cls = c.pass ? 'debug-overlay-ok' : 'debug-overlay-bad';
         return `<span class="${cls}">${c.ratio.toFixed(2)}:1 ${c.level}${c.pass ? '✓' : '✗'}</span>`;
 }
 
 export function compact(i) {
         const c = Colour.measure(i);
         if (!c || c.unknown || c.pass) return null;   // quiet unless it fails
-        return `<span class="dbgov-bad">${c.ratio.toFixed(1)}:1 ✗</span>`;
+        return `<span class="debug-overlay-bad">${c.ratio.toFixed(1)}:1 ✗</span>`;
 }
 
 /** Three answers, three colours - pass, fail, and could-not-measure. */

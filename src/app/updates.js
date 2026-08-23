@@ -70,7 +70,7 @@ export const Updates = {
 
         async check(force) {
           let saved = {};
-          try { saved = JSON.parse(Store.get('__dbgov_upd') || '{}') || {}; } catch {}
+          try { saved = JSON.parse(Store.get('__debug_overlay_upd') || '{}') || {}; } catch {}
           if (!force && Date.now() - (saved.t || 0) < CONFIG.UPDATE.EVERY) {
             // inside the throttle window the last answer stands
             if (saved.v && newer(saved.v, CONFIG.VERSION)) Updates.found(saved.v);
@@ -79,7 +79,7 @@ export const Updates = {
           try {
             const meta = await fetchText(CONFIG.META_URL);
             const v = (/@version\s+([\d.]+)/.exec(meta) || [])[1];
-            Store.set('__dbgov_upd', JSON.stringify({ t: Date.now(), v: v || null }));
+            Store.set('__debug_overlay_upd', JSON.stringify({ t: Date.now(), v: v || null }));
             if (v && newer(v, CONFIG.VERSION)) Updates.found(v);
             else Updates.latest = null;
           } catch {

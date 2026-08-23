@@ -11,30 +11,30 @@ import { Tools } from '../../../core/registry.js';
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `
-    .dbgov-leader { position: fixed; pointer-events: none; background: rgba(255,255,255,.55); }
-    .dbgov-line { position: fixed; pointer-events: none; background: rgba(181,232,83,.85);
+    .debug-overlay-leader { position: fixed; pointer-events: none; background: rgba(255,255,255,.55); }
+    .debug-overlay-line { position: fixed; pointer-events: none; background: rgba(181,232,83,.85);
       border-radius: 1px; box-shadow: 0 0 0 .5px rgba(0,0,0,.4); }
-    .dbgov-cap { position: fixed; pointer-events: none; background: #b5e853;
+    .debug-overlay-cap { position: fixed; pointer-events: none; background: #b5e853;
       border-radius: 1px; box-shadow: 0 0 0 .5px rgba(0,0,0,.5); }
-    .dbgov-arrow { position: fixed; pointer-events: none; width: 0; height: 0;
+    .debug-overlay-arrow { position: fixed; pointer-events: none; width: 0; height: 0;
       filter: drop-shadow(0 0 .5px rgba(0,0,0,.6)); }
-    .dbgov-arrow.dbgov-up    { border-left: 5px solid transparent; border-right: 5px solid transparent;
+    .debug-overlay-arrow.debug-overlay-up    { border-left: 5px solid transparent; border-right: 5px solid transparent;
                          border-bottom: 7px solid #b5e853; }
-    .dbgov-arrow.dbgov-down  { border-left: 5px solid transparent; border-right: 5px solid transparent;
+    .debug-overlay-arrow.debug-overlay-down  { border-left: 5px solid transparent; border-right: 5px solid transparent;
                          border-top: 7px solid #b5e853; }
-    .dbgov-arrow.dbgov-left  { border-top: 5px solid transparent; border-bottom: 5px solid transparent;
+    .debug-overlay-arrow.debug-overlay-left  { border-top: 5px solid transparent; border-bottom: 5px solid transparent;
                          border-right: 7px solid #b5e853; }
-    .dbgov-arrow.dbgov-right { border-top: 5px solid transparent; border-bottom: 5px solid transparent;
+    .debug-overlay-arrow.debug-overlay-right { border-top: 5px solid transparent; border-bottom: 5px solid transparent;
                          border-left: 7px solid #b5e853; }
-    .dbgov-ext { position: fixed; pointer-events: none;
+    .debug-overlay-ext { position: fixed; pointer-events: none;
       background: repeating-linear-gradient(to right,
         rgba(181,232,83,.7) 0 4px, transparent 4px 8px); }
-    .dbgov-ext.dbgov-v { background: repeating-linear-gradient(to bottom,
+    .debug-overlay-ext.debug-overlay-v { background: repeating-linear-gradient(to bottom,
         rgba(181,232,83,.7) 0 4px, transparent 4px 8px); }
-    .dbgov-dist { position: fixed; pointer-events: none;
+    .debug-overlay-dist { position: fixed; pointer-events: none;
       background: rgba(24,28,14,.95); color: #b5e853; border-radius: 7px;
       padding: 3px 8px; font-size: 12px; font-weight: 700; white-space: nowrap; }
-    .dbgov-dist.dbgov-vert { border-left: 2px solid #b5e853; }
+    .debug-overlay-dist.debug-overlay-vert { border-left: 2px solid #b5e853; }
     `,
       id: 'measure',
       family: 'geometry',   // audited: must match the domain folder this sits in

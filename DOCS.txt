@@ -226,7 +226,7 @@ HOW TO USE
       id: 'zindex',
       icon: '⧉', title: 'Stacking — z-index & position',
       startsOn: false,             // optional, armed on a fresh install?
-      badge:   (i) => `<span class="dbgov-sp">z ${i.cs.zIndex}</span>`,  // optional
+      badge:   (i) => `<span class="debug-overlay-sp">z ${i.cs.zIndex}</span>`,  // optional
       compact: (i) => null,                                       // optional
       report:  (i) => [`  z-index: ${i.cs.zIndex}`],              // optional
       draw:    (ctx) => {},                                       // optional

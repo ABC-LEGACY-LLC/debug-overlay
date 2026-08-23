@@ -28,6 +28,13 @@
  *  page has not been refreshed across an update. */
 export const PROTOCOL_VERSION = 1;
 
+/* The envelope's marker field. LEGACY_FIELD is the pre-rename spelling,
+   recognised for one reason only: a side panel and a page from either side
+   of the rename must still DETECT each other and answer "reload this page",
+   rather than ignoring each other in silence. Nothing reads its payload. */
+const FIELD = 'debugOverlay';
+const LEGACY_FIELD = 'dbgov';
+
 /* STATE pushes: content script → cockpit. Names mirror the Panel api the
    controller already calls; args are what that api takes, packed. */
 const STATE = {
@@ -89,7 +96,7 @@ function packBadgeGroup(g) {
 function envelope(kind, table, name, args) {
         if (!(name in table)) throw new Error(`unknown ${kind}: ${name}`);
         const pack = table[name];
-        return { dbgov: PROTOCOL_VERSION, kind,
+        return { [FIELD]: PROTOCOL_VERSION, kind,
                  name, args: pack ? pack(...args) : args };
 }
 
@@ -105,13 +112,13 @@ export const Protocol = {
          * and any other extension's noise pass through untouched.
          */
         read(msg) {
-          if (!msg || msg.dbgov !== PROTOCOL_VERSION) return null;
+          if (!msg || msg[FIELD] !== PROTOCOL_VERSION) return null;
           const table = msg.kind === 'state' ? STATE : msg.kind === 'cmd' ? CMD : null;
           if (!table || !(msg.name in table) || !Array.isArray(msg.args)) return null;
           return { kind: msg.kind, name: msg.name, args: msg.args };
         },
         /** A different-version message of ours — worth telling the user
          *  "refresh this page" instead of silently ignoring. */
-        stale: (msg) => !!msg && typeof msg.dbgov === 'number' &&
-                        msg.dbgov !== PROTOCOL_VERSION,
+        stale: (msg) => !!msg && (LEGACY_FIELD in msg ||
+                        (typeof msg[FIELD] === 'number' && msg[FIELD] !== PROTOCOL_VERSION)),
 };

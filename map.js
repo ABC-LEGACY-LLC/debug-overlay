@@ -46,7 +46,7 @@ const dom = new JSDOM('<!doctype html><html><body><div id="x">x</div></body></ht
 const w = dom.window;
 w.eval(source);
 const d = w.document;
-const bar = d.getElementById('__dbgov-bar');
+const bar = d.getElementById('__debug-overlay-bar');
 if (!bar) { console.error('✗ the bundle booted without building a panel'); process.exit(1); }
 
 const from = origins();
@@ -67,7 +67,7 @@ console.log('  ' + [...bar.children]
   }).join(' '));
 
 console.log('\nTOOLS          roles are derived from hooks, so they can be plural');
-for (const b of bar.querySelectorAll('button.dbgov-tool')) {
+for (const b of bar.querySelectorAll('button.debug-overlay-tool')) {
   const id = b.dataset.tool;
   const roles = (b.title.split('\n')[1] || '').replace(' · also runs in the page audit', '');
   console.log(`  ${b.textContent}  ${id.padEnd(10)}${roles.padEnd(20)}${from[id] || '?'}`);
@@ -78,25 +78,25 @@ w.dispatchEvent(new w.KeyboardEvent('keydown',
 bar.querySelector('[data-settings]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
 
 console.log('\nSETTINGS       grouped by what each one CHANGES, not by which tool owns it');
-for (const n of d.querySelectorAll('#__dbgov-list > *')) {
-  if (n.classList.contains('dbgov-viewhead')) continue;
-  if (n.classList.contains('dbgov-head')) {
+for (const n of d.querySelectorAll('#__debug-overlay-list > *')) {
+  if (n.classList.contains('debug-overlay-viewhead')) continue;
+  if (n.classList.contains('debug-overlay-head')) {
     console.log(`\n  ${n.childNodes[0].textContent.toUpperCase().padEnd(9)}` +
-                `${(n.querySelector('.dbgov-note') || {}).textContent || ''}`);
+                `${(n.querySelector('.debug-overlay-note') || {}).textContent || ''}`);
     continue;
   }
-  const c = n.querySelector('.dbgov-opt');
+  const c = n.querySelector('.debug-overlay-opt');
   if (!c) {   // the gesture legend: read-only rows, no control
-    console.log(`    ${n.querySelector(".dbgov-tag").textContent.padEnd(14)}` +
-                `${n.querySelector('.dbgov-lbl').textContent}`);
+    console.log(`    ${n.querySelector(".debug-overlay-tag").textContent.padEnd(14)}` +
+                `${n.querySelector('.debug-overlay-lbl').textContent}`);
     continue;
   }
   const shown = c.tagName === 'SELECT'
     ? [...c.options].map((o, i) => (i === c.selectedIndex ? `[${o.textContent}]` : o.textContent)).join(' ')
     : c.type === 'checkbox' ? (c.checked ? '[x]' : '[ ]')
-      : `${c.value}${(n.querySelector('.dbgov-unit') || {}).textContent || ''}`;
-  console.log(`    ${n.querySelector('.dbgov-tag').textContent} ` +
-              `${n.querySelector('.dbgov-lbl').textContent.padEnd(22)}${shown}`);
+      : `${c.value}${(n.querySelector('.debug-overlay-unit') || {}).textContent || ''}`;
+  console.log(`    ${n.querySelector('.debug-overlay-tag').textContent} ` +
+              `${n.querySelector('.debug-overlay-lbl').textContent.padEnd(22)}${shown}`);
 }
 
 /* Derived from the same hooks.js audit.js enforces — the hand-written version

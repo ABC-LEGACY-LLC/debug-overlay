@@ -20,6 +20,13 @@
    * would have missed that and built a second panel fighting the first for the
    * same hotkey. The flag stays as the cheap path and as what the tests read.
    */
+  /* BOTH spellings, deliberately. During an update an OLD instance can be
+     live in the page while a new build injects into a fresh sandbox — the
+     flag is gone but the old root is not. Looking only for the new id would
+     miss it and build a second panel fighting the first for the hotkey. The
+     legacy names cost two comparisons and can be dropped once no install
+     predates the rename. */
+  if (document.getElementById('__debug-overlay-root')) return;
   if (document.getElementById('__dbgov-root')) return;
-  if (window.__DBG_OVERLAY__) return;
-  window.__DBG_OVERLAY__ = true;
+  if (window.__DEBUG_OVERLAY__ || window.__DBG_OVERLAY__) return;
+  window.__DEBUG_OVERLAY__ = true;

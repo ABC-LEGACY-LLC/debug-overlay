@@ -314,7 +314,7 @@ be clicked to find out where it was. A finding you cannot locate is half a
 finding — and this is the difference between three rules behaving the same way
 and two of them happening to.
 
-The mark classes (`.dbgov-flag` and the severity modifiers) live in
+The mark classes (`.debug-overlay-flag` and the severity modifiers) live in
 `ui/styles.js`, not in whichever tool needed them first, because more than one
 rule paints them.
 
@@ -329,7 +329,7 @@ nothing is worse than no button.
 
 So a tool needs one of `badge`, `compact`, `draw`, `listRows`, `intercept`.
 grid gained its own badge (it summarises where measure enumerates, so both
-armed is not redundant); dupid gained `draw`, which is also why `.dbgov-flag`
+armed is not redundant); dupid gained `draw`, which is also why `.debug-overlay-flag`
 moved to `ui/styles.js` — more than one rule paints findings, so those classes
 cannot live in whichever tool needed them first.
 
@@ -422,7 +422,7 @@ in `banner.js` and both silent if reintroduced:
   top level in every context, and `@noframes` handles cross-origin frames.
 - **Ask the document, not a flag.** A soft-navigation re-injection can arrive
   in a fresh sandbox with the same page, so the single-instance guard looks for
-  an existing `#__dbgov-root` before it trusts `window.__DBG_OVERLAY__`.
+  an existing `#__debug-overlay-root` before it trusts `window.__DEBUG_OVERLAY__`.
 
 Anything else that assumed page context is now suspect. `unsafeWindow` reaches
 the real page window if something ever genuinely needs it — nothing does yet.

@@ -365,7 +365,7 @@ anything outside its folder.
   nothing would ever call.
 - `ui/panel.js` never touches state and never learns what a "pair" is;
   `ui/` never imports `app/`.
-- Every class the overlay emits or styles carries the `dbgov-` namespace, and
+- Every class the overlay emits or styles carries the `debug-overlay-` namespace, and
   the suite proves a hostile host stylesheet changes nothing — our elements
   live in the page's cascade, and a bare class name is an invitation.
 - A rule must show WHERE (findings mark and label their elements), a tool must

@@ -7,17 +7,17 @@ export function badge(i) {
         const dec = Tools.annotator(i);
         const on = (k) => Tools.setting(this, k);
         const bits = [];
-        if (on('size')) bits.push(`<span class="dbgov-sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`);
-        if (on('radius')) { const rad = U.radius(cs); if (rad) bits.push(`<span class="dbgov-rad">r ${rad}</span>`); }
-        if (on('padding')) { const p = U.four(cs, 'padding', dec); if (p) bits.push(`<span class="dbgov-sp">p ${p.join(' ')}</span>`); }
-        if (on('margin')) { const m = U.four(cs, 'margin', dec); if (m) bits.push(`<span class="dbgov-sp">m ${m.join(' ')}</span>`); }
+        if (on('size')) bits.push(`<span class="debug-overlay-sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`);
+        if (on('radius')) { const rad = U.radius(cs); if (rad) bits.push(`<span class="debug-overlay-rad">r ${rad}</span>`); }
+        if (on('padding')) { const p = U.four(cs, 'padding', dec); if (p) bits.push(`<span class="debug-overlay-sp">p ${p.join(' ')}</span>`); }
+        if (on('margin')) { const m = U.four(cs, 'margin', dec); if (m) bits.push(`<span class="debug-overlay-sp">m ${m.join(' ')}</span>`); }
         if (on('layout') && (cs.display.includes('flex') || cs.display.includes('grid'))) {
           const g = U.px(cs.columnGap) || U.px(cs.gap);
-          bits.push(`<span class="dbgov-sp">${U.esc(cs.display)}${g ? ' gap ' + U.mark(g, dec) : ''}</span>`);
+          bits.push(`<span class="debug-overlay-sp">${U.esc(cs.display)}${g ? ' gap ' + U.mark(g, dec) : ''}</span>`);
         }
-        if (on('font')) bits.push(`<span class="dbgov-fnt">${U.px(cs.fontSize)}/${U.px(cs.lineHeight) || '–'} ${cs.fontWeight}</span>`);
+        if (on('font')) bits.push(`<span class="debug-overlay-fnt">${U.px(cs.fontSize)}/${U.px(cs.lineHeight) || '–'} ${cs.fontWeight}</span>`);
         // the id is page-authored text on its way to innerHTML — never raw
-        if (on('tag')) bits.push(`<span class="dbgov-tag">${el.tagName.toLowerCase()}${el.id ? '#' + U.esc(el.id) : ''}</span>`);
+        if (on('tag')) bits.push(`<span class="debug-overlay-tag">${el.tagName.toLowerCase()}${el.id ? '#' + U.esc(el.id) : ''}</span>`);
         return bits.join(' · ');
 }
 
@@ -26,10 +26,10 @@ export function compact(i) {
         const dec = Tools.annotator(i);
         const on = (k) => Tools.setting(this, k);
         const bits = [];
-        if (on('size')) bits.push(`<span class="dbgov-sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`);
-        if (on('radius')) { const rad = U.radius(cs); if (rad) bits.push(`<span class="dbgov-rad">r ${rad}</span>`); }
+        if (on('size')) bits.push(`<span class="debug-overlay-sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`);
+        if (on('radius')) { const rad = U.radius(cs); if (rad) bits.push(`<span class="debug-overlay-rad">r ${rad}</span>`); }
         // deliberately padding only — the compact badge never marked m or gap
-        if (on('padding')) { const p = U.four(cs, 'padding', dec); if (p) bits.push(`<span class="dbgov-sp">p ${p.join(' ')}</span>`); }
+        if (on('padding')) { const p = U.four(cs, 'padding', dec); if (p) bits.push(`<span class="debug-overlay-sp">p ${p.join(' ')}</span>`); }
         return bits.join(' · ');
 }
 

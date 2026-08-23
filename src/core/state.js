@@ -77,8 +77,58 @@
       });
     },
 
-    /** The stored string for `key`, or null. Never throws. */
+    /**
+     * The stored string for `key`, or null. Never throws.
+     *
+     * Two adoptions layer here and they are different questions. `_read`
+     * answers "does a BETTER BACKEND already hold this?" (the per-origin
+     * localStorage life, migrated forward). This wrapper answers "was this
+     * saved under the OLD NAME?" — every key was `__dbgov_*` before the
+     * rename, and a rename that resets everyone's settings is a rename that
+     * should not have shipped. Read once under the legacy name, write it
+     * forward, and the legacy copy is never consulted again; it is dead
+     * weight, not a competing answer, which is why it can be left in place
+     * (GM storage has no delete without another grant).
+     */
     get(key) {
+      const v = Store._read(key);
+      if (v !== null && v !== undefined) return v;
+      const was = Store._legacy(key);
+      if (was === key) return null;
+      const old = Store._legacyRead(was);
+      if (old === null || old === undefined) return null;
+      Store.set(key, old);        // forward, under the new name — once
+      return old;
+    },
+
+    /** The pre-rename spelling of a key, or the key itself. Keys are built
+     *  with suffixes (`…_on:https://site`), so this is a prefix swap. */
+    _legacy: (key) => String(key).replace('__debug_overlay_', '__dbgov_'),
+
+    /**
+     * Read a legacy key WITHOUT adopting it. Deliberately not `_read`: that
+     * one migrates what it finds into the better backend under the SAME
+     * name, which for a legacy name means writing junk (`__dbgov_tools`
+     * into chrome.storage) and deleting the only source. Two tabs booting
+     * at once then disagreed — the first migrated and erased, the second
+     * found nothing and fell back to defaults. Leaving the old value where
+     * it is makes every boot reach the same answer, and the new key wins on
+     * every read after the first, so there is no second answer to be wrong.
+     */
+    _legacyRead(key) {
+      try {
+        if (Store._ext) {
+          const v = Store._ext.get(key);
+          if (v !== undefined && v !== null) return String(v);
+        } else if (Store._gm) {
+          const v = GM_getValue(key);
+          if (v !== undefined && v !== null) return String(v);
+        }
+        return localStorage.getItem(key);
+      } catch { return null; }
+    },
+
+    _read(key) {
       try {
         if (Store._ext) {
           const v = Store._ext.get(key);

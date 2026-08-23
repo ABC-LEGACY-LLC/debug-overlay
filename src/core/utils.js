@@ -58,7 +58,7 @@
       const part = (e) => {
         if (e.id && U.stableId(e.id)) return '#' + e.id;
         let s = e.tagName.toLowerCase();
-        const cls = [...e.classList].filter((c) => !c.startsWith('__dbgov')).slice(0, 2);
+        const cls = [...e.classList].filter((c) => !c.startsWith('debug-overlay-')).slice(0, 2);
         if (cls.length) s += '.' + cls.join('.');
         const p = e.parentElement;
         if (p) {
@@ -82,7 +82,7 @@
     labelOf(el) {
       const t = (el.innerText || el.textContent || '').trim().replace(/\s+/g, ' ');
       if (t) return t.length <= 34 ? t : t.slice(0, 31) + '…';
-      const cls = [...el.classList].filter((c) => !c.startsWith('__dbgov'))[0];
+      const cls = [...el.classList].filter((c) => !c.startsWith('debug-overlay-'))[0];
       return el.tagName.toLowerCase() + (el.id ? '#' + el.id : cls ? '.' + cls : '');
     },
     /**

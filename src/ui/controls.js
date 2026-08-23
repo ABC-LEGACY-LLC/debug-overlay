@@ -32,7 +32,7 @@
 
     choice(c, onChange) {
       const sel = document.createElement('select');
-      sel.className = 'dbgov-opt';
+      sel.className = 'debug-overlay-opt';
       c.choices.forEach((label, k) => {
         const o = document.createElement('option');
         o.value = String(k);
@@ -47,10 +47,10 @@
 
     number(c, onChange) {
       const wrap = document.createElement('span');
-      wrap.className = 'dbgov-num';
+      wrap.className = 'debug-overlay-num';
       const inp = document.createElement('input');
       inp.type = 'number';
-      inp.className = 'dbgov-opt';
+      inp.className = 'debug-overlay-opt';
       inp.value = c.value;
       if (c.min !== undefined) inp.min = String(c.min);
       if (c.max !== undefined) inp.max = String(c.max);
@@ -62,7 +62,7 @@
       wrap.append(inp);
       if (c.suffix) {
         const u = document.createElement('span');
-        u.className = 'dbgov-unit';
+        u.className = 'debug-overlay-unit';
         u.textContent = c.suffix;
         wrap.append(u);
       }
@@ -72,7 +72,7 @@
     toggle(c, onChange) {
       const inp = document.createElement('input');
       inp.type = 'checkbox';
-      inp.className = 'dbgov-opt dbgov-tick';
+      inp.className = 'debug-overlay-opt debug-overlay-tick';
       inp.checked = !!c.on;
       inp.addEventListener('click', (e) => e.stopPropagation());
       inp.addEventListener('change', () => onChange(inp.checked));

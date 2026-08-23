@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.108
+// @version      3.8.109
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -244,7 +244,7 @@ HOW TO USE
       id: 'zindex',
       icon: '⧉', title: 'Stacking — z-index & position',
       startsOn: false,             // optional, armed on a fresh install?
-      badge:   (i) => `<span class="dbgov-sp">z ${i.cs.zIndex}</span>`,  // optional
+      badge:   (i) => `<span class="debug-overlay-sp">z ${i.cs.zIndex}</span>`,  // optional
       compact: (i) => null,                                       // optional
       report:  (i) => [`  z-index: ${i.cs.zIndex}`],              // optional
       draw:    (ctx) => {},                                       // optional
@@ -341,9 +341,16 @@ HOW TO USE
    * would have missed that and built a second panel fighting the first for the
    * same hotkey. The flag stays as the cheap path and as what the tests read.
    */
+  /* BOTH spellings, deliberately. During an update an OLD instance can be
+     live in the page while a new build injects into a fresh sandbox — the
+     flag is gone but the old root is not. Looking only for the new id would
+     miss it and build a second panel fighting the first for the hotkey. The
+     legacy names cost two comparisons and can be dropped once no install
+     predates the rename. */
+  if (document.getElementById('__debug-overlay-root')) return;
   if (document.getElementById('__dbgov-root')) return;
-  if (window.__DBG_OVERLAY__) return;
-  window.__DBG_OVERLAY__ = true;
+  if (window.__DEBUG_OVERLAY__ || window.__DBG_OVERLAY__) return;
+  window.__DEBUG_OVERLAY__ = true;
 
 (() => {
   // src/core/config.js
@@ -352,7 +359,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.108",
+    VERSION: "3.8.109",
     // Substituted like VERSION: where the update checker asks, and what the
     // userscript's one-click update opens. One source (userscript.json), no
     // second copy to drift.
@@ -379,20 +386,20 @@ HOW TO USE
     // ms idle before the panel tucks away
     EDGE_MARGIN: 8,
     BADGE_MARGIN: 6,
-    POS_KEY: "__dbgov_pos",
+    POS_KEY: "__debug_overlay_pos",
     // PER-ORIGIN, unlike everything else in the store: "debugging THIS site"
     // is a session fact about one origin, where a grid step is a fact about
     // the project. Global power would pop the overlay onto every site the
     // browser visits. Pins add the PATH: a pin on /live-map is not a pin on
     // /settings.
-    POWER_KEY: "__dbgov_on",
-    PINS_KEY: "__dbgov_pins",
-    TOOLS_KEY: "__dbgov_tools",
-    SETTINGS_KEY: "__dbgov_settings",
+    POWER_KEY: "__debug_overlay_on",
+    PINS_KEY: "__debug_overlay_pins",
+    TOOLS_KEY: "__debug_overlay_tools",
+    SETTINGS_KEY: "__debug_overlay_settings",
     // Which tool ids this install has already met. Without it a saved armed
     // set answers for tools that no longer exist and stays silent about ones
     // shipped since — so a new capability arrives switched off and invisible.
-    SEEN_KEY: "__dbgov_seen",
+    SEEN_KEY: "__debug_overlay_seen",
     FLASH_MS: 1200,
     // how long a button shows a transient message
     LIST_GAP: 10,
@@ -516,7 +523,7 @@ HOW TO USE
       const part = (e2) => {
         if (e2.id && U.stableId(e2.id)) return "#" + e2.id;
         let s = e2.tagName.toLowerCase();
-        const cls = [...e2.classList].filter((c) => !c.startsWith("__dbgov")).slice(0, 2);
+        const cls = [...e2.classList].filter((c) => !c.startsWith("debug-overlay-")).slice(0, 2);
         if (cls.length) s += "." + cls.join(".");
         const p = e2.parentElement;
         if (p) {
@@ -538,7 +545,7 @@ HOW TO USE
     labelOf(el2) {
       const t = (el2.innerText || el2.textContent || "").trim().replace(/\s+/g, " ");
       if (t) return t.length <= 34 ? t : t.slice(0, 31) + "…";
-      const cls = [...el2.classList].filter((c) => !c.startsWith("__dbgov"))[0];
+      const cls = [...el2.classList].filter((c) => !c.startsWith("debug-overlay-"))[0];
       return el2.tagName.toLowerCase() + (el2.id ? "#" + el2.id : cls ? "." + cls : "");
     },
     /**
@@ -613,8 +620,57 @@ HOW TO USE
         }
       });
     },
-    /** The stored string for `key`, or null. Never throws. */
+    /**
+     * The stored string for `key`, or null. Never throws.
+     *
+     * Two adoptions layer here and they are different questions. `_read`
+     * answers "does a BETTER BACKEND already hold this?" (the per-origin
+     * localStorage life, migrated forward). This wrapper answers "was this
+     * saved under the OLD NAME?" — every key was `__dbgov_*` before the
+     * rename, and a rename that resets everyone's settings is a rename that
+     * should not have shipped. Read once under the legacy name, write it
+     * forward, and the legacy copy is never consulted again; it is dead
+     * weight, not a competing answer, which is why it can be left in place
+     * (GM storage has no delete without another grant).
+     */
     get(key) {
+      const v = Store._read(key);
+      if (v !== null && v !== void 0) return v;
+      const was = Store._legacy(key);
+      if (was === key) return null;
+      const old = Store._legacyRead(was);
+      if (old === null || old === void 0) return null;
+      Store.set(key, old);
+      return old;
+    },
+    /** The pre-rename spelling of a key, or the key itself. Keys are built
+     *  with suffixes (`…_on:https://site`), so this is a prefix swap. */
+    _legacy: (key) => String(key).replace("__debug_overlay_", "__dbgov_"),
+    /**
+     * Read a legacy key WITHOUT adopting it. Deliberately not `_read`: that
+     * one migrates what it finds into the better backend under the SAME
+     * name, which for a legacy name means writing junk (`__dbgov_tools`
+     * into chrome.storage) and deleting the only source. Two tabs booting
+     * at once then disagreed — the first migrated and erased, the second
+     * found nothing and fell back to defaults. Leaving the old value where
+     * it is makes every boot reach the same answer, and the new key wins on
+     * every read after the first, so there is no second answer to be wrong.
+     */
+    _legacyRead(key) {
+      try {
+        if (Store._ext) {
+          const v = Store._ext.get(key);
+          if (v !== void 0 && v !== null) return String(v);
+        } else if (Store._gm) {
+          const v = GM_getValue(key);
+          if (v !== void 0 && v !== null) return String(v);
+        }
+        return localStorage.getItem(key);
+      } catch {
+        return null;
+      }
+    },
+    _read(key) {
       try {
         if (Store._ext) {
           const v2 = Store._ext.get(key);
@@ -960,7 +1016,7 @@ HOW TO USE
       const len = vertical ? Math.abs(y2 - y1) : Math.abs(x2 - x1);
       const dir = vertical ? y2 >= y1 ? "down" : "up" : x2 >= x1 ? "right" : "left";
       const line = document.createElement("div");
-      line.className = "dbgov-line";
+      line.className = "debug-overlay-line";
       if (vertical) {
         Place2.put(line, Math.round(x1) - 1, Math.min(y1, y2), 2, Math.max(len, 1));
         Place2.claim(Math.round(x1) - 5, Math.min(y1, y2), 10, Math.max(len, 1));
@@ -970,13 +1026,13 @@ HOW TO USE
       }
       layer2.append(line);
       const tick = document.createElement("div");
-      tick.className = "dbgov-cap";
+      tick.className = "debug-overlay-cap";
       if (vertical) Place2.put(tick, Math.round(x1) - 6, Math.round(y1) - 1, 12, 2);
       else Place2.put(tick, Math.round(x1) - 1, Math.round(y1) - 6, 2, 12);
       layer2.append(tick);
       if (endArrow) {
         const a = document.createElement("div");
-        a.className = "dbgov-arrow dbgov-" + dir;
+        a.className = "debug-overlay-arrow debug-overlay-" + dir;
         const P = {
           up: [Math.round(x2) - 5, Math.round(y2)],
           down: [Math.round(x2) - 5, Math.round(y2) - 7],
@@ -987,7 +1043,7 @@ HOW TO USE
         layer2.append(a);
       } else {
         const c = document.createElement("div");
-        c.className = "dbgov-cap";
+        c.className = "debug-overlay-cap";
         if (vertical) Place2.put(c, Math.round(x2) - 6, Math.round(y2) - 1, 12, 2);
         else Place2.put(c, Math.round(x2) - 1, Math.round(y2) - 6, 2, 12);
         layer2.append(c);
@@ -995,7 +1051,7 @@ HOW TO USE
       const mx = vertical ? x1 + 12 : (x1 + x2) / 2;
       const my = vertical ? (y1 + y2) / 2 : y1 - 12;
       const lbl = document.createElement("div");
-      lbl.className = "dbgov-dist" + (vertical ? " dbgov-vert" : "");
+      lbl.className = "debug-overlay-dist" + (vertical ? " debug-overlay-vert" : "");
       lbl.textContent = text;
       layer2.append(lbl);
       Place2.smart(
@@ -1009,7 +1065,7 @@ HOW TO USE
       if (Math.round(x1) === Math.round(x2) && Math.round(y1) === Math.round(y2)) return;
       const e = document.createElement("div");
       const horizontal = Math.abs(x2 - x1) >= Math.abs(y2 - y1);
-      e.className = "dbgov-ext" + (horizontal ? "" : " dbgov-v");
+      e.className = "debug-overlay-ext" + (horizontal ? "" : " debug-overlay-v");
       if (horizontal) Place2.put(e, Math.min(x1, x2), Math.round(y1), Math.abs(x2 - x1) || 1, 1);
       else Place2.put(e, Math.round(x1), Math.min(y1, y2), 1, Math.abs(y2 - y1) || 1);
       layer2.append(e);
@@ -1029,7 +1085,7 @@ HOW TO USE
       const g = U.gap(ra, rb);
       if (axis.kind === "overlap") {
         const lbl = document.createElement("div");
-        lbl.className = "dbgov-dist";
+        lbl.className = "debug-overlay-dist";
         lbl.textContent = `${tag} · overlapping`;
         layer2.append(lbl);
         const mx = (Math.max(ra.left, rb.left) + Math.min(ra.right, rb.right)) / 2;
@@ -1291,14 +1347,14 @@ HOW TO USE
   function badge(i) {
     const c = Colour.measure(i);
     if (!c) return null;
-    if (c.unknown) return `<span class="dbgov-unk">contrast ?</span>`;
-    const cls = c.pass ? "dbgov-ok" : "dbgov-bad";
+    if (c.unknown) return `<span class="debug-overlay-unk">contrast ?</span>`;
+    const cls = c.pass ? "debug-overlay-ok" : "debug-overlay-bad";
     return `<span class="${cls}">${c.ratio.toFixed(2)}:1 ${c.level}${c.pass ? "✓" : "✗"}</span>`;
   }
   function compact(i) {
     const c = Colour.measure(i);
     if (!c || c.unknown || c.pass) return null;
-    return `<span class="dbgov-bad">${c.ratio.toFixed(1)}:1 ✗</span>`;
+    return `<span class="debug-overlay-bad">${c.ratio.toFixed(1)}:1 ✗</span>`;
   }
   function legend() {
     return [
@@ -1365,9 +1421,9 @@ HOW TO USE
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `
-    .dbgov-badge .dbgov-ok  { color: #b5e853; }
-    .dbgov-badge .dbgov-bad { color: #ff6b6b; font-weight: 700; }
-    .dbgov-badge .dbgov-unk { color: #8ab4f8; font-style: italic; }
+    .debug-overlay-badge .debug-overlay-ok  { color: #b5e853; }
+    .debug-overlay-badge .debug-overlay-bad { color: #ff6b6b; font-weight: 700; }
+    .debug-overlay-badge .debug-overlay-unk { color: #8ab4f8; font-style: italic; }
     `,
     id: "contrast",
     family: "colour",
@@ -1393,7 +1449,7 @@ HOW TO USE
     const n = document.querySelectorAll(
       `[id="${CSS.escape ? CSS.escape(el2.id) : el2.id}"]`
     ).length;
-    return n > 1 ? `<span class="dbgov-dup">⌗ id ×${n}</span>` : null;
+    return n > 1 ? `<span class="debug-overlay-dup">⌗ id ×${n}</span>` : null;
   }
   function compact2(i) {
     return this.badge(i);
@@ -1451,7 +1507,7 @@ HOW TO USE
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `
-    .dbgov-badge .dbgov-dup { color: #ff8a65; font-weight: 700; }
+    .debug-overlay-badge .debug-overlay-dup { color: #ff8a65; font-weight: 700; }
     `,
     id: "dupid",
     // not ⧉ — the copy button already uses that glyph, and two identical
@@ -1474,25 +1530,25 @@ HOW TO USE
     const dec = Tools.annotator(i);
     const on = (k) => Tools.setting(this, k);
     const bits = [];
-    if (on("size")) bits.push(`<span class="dbgov-sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`);
+    if (on("size")) bits.push(`<span class="debug-overlay-sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`);
     if (on("radius")) {
       const rad = U.radius(cs);
-      if (rad) bits.push(`<span class="dbgov-rad">r ${rad}</span>`);
+      if (rad) bits.push(`<span class="debug-overlay-rad">r ${rad}</span>`);
     }
     if (on("padding")) {
       const p = U.four(cs, "padding", dec);
-      if (p) bits.push(`<span class="dbgov-sp">p ${p.join(" ")}</span>`);
+      if (p) bits.push(`<span class="debug-overlay-sp">p ${p.join(" ")}</span>`);
     }
     if (on("margin")) {
       const m = U.four(cs, "margin", dec);
-      if (m) bits.push(`<span class="dbgov-sp">m ${m.join(" ")}</span>`);
+      if (m) bits.push(`<span class="debug-overlay-sp">m ${m.join(" ")}</span>`);
     }
     if (on("layout") && (cs.display.includes("flex") || cs.display.includes("grid"))) {
       const g = U.px(cs.columnGap) || U.px(cs.gap);
-      bits.push(`<span class="dbgov-sp">${U.esc(cs.display)}${g ? " gap " + U.mark(g, dec) : ""}</span>`);
+      bits.push(`<span class="debug-overlay-sp">${U.esc(cs.display)}${g ? " gap " + U.mark(g, dec) : ""}</span>`);
     }
-    if (on("font")) bits.push(`<span class="dbgov-fnt">${U.px(cs.fontSize)}/${U.px(cs.lineHeight) || "–"} ${cs.fontWeight}</span>`);
-    if (on("tag")) bits.push(`<span class="dbgov-tag">${el2.tagName.toLowerCase()}${el2.id ? "#" + U.esc(el2.id) : ""}</span>`);
+    if (on("font")) bits.push(`<span class="debug-overlay-fnt">${U.px(cs.fontSize)}/${U.px(cs.lineHeight) || "–"} ${cs.fontWeight}</span>`);
+    if (on("tag")) bits.push(`<span class="debug-overlay-tag">${el2.tagName.toLowerCase()}${el2.id ? "#" + U.esc(el2.id) : ""}</span>`);
     return bits.join(" · ");
   }
   function compact3(i) {
@@ -1500,14 +1556,14 @@ HOW TO USE
     const dec = Tools.annotator(i);
     const on = (k) => Tools.setting(this, k);
     const bits = [];
-    if (on("size")) bits.push(`<span class="dbgov-sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`);
+    if (on("size")) bits.push(`<span class="debug-overlay-sz">${Math.round(r.width)}×${Math.round(r.height)}</span>`);
     if (on("radius")) {
       const rad = U.radius(cs);
-      if (rad) bits.push(`<span class="dbgov-rad">r ${rad}</span>`);
+      if (rad) bits.push(`<span class="debug-overlay-rad">r ${rad}</span>`);
     }
     if (on("padding")) {
       const p = U.four(cs, "padding", dec);
-      if (p) bits.push(`<span class="dbgov-sp">p ${p.join(" ")}</span>`);
+      if (p) bits.push(`<span class="debug-overlay-sp">p ${p.join(" ")}</span>`);
     }
     return bits.join(" · ");
   }
@@ -1570,30 +1626,30 @@ HOW TO USE
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `
-    .dbgov-leader { position: fixed; pointer-events: none; background: rgba(255,255,255,.55); }
-    .dbgov-line { position: fixed; pointer-events: none; background: rgba(181,232,83,.85);
+    .debug-overlay-leader { position: fixed; pointer-events: none; background: rgba(255,255,255,.55); }
+    .debug-overlay-line { position: fixed; pointer-events: none; background: rgba(181,232,83,.85);
       border-radius: 1px; box-shadow: 0 0 0 .5px rgba(0,0,0,.4); }
-    .dbgov-cap { position: fixed; pointer-events: none; background: #b5e853;
+    .debug-overlay-cap { position: fixed; pointer-events: none; background: #b5e853;
       border-radius: 1px; box-shadow: 0 0 0 .5px rgba(0,0,0,.5); }
-    .dbgov-arrow { position: fixed; pointer-events: none; width: 0; height: 0;
+    .debug-overlay-arrow { position: fixed; pointer-events: none; width: 0; height: 0;
       filter: drop-shadow(0 0 .5px rgba(0,0,0,.6)); }
-    .dbgov-arrow.dbgov-up    { border-left: 5px solid transparent; border-right: 5px solid transparent;
+    .debug-overlay-arrow.debug-overlay-up    { border-left: 5px solid transparent; border-right: 5px solid transparent;
                          border-bottom: 7px solid #b5e853; }
-    .dbgov-arrow.dbgov-down  { border-left: 5px solid transparent; border-right: 5px solid transparent;
+    .debug-overlay-arrow.debug-overlay-down  { border-left: 5px solid transparent; border-right: 5px solid transparent;
                          border-top: 7px solid #b5e853; }
-    .dbgov-arrow.dbgov-left  { border-top: 5px solid transparent; border-bottom: 5px solid transparent;
+    .debug-overlay-arrow.debug-overlay-left  { border-top: 5px solid transparent; border-bottom: 5px solid transparent;
                          border-right: 7px solid #b5e853; }
-    .dbgov-arrow.dbgov-right { border-top: 5px solid transparent; border-bottom: 5px solid transparent;
+    .debug-overlay-arrow.debug-overlay-right { border-top: 5px solid transparent; border-bottom: 5px solid transparent;
                          border-left: 7px solid #b5e853; }
-    .dbgov-ext { position: fixed; pointer-events: none;
+    .debug-overlay-ext { position: fixed; pointer-events: none;
       background: repeating-linear-gradient(to right,
         rgba(181,232,83,.7) 0 4px, transparent 4px 8px); }
-    .dbgov-ext.dbgov-v { background: repeating-linear-gradient(to bottom,
+    .debug-overlay-ext.debug-overlay-v { background: repeating-linear-gradient(to bottom,
         rgba(181,232,83,.7) 0 4px, transparent 4px 8px); }
-    .dbgov-dist { position: fixed; pointer-events: none;
+    .debug-overlay-dist { position: fixed; pointer-events: none;
       background: rgba(24,28,14,.95); color: #b5e853; border-radius: 7px;
       padding: 3px 8px; font-size: 12px; font-weight: 700; white-space: nowrap; }
-    .dbgov-dist.dbgov-vert { border-left: 2px solid #b5e853; }
+    .debug-overlay-dist.debug-overlay-vert { border-left: 2px solid #b5e853; }
     `,
     id: "measure",
     family: "geometry",
@@ -1747,11 +1803,11 @@ HOW TO USE
     const bad = Scale.scan(i, true);
     if (!bad.length) return null;
     const vals = [...new Set(bad.map(([, v]) => v))];
-    return `<span class="dbgov-warn">⚠ ${vals.join(" ")} off ${Scale.step()}px</span>`;
+    return `<span class="debug-overlay-warn">⚠ ${vals.join(" ")} off ${Scale.step()}px</span>`;
   }
   function compact4(i) {
     const bad = Scale.scan(i, true);
-    return bad.length ? `<span class="dbgov-warn">⚠${bad.length}</span>` : null;
+    return bad.length ? `<span class="debug-overlay-warn">⚠${bad.length}</span>` : null;
   }
   function legend4() {
     return [
@@ -1764,7 +1820,7 @@ HOW TO USE
   function annotate(html, n, info) {
     if (!Scale.judges(n)) return html;
     const fix = info?.facets?.suggest ? `→${Scale.nearest(n)}` : "";
-    return `<span class="dbgov-warn">${html}⚠${fix}</span>`;
+    return `<span class="debug-overlay-warn">${html}⚠${fix}</span>`;
   }
 
   // src/tools/grid/report.js
@@ -2098,22 +2154,22 @@ HOW TO USE
     const s = Targets.stats(i.el);
     if (s) {
       const churn = Number(Tools.setting(this, "churn")) || CONFIG.PERF.CHURN;
-      const mut = s.rate >= churn ? `<span class="dbgov-warn">mut ${s.rate}/s</span>` : `mut ${s.rate}/s`;
+      const mut = s.rate >= churn ? `<span class="debug-overlay-warn">mut ${s.rate}/s</span>` : `mut ${s.rate}/s`;
       const bits = [`⚡ ${mut}`];
       if (s.worstEvt) bits.push(`resp ${fmt(s.worstEvt)}`);
       if (s.shift > 5e-3) bits.push(`shift ${s.shift.toFixed(2)}`);
-      return `<span class="dbgov-sp">${bits.join(" · ")}</span>`;
+      return `<span class="debug-overlay-sp">${bits.join(" · ")}</span>`;
     }
     const fps = Monitor.fps == null ? "–" : Monitor.fps;
     const n = Monitor.log.length;
-    return `<span class="dbgov-sp">⚡ ${fps}fps</span>` + (n ? ` <span class="dbgov-warn">${n}× worst ${fmt(Monitor.worst())}</span>` : "");
+    return `<span class="debug-overlay-sp">⚡ ${fps}fps</span>` + (n ? ` <span class="debug-overlay-warn">${n}× worst ${fmt(Monitor.worst())}</span>` : "");
   }
   function compact5(i) {
     if (!Monitor.running) return null;
     const s = Targets.stats(i.el);
     const churn = Number(Tools.setting(this, "churn")) || CONFIG.PERF.CHURN;
-    if (s && s.rate >= churn) return `<span class="dbgov-warn">⚡mut ${s.rate}/s</span>`;
-    if (!s && Monitor.log.length) return `<span class="dbgov-warn">⚡${fmt(Monitor.worst())}</span>`;
+    if (s && s.rate >= churn) return `<span class="debug-overlay-warn">⚡mut ${s.rate}/s</span>`;
+    if (!s && Monitor.log.length) return `<span class="debug-overlay-warn">⚡${fmt(Monitor.worst())}</span>`;
     return null;
   }
   function legend5() {
@@ -2376,135 +2432,135 @@ HOW TO USE
        not the defence; declaring the property is. So the root stops every
        inherited property we rely on, and each element type below re-asserts
        what a host most commonly sets on it. */
-    #__dbgov-root { position: fixed; inset: 0; z-index: ${CONFIG.Z}; pointer-events: none;
+    #__debug-overlay-root { position: fixed; inset: 0; z-index: ${CONFIG.Z}; pointer-events: none;
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       font-size: 12px; font-style: normal; font-variant: normal; font-weight: 400;
       line-height: normal; letter-spacing: normal; word-spacing: normal;
       text-transform: none; text-indent: 0; text-shadow: none; text-align: left;
       white-space: normal; direction: ltr; visibility: visible; float: none; }
-    #__dbgov-root * { box-sizing: border-box; float: none; }
+    #__debug-overlay-root * { box-sizing: border-box; float: none; }
     /* form controls take their own tag rules — a host styling the button TAG reaches
        every button we draw, whatever we called it */
-    #__dbgov-root button, #__dbgov-root input, #__dbgov-root select {
+    #__debug-overlay-root button, #__debug-overlay-root input, #__debug-overlay-root select {
       margin: 0; text-transform: none; letter-spacing: normal;
       word-spacing: normal; text-indent: 0; }
 
-    .dbgov-box { position: fixed; pointer-events: none; }
-    .dbgov-hover  { outline: 1.5px solid #58c4ff; outline-offset: -1px; background: rgba(88,196,255,.06); }
+    .debug-overlay-box { position: fixed; pointer-events: none; }
+    .debug-overlay-hover  { outline: 1.5px solid #58c4ff; outline-offset: -1px; background: rgba(88,196,255,.06); }
     /* note pin = plain click (inspect only) · pair = Shift+click ·
        link = Ctrl/⌘+Shift+click, chained to the previous pin */
-    .dbgov-pinbox { outline: 1.5px dashed #ff8a65; outline-offset: -1px; }
-    .dbgov-pinbox.dbgov-pair { outline-style: solid; outline-color: #b5e853; }
-    .dbgov-pinbox.dbgov-link { outline-style: solid; outline-color: #c084fc; }
-    .dbgov-pinbox.dbgov-waiting { outline-color: #58c4ff; }
-    .dbgov-pinbox.dbgov-rmtarget { outline: 2px solid #ff5c5c; background: rgba(255,92,92,.10); }
-    .dbgov-pinbox.dbgov-flash { outline: 2.5px solid #58c4ff;
+    .debug-overlay-pinbox { outline: 1.5px dashed #ff8a65; outline-offset: -1px; }
+    .debug-overlay-pinbox.debug-overlay-pair { outline-style: solid; outline-color: #b5e853; }
+    .debug-overlay-pinbox.debug-overlay-link { outline-style: solid; outline-color: #c084fc; }
+    .debug-overlay-pinbox.debug-overlay-waiting { outline-color: #58c4ff; }
+    .debug-overlay-pinbox.debug-overlay-rmtarget { outline: 2px solid #ff5c5c; background: rgba(255,92,92,.10); }
+    .debug-overlay-pinbox.debug-overlay-flash { outline: 2.5px solid #58c4ff;
       background: rgba(88,196,255,.18); }
     @media (prefers-reduced-motion: no-preference) {
-      .dbgov-pinbox.dbgov-flash { animation: dbgov-pulse .9s ease-out; }
+      .debug-overlay-pinbox.debug-overlay-flash { animation: debug-overlay-pulse .9s ease-out; }
     }
-    @keyframes dbgov-pulse {
+    @keyframes debug-overlay-pulse {
       0% { box-shadow: 0 0 0 0 rgba(88,196,255,.55); }
       100% { box-shadow: 0 0 0 16px rgba(88,196,255,0); } }
 
     /* pin list popover — opened from the count chip, closed for screenshots */
     /* the target menu — right-click's "what can you do with this element" */
-    #__dbgov-menu { position: fixed; display: none; pointer-events: auto;
+    #__debug-overlay-menu { position: fixed; display: none; pointer-events: auto;
       min-width: 150px; background: rgba(18,18,20,.97); border-radius: 10px;
       padding: 4px; box-shadow: 0 6px 24px rgba(0,0,0,.6); color: #fff;
       font-size: 12px; }
-    #__dbgov-menu.dbgov-open { display: block; }
-    #__dbgov-menu button { display: block; width: 100%; text-align: left;
+    #__debug-overlay-menu.debug-overlay-open { display: block; }
+    #__debug-overlay-menu button { display: block; width: 100%; text-align: left;
       padding: 7px 12px; background: transparent; border: 0; border-radius: 6px;
       color: inherit; font: inherit; cursor: pointer; }
-    #__dbgov-menu button:hover { background: #3a3a41; }
-    #__dbgov-list { position: fixed; display: none; pointer-events: auto;
+    #__debug-overlay-menu button:hover { background: #3a3a41; }
+    #__debug-overlay-list { position: fixed; display: none; pointer-events: auto;
       min-width: 250px; max-width: 460px; max-height: 60vh; overflow-y: auto;
       background: rgba(18,18,20,.97); border-radius: 12px; padding: 6px;
       box-shadow: 0 6px 24px rgba(0,0,0,.6); color: #fff; font-size: 12px; }
-    #__dbgov-list.dbgov-open { display: block; }
-    #__dbgov-list .dbgov-empty { padding: 10px 8px; color: #8f8f96; line-height: 1.5; }
-    #__dbgov-list .dbgov-row { display: flex; align-items: center; gap: 8px;
+    #__debug-overlay-list.debug-overlay-open { display: block; }
+    #__debug-overlay-list .debug-overlay-empty { padding: 10px 8px; color: #8f8f96; line-height: 1.5; }
+    #__debug-overlay-list .debug-overlay-row { display: flex; align-items: center; gap: 8px;
       padding: 6px 8px; border-radius: 8px; }
     /* only a row that DOES something on click says so — a settings row is a
        label beside a control, and a pointer over it promised an action that
        never came */
-    #__dbgov-list .dbgov-row[role="button"] { cursor: pointer; }
-    #__dbgov-list .dbgov-row:hover { background: rgba(255,255,255,.08); }
-    #__dbgov-list .dbgov-tag { flex: none; color: #ff8a65; font-weight: 800; }
+    #__debug-overlay-list .debug-overlay-row[role="button"] { cursor: pointer; }
+    #__debug-overlay-list .debug-overlay-row:hover { background: rgba(255,255,255,.08); }
+    #__debug-overlay-list .debug-overlay-tag { flex: none; color: #ff8a65; font-weight: 800; }
     /* THE MESSAGE IS THE CONTENT AND MUST NOT BE THE CELL THAT COLLAPSES.
-       .dbgov-lbl was the only shrinkable item in the row (every sibling is
+       .debug-overlay-lbl was the only shrinkable item in the row (every sibling is
        flex: none), and its overflow:hidden zeroes its automatic minimum size —
-       so a long CSS selector in .dbgov-det ate the whole row and the finding
+       so a long CSS selector in .debug-overlay-det ate the whole row and the finding
        rendered with NO TEXT AT ALL: measured 0px wide on 2 of 11 rows. The
        floor keeps the human-readable half; the machine-readable half is what
        truncates, with the whole of it in the row's title. */
-    #__dbgov-list .dbgov-lbl { flex: 1 1 auto; min-width: 55%; overflow: hidden;
+    #__debug-overlay-list .debug-overlay-lbl { flex: 1 1 auto; min-width: 55%; overflow: hidden;
       text-overflow: ellipsis; white-space: nowrap; }
-    #__dbgov-list .dbgov-det { flex: 0 1 auto; min-width: 0; overflow: hidden;
+    #__debug-overlay-list .debug-overlay-det { flex: 0 1 auto; min-width: 0; overflow: hidden;
       text-overflow: ellipsis; white-space: nowrap;
       color: #b5e853; font-weight: 700; }
     /* A row may carry an opaque accent; the panel copies it onto the element
        without knowing what any of the values mean. */
-    #__dbgov-list .dbgov-row[data-accent="error"] .dbgov-tag { color: #ff6b6b; }
-    #__dbgov-list .dbgov-row[data-accent="warn"]  .dbgov-tag { color: #ffd54f; }
-    #__dbgov-list .dbgov-row[data-accent="info"]  .dbgov-tag { color: #9ad0ff; }
+    #__debug-overlay-list .debug-overlay-row[data-accent="error"] .debug-overlay-tag { color: #ff6b6b; }
+    #__debug-overlay-list .debug-overlay-row[data-accent="warn"]  .debug-overlay-tag { color: #ffd54f; }
+    #__debug-overlay-list .debug-overlay-row[data-accent="info"]  .debug-overlay-tag { color: #9ad0ff; }
     /* not a verdict — something the tool could not measure and you have to
        look at yourself; italic so it never reads as a failure */
-    #__dbgov-list .dbgov-row[data-accent="review"] .dbgov-tag { color: #8ab4f8; font-style: italic; }
+    #__debug-overlay-list .debug-overlay-row[data-accent="review"] .debug-overlay-tag { color: #8ab4f8; font-style: italic; }
     /* The verdict reads first and the selector says where to look, so a
-       finding puts its message in .dbgov-lbl — which already takes the room and
-       ellipsises — and the element in .dbgov-det. No direction tricks: rtl reorders
+       finding puts its message in .debug-overlay-lbl — which already takes the room and
+       ellipsises — and the element in .debug-overlay-det. No direction tricks: rtl reorders
        the neutral characters in a CSS selector and prints '#id' backwards. */
-    #__dbgov-list .dbgov-row[data-accent] .dbgov-det { color: #8f8f96; font-weight: 400; }
+    #__debug-overlay-list .debug-overlay-row[data-accent] .debug-overlay-det { color: #8f8f96; font-weight: 400; }
     /* A settings row's picker. font: inherit because a bare <select> takes the
        PAGE's font on some sites and the row stops lining up; the overlay must
        look the same wherever it is injected. */
-    #__dbgov-list .dbgov-opt { flex: none; cursor: pointer; font: inherit;
+    #__debug-overlay-list .debug-overlay-opt { flex: none; cursor: pointer; font: inherit;
       background: #2c2c31; color: #b5e853; font-weight: 700; border: 0;
       border-radius: 6px; padding: 3px 6px;
       width: auto; height: auto; margin: 0; position: static;
       opacity: 1; appearance: auto; text-transform: none; }
-    #__dbgov-list .dbgov-opt:hover { background: #3a3a41; }
+    #__debug-overlay-list .debug-overlay-opt:hover { background: #3a3a41; }
     /* what the settings under it change — the category, not the owning tool */
     /* which of the three screens this is — one slot showed findings, pins and
        settings with no header at all, so nothing said what you were reading */
-    #__dbgov-list .dbgov-viewhead { padding: 4px 8px 8px; color: #fff; font-size: 13px;
+    #__debug-overlay-list .debug-overlay-viewhead { padding: 4px 8px 8px; color: #fff; font-size: 13px;
       font-weight: 800; border-bottom: 1px solid rgba(255,255,255,.10); margin-bottom: 4px; }
-    #__dbgov-list .dbgov-viewhead .dbgov-rm { float: right; }
-    #__dbgov-list .dbgov-viewhead .dbgov-note { display: block; margin-top: 2px; color: #8f8f96;
+    #__debug-overlay-list .debug-overlay-viewhead .debug-overlay-rm { float: right; }
+    #__debug-overlay-list .debug-overlay-viewhead .debug-overlay-note { display: block; margin-top: 2px; color: #8f8f96;
       font-size: 10px; font-weight: 400; }
-    #__dbgov-list .dbgov-head { padding: 10px 8px 4px; color: #8f8f96;
+    #__debug-overlay-list .debug-overlay-head { padding: 10px 8px 4px; color: #8f8f96;
       font-size: 10px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
-    #__dbgov-list .dbgov-head:first-child { padding-top: 4px; }
-    #__dbgov-list .dbgov-head .dbgov-note { display: block; margin-top: 2px;
+    #__debug-overlay-list .debug-overlay-head:first-child { padding-top: 4px; }
+    #__debug-overlay-list .debug-overlay-head .debug-overlay-note { display: block; margin-top: 2px;
       font-size: 10px; font-weight: 400; letter-spacing: 0; text-transform: none; }
     /* stored and waiting — the tool that reads it is switched off */
     /* .45 put the label at 2.53:1 against the popover — a permanent state,
        not a transient one, and unreadable in exactly the tool that ships a
        contrast checker. Dimmed enough to read as inactive, light enough to
        read at all. */
-    #__dbgov-list .dbgov-row.dbgov-inert .dbgov-lbl, #__dbgov-list .dbgov-row.dbgov-inert .dbgov-tag { opacity: .7; }
-    #__dbgov-list .dbgov-num { flex: none; display: flex; align-items: center; gap: 4px; }
-    #__dbgov-list .dbgov-num .dbgov-opt { width: 68px; text-align: right; }
-    #__dbgov-list .dbgov-unit { color: #8f8f96; font-weight: 400; }
+    #__debug-overlay-list .debug-overlay-row.debug-overlay-inert .debug-overlay-lbl, #__debug-overlay-list .debug-overlay-row.debug-overlay-inert .debug-overlay-tag { opacity: .7; }
+    #__debug-overlay-list .debug-overlay-num { flex: none; display: flex; align-items: center; gap: 4px; }
+    #__debug-overlay-list .debug-overlay-num .debug-overlay-opt { width: 68px; text-align: right; }
+    #__debug-overlay-list .debug-overlay-unit { color: #8f8f96; font-weight: 400; }
     /* accent-color rather than a hand-built switch: the native control already
        knows focus, keyboard and the platform's own hit target */
     /* Declared, not defaulted: the common host pattern for hiding a native
        checkbox behind a custom one is input[type=checkbox]{position:absolute;
        opacity:0;width:1px}, and a TAG+ATTRIBUTE selector reaches straight past
        a class namespace. Unopposed is what loses, so this opposes it. */
-    #__dbgov-list .dbgov-tick { width: 15px; height: 15px; padding: 0; margin: 0;
+    #__debug-overlay-list .debug-overlay-tick { width: 15px; height: 15px; padding: 0; margin: 0;
       position: static; opacity: 1; appearance: auto; accent-color: #b5e853; }
     /* the row's action, when it has one: the CONTENT is the button, so the
        row's ✕ stays a sibling and no interactive element nests in another */
-    #__dbgov-list .dbgov-go { flex: 1 1 auto; min-width: 0; display: flex;
+    #__debug-overlay-list .debug-overlay-go { flex: 1 1 auto; min-width: 0; display: flex;
       align-items: center; gap: 8px; padding: 0; border: 0; background: none;
       color: inherit; font: inherit; text-align: left; cursor: pointer; }
-    #__dbgov-list .dbgov-rm { flex: none; width: 20px; height: 20px; border: 0; cursor: pointer;
+    #__debug-overlay-list .debug-overlay-rm { flex: none; width: 20px; height: 20px; border: 0; cursor: pointer;
       border-radius: 50%; background: #2c2c31; color: #ff8a8a; font-size: 11px;
       display: flex; align-items: center; justify-content: center; }
-    #__dbgov-list .dbgov-rm:hover { background: #ff5c5c; color: #fff; }
+    #__debug-overlay-list .debug-overlay-rm:hover { background: #ff5c5c; color: #fff; }
     /* Where the findings actually are. Dashed, never filled: a mark points at
        a problem, it must not hide the thing it is pointing at.
        CORE, not one tool's: every rule may mark its own findings, and this was
@@ -2513,119 +2569,119 @@ HOW TO USE
     /* the badge's warn ink — CORE, because grid's lens and perf's pulse both
        emit it, and a class more than one tool emits cannot live in either
        one's sheet */
-    .dbgov-badge .dbgov-warn { color: #ffd54f; }
-    .dbgov-flag { outline-offset: 1px; }
-    .dbgov-flag.dbgov-error  { outline: 2px dashed #ff6b6b; }
-    .dbgov-flag.dbgov-warn   { outline: 2px dashed #ffd54f; }
-    .dbgov-flag.dbgov-info   { outline: 2px dashed #9ad0ff; }
-    .dbgov-flag.dbgov-review { outline: 2px dotted #8ab4f8; }
+    .debug-overlay-badge .debug-overlay-warn { color: #ffd54f; }
+    .debug-overlay-flag { outline-offset: 1px; }
+    .debug-overlay-flag.debug-overlay-error  { outline: 2px dashed #ff6b6b; }
+    .debug-overlay-flag.debug-overlay-warn   { outline: 2px dashed #ffd54f; }
+    .debug-overlay-flag.debug-overlay-info   { outline: 2px dashed #9ad0ff; }
+    .debug-overlay-flag.debug-overlay-review { outline: 2px dotted #8ab4f8; }
     /* WHAT is wrong, not only where. A dashed box names no rule, and no
        tooltip can ever say: this layer is aria-hidden and pointer-events:none,
        so a title attribute on a mark reaches nobody. So it is painted — the
        rule's own id, one label per element however many findings it drew. */
-    .dbgov-tip { position: fixed; pointer-events: none; font-size: 9px;
+    .debug-overlay-tip { position: fixed; pointer-events: none; font-size: 9px;
       font-weight: 700; line-height: 12px; padding: 0 3px; border-radius: 3px;
       background: rgba(18,18,20,.92); white-space: nowrap; }
-    .dbgov-tip.dbgov-error  { color: #ff6b6b; }
-    .dbgov-tip.dbgov-warn   { color: #ffd54f; }
-    .dbgov-tip.dbgov-info   { color: #9ad0ff; }
-    .dbgov-tip.dbgov-review { color: #8ab4f8; font-style: italic; }
-    /* an audit is on the page right now — distinct from .dbgov-armed, which only
+    .debug-overlay-tip.debug-overlay-error  { color: #ff6b6b; }
+    .debug-overlay-tip.debug-overlay-warn   { color: #ffd54f; }
+    .debug-overlay-tip.debug-overlay-info   { color: #9ad0ff; }
+    .debug-overlay-tip.debug-overlay-review { color: #8ab4f8; font-style: italic; }
+    /* an audit is on the page right now — distinct from .debug-overlay-armed, which only
        means the findings VIEW is the one open. No backticks in here: this
        whole sheet is a template literal. */
-    #__dbgov-bar .dbgov-act.dbgov-swept { box-shadow: inset 0 0 0 2px #b5e853; }
+    #__debug-overlay-bar .debug-overlay-act.debug-overlay-swept { box-shadow: inset 0 0 0 2px #b5e853; }
     /* There was no designed focus indicator anywhere in this sheet — a
        keyboard user could tab through 13 controls with nothing to show where
        they were. :focus-visible only, so a mouse click does not draw one. */
-    #__dbgov-root :focus-visible { outline: 2px solid #58c4ff; outline-offset: 2px; }
+    #__debug-overlay-root :focus-visible { outline: 2px solid #58c4ff; outline-offset: 2px; }
     /* WCAG 2.5.8 wants 24x24. These three were 18x21, 20x20 and 15x15. */
-    #__dbgov-bar .dbgov-cnt { min-width: 24px; min-height: 24px; }
-    #__dbgov-list .dbgov-rm { width: 24px; height: 24px; }
-    #__dbgov-list .dbgov-tick { width: 24px; height: 24px; }
-    #__dbgov-bar .dbgov-cnt.dbgov-armed { background: #ff8a65; color: #1a1a1a; }
+    #__debug-overlay-bar .debug-overlay-cnt { min-width: 24px; min-height: 24px; }
+    #__debug-overlay-list .debug-overlay-rm { width: 24px; height: 24px; }
+    #__debug-overlay-list .debug-overlay-tick { width: 24px; height: 24px; }
+    #__debug-overlay-bar .debug-overlay-cnt.debug-overlay-armed { background: #ff8a65; color: #1a1a1a; }
 
-    .dbgov-badge { position: fixed; pointer-events: none; max-width: 92vw;
+    .debug-overlay-badge { position: fixed; pointer-events: none; max-width: 92vw;
       background: rgba(18,18,20,.94); color: #fff; border-radius: 8px;
       padding: 4px 9px; font-size: 12px; line-height: 1.45; white-space: nowrap;
       box-shadow: 0 2px 10px rgba(0,0,0,.45); }
-    .dbgov-badge .dbgov-sz  { color: #ffffff; font-weight: 700; }
-    .dbgov-badge .dbgov-rad { color: #ff8a65; }
-    .dbgov-badge .dbgov-sp  { color: #9ad0ff; }
-    .dbgov-badge .dbgov-fnt { color: #d7c4ff; }
-    .dbgov-badge .dbgov-tag { color: #8f8f96; }
+    .debug-overlay-badge .debug-overlay-sz  { color: #ffffff; font-weight: 700; }
+    .debug-overlay-badge .debug-overlay-rad { color: #ff8a65; }
+    .debug-overlay-badge .debug-overlay-sp  { color: #9ad0ff; }
+    .debug-overlay-badge .debug-overlay-fnt { color: #d7c4ff; }
+    .debug-overlay-badge .debug-overlay-tag { color: #8f8f96; }
 
-    .dbgov-pin-num { position: fixed; pointer-events: none;
+    .debug-overlay-pin-num { position: fixed; pointer-events: none;
       min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px;
       background: #ff8a65; color: #1a1a1a; font-size: 12px; font-weight: 800;
       display: flex; align-items: center; justify-content: center;
       box-shadow: 0 2px 8px rgba(0,0,0,.5); }
-    .dbgov-pin-num.dbgov-pair { background: #b5e853; color: #16200a; }
-    .dbgov-pin-num.dbgov-link { background: #c084fc; color: #241333; }
-    .dbgov-pin-num.dbgov-waiting { background: #58c4ff; color: #0d1b24; }
-    .dbgov-pin-num.dbgov-rmtarget { background: #ff5c5c; color: #fff; }
+    .debug-overlay-pin-num.debug-overlay-pair { background: #b5e853; color: #16200a; }
+    .debug-overlay-pin-num.debug-overlay-link { background: #c084fc; color: #241333; }
+    .debug-overlay-pin-num.debug-overlay-waiting { background: #58c4ff; color: #0d1b24; }
+    .debug-overlay-pin-num.debug-overlay-rmtarget { background: #ff5c5c; color: #fff; }
 
     /* remove mode: ✕ chips appear only while the remove key is held */
-    .dbgov-rmchip { position: fixed; pointer-events: none;
+    .debug-overlay-rmchip { position: fixed; pointer-events: none;
       width: 18px; height: 18px; border-radius: 50%; background: #ff5c5c; color: #fff;
       font-size: 11px; font-weight: 800; line-height: 1;
       display: flex; align-items: center; justify-content: center;
       box-shadow: 0 2px 6px rgba(0,0,0,.5); transition: transform .1s ease; }
-    .dbgov-rmchip.dbgov-target { transform: scale(1.3); background: #ff2f2f; }
+    .debug-overlay-rmchip.debug-overlay-target { transform: scale(1.3); background: #ff2f2f; }
 
-    #__dbgov-bar { position: fixed; right: 14px; top: 50%;
+    #__debug-overlay-bar { position: fixed; right: 14px; top: 50%;
       pointer-events: auto; display: flex; flex-direction: column; align-items: center;
       gap: 6px; background: rgba(18,18,20,.96); border-radius: 999px; padding: 8px;
       box-shadow: 0 4px 18px rgba(0,0,0,.55); user-select: none; touch-action: none;
       transition: transform .22s cubic-bezier(.2,.8,.3,1), opacity .22s ease; }
-    #__dbgov-bar.dbgov-dragging { transition: none; opacity: .9; }
-    #__dbgov-bar .dbgov-grip { width: 22px; height: 12px; cursor: grab; flex: none;
+    #__debug-overlay-bar.debug-overlay-dragging { transition: none; opacity: .9; }
+    #__debug-overlay-bar .debug-overlay-grip { width: 22px; height: 12px; cursor: grab; flex: none;
       display: flex; align-items: center; justify-content: center;
       color: #6a6a72; font-size: 11px; letter-spacing: 1px; line-height: 1; }
-    #__dbgov-bar.dbgov-dragging .dbgov-grip { cursor: grabbing; }
+    #__debug-overlay-bar.debug-overlay-dragging .debug-overlay-grip { cursor: grabbing; }
 
     /* master power */
-    #__dbgov-bar .dbgov-pwr { width: 36px; height: 36px; border-radius: 50%; border: 0; cursor: pointer;
+    #__debug-overlay-bar .debug-overlay-pwr { width: 36px; height: 36px; border-radius: 50%; border: 0; cursor: pointer;
       font-size: 15px; background: #3a3a40; color: #9a9aa2;
       display: flex; align-items: center; justify-content: center; transition: background .15s; }
-    #__dbgov-bar.dbgov-on .dbgov-pwr { background: #b5e853; color: #1a1a1a; }
+    #__debug-overlay-bar.debug-overlay-on .debug-overlay-pwr { background: #b5e853; color: #1a1a1a; }
     /* a newer version exists — RESTS until updated, like every count that
        matters; amber because it asks for a decision, not because it burns */
-    #__dbgov-bar .dbgov-pwr.dbgov-upd::after { content: ''; position: absolute;
+    #__debug-overlay-bar .debug-overlay-pwr.debug-overlay-upd::after { content: ''; position: absolute;
       top: 1px; right: 1px; width: 9px; height: 9px; border-radius: 50%;
       background: #ffd54f; border: 2px solid #16161a; }
-    #__dbgov-bar .dbgov-pwr { position: relative; }
-    #__dbgov-bar .dbgov-st { font-size: 10px; font-weight: 800; letter-spacing: .5px; color: #8f8f96; }
-    #__dbgov-bar.dbgov-on .dbgov-st { color: #b5e853; }
-    #__dbgov-bar.dbgov-removing .dbgov-pwr { background: #ff5c5c; color: #fff; }
-    #__dbgov-bar.dbgov-removing .dbgov-st { color: #ff5c5c; }
+    #__debug-overlay-bar .debug-overlay-pwr { position: relative; }
+    #__debug-overlay-bar .debug-overlay-st { font-size: 10px; font-weight: 800; letter-spacing: .5px; color: #8f8f96; }
+    #__debug-overlay-bar.debug-overlay-on .debug-overlay-st { color: #b5e853; }
+    #__debug-overlay-bar.debug-overlay-removing .debug-overlay-pwr { background: #ff5c5c; color: #fff; }
+    #__debug-overlay-bar.debug-overlay-removing .debug-overlay-st { color: #ff5c5c; }
 
     /* docked: another surface (the extension's side panel) is presenting the
        panel's state, so the BAR steps aside — pins, marks and badges are the
        page's annotations and stay. display, not visibility: the bar must
        leave the tab order too, or Tab lands on invisible buttons. */
-    #__dbgov-bar.dbgov-docked { display: none; }
+    #__debug-overlay-bar.debug-overlay-docked { display: none; }
 
     /* things that only make sense once powered on */
-    #__dbgov-bar .dbgov-whenOn { display: none; }
-    #__dbgov-bar.dbgov-on .dbgov-whenOn { display: flex; align-items: center; justify-content: center; }
-    #__dbgov-bar.dbgov-on .dbgov-cnt.dbgov-whenOn { display: block; }
+    #__debug-overlay-bar .debug-overlay-whenOn { display: none; }
+    #__debug-overlay-bar.debug-overlay-on .debug-overlay-whenOn { display: flex; align-items: center; justify-content: center; }
+    #__debug-overlay-bar.debug-overlay-on .debug-overlay-cnt.debug-overlay-whenOn { display: block; }
     /* the family flyout: the mark sits in the bar, the members slide out
        sideways — toward the open side of the screen, read off data-side */
-    #__dbgov-bar .dbgov-fam, #__dbgov-bar .dbgov-fam-btn { display: none; }
-    #__dbgov-bar.dbgov-on .dbgov-fam { position: relative; display: flex; }
-    #__dbgov-bar.dbgov-on .dbgov-fam-btn { width: 34px; height: 34px; border-radius: 50%; border: 0;
+    #__debug-overlay-bar .debug-overlay-fam, #__debug-overlay-bar .debug-overlay-fam-btn { display: none; }
+    #__debug-overlay-bar.debug-overlay-on .debug-overlay-fam { position: relative; display: flex; }
+    #__debug-overlay-bar.debug-overlay-on .debug-overlay-fam-btn { width: 34px; height: 34px; border-radius: 50%; border: 0;
       cursor: pointer; background: #2c2c31; color: #eaeaea; font-size: 15px;
       display: flex; align-items: center; justify-content: center; position: relative; }
-    #__dbgov-bar .dbgov-fam-btn:hover { background: #3a3a41; }
-    #__dbgov-bar .dbgov-fam-btn.dbgov-armed { background: #58c4ff; color: #10151a; }
-    #__dbgov-bar .dbgov-fam-btn.dbgov-checks::after { content: ''; position: absolute;
+    #__debug-overlay-bar .debug-overlay-fam-btn:hover { background: #3a3a41; }
+    #__debug-overlay-bar .debug-overlay-fam-btn.debug-overlay-armed { background: #58c4ff; color: #10151a; }
+    #__debug-overlay-bar .debug-overlay-fam-btn.debug-overlay-checks::after { content: ''; position: absolute;
       right: 1px; bottom: 1px; width: 7px; height: 7px; border-radius: 50%;
       background: #b5e853; border: 2px solid rgba(18,18,20,.96); }
     /* VERTICAL, like the bar it belongs to — the flyout is a short second
        column beside the head, not a sideways pill. And SEPARATED: no capsule
        background; each member is its own circle wearing its own shadow, the
        same species of button as the bar's. */
-    #__dbgov-bar .dbgov-fam .dbgov-flyout { position: absolute; top: 50%;
+    #__debug-overlay-bar .debug-overlay-fam .debug-overlay-flyout { position: absolute; top: 50%;
       transform: translateY(-50%) scale(.9); display: flex;
       flex-direction: column; align-items: center; gap: 6px;
       opacity: 0; pointer-events: none;
@@ -2637,74 +2693,74 @@ HOW TO USE
          display:none inheritance. */
       visibility: hidden;
       transition: opacity .15s ease, transform .15s ease, visibility 0s linear .15s; }
-    #__dbgov-bar .dbgov-fam .dbgov-flyout button {
+    #__debug-overlay-bar .debug-overlay-fam .debug-overlay-flyout button {
       box-shadow: 0 4px 14px rgba(0,0,0,.55); }
     /* the SECOND layer: a pressed axis grows its members one more step out
        from the bar, its own column beside the head — never mixed into the
        heads' column, or two levels read as one flat run */
-    #__dbgov-bar .dbgov-fam .dbgov-flyout .dbgov-sub { position: relative; display: flex; }
-    #__dbgov-bar .dbgov-fam .dbgov-flyout .dbgov-subfly { position: absolute; top: 50%;
+    #__debug-overlay-bar .debug-overlay-fam .debug-overlay-flyout .debug-overlay-sub { position: relative; display: flex; }
+    #__debug-overlay-bar .debug-overlay-fam .debug-overlay-flyout .debug-overlay-subfly { position: absolute; top: 50%;
       transform: translateY(-50%); display: flex; flex-direction: column;
       align-items: center; gap: 6px; }
-    #__dbgov-bar[data-side="right"] .dbgov-fam .dbgov-flyout .dbgov-subfly { right: calc(100% + 12px); }
-    #__dbgov-bar[data-side="left"] .dbgov-fam .dbgov-flyout .dbgov-subfly,
-    #__dbgov-bar[data-side="top"] .dbgov-fam .dbgov-flyout .dbgov-subfly,
-    #__dbgov-bar[data-side="bottom"] .dbgov-fam .dbgov-flyout .dbgov-subfly { left: calc(100% + 12px); }
-    #__dbgov-bar .dbgov-fam.dbgov-open .dbgov-flyout { opacity: 1; pointer-events: auto;
+    #__debug-overlay-bar[data-side="right"] .debug-overlay-fam .debug-overlay-flyout .debug-overlay-subfly { right: calc(100% + 12px); }
+    #__debug-overlay-bar[data-side="left"] .debug-overlay-fam .debug-overlay-flyout .debug-overlay-subfly,
+    #__debug-overlay-bar[data-side="top"] .debug-overlay-fam .debug-overlay-flyout .debug-overlay-subfly,
+    #__debug-overlay-bar[data-side="bottom"] .debug-overlay-fam .debug-overlay-flyout .debug-overlay-subfly { left: calc(100% + 12px); }
+    #__debug-overlay-bar .debug-overlay-fam.debug-overlay-open .debug-overlay-flyout { opacity: 1; pointer-events: auto;
       visibility: visible; transition-delay: 0s;
       transform: translateY(-50%) scale(1); }
-    #__dbgov-bar[data-side="right"] .dbgov-fam .dbgov-flyout { right: calc(100% + 12px); }
-    #__dbgov-bar[data-side="left"] .dbgov-fam .dbgov-flyout,
-    #__dbgov-bar[data-side="top"] .dbgov-fam .dbgov-flyout,
-    #__dbgov-bar[data-side="bottom"] .dbgov-fam .dbgov-flyout { left: calc(100% + 12px); }
-    #__dbgov-bar hr.dbgov-sep { width: 20px; height: 1px; border: 0; margin: 1px 0;
+    #__debug-overlay-bar[data-side="right"] .debug-overlay-fam .debug-overlay-flyout { right: calc(100% + 12px); }
+    #__debug-overlay-bar[data-side="left"] .debug-overlay-fam .debug-overlay-flyout,
+    #__debug-overlay-bar[data-side="top"] .debug-overlay-fam .debug-overlay-flyout,
+    #__debug-overlay-bar[data-side="bottom"] .debug-overlay-fam .debug-overlay-flyout { left: calc(100% + 12px); }
+    #__debug-overlay-bar hr.debug-overlay-sep { width: 20px; height: 1px; border: 0; margin: 1px 0;
       opacity: 1; overflow: visible; color: inherit;
       background: rgba(255,255,255,.14); }
-    #__dbgov-bar .dbgov-cnt { font-size: 11px; font-weight: 700; color: #ff8a65;
+    #__debug-overlay-bar .debug-overlay-cnt { font-size: 11px; font-weight: 700; color: #ff8a65;
       border: 0; background: transparent; cursor: pointer; padding: 2px 6px;
       border-radius: 999px; font-family: inherit; }
-    #__dbgov-bar .dbgov-cnt:hover { background: #2c2c31; }
+    #__debug-overlay-bar .debug-overlay-cnt:hover { background: #2c2c31; }
     /* ARMED WINS OVER HOVER. The armed chip is dark text on amber; this hover
        rule is declared later at equal specificity, so it replaced the amber
        with #2c2c31 and left the dark text — #1a1a1a on #2c2c31 is 1.25:1, an
        empty-looking circle exactly while its own list is open, and you are
        always hovering the chip you just clicked. In a tool that ships a
        contrast checker. */
-    #__dbgov-bar .dbgov-cnt.dbgov-armed:hover { background: #ff8a65; }
+    #__debug-overlay-bar .debug-overlay-cnt.debug-overlay-armed:hover { background: #ff8a65; }
 
     /* tool + action buttons */
-    #__dbgov-bar button.dbgov-tool, #__dbgov-bar button.dbgov-act, #__dbgov-bar button.dbgov-bctl {
+    #__debug-overlay-bar button.debug-overlay-tool, #__debug-overlay-bar button.debug-overlay-act, #__debug-overlay-bar button.debug-overlay-bctl {
       width: 34px; height: 34px; border-radius: 50%; border: 0; cursor: pointer;
       background: #2c2c31; color: #fff; font-size: 15px; }
-    /* NO display here: .dbgov-whenOn owns display (none ↔ flex with centring), and
+    /* NO display here: .debug-overlay-whenOn owns display (none ↔ flex with centring), and
        a more specific display on the buttons out-guns the hider — the exact
        mistake the fam flyout already made once. One icon set (lucide, ISC),
-       one size; the .dbgov-whenOn / .dbgov-pwr / .dbgov-fam-btn flex does the centring. */
+       one size; the .debug-overlay-whenOn / .debug-overlay-pwr / .debug-overlay-fam-btn flex does the centring. */
     /* every svg we own, not just the bar's: Preflight sets display on the
        TAG, so a rule scoped to one container leaves the rest of them to it */
-    #__dbgov-root svg { display: inline-block; vertical-align: middle; }
-    #__dbgov-bar button svg { width: 16px; height: 16px; pointer-events: none; }
-    #__dbgov-bar .dbgov-grip svg { width: 14px; height: 14px; display: block; }
-    #__dbgov-list .dbgov-tag svg { width: 14px; height: 14px; vertical-align: -3px; }
-    #__dbgov-bar button.dbgov-tool:hover, #__dbgov-bar button.dbgov-act:hover { background: #3a3a40; }
-    #__dbgov-bar button.dbgov-tool.dbgov-armed,
-    #__dbgov-bar button.dbgov-bctl.dbgov-armed { background: #58c4ff; color: #0d1b24; }
+    #__debug-overlay-root svg { display: inline-block; vertical-align: middle; }
+    #__debug-overlay-bar button svg { width: 16px; height: 16px; pointer-events: none; }
+    #__debug-overlay-bar .debug-overlay-grip svg { width: 14px; height: 14px; display: block; }
+    #__debug-overlay-list .debug-overlay-tag svg { width: 14px; height: 14px; vertical-align: -3px; }
+    #__debug-overlay-bar button.debug-overlay-tool:hover, #__debug-overlay-bar button.debug-overlay-act:hover { background: #3a3a40; }
+    #__debug-overlay-bar button.debug-overlay-tool.debug-overlay-armed,
+    #__debug-overlay-bar button.debug-overlay-bctl.debug-overlay-armed { background: #58c4ff; color: #0d1b24; }
     /* an OPEN axis head is a drawer pulled out, not a value in force —
        a ring, not the armed fill, so the two states cannot be confused */
-    #__dbgov-bar button.dbgov-bctl.dbgov-axis.dbgov-open { box-shadow: inset 0 0 0 2px #58c4ff; }
+    #__debug-overlay-bar button.debug-overlay-bctl.debug-overlay-axis.debug-overlay-open { box-shadow: inset 0 0 0 2px #58c4ff; }
     /* a fixed member is information: always on, takes no click */
-    #__dbgov-bar button.dbgov-bctl.dbgov-fixed { opacity: .55; cursor: default; }
+    #__debug-overlay-bar button.debug-overlay-bctl.debug-overlay-fixed { opacity: .55; cursor: default; }
     /* A tool in the run that feeds ⌕ carries a dot. Armed or not, it is still
        swept — the dot says "this contributes findings", the fill says "this
        is drawn". They are different questions and used to look the same. */
-    #__dbgov-bar button.dbgov-tool.dbgov-checks { position: relative; }
-    #__dbgov-bar button.dbgov-tool.dbgov-checks::after {
+    #__debug-overlay-bar button.debug-overlay-tool.debug-overlay-checks { position: relative; }
+    #__debug-overlay-bar button.debug-overlay-tool.debug-overlay-checks::after {
       content: ''; position: absolute; right: 2px; bottom: 2px;
       width: 4px; height: 4px; border-radius: 50%; background: #b5e853; }
-    #__dbgov-bar button.dbgov-act.dbgov-armed { background: #b5e853; color: #1a1a1a; }
+    #__debug-overlay-bar button.debug-overlay-act.debug-overlay-armed { background: #b5e853; color: #1a1a1a; }
 
-    #__dbgov-bar.dbgov-tucked { opacity: .4; }
-    #__dbgov-bar.dbgov-tucked:hover { opacity: 1; }
+    #__debug-overlay-bar.debug-overlay-tucked { opacity: .4; }
+    #__debug-overlay-bar.debug-overlay-tucked:hover { opacity: 1; }
   `;
 
   // src/ui/dom.js
@@ -2712,7 +2768,7 @@ HOW TO USE
   var layer;
   function initDom() {
     root = document.createElement("div");
-    root.id = "__dbgov-root";
+    root.id = "__debug-overlay-root";
     root.setAttribute("role", "region");
     root.setAttribute("aria-label", "Debug overlay");
     const sheet = (css, owner) => {
@@ -2750,7 +2806,7 @@ HOW TO USE
     },
     choice(c, onChange) {
       const sel = document.createElement("select");
-      sel.className = "dbgov-opt";
+      sel.className = "debug-overlay-opt";
       c.choices.forEach((label, k) => {
         const o = document.createElement("option");
         o.value = String(k);
@@ -2764,10 +2820,10 @@ HOW TO USE
     },
     number(c, onChange) {
       const wrap = document.createElement("span");
-      wrap.className = "dbgov-num";
+      wrap.className = "debug-overlay-num";
       const inp = document.createElement("input");
       inp.type = "number";
-      inp.className = "dbgov-opt";
+      inp.className = "debug-overlay-opt";
       inp.value = c.value;
       if (c.min !== void 0) inp.min = String(c.min);
       if (c.max !== void 0) inp.max = String(c.max);
@@ -2777,7 +2833,7 @@ HOW TO USE
       wrap.append(inp);
       if (c.suffix) {
         const u = document.createElement("span");
-        u.className = "dbgov-unit";
+        u.className = "debug-overlay-unit";
         u.textContent = c.suffix;
         wrap.append(u);
       }
@@ -2786,7 +2842,7 @@ HOW TO USE
     toggle(c, onChange) {
       const inp = document.createElement("input");
       inp.type = "checkbox";
-      inp.className = "dbgov-opt dbgov-tick";
+      inp.className = "debug-overlay-opt debug-overlay-tick";
       inp.checked = !!c.on;
       inp.addEventListener("click", (e) => e.stopPropagation());
       inp.addEventListener("change", () => onChange(inp.checked));
@@ -2799,7 +2855,7 @@ HOW TO USE
   function initList() {
     List = (() => {
       const el2 = document.createElement("div");
-      el2.id = "__dbgov-list";
+      el2.id = "__debug-overlay-list";
       root.append(el2);
       let open = false;
       let view = null;
@@ -2848,7 +2904,7 @@ HOW TO USE
           const same = open && view === name;
           open = v === void 0 ? !same : !!v;
           view = open ? name : null;
-          el2.classList.toggle("dbgov-open", open);
+          el2.classList.toggle("debug-overlay-open", open);
           anchor?.mark(view);
           if (open) {
             api.onOpen?.(view);
@@ -2867,17 +2923,17 @@ HOW TO USE
          */
         set(rows, empty = "") {
           const live = document.activeElement;
-          const owner = live && el2.contains(live) ? live.closest(".dbgov-row") : null;
+          const owner = live && el2.contains(live) ? live.closest(".debug-overlay-row") : null;
           const focus = owner ? { at: [...el2.children].indexOf(owner), cls: live.className.split(" ")[0] } : null;
           el2.textContent = "";
           const restore = () => {
             if (!focus || focus.at < 0) return;
             const row = el2.children[focus.at];
-            (row?.querySelector?.("." + focus.cls) || row?.querySelector?.(".dbgov-go"))?.focus?.();
+            (row?.querySelector?.("." + focus.cls) || row?.querySelector?.(".debug-overlay-go"))?.focus?.();
           };
           if (!rows.length) {
             const e = document.createElement("div");
-            e.className = "dbgov-empty";
+            e.className = "debug-overlay-empty";
             e.textContent = empty;
             el2.append(e);
             place();
@@ -2886,11 +2942,11 @@ HOW TO USE
           rows.forEach((row, i) => {
             if (row.title || row.heading) {
               const h = document.createElement("div");
-              h.className = row.title ? "dbgov-viewhead" : "dbgov-head";
+              h.className = row.title ? "debug-overlay-viewhead" : "debug-overlay-head";
               h.textContent = row.title || row.heading;
               if (row.removable) {
                 const rm = document.createElement("button");
-                rm.className = "dbgov-rm";
+                rm.className = "debug-overlay-rm";
                 rm.textContent = "✕";
                 rm.title = row.rmTitle || "Remove";
                 rm.addEventListener("click", (e) => {
@@ -2901,7 +2957,7 @@ HOW TO USE
               }
               if (row.detail) {
                 const n = document.createElement("span");
-                n.className = "dbgov-note";
+                n.className = "debug-overlay-note";
                 n.textContent = row.detail;
                 h.append(n);
               }
@@ -2909,16 +2965,16 @@ HOW TO USE
               return;
             }
             const r = document.createElement("div");
-            r.className = "dbgov-row";
+            r.className = "debug-overlay-row";
             const tag = document.createElement("span");
-            tag.className = "dbgov-tag";
+            tag.className = "debug-overlay-tag";
             if (/^<svg[\s>]/.test(row.tag || "")) tag.innerHTML = row.tag;
             else tag.textContent = row.tag;
             const lbl = document.createElement("span");
-            lbl.className = "dbgov-lbl";
+            lbl.className = "debug-overlay-lbl";
             lbl.textContent = row.label;
             if (row.accent) r.dataset.accent = row.accent;
-            if (row.inert) r.classList.add("dbgov-inert");
+            if (row.inert) r.classList.add("debug-overlay-inert");
             if (row.label || row.detail) {
               r.title = [row.label, row.detail].filter(Boolean).join("\n");
             }
@@ -2930,11 +2986,11 @@ HOW TO USE
               ));
             } else {
               const det = document.createElement("span");
-              det.className = "dbgov-det";
+              det.className = "debug-overlay-det";
               det.textContent = row.detail || "";
               if (row.activatable) {
                 const go = document.createElement("button");
-                go.className = "dbgov-go";
+                go.className = "debug-overlay-go";
                 go.append(tag, lbl, det);
                 go.addEventListener("click", (e) => {
                   e.stopPropagation();
@@ -2948,7 +3004,7 @@ HOW TO USE
             }
             if (row.removable) {
               const rm = document.createElement("button");
-              rm.className = "dbgov-rm";
+              rm.className = "debug-overlay-rm";
               rm.textContent = "✕";
               rm.title = "Remove";
               rm.addEventListener("click", (e) => {
@@ -2971,15 +3027,15 @@ HOW TO USE
   var el = null;
   function initMenu() {
     el = document.createElement("div");
-    el.id = "__dbgov-menu";
+    el.id = "__debug-overlay-menu";
     root.append(el);
     document.addEventListener("pointerdown", (e) => {
-      if (Menu.isOpen() && !(e.target.closest && e.target.closest("#__dbgov-menu")))
+      if (Menu.isOpen() && !(e.target.closest && e.target.closest("#__debug-overlay-menu")))
         Menu.close();
     }, true);
   }
   var Menu = {
-    isOpen: () => !!el && el.classList.contains("dbgov-open"),
+    isOpen: () => !!el && el.classList.contains("debug-overlay-open"),
     /** rows: [{ label, run }] — label is all this file reads of them. */
     open(x, y, rows) {
       el.textContent = "";
@@ -2992,11 +3048,11 @@ HOW TO USE
         });
         el.append(b);
       }
-      el.classList.add("dbgov-open");
+      el.classList.add("debug-overlay-open");
       const w = el.offsetWidth, h = el.offsetHeight;
       let px = Math.max(4, Math.min(x, innerWidth - w - 4));
       let py = Math.max(4, Math.min(y, innerHeight - h - 4));
-      const bar = document.getElementById("__dbgov-bar");
+      const bar = document.getElementById("__debug-overlay-bar");
       if (bar) {
         const b = bar.getBoundingClientRect();
         if (px < b.right && px + w > b.left && py < b.bottom && py + h > b.top) {
@@ -3008,7 +3064,7 @@ HOW TO USE
     },
     close() {
       if (!el) return;
-      el.classList.remove("dbgov-open");
+      el.classList.remove("debug-overlay-open");
       el.textContent = "";
     }
   };
@@ -3018,8 +3074,8 @@ HOW TO USE
   function initPanel() {
     Panel = (() => {
       const el2 = document.createElement("div");
-      el2.id = "__dbgov-bar";
-      const toolBtn = (t) => `<button class="dbgov-tool dbgov-whenOn ${Tools.feedsAudit(t) ? "dbgov-checks" : ""}" data-tool="${t.id}" title="${t.family ? t.family[0].toUpperCase() + t.family.slice(1) + " › " : ""}${t.title}
+      el2.id = "__debug-overlay-bar";
+      const toolBtn = (t) => `<button class="debug-overlay-tool debug-overlay-whenOn ${Tools.feedsAudit(t) ? "debug-overlay-checks" : ""}" data-tool="${t.id}" title="${t.family ? t.family[0].toUpperCase() + t.family.slice(1) + " › " : ""}${t.title}
 ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the page audit" : ""}${t.options || t.uses ? "\nright-click for its options" : ""}">${t.icon}</button>`;
       const toolRuns = Tools.runs().map((run) => {
         const out = [];
@@ -3035,35 +3091,35 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           const kin = run.tools.filter((x) => x.family === t.family);
           const famName = t.family[0].toUpperCase() + t.family.slice(1);
           out.push(
-            `<span class="dbgov-fam dbgov-whenOn" data-fam="${t.family}"><button class="dbgov-fam-btn dbgov-whenOn ${kin.some(Tools.feedsAudit) ? "dbgov-checks" : ""}" aria-expanded="false" title="${famName} family — ${kin.map((x) => x.id).join(", ")}; click to open">${mark}</button><span class="dbgov-flyout">${kin.map(toolBtn).join("")}</span></span>`
+            `<span class="debug-overlay-fam debug-overlay-whenOn" data-fam="${t.family}"><button class="debug-overlay-fam-btn debug-overlay-whenOn ${kin.some(Tools.feedsAudit) ? "debug-overlay-checks" : ""}" aria-expanded="false" title="${famName} family — ${kin.map((x) => x.id).join(", ")}; click to open">${mark}</button><span class="debug-overlay-flyout">${kin.map(toolBtn).join("")}</span></span>`
           );
         }
         return out.join("");
-      }).join('<hr class="dbgov-sep dbgov-whenOn">');
+      }).join('<hr class="debug-overlay-sep debug-overlay-whenOn">');
       const SWEEP_ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="m21 21-4.34-4.34" /><circle cx="11" cy="11" r="8" /></svg>';
       el2.innerHTML = `
-      <span class="dbgov-grip" title="Drag to move — snaps to the nearest edge"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><circle cx="9" cy="12" r="1" /><circle cx="9" cy="5" r="1" /><circle cx="9" cy="19" r="1" /><circle cx="15" cy="12" r="1" /><circle cx="15" cy="5" r="1" /><circle cx="15" cy="19" r="1" /></svg></span>
-      <button class="dbgov-pwr" title="Power (Alt+Shift+D) · v${CONFIG.VERSION}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 2v10" /><path d="M18.4 6.6a9 9 0 1 1-12.77.04" /></svg></button>
-      <span class="dbgov-st" data-st>OFF</span>
-      <hr class="dbgov-sep dbgov-whenOn">
+      <span class="debug-overlay-grip" title="Drag to move — snaps to the nearest edge"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><circle cx="9" cy="12" r="1" /><circle cx="9" cy="5" r="1" /><circle cx="9" cy="19" r="1" /><circle cx="15" cy="12" r="1" /><circle cx="15" cy="5" r="1" /><circle cx="15" cy="19" r="1" /></svg></span>
+      <button class="debug-overlay-pwr" title="Power (Alt+Shift+D) · v${CONFIG.VERSION}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 2v10" /><path d="M18.4 6.6a9 9 0 1 1-12.77.04" /></svg></button>
+      <span class="debug-overlay-st" data-st>OFF</span>
+      <hr class="debug-overlay-sep debug-overlay-whenOn">
       ${toolRuns}
       <!-- its own band: ⌕ and ⚙ drive the services, they are not tools -->
-      <hr class="dbgov-sep dbgov-whenOn">
-      <button class="dbgov-act dbgov-whenOn" data-sweep data-view="findings" title="Audit the whole page">${SWEEP_ICON}</button>
+      <hr class="debug-overlay-sep debug-overlay-whenOn">
+      <button class="debug-overlay-act debug-overlay-whenOn" data-sweep data-view="findings" title="Audit the whole page">${SWEEP_ICON}</button>
       <!-- with the tools it configures, not with the panel's own actions -->
-      <button class="dbgov-act dbgov-whenOn" data-settings data-view="settings" title="Tool settings"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></svg></button>
-      <hr class="dbgov-sep dbgov-whenOn">
-      <button class="dbgov-cnt dbgov-whenOn" data-c data-view="pins" title="Pinned elements — click for the list">0</button>
+      <button class="debug-overlay-act debug-overlay-whenOn" data-settings data-view="settings" title="Tool settings"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></svg></button>
+      <hr class="debug-overlay-sep debug-overlay-whenOn">
+      <button class="debug-overlay-cnt debug-overlay-whenOn" data-c data-view="pins" title="Pinned elements — click for the list">0</button>
       <!-- 🏷 replaces ≡: same fam flyout the domain families use, members
            handed in by the controller (setBadgeControls) — this file renders
            what it is given and never learns what a view or a facet is -->
-      <span class="dbgov-fam dbgov-whenOn" data-badge>
-        <button class="dbgov-fam-btn dbgov-act" title="Badge — view and facets; click to open"
+      <span class="debug-overlay-fam debug-overlay-whenOn" data-badge>
+        <button class="debug-overlay-fam-btn debug-overlay-act" title="Badge — view and facets; click to open"
                 aria-haspopup="true" aria-expanded="false"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></svg></button>
-        <span class="dbgov-flyout" data-badge-fly></span>
+        <span class="debug-overlay-flyout" data-badge-fly></span>
       </span>
-      <button class="dbgov-act dbgov-whenOn" data-copy title="Copy report"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /><path d="M16 4h2a2 2 0 0 1 2 2v4" /><path d="M21 14H11" /><path d="m15 10-4 4 4 4" /></svg></button>
-      <button class="dbgov-act dbgov-whenOn" data-clear title="Clear pins and the audit's marks"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>`;
+      <button class="debug-overlay-act debug-overlay-whenOn" data-copy title="Copy report"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /><path d="M16 4h2a2 2 0 0 1 2 2v4" /><path d="M21 14H11" /><path d="m15 10-4 4 4 4" /></svg></button>
+      <button class="debug-overlay-act debug-overlay-whenOn" data-clear title="Clear pins and the audit's marks"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>`;
       root.append(el2);
       List.attach({
         el: el2,
@@ -3071,7 +3127,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         mark: (view) => el2.querySelectorAll("[data-view]").forEach(
           (b) => {
             const on = !!view && b.dataset.view === view;
-            b.classList.toggle("dbgov-armed", on);
+            b.classList.toggle("debug-overlay-armed", on);
             b.setAttribute("aria-pressed", String(on));
           }
         )
@@ -3084,9 +3140,9 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         fly.textContent = "";
         for (const g of badgeGroups) {
           const sub = document.createElement("span");
-          sub.className = "dbgov-sub";
+          sub.className = "debug-overlay-sub";
           const h = document.createElement("button");
-          h.className = "dbgov-bctl dbgov-whenOn dbgov-axis" + (open === g.key ? " dbgov-open" : "");
+          h.className = "debug-overlay-bctl debug-overlay-whenOn debug-overlay-axis" + (open === g.key ? " debug-overlay-open" : "");
           h.innerHTML = g.glyph;
           h.title = g.title;
           h.setAttribute("aria-label", g.title);
@@ -3098,10 +3154,10 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           sub.append(h);
           if (open === g.key) {
             const members = document.createElement("span");
-            members.className = "dbgov-subfly";
+            members.className = "debug-overlay-subfly";
             for (const r of g.rows) {
               const b = document.createElement("button");
-              b.className = "dbgov-bctl dbgov-whenOn" + (r.armed ? " dbgov-armed" : "") + (r.fixed ? " dbgov-fixed" : "");
+              b.className = "debug-overlay-bctl debug-overlay-whenOn" + (r.armed ? " debug-overlay-armed" : "") + (r.fixed ? " debug-overlay-fixed" : "");
               b.innerHTML = r.glyph;
               b.title = r.title;
               b.setAttribute("aria-label", r.title);
@@ -3139,7 +3195,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
            because the asker names the view. */
         onRowsFor: null,
         setOn(v) {
-          el2.classList.toggle("dbgov-on", v);
+          el2.classList.toggle("debug-overlay-on", v);
           el2.querySelector("[data-st]").textContent = v ? "ON" : "OFF";
           if (!v) {
             api.toggleList(false);
@@ -3159,7 +3215,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
          * nor asks who docked it.
          */
         docked(v) {
-          el2.classList.toggle("dbgov-docked", v);
+          el2.classList.toggle("debug-overlay-docked", v);
           if (v) {
             api.toggleList(false);
             api.closeFlyouts();
@@ -3177,10 +3233,10 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         },
         setTool(id, v) {
           const b = el2.querySelector(`[data-tool="${id}"]`);
-          b?.classList.toggle("dbgov-armed", v);
+          b?.classList.toggle("debug-overlay-armed", v);
           b?.setAttribute("aria-pressed", String(!!v));
-          const fam = b?.closest(".dbgov-fam");
-          if (fam) fam.querySelector(".dbgov-fam-btn").classList.toggle("dbgov-armed", !!fam.querySelector(".dbgov-tool.dbgov-armed"));
+          const fam = b?.closest(".debug-overlay-fam");
+          if (fam) fam.querySelector(".debug-overlay-fam-btn").classList.toggle("debug-overlay-armed", !!fam.querySelector(".debug-overlay-tool.debug-overlay-armed"));
           api.onState?.("tool", id, v);
         },
         /**
@@ -3206,8 +3262,8 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
          * is a mystery, and a mystery on the power button is worse.
          */
         setUpdate(v) {
-          const b = el2.querySelector(".dbgov-pwr");
-          b.classList.add("dbgov-upd");
+          const b = el2.querySelector(".debug-overlay-pwr");
+          b.classList.add("debug-overlay-upd");
           b.title = `Power (Alt+Shift+D) · v${CONFIG.VERSION} — v${v} available, right-click to update`;
           b.setAttribute("aria-label", `Power — update to v${v} available`);
           api.onState?.("update", v);
@@ -3217,11 +3273,11 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
            Menu's isOpen/close so app/ can put it in the one dismissal ladder
            without ui/ learning anything about app/. Closing collapses the badge
            drawer too: which axis is open is furniture, not a choice. */
-        isFlyoutOpen: () => !!el2.querySelector(".dbgov-fam.dbgov-open"),
+        isFlyoutOpen: () => !!el2.querySelector(".debug-overlay-fam.debug-overlay-open"),
         closeFlyouts() {
-          el2.querySelectorAll(".dbgov-fam.dbgov-open").forEach((f) => {
-            f.classList.remove("dbgov-open");
-            f.querySelector(".dbgov-fam-btn")?.setAttribute("aria-expanded", "false");
+          el2.querySelectorAll(".debug-overlay-fam.debug-overlay-open").forEach((f) => {
+            f.classList.remove("debug-overlay-open");
+            f.querySelector(".debug-overlay-fam-btn")?.setAttribute("aria-expanded", "false");
           });
           const fly = el2.querySelector("[data-badge-fly]");
           if (fly && fly.dataset.open) {
@@ -3249,7 +3305,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
          */
         setSwept(v, n) {
           const b = el2.querySelector("[data-sweep]");
-          b.classList.toggle("dbgov-swept", !!v);
+          b.classList.toggle("debug-overlay-swept", !!v);
           if (v) b.textContent = String(n);
           else b.innerHTML = SWEEP_ICON;
           const what = v ? `Audit: ${n} distinct problem${n === 1 ? "" : "s"} — click to re-run` : "Audit the whole page";
@@ -3258,7 +3314,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           api.onState?.("swept", !!v, n);
         },
         setRemoveMode(v) {
-          el2.classList.toggle("dbgov-removing", v);
+          el2.classList.toggle("debug-overlay-removing", v);
           const st = el2.querySelector("[data-st]");
           st.textContent = v ? "DEL" : api.isOn() ? "ON" : "OFF";
           api.onState?.("removeMode", v);
@@ -3297,7 +3353,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           });
         },
         rect: () => el2.getBoundingClientRect(),
-        isOn: () => el2.classList.contains("dbgov-on")
+        isOn: () => el2.classList.contains("debug-overlay-on")
       };
       List.onOpen = (v) => api.onListOpen?.(v);
       List.onRowActivate = (i) => api.onRowActivate?.(i);
@@ -3308,22 +3364,22 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         if (name) b.setAttribute("aria-label", name);
       });
       el2.querySelectorAll("[data-tool], [data-view]").forEach((b) => b.setAttribute("aria-pressed", "false"));
-      el2.querySelector(".dbgov-pwr").addEventListener("click", () => api.onToggle?.());
-      el2.querySelector(".dbgov-pwr").addEventListener("contextmenu", (e) => {
+      el2.querySelector(".debug-overlay-pwr").addEventListener("click", () => api.onToggle?.());
+      el2.querySelector(".debug-overlay-pwr").addEventListener("contextmenu", (e) => {
         e.preventDefault();
         api.onUpdateMenu?.(e.clientX, e.clientY);
       });
-      el2.querySelectorAll(".dbgov-fam-btn").forEach((b) => {
+      el2.querySelectorAll(".debug-overlay-fam-btn").forEach((b) => {
         b.addEventListener("click", () => {
           const fam = b.parentElement;
-          const open = !fam.classList.contains("dbgov-open");
+          const open = !fam.classList.contains("debug-overlay-open");
           api.closeFlyouts();
-          fam.classList.toggle("dbgov-open", open);
+          fam.classList.toggle("debug-overlay-open", open);
           b.setAttribute("aria-expanded", String(open));
         });
       });
       document.addEventListener("pointerdown", (e) => {
-        if (e.target.closest && e.target.closest(".dbgov-fam")) return;
+        if (e.target.closest && e.target.closest(".debug-overlay-fam")) return;
         api.closeFlyouts();
       }, true);
       el2.querySelectorAll("[data-tool]").forEach((b) => {
@@ -3333,7 +3389,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           api.toggleList(void 0, `tool:${b.dataset.tool}`);
         });
       });
-      el2.querySelector("[data-badge] .dbgov-fam-btn").addEventListener("click", () => {
+      el2.querySelector("[data-badge] .debug-overlay-fam-btn").addEventListener("click", () => {
         const fly = el2.querySelector("[data-badge-fly]");
         if (fly.dataset.open) {
           fly.dataset.open = "";
@@ -3382,7 +3438,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       })();
       let tuckTimer = 0;
       function untuck() {
-        el2.classList.remove("dbgov-tucked");
+        el2.classList.remove("debug-overlay-tucked");
         el2.style.transform = "";
       }
       function tuck() {
@@ -3393,7 +3449,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         if (side === "left") t = `translateX(${Math.round(CONFIG.PEEK - r.right)}px)`;
         if (side === "bottom") t = `translateY(${Math.round(innerHeight - CONFIG.PEEK - r.top)}px)`;
         if (side === "top") t = `translateY(${Math.round(CONFIG.PEEK - r.bottom)}px)`;
-        el2.classList.add("dbgov-tucked");
+        el2.classList.add("debug-overlay-tucked");
         el2.style.transform = t;
       }
       function scheduleTuck() {
@@ -3422,14 +3478,14 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       });
       el2.addEventListener("pointermove", (e) => {
         if (!drag) return;
-        el2.classList.add("dbgov-dragging");
+        el2.classList.add("debug-overlay-dragging");
         applyPos(e.clientX - drag.dx, e.clientY - drag.dy);
         if (List.isOpen()) List.place();
       });
       const endDrag = () => {
         if (!drag) return;
         drag = null;
-        el2.classList.remove("dbgov-dragging");
+        el2.classList.remove("debug-overlay-dragging");
         snap();
         scheduleTuck();
         if (List.isOpen()) List.place();
@@ -3631,7 +3687,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         const bx = Math.max(best.x, Math.min(ax, best.x + w));
         const by = Math.max(best.y, Math.min(ay, best.y + h));
         const ln = document.createElement("div");
-        ln.className = "dbgov-leader";
+        ln.className = "debug-overlay-leader";
         if (Math.abs(bx - ax) >= Math.abs(by - ay))
           put(ln, Math.min(ax, bx), Math.round(ay), Math.abs(bx - ax) || 1, 1);
         else put(ln, Math.round(ax), Math.min(ay, by), 1, Math.abs(by - ay) || 1);
@@ -3673,13 +3729,13 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         const waiting = idx === pendingIdx;
         const isTarget = State.removeMode && State.removeTarget === p;
         const isFlash = State.flashPins && State.flashPins.includes(p);
-        const kindCls = ` dbgov-${p.kind}` + (waiting ? " dbgov-waiting" : "") + (isTarget ? " dbgov-rmtarget" : "") + (isFlash ? " dbgov-flash" : "");
+        const kindCls = ` debug-overlay-${p.kind}` + (waiting ? " debug-overlay-waiting" : "") + (isTarget ? " debug-overlay-rmtarget" : "") + (isFlash ? " debug-overlay-flash" : "");
         const i = U.info(p.el);
         const box = document.createElement("div");
-        box.className = "dbgov-box dbgov-pinbox" + kindCls;
+        box.className = "debug-overlay-box debug-overlay-pinbox" + kindCls;
         Place.put(box, i.r.left, i.r.top, i.r.width, i.r.height);
         const n = document.createElement("div");
-        n.className = "dbgov-pin-num" + kindCls;
+        n.className = "debug-overlay-pin-num" + kindCls;
         n.textContent = waiting ? p.id + "…" : p.id;
         layer.append(box, n);
         const onScreen = !(i.r.bottom < 0 || i.r.top > innerHeight || i.r.right < 0 || i.r.left > innerWidth);
@@ -3692,7 +3748,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         }
         if (State.removeMode) {
           const rm = document.createElement("div");
-          rm.className = "dbgov-rmchip" + (isTarget ? " dbgov-target" : "");
+          rm.className = "debug-overlay-rmchip" + (isTarget ? " debug-overlay-target" : "");
           rm.textContent = "✕";
           layer.append(rm);
           const rx = Math.min(innerWidth - 20, Math.max(2, i.r.right - 9));
@@ -3707,7 +3763,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       if (cur) {
         const i = U.info(cur);
         const box = document.createElement("div");
-        box.className = "dbgov-box dbgov-pinbox dbgov-note";
+        box.className = "debug-overlay-box debug-overlay-pinbox debug-overlay-note";
         Place.put(box, i.r.left, i.r.top, i.r.width, i.r.height);
         layer.append(box);
       }
@@ -3715,7 +3771,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       if (hoverLive) {
         const i = U.info(State.hoverEl);
         const box = document.createElement("div");
-        box.className = "dbgov-box dbgov-hover";
+        box.className = "debug-overlay-box debug-overlay-hover";
         Place.put(box, i.r.left, i.r.top, i.r.width, i.r.height);
         layer.append(box);
       }
@@ -3729,8 +3785,8 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
             at.rules.add(f.rule);
             const cls2 = f.verdict === "review" ? "review" : f.severity;
             if ((CONFIG.SEVERITY[cls2] || 0) > (CONFIG.SEVERITY[at.cls] || 0)) {
-              at.box.className = "dbgov-box dbgov-flag dbgov-" + cls2;
-              if (at.tip) at.tip.className = "dbgov-tip dbgov-" + cls2;
+              at.box.className = "debug-overlay-box debug-overlay-flag debug-overlay-" + cls2;
+              if (at.tip) at.tip.className = "debug-overlay-tip debug-overlay-" + cls2;
               at.cls = cls2;
             }
             if (at.tip) at.tip.textContent = label(at);
@@ -3739,14 +3795,14 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           const r = f.el.getBoundingClientRect();
           const cls = f.verdict === "review" ? "review" : f.severity;
           const box = document.createElement("div");
-          box.className = "dbgov-box dbgov-flag dbgov-" + cls;
+          box.className = "debug-overlay-box debug-overlay-flag debug-overlay-" + cls;
           Place.put(box, r.left, r.top, r.width, r.height);
           layer.append(box);
           const m = { r, cls, n: 1, rules: /* @__PURE__ */ new Set([f.rule]), tip: null, box };
           marked.set(f.el, m);
           if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue;
           const tip = document.createElement("div");
-          tip.className = "dbgov-tip dbgov-" + cls;
+          tip.className = "debug-overlay-tip debug-overlay-" + cls;
           tip.textContent = label(m);
           m.tip = tip;
           layer.append(tip);
@@ -3765,8 +3821,8 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         const html = Badges.build(i, !full);
         if (!html) return;
         const b = document.createElement("div");
-        b.className = "dbgov-badge";
-        b.innerHTML = `<span class="dbgov-rad">#${p.id}</span> · ${html}`;
+        b.className = "debug-overlay-badge";
+        b.innerHTML = `<span class="debug-overlay-rad">#${p.id}</span> · ${html}`;
         layer.append(b);
         Place.smart(b, i.r, { avoid: i.r });
       });
@@ -3777,7 +3833,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           const html = Badges.build(i, !full);
           if (html) {
             const b = document.createElement("div");
-            b.className = "dbgov-badge";
+            b.className = "debug-overlay-badge";
             b.innerHTML = html;
             layer.append(b);
             Place.smart(b, i.r, { avoid: i.r });
@@ -3789,7 +3845,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         const html = Badges.build(i, false);
         if (html) {
           const b = document.createElement("div");
-          b.className = "dbgov-badge";
+          b.className = "debug-overlay-badge";
           b.innerHTML = html;
           layer.append(b);
           Place.smart(b, i.r, { avoid: i.r });
@@ -4168,6 +4224,8 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
 
   // src/core/protocol.js
   var PROTOCOL_VERSION = 1;
+  var FIELD = "debugOverlay";
+  var LEGACY_FIELD = "dbgov";
   var STATE = {
     on: null,
     // (bool)
@@ -4260,7 +4318,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     if (!(name in table)) throw new Error(`unknown ${kind}: ${name}`);
     const pack = table[name];
     return {
-      dbgov: PROTOCOL_VERSION,
+      [FIELD]: PROTOCOL_VERSION,
       kind,
       name,
       args: pack ? pack(...args) : args
@@ -4278,14 +4336,14 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
      * and any other extension's noise pass through untouched.
      */
     read(msg) {
-      if (!msg || msg.dbgov !== PROTOCOL_VERSION) return null;
+      if (!msg || msg[FIELD] !== PROTOCOL_VERSION) return null;
       const table = msg.kind === "state" ? STATE : msg.kind === "cmd" ? CMD : null;
       if (!table || !(msg.name in table) || !Array.isArray(msg.args)) return null;
       return { kind: msg.kind, name: msg.name, args: msg.args };
     },
     /** A different-version message of ours — worth telling the user
      *  "refresh this page" instead of silently ignoring. */
-    stale: (msg) => !!msg && typeof msg.dbgov === "number" && msg.dbgov !== PROTOCOL_VERSION
+    stale: (msg) => !!msg && (LEGACY_FIELD in msg || typeof msg[FIELD] === "number" && msg[FIELD] !== PROTOCOL_VERSION)
   };
 
   // src/app/updates.js
@@ -4332,7 +4390,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     async check(force) {
       let saved = {};
       try {
-        saved = JSON.parse(Store.get("__dbgov_upd") || "{}") || {};
+        saved = JSON.parse(Store.get("__debug_overlay_upd") || "{}") || {};
       } catch {
       }
       if (!force && Date.now() - (saved.t || 0) < CONFIG.UPDATE.EVERY) {
@@ -4342,7 +4400,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       try {
         const meta = await fetchText(CONFIG.META_URL);
         const v = (/@version\s+([\d.]+)/.exec(meta) || [])[1];
-        Store.set("__dbgov_upd", JSON.stringify({ t: Date.now(), v: v || null }));
+        Store.set("__debug_overlay_upd", JSON.stringify({ t: Date.now(), v: v || null }));
         if (v && newer(v, CONFIG.VERSION)) Updates.found(v);
         else Updates.latest = null;
       } catch {

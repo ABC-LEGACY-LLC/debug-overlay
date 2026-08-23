@@ -1,6 +1,8 @@
 (() => {
   // src/core/protocol.js
   var PROTOCOL_VERSION = 1;
+  var FIELD = "debugOverlay";
+  var LEGACY_FIELD = "dbgov";
   var STATE = {
     on: null,
     // (bool)
@@ -93,7 +95,7 @@
     if (!(name in table)) throw new Error(`unknown ${kind}: ${name}`);
     const pack = table[name];
     return {
-      dbgov: PROTOCOL_VERSION,
+      [FIELD]: PROTOCOL_VERSION,
       kind,
       name,
       args: pack ? pack(...args) : args
@@ -111,18 +113,18 @@
      * and any other extension's noise pass through untouched.
      */
     read(msg) {
-      if (!msg || msg.dbgov !== PROTOCOL_VERSION) return null;
+      if (!msg || msg[FIELD] !== PROTOCOL_VERSION) return null;
       const table = msg.kind === "state" ? STATE : msg.kind === "cmd" ? CMD : null;
       if (!table || !(msg.name in table) || !Array.isArray(msg.args)) return null;
       return { kind: msg.kind, name: msg.name, args: msg.args };
     },
     /** A different-version message of ours — worth telling the user
      *  "refresh this page" instead of silently ignoring. */
-    stale: (msg) => !!msg && typeof msg.dbgov === "number" && msg.dbgov !== PROTOCOL_VERSION
+    stale: (msg) => !!msg && (LEGACY_FIELD in msg || typeof msg[FIELD] === "number" && msg[FIELD] !== PROTOCOL_VERSION)
   };
 
   // browser-extension-source/cockpit.js
-  var VERSION = "3.8.108";
+  var VERSION = "3.8.109";
   var $ = (s) => document.querySelector(s);
   var body = document.body;
   var IC = {

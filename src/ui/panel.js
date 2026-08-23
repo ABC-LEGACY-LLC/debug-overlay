@@ -11,7 +11,7 @@ import { List } from './list.js';
   export function initPanel() {
   Panel = (() => {
     const el = document.createElement('div');
-    el.id = '__dbgov-bar';
+    el.id = '__debug-overlay-bar';
     // Tool buttons come from the registry — never hardcoded — and so does the
     // grouping. This file draws the runs it is handed, in order, with a rule
     // between them; what puts a tool in one run rather than another is not
@@ -25,7 +25,7 @@ import { List } from './list.js';
      * family, so a family that grows shrinks the bar rather than growing it.
      */
     const toolBtn = (t) =>
-      `<button class="dbgov-tool dbgov-whenOn ${Tools.feedsAudit(t) ? 'dbgov-checks' : ''}" data-tool="${t.id}"` +
+      `<button class="debug-overlay-tool debug-overlay-whenOn ${Tools.feedsAudit(t) ? 'debug-overlay-checks' : ''}" data-tool="${t.id}"` +
       ` title="${t.family ? t.family[0].toUpperCase() + t.family.slice(1) + ' › ' : ''}` +
       `${t.title}\n${Tools.rolesOf(t).join(' · ')}` +
       `${Tools.feedsAudit(t) ? ' · also runs in the page audit' : ''}` +
@@ -41,39 +41,39 @@ import { List } from './list.js';
         const kin = run.tools.filter((x) => x.family === t.family);
         const famName = t.family[0].toUpperCase() + t.family.slice(1);
         out.push(
-          `<span class="dbgov-fam dbgov-whenOn" data-fam="${t.family}">` +
-          `<button class="dbgov-fam-btn dbgov-whenOn ${kin.some(Tools.feedsAudit) ? 'dbgov-checks' : ''}"` +
+          `<span class="debug-overlay-fam debug-overlay-whenOn" data-fam="${t.family}">` +
+          `<button class="debug-overlay-fam-btn debug-overlay-whenOn ${kin.some(Tools.feedsAudit) ? 'debug-overlay-checks' : ''}"` +
           ` aria-expanded="false" title="${famName} family — ${kin.map((x) => x.id).join(', ')};` +
           ` click to open">${mark}</button>` +
-          `<span class="dbgov-flyout">${kin.map(toolBtn).join('')}</span></span>`);
+          `<span class="debug-overlay-flyout">${kin.map(toolBtn).join('')}</span></span>`);
       }
       return out.join('');
-    }).join('<hr class="dbgov-sep dbgov-whenOn">');
+    }).join('<hr class="debug-overlay-sep debug-overlay-whenOn">');
     // the sweep button's face, a const because setSwept puts it back after a resting count
     const SWEEP_ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="m21 21-4.34-4.34" /><circle cx="11" cy="11" r="8" /></svg>';   // lucide 'search' (ISC)
     el.innerHTML = `
-      <span class="dbgov-grip" title="Drag to move — snaps to the nearest edge"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><circle cx="9" cy="12" r="1" /><circle cx="9" cy="5" r="1" /><circle cx="9" cy="19" r="1" /><circle cx="15" cy="12" r="1" /><circle cx="15" cy="5" r="1" /><circle cx="15" cy="19" r="1" /></svg></span>
-      <button class="dbgov-pwr" title="Power (Alt+Shift+D) · v${CONFIG.VERSION}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 2v10" /><path d="M18.4 6.6a9 9 0 1 1-12.77.04" /></svg></button>
-      <span class="dbgov-st" data-st>OFF</span>
-      <hr class="dbgov-sep dbgov-whenOn">
+      <span class="debug-overlay-grip" title="Drag to move — snaps to the nearest edge"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><circle cx="9" cy="12" r="1" /><circle cx="9" cy="5" r="1" /><circle cx="9" cy="19" r="1" /><circle cx="15" cy="12" r="1" /><circle cx="15" cy="5" r="1" /><circle cx="15" cy="19" r="1" /></svg></span>
+      <button class="debug-overlay-pwr" title="Power (Alt+Shift+D) · v${CONFIG.VERSION}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 2v10" /><path d="M18.4 6.6a9 9 0 1 1-12.77.04" /></svg></button>
+      <span class="debug-overlay-st" data-st>OFF</span>
+      <hr class="debug-overlay-sep debug-overlay-whenOn">
       ${toolRuns}
       <!-- its own band: ⌕ and ⚙ drive the services, they are not tools -->
-      <hr class="dbgov-sep dbgov-whenOn">
-      <button class="dbgov-act dbgov-whenOn" data-sweep data-view="findings" title="Audit the whole page">${SWEEP_ICON}</button>
+      <hr class="debug-overlay-sep debug-overlay-whenOn">
+      <button class="debug-overlay-act debug-overlay-whenOn" data-sweep data-view="findings" title="Audit the whole page">${SWEEP_ICON}</button>
       <!-- with the tools it configures, not with the panel's own actions -->
-      <button class="dbgov-act dbgov-whenOn" data-settings data-view="settings" title="Tool settings"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></svg></button>
-      <hr class="dbgov-sep dbgov-whenOn">
-      <button class="dbgov-cnt dbgov-whenOn" data-c data-view="pins" title="Pinned elements — click for the list">0</button>
+      <button class="debug-overlay-act debug-overlay-whenOn" data-settings data-view="settings" title="Tool settings"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></svg></button>
+      <hr class="debug-overlay-sep debug-overlay-whenOn">
+      <button class="debug-overlay-cnt debug-overlay-whenOn" data-c data-view="pins" title="Pinned elements — click for the list">0</button>
       <!-- 🏷 replaces ≡: same fam flyout the domain families use, members
            handed in by the controller (setBadgeControls) — this file renders
            what it is given and never learns what a view or a facet is -->
-      <span class="dbgov-fam dbgov-whenOn" data-badge>
-        <button class="dbgov-fam-btn dbgov-act" title="Badge — view and facets; click to open"
+      <span class="debug-overlay-fam debug-overlay-whenOn" data-badge>
+        <button class="debug-overlay-fam-btn debug-overlay-act" title="Badge — view and facets; click to open"
                 aria-haspopup="true" aria-expanded="false"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></svg></button>
-        <span class="dbgov-flyout" data-badge-fly></span>
+        <span class="debug-overlay-flyout" data-badge-fly></span>
       </span>
-      <button class="dbgov-act dbgov-whenOn" data-copy title="Copy report"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /><path d="M16 4h2a2 2 0 0 1 2 2v4" /><path d="M21 14H11" /><path d="m15 10-4 4 4 4" /></svg></button>
-      <button class="dbgov-act dbgov-whenOn" data-clear title="Clear pins and the audit's marks"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>`;
+      <button class="debug-overlay-act debug-overlay-whenOn" data-copy title="Copy report"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /><path d="M16 4h2a2 2 0 0 1 2 2v4" /><path d="M21 14H11" /><path d="m15 10-4 4 4 4" /></svg></button>
+      <button class="debug-overlay-act debug-overlay-whenOn" data-clear title="Clear pins and the audit's marks"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>`;
     root.append(el);
 
     // The popover is LIST's; this says where it hangs and lights up whichever
@@ -84,7 +84,7 @@ import { List } from './list.js';
       mark: (view) => el.querySelectorAll('[data-view]').forEach(
         (b) => {
           const on = !!view && b.dataset.view === view;
-          b.classList.toggle('dbgov-armed', on);
+          b.classList.toggle('debug-overlay-armed', on);
           b.setAttribute('aria-pressed', String(on));
         }),
     });
@@ -105,11 +105,11 @@ import { List } from './list.js';
            hangs beside the head. Members mixed into the heads' column read
            as one flat level, which is exactly what the axes exist to avoid. */
         const sub = document.createElement('span');
-        sub.className = 'dbgov-sub';
+        sub.className = 'debug-overlay-sub';
         const h = document.createElement('button');
         // bctl, not tool: these are the badge service's controls, and every
         // test and map that enumerates button.tool means REGISTRY tools
-        h.className = 'dbgov-bctl dbgov-whenOn dbgov-axis' + (open === g.key ? ' dbgov-open' : '');
+        h.className = 'debug-overlay-bctl debug-overlay-whenOn debug-overlay-axis' + (open === g.key ? ' debug-overlay-open' : '');
         h.innerHTML = g.glyph;   // our own icon constant, never page text
         h.title = g.title;
         /* The WHOLE title, not the bar's first-clause heuristic: these titles
@@ -126,11 +126,11 @@ import { List } from './list.js';
         sub.append(h);
         if (open === g.key) {
           const members = document.createElement('span');
-          members.className = 'dbgov-subfly';
+          members.className = 'debug-overlay-subfly';
           for (const r of g.rows) {
             const b = document.createElement('button');
-            b.className = 'dbgov-bctl dbgov-whenOn' + (r.armed ? ' dbgov-armed' : '') +
-                          (r.fixed ? ' dbgov-fixed' : '');
+            b.className = 'debug-overlay-bctl debug-overlay-whenOn' + (r.armed ? ' debug-overlay-armed' : '') +
+                          (r.fixed ? ' debug-overlay-fixed' : '');
             b.innerHTML = r.glyph;   // our own icon constant, never page text
             b.title = r.title;
             b.setAttribute('aria-label', r.title);
@@ -173,7 +173,7 @@ import { List } from './list.js';
            It was redundant as well as harmful: `.whenOn` and the popover are
            already `display: none` when off, which removes them from the tab
            order and the accessibility tree by itself. */
-        el.classList.toggle('dbgov-on', v);
+        el.classList.toggle('debug-overlay-on', v);
         el.querySelector('[data-st]').textContent = v ? 'ON' : 'OFF';
         if (!v) { api.toggleList(false); api.closeFlyouts(); }
         if (v) { clearTimeout(tuckTimer); untuck(); } else scheduleTuck();
@@ -187,7 +187,7 @@ import { List } from './list.js';
        * nor asks who docked it.
        */
       docked(v) {
-        el.classList.toggle('dbgov-docked', v);
+        el.classList.toggle('debug-overlay-docked', v);
         if (v) { api.toggleList(false); api.closeFlyouts(); }
       },
       /**
@@ -202,12 +202,12 @@ import { List } from './list.js';
       },
       setTool(id, v) {
         const b = el.querySelector(`[data-tool="${id}"]`);
-        b?.classList.toggle('dbgov-armed', v);
+        b?.classList.toggle('debug-overlay-armed', v);
         b?.setAttribute('aria-pressed', String(!!v));
         // the family mark shows armed when ANY member is armed
-        const fam = b?.closest('.dbgov-fam');
-        if (fam) fam.querySelector('.dbgov-fam-btn')
-          .classList.toggle('dbgov-armed', !!fam.querySelector('.dbgov-tool.dbgov-armed'));
+        const fam = b?.closest('.debug-overlay-fam');
+        if (fam) fam.querySelector('.debug-overlay-fam-btn')
+          .classList.toggle('debug-overlay-armed', !!fam.querySelector('.debug-overlay-tool.debug-overlay-armed'));
         api.onState?.('tool', id, v);
       },
       /**
@@ -233,8 +233,8 @@ import { List } from './list.js';
        * is a mystery, and a mystery on the power button is worse.
        */
       setUpdate(v) {
-        const b = el.querySelector('.dbgov-pwr');
-        b.classList.add('dbgov-upd');
+        const b = el.querySelector('.debug-overlay-pwr');
+        b.classList.add('debug-overlay-upd');
         b.title = `Power (Alt+Shift+D) · v${CONFIG.VERSION} — v${v} available, right-click to update`;
         b.setAttribute('aria-label', `Power — update to v${v} available`);
         api.onState?.('update', v);
@@ -244,11 +244,11 @@ import { List } from './list.js';
          Menu's isOpen/close so app/ can put it in the one dismissal ladder
          without ui/ learning anything about app/. Closing collapses the badge
          drawer too: which axis is open is furniture, not a choice. */
-      isFlyoutOpen: () => !!el.querySelector('.dbgov-fam.dbgov-open'),
+      isFlyoutOpen: () => !!el.querySelector('.debug-overlay-fam.debug-overlay-open'),
       closeFlyouts() {
-        el.querySelectorAll('.dbgov-fam.dbgov-open').forEach((f) => {
-          f.classList.remove('dbgov-open');
-          f.querySelector('.dbgov-fam-btn')?.setAttribute('aria-expanded', 'false');
+        el.querySelectorAll('.debug-overlay-fam.debug-overlay-open').forEach((f) => {
+          f.classList.remove('debug-overlay-open');
+          f.querySelector('.debug-overlay-fam-btn')?.setAttribute('aria-expanded', 'false');
         });
         const fly = el.querySelector('[data-badge-fly]');
         if (fly && fly.dataset.open) { fly.dataset.open = ''; renderBadgeFly(); }
@@ -273,7 +273,7 @@ import { List } from './list.js';
        */
       setSwept(v, n) {
         const b = el.querySelector('[data-sweep]');
-        b.classList.toggle('dbgov-swept', !!v);
+        b.classList.toggle('debug-overlay-swept', !!v);
         // the resting count replaces the icon; clearing puts the icon back
         if (v) b.textContent = String(n);
         else b.innerHTML = SWEEP_ICON;
@@ -284,7 +284,7 @@ import { List } from './list.js';
         api.onState?.('swept', !!v, n);
       },
       setRemoveMode(v) {
-        el.classList.toggle('dbgov-removing', v);
+        el.classList.toggle('debug-overlay-removing', v);
         const st = el.querySelector('[data-st]');
         st.textContent = v ? 'DEL' : (api.isOn() ? 'ON' : 'OFF');
         api.onState?.('removeMode', v);
@@ -327,7 +327,7 @@ import { List } from './list.js';
         });
       },
       rect: () => el.getBoundingClientRect(),
-      isOn: () => el.classList.contains('dbgov-on'),
+      isOn: () => el.classList.contains('debug-overlay-on'),
     };
 
     // LIST's events arrive as the panel's own, so BOOT still wires one object
@@ -348,28 +348,28 @@ import { List } from './list.js';
     el.querySelectorAll('[data-tool], [data-view]')
       .forEach((b) => b.setAttribute('aria-pressed', 'false'));
 
-    el.querySelector('.dbgov-pwr').addEventListener('click', () => api.onToggle?.());
+    el.querySelector('.debug-overlay-pwr').addEventListener('click', () => api.onToggle?.());
     /* right-click ⏻ = the update menu — the grammar the panel already
        speaks (right-click a button → menu about that button), asked of the
        button that OWNS the version: its tooltip carries v${...} today. */
-    el.querySelector('.dbgov-pwr').addEventListener('contextmenu', (e) => {
+    el.querySelector('.debug-overlay-pwr').addEventListener('contextmenu', (e) => {
       e.preventDefault();
       api.onUpdateMenu?.(e.clientX, e.clientY);
     });
     /* The family flyout: click the mark to slide the members out; click it
        again, pick a member, press Escape via the panel path, or click
        anywhere else to close. Only ever one open. */
-    el.querySelectorAll('.dbgov-fam-btn').forEach((b) => {
+    el.querySelectorAll('.debug-overlay-fam-btn').forEach((b) => {
       b.addEventListener('click', () => {
         const fam = b.parentElement;
-        const open = !fam.classList.contains('dbgov-open');
+        const open = !fam.classList.contains('debug-overlay-open');
         api.closeFlyouts();
-        fam.classList.toggle('dbgov-open', open);
+        fam.classList.toggle('debug-overlay-open', open);
         b.setAttribute('aria-expanded', String(open));
       });
     });
     document.addEventListener('pointerdown', (e) => {
-      if (e.target.closest && e.target.closest('.dbgov-fam')) return;
+      if (e.target.closest && e.target.closest('.debug-overlay-fam')) return;
       api.closeFlyouts();
     }, true);
 
@@ -387,7 +387,7 @@ import { List } from './list.js';
     });
     // reopening 🏷 starts at the axis level again — the drawer position is
     // session furniture, not a choice worth remembering
-    el.querySelector('[data-badge] .dbgov-fam-btn').addEventListener('click', () => {
+    el.querySelector('[data-badge] .debug-overlay-fam-btn').addEventListener('click', () => {
       const fly = el.querySelector('[data-badge-fly]');
       if (fly.dataset.open) { fly.dataset.open = ''; renderBadgeFly(); }
     });
@@ -432,7 +432,7 @@ import { List } from './list.js';
 
     // --- auto-tuck (only while powered off)
     let tuckTimer = 0;
-    function untuck() { el.classList.remove('dbgov-tucked'); el.style.transform = ''; }
+    function untuck() { el.classList.remove('debug-overlay-tucked'); el.style.transform = ''; }
     function tuck() {
       untuck();
       const r = el.getBoundingClientRect();
@@ -441,7 +441,7 @@ import { List } from './list.js';
       if (side === 'left')   t = `translateX(${Math.round(CONFIG.PEEK - r.right)}px)`;
       if (side === 'bottom') t = `translateY(${Math.round(innerHeight - CONFIG.PEEK - r.top)}px)`;
       if (side === 'top')    t = `translateY(${Math.round(CONFIG.PEEK - r.bottom)}px)`;
-      el.classList.add('dbgov-tucked');
+      el.classList.add('debug-overlay-tucked');
       el.style.transform = t;
     }
     function scheduleTuck() {
@@ -466,14 +466,14 @@ import { List } from './list.js';
     });
     el.addEventListener('pointermove', (e) => {
       if (!drag) return;
-      el.classList.add('dbgov-dragging');
+      el.classList.add('debug-overlay-dragging');
       applyPos(e.clientX - drag.dx, e.clientY - drag.dy);
       if (List.isOpen()) List.place();
     });
     const endDrag = () => {
       if (!drag) return;
       drag = null;
-      el.classList.remove('dbgov-dragging');
+      el.classList.remove('debug-overlay-dragging');
       snap();
       scheduleTuck();
       if (List.isOpen()) List.place();

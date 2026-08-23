@@ -11,9 +11,9 @@ import { Colour } from './service.js';
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `
-    .dbgov-badge .dbgov-ok  { color: #b5e853; }
-    .dbgov-badge .dbgov-bad { color: #ff6b6b; font-weight: 700; }
-    .dbgov-badge .dbgov-unk { color: #8ab4f8; font-style: italic; }
+    .debug-overlay-badge .debug-overlay-ok  { color: #b5e853; }
+    .debug-overlay-badge .debug-overlay-bad { color: #ff6b6b; font-weight: 700; }
+    .debug-overlay-badge .debug-overlay-unk { color: #8ab4f8; font-style: italic; }
     `,
       id: 'contrast',
       family: 'colour',   // audited: must match the domain folder this sits in

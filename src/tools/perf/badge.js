@@ -18,16 +18,16 @@ export function badge(i) {
         if (s) {
           const churn = Number(Tools.setting(this, 'churn')) || CONFIG.PERF.CHURN;
           const mut = s.rate >= churn
-            ? `<span class="dbgov-warn">mut ${s.rate}/s</span>` : `mut ${s.rate}/s`;
+            ? `<span class="debug-overlay-warn">mut ${s.rate}/s</span>` : `mut ${s.rate}/s`;
           const bits = [`⚡ ${mut}`];
           if (s.worstEvt) bits.push(`resp ${fmt(s.worstEvt)}`);
           if (s.shift > 0.005) bits.push(`shift ${s.shift.toFixed(2)}`);
-          return `<span class="dbgov-sp">${bits.join(' · ')}</span>`;
+          return `<span class="debug-overlay-sp">${bits.join(' · ')}</span>`;
         }
         const fps = Monitor.fps == null ? '–' : Monitor.fps;
         const n = Monitor.log.length;
-        return `<span class="dbgov-sp">⚡ ${fps}fps</span>` +
-               (n ? ` <span class="dbgov-warn">${n}× worst ${fmt(Monitor.worst())}</span>` : '');
+        return `<span class="debug-overlay-sp">⚡ ${fps}fps</span>` +
+               (n ? ` <span class="debug-overlay-warn">${n}× worst ${fmt(Monitor.worst())}</span>` : '');
 }
 
 /** Quiet unless something is wrong — the compact badge is for problems. */
@@ -35,8 +35,8 @@ export function compact(i) {
         if (!Monitor.running) return null;
         const s = Targets.stats(i.el);
         const churn = Number(Tools.setting(this, 'churn')) || CONFIG.PERF.CHURN;
-        if (s && s.rate >= churn) return `<span class="dbgov-warn">⚡mut ${s.rate}/s</span>`;
-        if (!s && Monitor.log.length) return `<span class="dbgov-warn">⚡${fmt(Monitor.worst())}</span>`;
+        if (s && s.rate >= churn) return `<span class="debug-overlay-warn">⚡mut ${s.rate}/s</span>`;
+        if (!s && Monitor.log.length) return `<span class="debug-overlay-warn">⚡${fmt(Monitor.worst())}</span>`;
         return null;
 }
 
