@@ -76,10 +76,10 @@ const RULES = [
   // Persistence goes through Store, which is per-script; localStorage is per
   // origin, and with @match *://*/* that silently means "per site" — the bug
   // this project just spent a release fixing.
-  ['ui/panel.js', /localStorage/, 'STORE owns persistence — localStorage is per-origin'],
+  ['ui/web-panel.js', /localStorage/, 'STORE owns persistence — localStorage is per-origin'],
   ['app/controller.js', /localStorage/, 'STORE owns persistence — localStorage is per-origin'],
-  ['ui/panel.js', /\bState\./, 'PANEL fires callbacks; CONTROLLER owns state'],
-  ['ui/panel.js', /\bpairs?\b|measurePins/, 'PANEL must not know what a pair is'],
+  ['ui/web-panel.js', /\bState\./, 'WEB PANEL fires callbacks; CONTROLLER owns state'],
+  ['ui/web-panel.js', /\bpairs?\b|measurePins/, 'WEB PANEL must not know what a pair is'],
   ['ui/renderer.js', /PAIR_MODE/, 'RENDERER must ask tools via hooks'],
   ['ui/placement.js', /\bTools\.|\bState\./, 'PLACEMENT only positions boxes'],
 ];

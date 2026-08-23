@@ -1,7 +1,7 @@
 import { CONFIG } from '../core/config.js';
 import { Store } from '../core/state.js';
 import { Menu } from '../ui/menu.js';
-import { Panel } from '../ui/panel.js';
+import { WebPanel } from '../ui/web-panel.js';
 
 /* ======================================================================
   UPDATES — staleness announces itself
@@ -90,7 +90,7 @@ export const Updates = {
 
         found(v) {
           Updates.latest = v;
-          Panel.setUpdate(v);
+          WebPanel.setUpdate(v);
         },
 
         /** What pressing Update DOES, per gate. The userscript's manager owns
@@ -114,7 +114,7 @@ export const Updates = {
             window.open(CONFIG.INSTALL_URL, '_blank');
           }
           // the cursor menu only makes sense where a cursor asked — the
-          // cockpit calls this with no coordinates and shows its own next step
+          // side panel calls this with no coordinates and shows its own next step
           if (x != null) Updates.menu(x, y, true);
         },
 

@@ -212,10 +212,35 @@ differentially: the same bundle driven identically on a clean host and on one
 that defines every name we ever used bare, computed styles diffed over every
 element in the overlay.
 
-## One panel, two faces — the cockpit speaks the panel's own contract
+## Two panels, named — the web panel and the side panel
 
-The extension gate has a second face: the **cockpit**, in the browser's side
-panel, where a page refresh cannot reach. It is a RENDERING of the in-page
+There are exactly two surfaces a user can drive this overlay from, and they
+are named for **where they live**, because that is the only difference that
+survives every other change:
+
+| | **web panel** | **side panel** |
+|---|---|---|
+| lives | on the page, injected | in the browser's own side panel |
+| gates | both — the ONLY surface the userscript has | extension only |
+| survives a refresh | no — the page reloads, it reloads | **yes** — the page dies, it does not |
+| home | `src/ui/` (`web-panel.js` and friends) | `browser-extension-source/side-panel/` |
+| code | `WebPanel`, `#__debug-overlay-bar` | `side-panel.html` / `side-panel.js` |
+
+The abbreviation `dbgov` used to name all of this — classes, ids, storage
+keys, the wire envelope — and it is gone; every one of them says
+`debug-overlay` now, with legacy bridges so no install notices (see the
+single-instance guard in `banner.js`, `Store._legacyRead`, and
+`LEGACY_FIELD` in the protocol).
+
+Only one of the two may be showing: connecting the side panel calls
+`WebPanel.setVisible(false)`, which hides the BAR and nothing else — pins,
+marks and badges are the page's annotations and stay. Losing the port gives
+the bar back.
+
+## One panel, two faces — the side panel speaks the web panel's own contract
+
+The extension gate has a second face: the **side panel**, where a page
+refresh cannot reach. It is a RENDERING of the web
 panel's state, never a second implementation — the rule that makes that
 cheap is that the panel was already message-shaped. Its standing contract
 ("self-contained; talks out only via callbacks") IS a wire protocol, so
@@ -226,9 +251,9 @@ version field. The file is pure, imports nothing, and is bundled into BOTH
 programs — one vocabulary, two importers, no copy to drift.
 
 `app/bridge.js` is the content-side adapter and is deliberately ignorant:
-it caches what the panel announces (`Panel.onState`, the same
+it caches what the panel announces (`WebPanel.onState`, the same
 announce-and-let-boot-decide seam as `Render.onPinsPruned`), replays the
-cache to a cockpit that says hello, forwards live announcements, and lands
+cache to a side panel that says hello, forwards live announcements, and lands
 incoming commands on the SAME callback slots boot wired for the bar — so
 arming from the side panel and arming from the bar are one code path from
 the first line. Rows pack by whitelist (elements, pin objects and closures
@@ -237,12 +262,12 @@ jsdom, not in Chrome), and activation travels as the row's index, resolved
 against `rows(view)` on the page side — the row-index law, doing the job it
 was written for.
 
-The lists follow the same grammar. The cockpit opens a view by name
+The lists follow the same grammar. The side panel opens a view by name
 (`openView`), the bridge answers with that view's rows through
-`Panel.onRowsFor` — the query twin of `onListOpen`, wired by boot to the
+`WebPanel.onRowsFor` — the query twin of `onListOpen`, wired by boot to the
 same rows and empty text the popover renders, so the two lists cannot
 diverge — and every row command carries `(view, index)` so the controller
-resolves it against the list the COCKPIT rendered, never against whatever
+resolves it against the list the SIDE PANEL rendered, never against whatever
 the in-page popover happens to show (the three row handlers take an
 explicit view now, defaulting to the popover's own). Command-triggered
 refreshes answer in the same breath; page-side changes ride the state
@@ -250,7 +275,7 @@ announcements, coalesced, because announcements burst. The open view is
 re-requested on every reconnect, so it survives the reload along with
 everything else.
 
-The timeline is the one surface that lives cockpit-side, because that is
+The timeline is the one surface that lives side panel-side, because that is
 its point: a reload kills the content script and its Monitor log, but not
 the side panel. Two doors feed it, both generic. A runtime's watch ctx
 carries an `event` capability beside `redraw` — a moment worth history (a
@@ -260,26 +285,26 @@ else. And the `timeline` hook is the pull side: a tool returns this page
 visit's story so far (the load's timings, buffered startup tasks, logged
 freezes), which the bridge sends as a BACKLOG on hello and on arming. A
 backlog replaces that tool's entries for the current page visit on the
-cockpit side — generation-numbered, so reconnects and re-arms never double
+side panel side — generation-numbered, so reconnects and re-arms never double
 history and a fresh page never erases an old one. The reload draws its own
-divider: a port that dies without the cockpit asking is a navigation, and
+divider: a port that dies without the side panel asking is a navigation, and
 the next successful connect bumps the generation. Times are page time
 (`at` = ms since navigation) — the one clock a reload visibly resets,
 which is exactly what a timeline should show.
 
-The polish that closed the roadmap keeps to the same grammar. The cockpit
+The polish that closed the roadmap keeps to the same grammar. The side panel
 says whose page it speaks for (`page`, sent on hello) because a control
 surface that does not name its subject invites mistakes. Updates tell one
-story on both faces: a found version raises the cockpit banner AND the ⏻
-dot (the same `Panel.setUpdate` announce), a forced check answers even when
+story on both faces: a found version raises the side panel banner AND the ⏻
+dot (the same `WebPanel.setUpdate` announce), a forced check answers even when
 the answer is "you are current" (`checked`, because a button that does
 nothing visible is worse than no button), and applying goes through the
 page (`updateApply` → `Updates.apply`) so the in-page menu offers the
 refresh step afterwards — the cursor-menu half of apply is skipped when no
-cursor asked. Escape in the cockpit peels the open view and nothing else,
+cursor asked. Escape in the side panel peels the open view and nothing else,
 the bar's own one-layer ladder said again.
 
-While a cockpit is connected the bar steps aside (`Panel.docked`) — the
+While a side panel is connected the bar steps aside (`WebPanel.docked`) — the
 BAR, not the overlay: pins, marks and badges are the page's annotations and
 stay. The port dropping undocks it, so closing the side panel gives the
 page its bar back. Under the userscript gate none of this exists at

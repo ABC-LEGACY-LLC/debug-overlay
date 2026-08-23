@@ -1,7 +1,7 @@
 import { CONFIG } from '../core/config.js';
 import { U } from '../core/utils.js';
 import { layer } from './dom.js';
-import { Panel } from './panel.js';
+import { WebPanel } from './web-panel.js';
   /* ======================================================================
      PLACEMENT — collision-free positioning
      ====================================================================== */
@@ -73,7 +73,7 @@ import { Panel } from './panel.js';
       put, claim, smart,
       reset() {
         taken = [];
-        const br = Panel.rect();
+        const br = WebPanel.rect();
         taken.push(U.rectOf(br.left - 8, br.top - 8, br.width + 16, br.height + 16));
       },
     };

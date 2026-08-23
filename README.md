@@ -12,6 +12,7 @@ refresh; a performance monitor (⚡) can watch a pinned component's cost live.
 
 **Jump to:** [Install](#install) ·
 [First 60 seconds](#first-60-seconds-after-installing) ·
+[The two panels](#the-two-panels) ·
 [Troubleshooting](#if-something-looks-wrong) ·
 [Developing](#developing) · [Architecture](#architecture) ·
 [Adding a tool](#adding-a-tool)
@@ -78,8 +79,8 @@ extract to a permanent folder yourself, not Downloads, not a git checkout.)*
 **Load unpacked** → select that folder. These two clicks are the browser's
 own security law — no installer anywhere may add an extension silently.
 
-**Step 4.** Open any website and press **Alt+Shift+D** — the panel appears.
-The extension also has a **cockpit**: click the Debug Overlay toolbar button
+**Step 4.** Open any website and press **Alt+Shift+D** — the **web panel**
+appears (the bar on the page itself). The extension also has a **side panel**: click the Debug Overlay toolbar button
 and the same panel opens in the browser's side panel — bigger, and it
 survives page refreshes (the in-page bar steps aside while it is open, and
 comes back when you close it).
@@ -103,6 +104,21 @@ one-time.
 use Option A there.
 
 ---
+
+### The two panels
+
+| | **web panel** | **side panel** |
+|---|---|---|
+| where | on the page itself — the floating bar | the browser's side panel |
+| available in | **both** installs | the extension only |
+| survives a page refresh | no | **yes** |
+| open it with | **Alt+Shift+D** | the toolbar button |
+
+They show the same overlay and the same state; the side panel is simply the
+bigger, steadier place to put it. While the side panel is open the web
+panel's bar steps aside so two controls never claim one state — everything
+the overlay draws *on* the page (pins, marks, badges) stays exactly where it
+was. Close the side panel and the bar comes back.
 
 ### First 60 seconds after installing
 
@@ -161,7 +177,7 @@ dist/
     debug-overlay.meta.js
   browser-extension/     the extension gate
     manifest.json  content.js  sw.js       the extension itself
-    cockpit.html  cockpit.js               the side-panel cockpit
+    side-panel.html  side-panel.js               the side-panel side panel
     options.html  options.js               the update & repair screen
     icon16/32/48/128.png  files.json       the face, and the updater's file list
     install.html  install.bat              the no-cmd installer (+ cmd variant)
@@ -301,14 +317,14 @@ src/                        the overlay — everything here becomes the bundle
     geometry.js             shared rectangle maths — measure and select consult it
   core/                     config · state+Store · utils · registry · protocol
                             (protocol = the panel's contract on a wire — shared
-                            with the cockpit, the one vocabulary both speak)
+                            with the side panel, the one vocabulary both speak)
   ui/                       styles · dom · controls · list · menu · panel
                             · placement · renderer
   app/                      interactions · controller · updates · bridge
-                            (bridge = the cockpit adapter; inert as a userscript)
+                            (bridge = the side panel adapter; inert as a userscript)
 
 browser-extension-source/   the extension gate's templates and its own faces
-                            (options page, cockpit side panel, the icon PNGs +
+                            (options page, side panel side panel, the icon PNGs +
                             make-icons.js that draws them); build.js
                             substitutes/bundles and emits dist/browser-extension/
 development/                the dev harness, its server, and the perf probe —
@@ -363,7 +379,7 @@ anything outside its folder.
   tools want is a SUBJECT.
 - Every name in `HOOKS` is consumed by some core file — no hook exists that
   nothing would ever call.
-- `ui/panel.js` never touches state and never learns what a "pair" is;
+- `ui/web-panel.js` never touches state and never learns what a "pair" is;
   `ui/` never imports `app/`.
 - Every class the overlay emits or styles carries the `debug-overlay-` namespace, and
   the suite proves a hostile host stylesheet changes nothing — our elements

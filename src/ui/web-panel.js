@@ -6,10 +6,10 @@ import { List } from './list.js';
   /* ======================================================================
      PANEL — self-contained; talks out only via callbacks
      ====================================================================== */
-  export let Panel;
+  export let WebPanel;
   /** Deferred: builds DOM, so it runs from BOOT, not at import. */
-  export function initPanel() {
-  Panel = (() => {
+  export function initWebPanel() {
+  WebPanel = (() => {
     const el = document.createElement('div');
     el.id = '__debug-overlay-bar';
     // Tool buttons come from the registry — never hardcoded — and so does the
@@ -155,12 +155,12 @@ import { List } from './list.js';
       onSweep: null, onRowChange: null,
       /* The panel repeats what it is told, to whoever asks — the same
          announce-and-let-boot-decide shape as Render.onPinsPruned. This file
-         never learns who listens; today it is the cockpit bridge, mirroring
+         never learns who listens; today it is the side panel bridge, mirroring
          the bar's state to the extension's side panel. */
       onState: null,
       /* The query twin of onListOpen: "what would that view show?" — wired by
          boot to the same rows and empty text the popover renders, asked by
-         the bridge for a view the cockpit holds open. A query, not a push,
+         the bridge for a view the side panel holds open. A query, not a push,
          because the asker names the view. */
       onRowsFor: null,
       setOn(v) {
@@ -184,10 +184,10 @@ import { List } from './list.js';
        * side panel, today), so the bar steps aside — the BAR, not the
        * overlay: pins, marks and badges are the page's annotations and
        * stay. Opaque to this file like everything else: it neither knows
-       * nor asks who docked it.
+       * nor asks who asked.
        */
-      docked(v) {
-        el.classList.toggle('debug-overlay-docked', v);
+      setVisible(v) {
+        el.classList.toggle('debug-overlay-hidden', !v);
         if (v) { api.toggleList(false); api.closeFlyouts(); }
       },
       /**

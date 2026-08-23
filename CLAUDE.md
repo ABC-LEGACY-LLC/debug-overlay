@@ -49,7 +49,7 @@ tab: the bundle skips frames, so an embedded editor preview shows nothing.
   capabilities ride in through the hook ctx, like intercept's `redraw`.
 - Files split when they grow two jobs, and the split keeps the caller's
   surface identical: `ui/controls.js` and `ui/list.js` came out of the panel,
-  `app/settings.js` out of the controller, and `Panel.setList` / `Panel.view`
+  `app/settings.js` out of the controller, and `WebPanel.setList` / `WebPanel.view`
   still exist because nothing outside should have to learn that.
 - **Load order is the import graph.** src/ is real ES modules; `boot.js` is
   the entry, esbuild bundles, and a new core file is imported by whoever needs
@@ -58,7 +58,7 @@ tab: the bundle skips frames, so an embedded editor preview shows nothing.
   new capability is still one new file. `banner.js` is NOT a module: its guard
   must abort before any module evaluates and imports hoist, so `build.js`
   injects its text at the top of the wrapper IIFE. `ui/dom.js`, `ui/list.js`
-  and `ui/panel.js` build DOM, so they export `init*()` called from boot in
+  and `ui/web-panel.js` build DOM, so they export `init*()` called from boot in
   order rather than constructing at import time.
 - The 220-line advisory is per FILE, and the folder split dissolved the one
   standing exception: contrast is now index/badge/rule/draw/report plus
@@ -148,7 +148,7 @@ exactly what the `kind` field died of.
 - `core/utils.js` — pure. No `State.`, no DOM creation, no markup. Callers hand
   in a decorator; the tool that styles a class is the tool that emits it.
 - `subjects/geometry.js` — rectangles only; a subject (two consumers: measure, select), and the geometry family's mark 📏.
-- `ui/panel.js` — no `State.`, and it must not know what a "pair" is. It
+- `ui/web-panel.js` — no `State.`, and it must not know what a "pair" is. It
   fires callbacks; the controller handles them.
 - `ui/renderer.js` / `app/interactions.js` / `app/controller.js` — never
   hardcode a tool id such as `'measure'`. Use hooks and `CONFIG.PIN_KIND`.
@@ -171,7 +171,7 @@ exactly what the `kind` field died of.
   was a `kind` field; it could only repeat what the hooks said, and one label
   per tool made roles exclusive for no reason. Roles compose — grid decorates
   other tools' numbers *and* produces findings.
-- The layers hold in one direction only: `core/` never mentions `Panel.`,
+- The layers hold in one direction only: `core/` never mentions `WebPanel.`,
   `Render.`, `Controller.` or `Settings.`; `ui/` never mentions `Controller.`,
   `Sweep.` or `Report.`; and nothing outside `tools/` calls `defineTool()`.
   All three were true by habit before the audit checked them, which is the
@@ -350,9 +350,9 @@ Six defects a live audit found, each now guarded by a test:
   clamps four candidates into the viewport and takes the first that still
   clears the bar. Do not fix this by restacking — putting the popover on top
   buries the button that closes it.
-- **A `Panel.flash` is transient, so it cannot be the only sign of state.** The
+- **A `WebPanel.flash` is transient, so it cannot be the only sign of state.** The
   ⌕ count expired and the bar then looked idle while the page still wore 200
-  outlines per rule, with no control that removed them. `Panel.setSwept` and
+  outlines per rule, with no control that removed them. `WebPanel.setSwept` and
   ✕-clears-the-audit are one state, driven together.
 - **A cap must say so**, and only when it bit — asked per armed drawing rule,
   because the limit is per rule and a rule with no `draw()` caps nothing.
@@ -363,7 +363,7 @@ Six defects a live audit found, each now guarded by a test:
   that button, inside root, so Escape did nothing after opening the panel with
   the mouse. `typing()` already covers every ⚙ control, which is all that guard
   was for.
-- **A count that matters must rest, not flash.** `Panel.flash` expires, so the
+- **A count that matters must rest, not flash.** `WebPanel.flash` expires, so the
   bar could not answer "does this page have problems?" without opening the
   panel. The ⌕ button holds the grouped count while a sweep is showing. Two
   bare numbers on one bar was the original complaint and the fix for that was

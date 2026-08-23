@@ -5,7 +5,7 @@ import { State } from '../core/state.js';
 import { U } from '../core/utils.js';
 import { root } from '../ui/dom.js';
 import { Menu } from '../ui/menu.js';
-import { Panel } from '../ui/panel.js';
+import { WebPanel } from '../ui/web-panel.js';
 import { Render } from '../ui/renderer.js';
   /* ======================================================================
     INTERACTIONS
@@ -96,7 +96,7 @@ import { Render } from '../ui/renderer.js';
           if (t && document.contains(t)) {
             e.preventDefault();
             Report.toClipboard(U.selectorOf(t));
-            Panel.flash('✓');
+            WebPanel.flash('✓');
           }
           return;
         }
@@ -116,8 +116,8 @@ import { Render } from '../ui/renderer.js';
           /* the popover BEFORE the flyout: a tool's options are opened by
              right-clicking a flyout member, so they sit on top of it, and
              closing the flyout first left the popover stranded above nothing */
-          else if (Panel.isListOpen()) Panel.toggleList(false);
-          else if (Panel.isFlyoutOpen()) Panel.closeFlyouts();
+          else if (WebPanel.isListOpen()) WebPanel.toggleList(false);
+          else if (WebPanel.isFlyoutOpen()) WebPanel.closeFlyouts();
           else if (State.pins.length || State.current) ctl.clearPins();
         }
       }, true);

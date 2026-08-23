@@ -6,7 +6,7 @@ import { TOOLS, Tools } from '../core/registry.js';
 import { State, Store } from '../core/state.js';
 import { U } from '../core/utils.js';
 import { Menu } from '../ui/menu.js';
-import { Panel } from '../ui/panel.js';
+import { WebPanel } from '../ui/web-panel.js';
 import { Render } from '../ui/renderer.js';
   /* ======================================================================
     CONTROLLER — the only glue
@@ -22,7 +22,7 @@ import { Render } from '../ui/renderer.js';
      */
     _running: new Set(),
     /* Announce-and-let-boot-decide, for tool events: syncRuntimes hands each
-       runtime an `event` capability that lands here. Today the cockpit
+       runtime an `event` capability that lands here. Today the side panel
        bridge listens; nothing here knows that. */
     onToolEvent: null,
     syncRuntimes() {
@@ -33,7 +33,7 @@ import { Render } from '../ui/renderer.js';
            gauge has to repaint on its own clock, and a tool may not import
            the renderer to ask. `event` is the same door outward — a moment
            worth history (a freeze landing) is handed up as plain data, and
-           boot decides who listens; today that is the cockpit bridge. */
+           boot decides who listens; today that is the side panel bridge. */
         if (should && !is) {
           Controller._running.add(t);
           t.watch.call(t, { redraw: Render.schedule,
@@ -54,8 +54,8 @@ import { Render } from '../ui/renderer.js';
       // shift-click instead of measured from, so start the session clean.
       if (v) { try { getSelection()?.removeAllRanges(); } catch {} }
       if (!v) State.sweep = null;   // the page moves on; a stale audit lies
-      Panel.setSwept(!!State.sweep, 0);
-      Panel.setOn(v);
+      WebPanel.setSwept(!!State.sweep, 0);
+      WebPanel.setOn(v);
       Controller.syncRuntimes();
       Render.schedule();
     },
@@ -73,8 +73,8 @@ import { Render } from '../ui/renderer.js';
       // the grouped count, not the raw one: "3" is a page with three problems,
       // "5000" is the same page with one of them on every row. It RESTS on the
       // button rather than flashing, so the bar keeps answering the question.
-      Panel.setSwept(true, Sweep.group(State.sweep.findings).length);
-      Panel.toggleList(true, 'findings');
+      WebPanel.setSwept(true, Sweep.group(State.sweep.findings).length);
+      WebPanel.toggleList(true, 'findings');
       Render.schedule();   // the marks are new; nothing else would ask for them
     },
 
@@ -149,10 +149,10 @@ import { Render } from '../ui/renderer.js';
      */
     /* The `view` parameter on the three row handlers: the in-page list never
        passes it (the popover's own view is the default, as ever), but the
-       cockpit's rows live in another window and name their view explicitly —
+       side panel's rows live in another window and name their view explicitly —
        resolving its index against whatever the POPOVER happens to show would
        be the off-by-a-list bug with extra steps. */
-    changeRow(i, raw, view = Panel.view()) {
+    changeRow(i, raw, view = WebPanel.view()) {
       const row = Controller.rows(view)[i];
       if (!row) return;
       // a tool's own row carries its own handler; a settings row carries the
@@ -173,7 +173,7 @@ import { Render } from '../ui/renderer.js';
          expensive thing the tool does (~77% getComputedStyle over every
          element) for a preference no rule consults. `affects` already says
          which is which. */
-      if (row.opt.affects === 'detect') { State.sweep = null; Panel.setSwept(false, 0); }
+      if (row.opt.affects === 'detect') { State.sweep = null; WebPanel.setSwept(false, 0); }
       Render.schedule();
       Controller.refreshList();
     },
@@ -223,7 +223,7 @@ import { Render } from '../ui/renderer.js';
     toggleTool(id) {
       if (!Tools.byId(id)) return;
       State.tools.has(id) ? State.tools.delete(id) : State.tools.add(id);
-      Panel.setTool(id, State.tools.has(id));
+      WebPanel.setTool(id, State.tools.has(id));
       Store.set(CONFIG.TOOLS_KEY, JSON.stringify([...State.tools]));
       Controller.syncRuntimes();
       Render.schedule();
@@ -258,7 +258,7 @@ import { Render } from '../ui/renderer.js';
       } catch {}
       Store.set(CONFIG.SEEN_KEY, JSON.stringify([...registered].sort()));  // a SET, stored stably
       State.tools = new Set(ids.filter((id) => Tools.byId(id)));
-      TOOLS.forEach((t) => Panel.setTool(t.id, State.tools.has(t.id)));
+      TOOLS.forEach((t) => WebPanel.setTool(t.id, State.tools.has(t.id)));
       /* The pin COUNT lives with the KEEPER — one home for pin things,
          instead of the on/off at the top of the bar and "1 pinned" four
          bands below it. A capability question, not an id: whichever tool
@@ -267,7 +267,7 @@ import { Render } from '../ui/renderer.js';
          template put it. The id crosses to the panel opaquely, like a
          `tool:` view name. The count itself still RESTS in the bar — a
          flyout would have hidden the one number that must stay visible. */
-      Panel.attachCount(Tools.withHook('keeps', false)[0]?.id ?? null);
+      WebPanel.attachCount(Tools.withHook('keeps', false)[0]?.id ?? null);
       Controller.syncRuntimes();   // boot is powered off, so this starts nothing — it sets the baseline
     },
 
@@ -386,7 +386,7 @@ import { Render } from '../ui/renderer.js';
       State.removeMode = v;
       if (!v) State.removeTarget = null;
       if (v) State.hoverEl = null;
-      Panel.setRemoveMode(v);
+      WebPanel.setRemoveMode(v);
       Render.schedule();
     },
     removePin(pin) {
@@ -424,11 +424,11 @@ import { Render } from '../ui/renderer.js';
       return rows.sort((a, b) => first(a) - first(b));
     },
     refreshList() {
-      if (!Panel.isListOpen()) return;
-      const view = Panel.view();
-      Panel.setList(Controller.rows(view), Controller.emptyFor(view));
+      if (!WebPanel.isListOpen()) return;
+      const view = WebPanel.view();
+      WebPanel.setList(Controller.rows(view), Controller.emptyFor(view));
     },
-    revealRow(i, view = Panel.view()) {
+    revealRow(i, view = WebPanel.view()) {
       const row = Controller.rows(view)[i];
       if (!row) return;
       // A finding has no pin, so clicking one pins the element on the way to
@@ -448,7 +448,7 @@ import { Render } from '../ui/renderer.js';
       clearTimeout(Controller._flash);
       Controller._flash = setTimeout(() => { State.flashPins = null; Render.schedule(); }, 900);
     },
-    removeRow(i, view = Panel.view()) {
+    removeRow(i, view = WebPanel.view()) {
       /* rows(view), not pinList(): the panel hands back the index of what it
          RENDERED, and that array now carries a title row. Indexing a different
          list is how ✕ removed the wrong pin before. */
@@ -470,7 +470,7 @@ import { Render } from '../ui/renderer.js';
       State.pins = [];
       State.current = null;
       State.sweep = null;
-      Panel.setSwept(false, 0);
+      WebPanel.setSwept(false, 0);
       Controller.pinsChanged();
     },
     /**
@@ -480,7 +480,7 @@ import { Render } from '../ui/renderer.js';
      * the same store the ⚙ row writes — so the two surfaces re-read one
      * value and can never disagree.
      */
-    refreshBadge() { Panel.setBadgeControls(BadgeFace.groups()); },
+    refreshBadge() { WebPanel.setBadgeControls(BadgeFace.groups()); },
     badgeControl(key) {
       const [k, v] = key.split(':');
       const opt = BadgeFace.options().find((o) => o.key === k);

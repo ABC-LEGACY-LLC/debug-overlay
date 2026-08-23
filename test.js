@@ -281,7 +281,7 @@ console.log('\nHOST CSS CANNOT REACH IN');
 console.log('\nTHE PROTOCOL');
 /**
  * core/protocol.js is the bar's callback contract made transportable — the
- * vocabulary the cockpit and the content script must agree on. It is pure
+ * vocabulary the side panel and the content script must agree on. It is pure
  * ESM shared by both bundles, so the suite exercises it directly in a module
  * subprocess: packing must strip everything structured clone would choke on,
  * and read() must ignore every message that is not ours.
@@ -368,13 +368,13 @@ console.log('\nTWO GATES, ONE CORE');
     (optJs.match(/const BASE = '[^']*'/) || ['no BASE'])[0]);
   ok('and it writes exactly the files the gate ships',
     ['manifest.json', 'content.js', 'sw.js', 'options.html', 'options.js',
-     'cockpit.html', 'cockpit.js']
+     'side-panel.html', 'side-panel.js']
       .every((f) => optJs.includes(`'${f}'`) && fs.existsSync(path.join(extDir, f))),
     'the FILES list and the emitted files disagree');
   /* the file SET travels with the version: the updater asks the SERVER what
      to write (files.json), because a baked-in list answers for the build
      that shipped it — the v3.8.98 five-name list would have written the
-     cockpit's manifest while never fetching the cockpit */
+     side panel's manifest while never fetching the side panel */
   const shipped = JSON.parse(fs.readFileSync(path.join(extDir, 'files.json'), 'utf8'));
   ok('the updater learns its file list from the repo, not from itself',
     optJs.includes("'/files.json'") &&
@@ -442,10 +442,10 @@ console.log('\nTWO GATES, ONE CORE');
   ok('the version cross-check backs the probe up',
     optJs.includes('v.mismatch'),
     'a copy holding v3.8.100 under a running v3.8.101 was the live signature');
-  // the cockpit's knock on a tab with no content script is its NORMAL retry
+  // the side panel's knock on a tab with no content script is its NORMAL retry
   // path — unread, every knock lands on the Errors page as a scary entry
-  const ckJs = fs.readFileSync(path.join(extDir, 'cockpit.js'), 'utf8');
-  ok('the cockpit acknowledges lastError — no Errors-page noise',
+  const ckJs = fs.readFileSync(path.join(extDir, 'side-panel.js'), 'utf8');
+  ok('the side panel acknowledges lastError — no Errors-page noise',
     ckJs.includes('chrome.runtime.lastError'),
     'a morning of retries filled the Errors page on a real install');
   ok('the worker can open the updater for the content script',
@@ -489,33 +489,33 @@ console.log('\nTWO GATES, ONE CORE');
     zip.length > 1000 && zip.readUInt32LE(0) === 0x04034b50 &&
     zip.includes(Buffer.from('manifest.json')),
     `zip ${zip.length} bytes, magic ${zip.readUInt32LE(0).toString(16)}`);
-  // the cockpit: declared in the manifest, opened by the toolbar button
-  ok('the manifest declares the cockpit as the side panel',
-    manifest.side_panel?.default_path === 'cockpit.html' &&
+  // the side panel: declared in the manifest, opened by the toolbar button
+  ok('the manifest declares the side panel as the side panel',
+    manifest.side_panel?.default_path === 'side-panel.html' &&
     (manifest.permissions || []).includes('sidePanel'),
     JSON.stringify({ side_panel: manifest.side_panel, permissions: manifest.permissions }));
   ok('the toolbar button opens it',
     !!manifest.action &&
     fs.readFileSync(path.join(extDir, 'sw.js'), 'utf8').includes('openPanelOnActionClick'),
-    'an installed cockpit nobody can reach is not shipped');
+    'an installed side panel nobody can reach is not shipped');
 }
 
-console.log('\nTHE COCKPIT — ONE PANEL, TWO FACES');
+console.log('\nTHE SIDE PANEL — ONE PANEL, TWO FACES');
 /**
  * The extension's side panel renders the SAME panel state the in-page bar
  * does, over a port speaking core/protocol.js. This block runs the whole
  * loop for real: a content window whose bridge accepts the connection, a
- * cockpit window running the shipped cockpit.js, and a fake port pair
+ * side panel window running the shipped side-panel.js, and a fake port pair
  * between them that JSON-roundtrips every message — so anything packing
  * failed to strip (a DOM node, a closure) breaks HERE, not in Chrome.
- * Async because the cockpit binds its tab with an await; the final gate
- * waits on cockpitChecked like it waits on the perf stages.
+ * Async because the side panel binds its tab with an await; the final gate
+ * waits on sidePanelChecked like it waits on the perf stages.
  */
-let cockpitChecked = false;
+let sidePanelChecked = false;
 {
   const extDir = path.join(__dirname, 'dist', 'browser-extension');
-  const cockpitSrc = fs.readFileSync(path.join(extDir, 'cockpit.js'), 'utf8');
-  const cockpitHtml = fs.readFileSync(path.join(extDir, 'cockpit.html'), 'utf8');
+  const sidePanelSrc = fs.readFileSync(path.join(extDir, 'side-panel.js'), 'utf8');
+  const sidePanelHtml = fs.readFileSync(path.join(extDir, 'side-panel.html'), 'utf8');
 
   // the content side: a page window whose chrome looks like a content script's
   const bootContent = () => {
@@ -534,10 +534,10 @@ let cockpitChecked = false;
   const c1 = bootContent();
   ok('the bridge listens where a real content script lives',
     c1.ready(), 'chrome.runtime.onConnect was offered and nothing subscribed');
-  ok('no cockpit yet — the bar stands', !c1.bar.classList.contains('debug-overlay-docked'));
+  ok('no side panel yet — the bar stands', !c1.bar.classList.contains('debug-overlay-hidden'));
   c1.accept({ name: 'someone-else', onMessage: { addListener() {} },
               onDisconnect: { addListener() {} }, postMessage() {}, disconnect() {} });
-  ok('a foreign port name is refused', !c1.bar.classList.contains('debug-overlay-docked'),
+  ok('a foreign port name is refused', !c1.bar.classList.contains('debug-overlay-hidden'),
     'any extension noise on the runtime would have docked the bar');
 
   /* a port pair that behaves like Chrome's: messages JSON-roundtrip (the
@@ -555,8 +555,8 @@ let cockpitChecked = false;
     return [a, b];
   };
 
-  // the cockpit side: the shipped page + bundle over a fake chrome.tabs
-  const domK = new JSDOM(cockpitHtml, { url: 'https://cockpit.test/',
+  // the side-panel side: the shipped page + bundle over a fake chrome.tabs
+  const domK = new JSDOM(sidePanelHtml, { url: 'https://side-panel.test/',
     pretendToBeVisual: true, runScripts: 'outside-only',
     virtualConsole: new VirtualConsole() });
   const w2 = domK.window;
@@ -566,28 +566,28 @@ let cockpitChecked = false;
   w2.chrome = { runtime: {}, tabs: {
     query: async () => [{ id: 7 }],
     connect: (id, opts) => {
-      const [contentEnd, cockpitEnd] = mkPipe();
+      const [contentEnd, sidePanelEnd] = mkPipe();
       contentEnd.name = opts.name;
-      lastPair = [contentEnd, cockpitEnd];
+      lastPair = [contentEnd, sidePanelEnd];
       target.accept(contentEnd);
-      return cockpitEnd;
+      return sidePanelEnd;
     },
     onActivated: { addListener() {} },
     onUpdated: { addListener: (f) => { fireUpdated = f; } },
   } };
-  w2.eval(cockpitSrc);
+  w2.eval(sidePanelSrc);
   const k = w2.document;
 
   whenPainted(() => k.body.dataset.mode === 'main' &&
                     k.querySelectorAll('#tools button').length > 0, () => {
-    console.log('\nTHE COCKPIT (after connect)');
+    console.log('\nTHE SIDE PANEL (after connect)');
     ok('connecting docks the bar — one panel shows at a time',
-      c1.bar.classList.contains('debug-overlay-docked'),
+      c1.bar.classList.contains('debug-overlay-hidden'),
       'both faces on screen is two controls claiming one state');
     const barTools = c1.bar.querySelectorAll('[data-tool]').length;
     const kTools = k.querySelectorAll('#tools [data-tool]').length;
     ok('the roster mirrors the bar, tool for tool',
-      kTools === barTools && kTools > 0, `bar ${barTools} vs cockpit ${kTools}`);
+      kTools === barTools && kTools > 0, `bar ${barTools} vs side panel ${kTools}`);
     ok('tool buttons carry the real icons, not placeholders',
       [...k.querySelectorAll('#tools [data-tool]')].every((b) => b.querySelector('svg')),
       'the roster arrived without its faces');
@@ -598,12 +598,12 @@ let cockpitChecked = false;
       k.body.dataset.on !== '1' &&
       k.querySelector('#power').getAttribute('aria-pressed') === 'false');
 
-    // the loop, cockpit → page → cockpit: one click, both faces agree
+    // the loop, side panel → page → side panel: one click, both faces agree
     k.querySelector('#power').dispatchEvent(new w2.MouseEvent('click', { bubbles: true }));
-    ok('the cockpit power button powers the PAGE overlay',
+    ok('the side panel power button powers the PAGE overlay',
       c1.bar.querySelector('[data-st]').textContent === 'ON',
       'the command did not reach Controller.togglePower');
-    ok('and the echo lights the cockpit',
+    ok('and the echo lights the side panel',
       k.body.dataset.on === '1' &&
       k.querySelector('#power').getAttribute('aria-pressed') === 'true',
       'state flowed one way only — the faces now disagree');
@@ -612,15 +612,15 @@ let cockpitChecked = false;
     const id = first.dataset.tool;
     const wasArmed = first.getAttribute('aria-pressed') === 'true';
     first.dispatchEvent(new w2.MouseEvent('click', { bubbles: true }));
-    ok('arming from the cockpit arms the page tool',
+    ok('arming from the side panel arms the page tool',
       c1.bar.querySelector(`[data-tool="${id}"]`).classList.contains('debug-overlay-armed') === !wasArmed,
       `${id} did not toggle on the page`);
-    ok('and the cockpit button shows the echoed truth',
+    ok('and the side panel button shows the echoed truth',
       (first.getAttribute('aria-pressed') === 'true') === !wasArmed,
-      'the cockpit assumed instead of listening');
+      'the side panel assumed instead of listening');
 
     k.querySelector('[data-sweep]').dispatchEvent(new w2.MouseEvent('click', { bubbles: true }));
-    ok('a sweep run from the cockpit reports back',
+    ok('a sweep run from the side panel reports back',
       k.querySelector('[data-sweep]').classList.contains('swept') &&
       /problem/.test(k.querySelector('[data-sweep] .n').textContent),
       'swept state never echoed');
@@ -631,23 +631,23 @@ let cockpitChecked = false;
     lastPair[0].postMessage({ debugOverlay: 1, kind: 'state', name: 'no-such-state', args: [] });
     ok('an unknown state name is dropped, not fatal', k.body.dataset.mode === 'main');
 
-    /* THE POINT OF THE WHOLE SURFACE: the page dies, the cockpit does not.
-       A refresh kills the content script; the cockpit reconnects to the
+    /* THE POINT OF THE WHOLE SURFACE: the page dies, the side panel does not.
+       A refresh kills the content script; the side panel reconnects to the
        fresh one and shows THAT page's truth, not a ghost of the old. */
     const c2 = bootContent();
     target = c2;
     lastPair[0].disconnect();       // the old page is gone
     ok('losing the page is announced, not hidden',
-      k.body.dataset.mode === 'waiting', 'the cockpit kept rendering a dead page');
+      k.body.dataset.mode === 'waiting', 'the side panel kept rendering a dead page');
     fireUpdated(7, { status: 'complete' });   // the reload finished loading
-    ok('the cockpit survives the refresh and reconnects',
-      k.body.dataset.mode === 'main' && c2.bar.classList.contains('debug-overlay-docked'),
-      'the DevTools property — the reason the cockpit exists — is broken');
+    ok('the side panel survives the refresh and reconnects',
+      k.body.dataset.mode === 'main' && c2.bar.classList.contains('debug-overlay-hidden'),
+      'the DevTools property — the reason the side panel exists — is broken');
     ok('and shows the NEW page truth — fresh boot, power off again',
       k.body.dataset.on !== '1',
       'a ghost of the old page state survived the reload');
 
-    console.log('\nTHE COCKPIT LISTS (phase 2)');
+    console.log('\nTHE SIDE PANEL LISTS (phase 2)');
     /* The list views, from the side of the wire the user sits on: the view
        travels with every row command and the index resolves page-side
        against rows(view) — the row-index law crossing the port. Every
@@ -703,7 +703,7 @@ let cockpitChecked = false;
     const rm = rowsBox.querySelector('.rrow .rm');
     ok('the pin row carries its ✕', !!rm, 'removable never crossed');
     rm.dispatchEvent(click2());
-    ok('removing it from the cockpit empties the page pins',
+    ok('removing it from the side panel empties the page pins',
       !!rowsBox.querySelector('.empty') && !/#1/.test(rowsBox.textContent),
       '(view, index) resolved against the wrong list');
 
@@ -722,7 +722,7 @@ let cockpitChecked = false;
     const sel2 = rowsBox.querySelector('.rrow select');
     ok('changing it writes the PAGE setting and the echo agrees',
       sel2 && sel2 !== sel && sel2.selectedIndex === to,
-      'the cockpit shows a value the page is not using — a control lying');
+      'the side panel shows a value the page is not using — a control lying');
     ok('and toggles render as checkboxes',
       !!rowsBox.querySelector('.rrow input[type="checkbox"]'),
       'toggle descriptors fell through to the unknown-kind span');
@@ -746,22 +746,22 @@ let cockpitChecked = false;
       /freeze 412ms/.test(tlBox.textContent),
       'history from before the reload must survive it, separated, not erased');
 
-    /* END TO END: a REAL freeze on the fresh page, armed from the cockpit,
+    /* END TO END: a REAL freeze on the fresh page, armed from the side panel,
        detected by the Monitor's heartbeat, handed up through ctx.event,
        across the port, into the timeline — the whole phase in one row. */
     k.querySelector('#power').dispatchEvent(click2());
     k.querySelector('#tools [data-tool="perf"]').dispatchEvent(click2());
     c3.w.eval('setTimeout(function () { var t0 = Date.now(); while (Date.now() - t0 < 400) ; }, 60);');
     whenPainted(() => k.querySelectorAll('#timeline .tlrow.freeze').length >= 2, () => {
-      console.log('\nTHE COCKPIT TIMELINE (after a real freeze)');
+      console.log('\nTHE SIDE PANEL TIMELINE (after a real freeze)');
       ok('a real freeze crosses the whole seam into the timeline',
         k.querySelectorAll('#timeline .tlrow.freeze').length >= 2,
-        'Monitor → ctx.event → bridge → port → cockpit broke somewhere');
+        'Monitor → ctx.event → bridge → port → side panel broke somewhere');
 
-      console.log('\nTHE COCKPIT POLISH (phase 5)');
+      console.log('\nTHE SIDE PANEL POLISH (phase 5)');
       ok('the header names whose page this is',
         /example\.test/.test(k.querySelector('#status').textContent),
-        'a cockpit that does not say which page it controls invites mistakes');
+        'a side panel that does not say which page it controls invites mistakes');
       // Escape closes the open view — the same one-layer ladder the bar keeps
       ok('a view is open before Escape', k.querySelector('#rowsBox').classList.contains('show'));
       k.dispatchEvent(new w2.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
@@ -773,7 +773,7 @@ let cockpitChecked = false;
       w2.chrome.runtime.openOptionsPage = () => { optOpened++; };
       k.querySelector('#optBtn').dispatchEvent(click2());
       ok('the header gear opens the extension options', optOpened === 1,
-        'the updater must be one press away from the cockpit');
+        'the updater must be one press away from the side panel');
 
       /* updates, both answers. The content window has no network; the stub
          IS the wire format the checker parses. */
@@ -803,15 +803,15 @@ let cockpitChecked = false;
 
           // undock on disconnect: side panel closed → the bar comes back
           lastPair[1].disconnect();
-          ok('closing the cockpit gives the page its bar back',
-            !c3.bar.classList.contains('debug-overlay-docked'),
+          ok('closing the side panel gives the page its bar back',
+            !c3.bar.classList.contains('debug-overlay-hidden'),
             'the bar stayed hidden with nothing left to replace it');
 
           c1.d.window.close();
           c2.d.window.close();
           c3.d.window.close();
           w2.close();
-          cockpitChecked = true;
+          sidePanelChecked = true;
         });
       });
     });
@@ -3241,7 +3241,7 @@ function whenPainted(ready, run, waited = 0) {
   setTimeout(() => whenPainted(ready, run, waited + 25), 25);
 }
 
-whenPainted(() => perfChecked && cockpitChecked && storageChecked &&
+whenPainted(() => perfChecked && sidePanelChecked && storageChecked &&
                   window.document.querySelector('#__debug-overlay-root .debug-overlay-flag') &&
                   w3.document.querySelector('#__debug-overlay-root .debug-overlay-badge'), () => {
   console.log('\nREVIEW FIXES (after a frame)');

@@ -3,7 +3,7 @@ import { CONFIG } from '../../core/config.js';
 import { Tools } from '../../core/registry.js';
 import { State } from '../../core/state.js';
 import { U } from '../../core/utils.js';
-import { Panel } from '../../ui/panel.js';
+import { WebPanel } from '../../ui/web-panel.js';
   /* ======================================================================
     REPORT — also composed from active tools
      ====================================================================== */
@@ -122,7 +122,7 @@ import { Panel } from '../../ui/panel.js';
     },
     async copy() {
       await Report.toClipboard(Report.text());
-      Panel.flash('✓');
+      WebPanel.flash('✓');
     },
     /**
      * The take-away actions for ONE element — what the target menu offers.
@@ -141,12 +141,12 @@ import { Panel } from '../../ui/panel.js';
     targetActions(el) {
       const rows = [{
         label: 'Copy selector',
-        run: async () => { await Report.toClipboard(U.selectorOf(el)); Panel.flash('✓'); },
+        run: async () => { await Report.toClipboard(U.selectorOf(el)); WebPanel.flash('✓'); },
       }];
       const txt = (el.textContent || '').trim();
       if (txt) rows.push({
         label: 'Copy text',
-        run: async () => { await Report.toClipboard(txt); Panel.flash('✓'); },
+        run: async () => { await Report.toClipboard(txt); WebPanel.flash('✓'); },
       });
       return rows;
     },

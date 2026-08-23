@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.109
+// @version      3.8.110
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -359,7 +359,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.109",
+    VERSION: "3.8.110",
     // Substituted like VERSION: where the update checker asks, and what the
     // userscript's one-click update opens. One source (userscript.json), no
     // second copy to drift.
@@ -2655,11 +2655,12 @@ HOW TO USE
     #__debug-overlay-bar.debug-overlay-removing .debug-overlay-pwr { background: #ff5c5c; color: #fff; }
     #__debug-overlay-bar.debug-overlay-removing .debug-overlay-st { color: #ff5c5c; }
 
-    /* docked: another surface (the extension's side panel) is presenting the
-       panel's state, so the BAR steps aside — pins, marks and badges are the
-       page's annotations and stay. display, not visibility: the bar must
-       leave the tab order too, or Tab lands on invisible buttons. */
-    #__debug-overlay-bar.debug-overlay-docked { display: none; }
+    /* hidden: the SIDE PANEL is presenting this state instead, so the web
+       panel's bar steps aside — the BAR, not the overlay: pins, marks and
+       badges are the page's annotations and stay. display, not visibility:
+       the bar must leave the tab order too, or Tab lands on invisible
+       buttons. */
+    #__debug-overlay-bar.debug-overlay-hidden { display: none; }
 
     /* things that only make sense once powered on */
     #__debug-overlay-bar .debug-overlay-whenOn { display: none; }
@@ -3069,10 +3070,10 @@ HOW TO USE
     }
   };
 
-  // src/ui/panel.js
-  var Panel;
-  function initPanel() {
-    Panel = (() => {
+  // src/ui/web-panel.js
+  var WebPanel;
+  function initWebPanel() {
+    WebPanel = (() => {
       const el2 = document.createElement("div");
       el2.id = "__debug-overlay-bar";
       const toolBtn = (t) => `<button class="debug-overlay-tool debug-overlay-whenOn ${Tools.feedsAudit(t) ? "debug-overlay-checks" : ""}" data-tool="${t.id}" title="${t.family ? t.family[0].toUpperCase() + t.family.slice(1) + " › " : ""}${t.title}
@@ -3186,12 +3187,12 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         onRowChange: null,
         /* The panel repeats what it is told, to whoever asks — the same
            announce-and-let-boot-decide shape as Render.onPinsPruned. This file
-           never learns who listens; today it is the cockpit bridge, mirroring
+           never learns who listens; today it is the side panel bridge, mirroring
            the bar's state to the extension's side panel. */
         onState: null,
         /* The query twin of onListOpen: "what would that view show?" — wired by
            boot to the same rows and empty text the popover renders, asked by
-           the bridge for a view the cockpit holds open. A query, not a push,
+           the bridge for a view the side panel holds open. A query, not a push,
            because the asker names the view. */
         onRowsFor: null,
         setOn(v) {
@@ -3212,10 +3213,10 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
          * side panel, today), so the bar steps aside — the BAR, not the
          * overlay: pins, marks and badges are the page's annotations and
          * stay. Opaque to this file like everything else: it neither knows
-         * nor asks who docked it.
+         * nor asks who asked.
          */
-        docked(v) {
-          el2.classList.toggle("debug-overlay-docked", v);
+        setVisible(v) {
+          el2.classList.toggle("debug-overlay-hidden", !v);
           if (v) {
             api.toggleList(false);
             api.closeFlyouts();
@@ -3567,7 +3568,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           // lucide 'columns-2'
           title: "View — how much ink; press to choose",
           /* `label` is the member's SHORT name for faces that print text
-             beside the glyph (the cockpit's chips) — the first clause of
+             beside the glyph (the side panel's chips) — the first clause of
              these titles is the axis name, so deriving it there printed
              "Badge view" on both members and nothing told them apart */
           rows: view.values.map((v) => ({
@@ -3700,7 +3701,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       smart,
       reset() {
         taken = [];
-        const br = Panel.rect();
+        const br = WebPanel.rect();
         taken.push(U.rectOf(br.left - 8, br.top - 8, br.width + 16, br.height + 16));
       }
     };
@@ -3851,7 +3852,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           Place.smart(b, i.r, { avoid: i.r });
         }
       }
-      Panel.setCount(State.pins.length);
+      WebPanel.setCount(State.pins.length);
     }
     return {
       now,
@@ -4033,7 +4034,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     },
     async copy() {
       await Report.toClipboard(Report.text());
-      Panel.flash("✓");
+      WebPanel.flash("✓");
     },
     /**
      * The take-away actions for ONE element — what the target menu offers.
@@ -4054,7 +4055,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         label: "Copy selector",
         run: async () => {
           await Report.toClipboard(U.selectorOf(el2));
-          Panel.flash("✓");
+          WebPanel.flash("✓");
         }
       }];
       const txt = (el2.textContent || "").trim();
@@ -4062,7 +4063,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         label: "Copy text",
         run: async () => {
           await Report.toClipboard(txt);
-          Panel.flash("✓");
+          WebPanel.flash("✓");
         }
       });
       return rows;
@@ -4139,15 +4140,15 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           if (t && document.contains(t)) {
             e.preventDefault();
             Report.toClipboard(U.selectorOf(t));
-            Panel.flash("✓");
+            WebPanel.flash("✓");
           }
           return;
         }
         if (e.key === "Escape" && State.enabled && !Interactions.typing(e)) {
           if (Menu.isOpen()) Menu.close();
           else if (State.removeMode) ctl.setRemoveMode(false);
-          else if (Panel.isListOpen()) Panel.toggleList(false);
-          else if (Panel.isFlyoutOpen()) Panel.closeFlyouts();
+          else if (WebPanel.isListOpen()) WebPanel.toggleList(false);
+          else if (WebPanel.isFlyoutOpen()) WebPanel.closeFlyouts();
           else if (State.pins.length || State.current) ctl.clearPins();
         }
       }, true);
@@ -4277,7 +4278,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     rowChange: null,
     // (view, i, raw)
     hello: null
-    // a cockpit connected — push everything
+    // a side panel connected — push everything
   };
   function packRow(row) {
     const out = {};
@@ -4409,7 +4410,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     },
     found(v) {
       Updates.latest = v;
-      Panel.setUpdate(v);
+      WebPanel.setUpdate(v);
     },
     /** What pressing Update DOES, per gate. The userscript's manager owns
      *  installation, so its click opens the install URL and Tampermonkey's
@@ -4474,7 +4475,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       port.postMessage(Protocol.state(name, ...args));
     } catch {
       port = null;
-      Panel.docked(false);
+      WebPanel.setVisible(true);
     }
   }
   function roster() {
@@ -4503,7 +4504,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
   }
   function pushRows() {
     if (!watching) return;
-    const q = Panel.onRowsFor?.(watching);
+    const q = WebPanel.onRowsFor?.(watching);
     if (q) send("rows", watching, q.rows, q.empty);
   }
   function queueRows() {
@@ -4517,39 +4518,39 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         hello();
         break;
       case "toggle":
-        Panel.onToggle?.();
+        WebPanel.onToggle?.();
         break;
       case "tool":
-        Panel.onTool?.(args[0]);
+        WebPanel.onTool?.(args[0]);
         break;
       case "sweep":
-        Panel.onSweep?.();
+        WebPanel.onSweep?.();
         break;
       case "copy":
-        Panel.onCopy?.();
+        WebPanel.onCopy?.();
         break;
       case "clear":
-        Panel.onClear?.();
+        WebPanel.onClear?.();
         break;
       case "badgeControl":
-        Panel.onBadgeControl?.(args[0]);
+        WebPanel.onBadgeControl?.(args[0]);
         break;
-      /* the cockpit's list: the view travels with every row command, so the
-         index resolves against the list the COCKPIT rendered — never against
+      /* the side panel's list: the view travels with every row command, so the
+         index resolves against the list the SIDE PANEL rendered — never against
          whatever the in-page popover happens to show */
       case "openView":
         watching = args[0] || null;
         break;
       case "rowActivate":
-        Panel.onRowActivate?.(args[1], args[0]);
+        WebPanel.onRowActivate?.(args[1], args[0]);
         break;
       case "rowRemove":
-        Panel.onRowRemove?.(args[1], args[0]);
+        WebPanel.onRowRemove?.(args[1], args[0]);
         break;
       case "rowChange":
-        Panel.onRowChange?.(args[1], args[2], args[0]);
+        WebPanel.onRowChange?.(args[1], args[2], args[0]);
         break;
-      /* a found update announces itself through Panel.setUpdate as ever; the
+      /* a found update announces itself through WebPanel.setUpdate as ever; the
          explicit 'checked' answer exists because "you are current" has no
          announcement, and a button that does nothing visible is worse than
          no button */
@@ -4563,7 +4564,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     pushRows();
   }
   var Bridge = {
-    /** Wired by boot as Panel.onState — cache everything, forward when live. */
+    /** Wired by boot as WebPanel.onState — cache everything, forward when live. */
     state(name, ...args) {
       if (name === "tool") toolLast.set(args[0], args[1]);
       else if (name !== "flash") last.set(name, args);
@@ -4572,7 +4573,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       queueRows();
     },
     /** Wired by boot as Controller.onToolEvent — a runtime's moment becomes a
-     *  cockpit timeline entry the instant it happens. */
+     *  side panel timeline entry the instant it happens. */
     toolEvent(id, e) {
       send("events", id, [e], false);
     },
@@ -4580,14 +4581,14 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       const runtime = typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onConnect ? chrome.runtime : null;
       if (!runtime) return;
       runtime.onConnect.addListener((p) => {
-        if (p.name !== "debug-overlay-cockpit") return;
+        if (p.name !== "debug-overlay-side-panel" && p.name !== "debug-overlay-cockpit") return;
         try {
           port?.disconnect();
         } catch {
         }
         port = p;
         watching = null;
-        Panel.docked(true);
+        WebPanel.setVisible(false);
         p.onMessage.addListener((msg) => {
           const m = Protocol.read(msg);
           if (m && m.kind === "cmd") command(m);
@@ -4596,7 +4597,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           if (port !== p) return;
           port = null;
           watching = null;
-          Panel.docked(false);
+          WebPanel.setVisible(true);
         });
       });
     }
@@ -4839,7 +4840,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
      */
     _running: /* @__PURE__ */ new Set(),
     /* Announce-and-let-boot-decide, for tool events: syncRuntimes hands each
-       runtime an `event` capability that lands here. Today the cockpit
+       runtime an `event` capability that lands here. Today the side panel
        bridge listens; nothing here knows that. */
     onToolEvent: null,
     syncRuntimes() {
@@ -4870,8 +4871,8 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         }
       }
       if (!v) State.sweep = null;
-      Panel.setSwept(!!State.sweep, 0);
-      Panel.setOn(v);
+      WebPanel.setSwept(!!State.sweep, 0);
+      WebPanel.setOn(v);
       Controller.syncRuntimes();
       Render.schedule();
     },
@@ -4887,8 +4888,8 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     sweep() {
       if (!State.enabled) return;
       State.sweep = Sweep.run();
-      Panel.setSwept(true, Sweep.group(State.sweep.findings).length);
-      Panel.toggleList(true, "findings");
+      WebPanel.setSwept(true, Sweep.group(State.sweep.findings).length);
+      WebPanel.toggleList(true, "findings");
       Render.schedule();
     },
     /** Rows for whichever view the panel is showing. */
@@ -4944,10 +4945,10 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
      */
     /* The `view` parameter on the three row handlers: the in-page list never
        passes it (the popover's own view is the default, as ever), but the
-       cockpit's rows live in another window and name their view explicitly —
+       side panel's rows live in another window and name their view explicitly —
        resolving its index against whatever the POPOVER happens to show would
        be the off-by-a-list bug with extra steps. */
-    changeRow(i, raw, view = Panel.view()) {
+    changeRow(i, raw, view = WebPanel.view()) {
       const row = Controller.rows(view)[i];
       if (!row) return;
       if (row.onChange) {
@@ -4965,7 +4966,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       Settings.apply(row, v);
       if (row.opt.affects === "detect") {
         State.sweep = null;
-        Panel.setSwept(false, 0);
+        WebPanel.setSwept(false, 0);
       }
       Render.schedule();
       Controller.refreshList();
@@ -5007,7 +5008,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     toggleTool(id) {
       if (!Tools.byId(id)) return;
       State.tools.has(id) ? State.tools.delete(id) : State.tools.add(id);
-      Panel.setTool(id, State.tools.has(id));
+      WebPanel.setTool(id, State.tools.has(id));
       Store.set(CONFIG.TOOLS_KEY, JSON.stringify([...State.tools]));
       Controller.syncRuntimes();
       Render.schedule();
@@ -5038,8 +5039,8 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       }
       Store.set(CONFIG.SEEN_KEY, JSON.stringify([...registered].sort()));
       State.tools = new Set(ids.filter((id) => Tools.byId(id)));
-      TOOLS.forEach((t) => Panel.setTool(t.id, State.tools.has(t.id)));
-      Panel.attachCount(Tools.withHook("keeps", false)[0]?.id ?? null);
+      TOOLS.forEach((t) => WebPanel.setTool(t.id, State.tools.has(t.id)));
+      WebPanel.attachCount(Tools.withHook("keeps", false)[0]?.id ?? null);
       Controller.syncRuntimes();
     },
     /**
@@ -5162,7 +5163,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       State.removeMode = v;
       if (!v) State.removeTarget = null;
       if (v) State.hoverEl = null;
-      Panel.setRemoveMode(v);
+      WebPanel.setRemoveMode(v);
       Render.schedule();
     },
     removePin(pin) {
@@ -5203,11 +5204,11 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       return rows.sort((a, b) => first(a) - first(b));
     },
     refreshList() {
-      if (!Panel.isListOpen()) return;
-      const view = Panel.view();
-      Panel.setList(Controller.rows(view), Controller.emptyFor(view));
+      if (!WebPanel.isListOpen()) return;
+      const view = WebPanel.view();
+      WebPanel.setList(Controller.rows(view), Controller.emptyFor(view));
     },
-    revealRow(i, view = Panel.view()) {
+    revealRow(i, view = WebPanel.view()) {
       const row = Controller.rows(view)[i];
       if (!row) return;
       let pins = row.pins;
@@ -5227,7 +5228,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         Render.schedule();
       }, 900);
     },
-    removeRow(i, view = Panel.view()) {
+    removeRow(i, view = WebPanel.view()) {
       const row = Controller.rows(view)[i];
       if (!row || !row.pins) return;
       row.pins.forEach((p) => {
@@ -5246,7 +5247,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       State.pins = [];
       State.current = null;
       State.sweep = null;
-      Panel.setSwept(false, 0);
+      WebPanel.setSwept(false, 0);
       Controller.pinsChanged();
     },
     /**
@@ -5257,7 +5258,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
      * value and can never disagree.
      */
     refreshBadge() {
-      Panel.setBadgeControls(BadgeFace.groups());
+      WebPanel.setBadgeControls(BadgeFace.groups());
     },
     badgeControl(key) {
       const [k, v] = key.split(":");
@@ -5276,21 +5277,21 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     initDom();
     initList();
     initMenu();
-    initPanel();
-    Panel.onToggle = Controller.togglePower;
-    Panel.onTool = Controller.toggleTool;
-    Panel.onBadgeControl = Controller.badgeControl;
-    Panel.onUpdateMenu = Updates.menu;
-    Panel.onCopy = Report.copy;
-    Panel.onSweep = Controller.sweep;
-    Panel.onClear = Controller.clearPins;
-    Panel.onListOpen = (view) => Panel.setList(Controller.rows(view), Controller.emptyFor(view));
-    Panel.onRowActivate = Controller.revealRow;
-    Panel.onRowRemove = Controller.removeRow;
-    Panel.onRowChange = Controller.changeRow;
-    Panel.onRowsFor = (view) => ({ rows: Controller.rows(view), empty: Controller.emptyFor(view) });
+    initWebPanel();
+    WebPanel.onToggle = Controller.togglePower;
+    WebPanel.onTool = Controller.toggleTool;
+    WebPanel.onBadgeControl = Controller.badgeControl;
+    WebPanel.onUpdateMenu = Updates.menu;
+    WebPanel.onCopy = Report.copy;
+    WebPanel.onSweep = Controller.sweep;
+    WebPanel.onClear = Controller.clearPins;
+    WebPanel.onListOpen = (view) => WebPanel.setList(Controller.rows(view), Controller.emptyFor(view));
+    WebPanel.onRowActivate = Controller.revealRow;
+    WebPanel.onRowRemove = Controller.removeRow;
+    WebPanel.onRowChange = Controller.changeRow;
+    WebPanel.onRowsFor = (view) => ({ rows: Controller.rows(view), empty: Controller.emptyFor(view) });
     Render.onPinsPruned = Controller.pinsPruned;
-    Panel.onState = Bridge.state;
+    WebPanel.onState = Bridge.state;
     Controller.onToolEvent = Bridge.toolEvent;
     Bridge.init();
     Settings.load();

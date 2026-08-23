@@ -2,14 +2,14 @@
   PROTOCOL — the bar's contract, made transportable.
 
      The panel's standing rule is "self-contained; talks out only via
-     callbacks": the controller calls Panel.setCount(3) and never learns
+     callbacks": the controller calls WebPanel.setCount(3) and never learns
      what renders it; the panel fires onTool('grid') and never learns
-     what arming means. That contract IS the wire protocol — the cockpit
+     what arming means. That contract IS the wire protocol — the side panel
      (the extension's side-panel face) implements the same names over
      chrome.runtime messages, so core changes not at all.
 
      This module is PURE and shared by BOTH bundles (the content script
-     and the cockpit import it), which is why it lives in core and
+     and the side panel import it), which is why it lives in core and
      imports nothing: it is the one vocabulary two programs must agree
      on, and a copy in each would agree until it quietly did not.
 
@@ -22,7 +22,7 @@
      written for.
    ====================================================================== */
 
-/** Bumped when a message shape changes. A cockpit and a content script
+/** Bumped when a message shape changes. A side panel and a content script
  *  from different versions refuse each other loudly instead of half
  *  working — the two bundles ship together, so this only bites when a
  *  page has not been refreshed across an update. */
@@ -35,7 +35,7 @@ export const PROTOCOL_VERSION = 1;
 const FIELD = 'debugOverlay';
 const LEGACY_FIELD = 'dbgov';
 
-/* STATE pushes: content script → cockpit. Names mirror the Panel api the
+/* STATE pushes: content script → side panel. Names mirror the Panel api the
    controller already calls; args are what that api takes, packed. */
 const STATE = {
         on: null,                 // (bool)
@@ -55,7 +55,7 @@ const STATE = {
         bye: null,                // the page is unloading — expect a reconnect
 };
 
-/* COMMANDS: cockpit → content script. Names mirror the Panel callbacks. */
+/* COMMANDS: side panel → content script. Names mirror the Panel callbacks. */
 const CMD = {
         toggle: null,             // power
         tool: null,               // (id) arm/disarm
@@ -69,7 +69,7 @@ const CMD = {
         rowActivate: null,        // (view, i)
         rowRemove: null,          // (view, i)
         rowChange: null,          // (view, i, raw)
-        hello: null,              // a cockpit connected — push everything
+        hello: null,              // a side panel connected — push everything
 };
 
 /** One list row, flattened to what a renderer needs and nothing it must

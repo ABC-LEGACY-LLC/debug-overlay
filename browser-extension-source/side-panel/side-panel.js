@@ -1,11 +1,11 @@
 /* ======================================================================
-  COCKPIT — the extension gate's bigger face.
+  SIDE PANEL — the extension gate's bigger face.
 
      TEMPLATE: esbuild bundles this (it imports the shared protocol from
      src/core/) and build.js substitutes __VERSION__; the output lands at
-     dist/browser-extension/cockpit.js. Edit HERE, never the output.
+     dist/browser-extension/side-panel.js. Edit HERE, never the output.
 
-     One rule explains this whole file: the cockpit is a RENDERING of the
+     One rule explains this whole file: the side panel is a RENDERING of the
      in-page panel's state, not a second implementation of the overlay.
      It connects to the active tab's content script over a long-lived
      port, says hello, and draws whatever state messages arrive; every
@@ -20,12 +20,12 @@
      never learns what a pin or a setting IS.
 
      Living in the side panel is the point: a page refresh kills the
-     content script but not this page, so the port drops, the cockpit
+     content script but not this page, so the port drops, the side panel
      says "waiting", and reconnects to the fresh content script — the
      DevTools property the in-page bar can never have. The open view
      survives the reload too: it is re-requested on every reconnect.
    ====================================================================== */
-import { Protocol } from '../src/core/protocol.js';
+import { Protocol } from '../../src/core/protocol.js';
 
 const VERSION = '__VERSION__';
 const $ = (s) => document.querySelector(s);
@@ -74,7 +74,7 @@ function flash(msg, sel) {
 
 /* ---- the lists ------------------------------------------------------- */
 
-let myView = null;   // which view this cockpit holds open — survives reconnects
+let myView = null;   // which view this side panel holds open — survives reconnects
 
 function setView(v) {
   myView = myView === v ? null : v;
@@ -348,7 +348,7 @@ const render = {
     $('#views [data-view="findings"] .n').textContent = v ? String(n) : '';
   },
   update([v]) {
-    $('#updTxt').textContent = `v${v} is available — this cockpit runs v${VERSION}.`;
+    $('#updTxt').textContent = `v${v} is available — this side panel runs v${VERSION}.`;
     $('#upd').classList.add('show');
   },
   /* a forced check's answer. A found version also announces as 'update';
@@ -420,7 +420,7 @@ function connect() {
   if (port) return;   // already live — a stale retry timer must not double-connect
   if (tabId == null) { mode('waiting'); status('no tab', 'bad'); return; }
   let p;
-  try { p = chrome.tabs.connect(tabId, { name: 'debug-overlay-cockpit' }); }
+  try { p = chrome.tabs.connect(tabId, { name: 'debug-overlay-side-panel' }); }
   catch { mode('waiting'); status('waiting for page…', 'bad'); return retry(900); }
   port = p;
   live = false;
@@ -470,7 +470,7 @@ async function bind() {
   connect();
 }
 
-// the cockpit follows the user's eyes: rebind on tab switch, reconnect the
+// the side panel follows the user's eyes: rebind on tab switch, reconnect the
 // moment a reload's fresh content script is in place
 chrome.tabs.onActivated.addListener(bind);
 chrome.tabs.onUpdated.addListener((id, info) => {

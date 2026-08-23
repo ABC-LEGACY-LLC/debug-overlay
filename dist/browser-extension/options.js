@@ -13,10 +13,10 @@
 const BASE = 'https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/browser-extension';
 // the FALLBACK list — the set this build shipped with. The live list comes
 // from the repo's files.json at write time, because the set can change
-// between versions (the cockpit arrived in one): an updater writing the new
+// between versions (the side panel arrived in one): an updater writing the new
 // manifest by an old list leaves a folder naming files it never fetched.
 const FILES = ['manifest.json', 'content.js', 'sw.js', 'options.html', 'options.js',
-               'cockpit.html', 'cockpit.js', 'files.json'];
+               'side-panel.html', 'side-panel.js', 'files.json'];
 
 const $ = (id) => document.getElementById(id);
 const MINE = chrome.runtime.getManifest().version;

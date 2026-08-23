@@ -1,9 +1,9 @@
 <!doctype html>
-<!-- TEMPLATE — build.js copies this beside a bundled cockpit.js.
-     The cockpit is the extension gate's bigger face: the same panel state
+<!-- TEMPLATE — build.js copies this beside a bundled side-panel.js.
+     The side panel is the extension gate's bigger face: the same panel state
      the in-page bar renders, presented in the browser's side panel, where
      a page refresh cannot touch it. MV3 extension pages forbid inline
-     scripts, so all behaviour lives in cockpit.js. -->
+     scripts, so all behaviour lives in side-panel.js. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -166,7 +166,7 @@
   <div class="screen" id="scrStale">
     <b>This page is running an older overlay.</b>
     <p>The extension updated while the page stayed open. Reload the page and
-       the cockpit will reconnect to the new version.</p>
+       the side panel will reconnect to the new version.</p>
   </div>
 
   <main>
@@ -207,6 +207,6 @@
     </section>
   </main>
 
-  <script src="cockpit.js"></script>
+  <script src="side-panel.js"></script>
 </body>
 </html>

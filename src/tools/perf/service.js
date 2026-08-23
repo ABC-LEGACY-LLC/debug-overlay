@@ -55,7 +55,7 @@ export const Monitor = {
           if (worst) ev.blame = `${U.labelOf(worst.el)} ×${worst.n}`;
           Monitor.log.push(ev);
           if (Monitor.log.length > CONFIG.PERF.LOG_MAX) Monitor.log.shift();
-          /* the moment, handed up as history: the cockpit's timeline outlives
+          /* the moment, handed up as history: the side panel's timeline outlives
              this page, so a freeze is worth telling the moment it lands.
              `at` is page time (ms since navigation) — the one clock a reload
              visibly resets, which is exactly what a timeline wants to show. */
@@ -229,7 +229,7 @@ export function unwatch() { Monitor.stop(); }
  * This page visit's story so far, as plain data for whoever keeps history —
  * the load's own timings, the buffered startup tasks, then every logged
  * freeze. `at` is ms since navigation (null when the platform buffered a
- * task without saying when). The cockpit pulls this as a BACKLOG when it
+ * task without saying when). The side panel pulls this as a BACKLOG when it
  * connects or the tool arms, then rides the live events; the two sources
  * never mix because a backlog replaces.
  */

@@ -238,11 +238,12 @@ import { CONFIG } from '../core/config.js';
     #__debug-overlay-bar.debug-overlay-removing .debug-overlay-pwr { background: #ff5c5c; color: #fff; }
     #__debug-overlay-bar.debug-overlay-removing .debug-overlay-st { color: #ff5c5c; }
 
-    /* docked: another surface (the extension's side panel) is presenting the
-       panel's state, so the BAR steps aside — pins, marks and badges are the
-       page's annotations and stay. display, not visibility: the bar must
-       leave the tab order too, or Tab lands on invisible buttons. */
-    #__debug-overlay-bar.debug-overlay-docked { display: none; }
+    /* hidden: the SIDE PANEL is presenting this state instead, so the web
+       panel's bar steps aside — the BAR, not the overlay: pins, marks and
+       badges are the page's annotations and stay. display, not visibility:
+       the bar must leave the tab order too, or Tab lands on invisible
+       buttons. */
+    #__debug-overlay-bar.debug-overlay-hidden { display: none; }
 
     /* things that only make sense once powered on */
     #__debug-overlay-bar .debug-overlay-whenOn { display: none; }

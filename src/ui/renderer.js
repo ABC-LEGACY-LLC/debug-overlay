@@ -4,7 +4,7 @@ import { State } from '../core/state.js';
 import { U } from '../core/utils.js';
 import { Badges } from '../services/badge/index.js';
 import { layer } from './dom.js';
-import { Panel } from './panel.js';
+import { WebPanel } from './web-panel.js';
 import { Place } from './placement.js';
   /* ======================================================================
     RENDERER
@@ -226,7 +226,7 @@ import { Place } from './placement.js';
         }
       }
 
-      Panel.setCount(State.pins.length);
+      WebPanel.setCount(State.pins.length);
     }
 
     return {

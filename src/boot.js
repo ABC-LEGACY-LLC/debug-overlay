@@ -10,7 +10,7 @@ import './manifest.js';
 import { initDom } from './ui/dom.js';
 import { initList } from './ui/list.js';
 import { initMenu } from './ui/menu.js';
-import { initPanel, Panel } from './ui/panel.js';
+import { initWebPanel, WebPanel } from './ui/web-panel.js';
 import { Render } from './ui/renderer.js';
 import { Report } from './services/report/index.js';
 import { Interactions } from './app/interactions.js';
@@ -33,37 +33,37 @@ function start() {
 initDom();
 initList();
 initMenu();
-initPanel();
+initWebPanel();
 
-Panel.onToggle = Controller.togglePower;
-Panel.onTool = Controller.toggleTool;
-Panel.onBadgeControl = Controller.badgeControl;
-Panel.onUpdateMenu = Updates.menu;
-Panel.onCopy = Report.copy;
-Panel.onSweep = Controller.sweep;
-Panel.onClear = Controller.clearPins;
-Panel.onListOpen = (view) =>
-  Panel.setList(Controller.rows(view), Controller.emptyFor(view));
-Panel.onRowActivate = Controller.revealRow;
-Panel.onRowRemove = Controller.removeRow;
-Panel.onRowChange = Controller.changeRow;
-// the cockpit asks for a view's rows by name; the answer is the same pair
+WebPanel.onToggle = Controller.togglePower;
+WebPanel.onTool = Controller.toggleTool;
+WebPanel.onBadgeControl = Controller.badgeControl;
+WebPanel.onUpdateMenu = Updates.menu;
+WebPanel.onCopy = Report.copy;
+WebPanel.onSweep = Controller.sweep;
+WebPanel.onClear = Controller.clearPins;
+WebPanel.onListOpen = (view) =>
+  WebPanel.setList(Controller.rows(view), Controller.emptyFor(view));
+WebPanel.onRowActivate = Controller.revealRow;
+WebPanel.onRowRemove = Controller.removeRow;
+WebPanel.onRowChange = Controller.changeRow;
+// the side panel asks for a view's rows by name; the answer is the same pair
 // the popover renders, so the two lists cannot diverge
-Panel.onRowsFor = (view) => ({ rows: Controller.rows(view), empty: Controller.emptyFor(view) });
+WebPanel.onRowsFor = (view) => ({ rows: Controller.rows(view), empty: Controller.emptyFor(view) });
 
 // the page can remove a pinned element at any time; the list must not go on
 // showing rows that no longer index into anything
 Render.onPinsPruned = Controller.pinsPruned;
 
-/* The cockpit bridge listens to what the panel announces and replays it to
+/* The side panel bridge listens to what the panel announces and replays it to
    the extension's side panel; commands come back on the callback slots wired
    above, so both faces are one code path. Wired BEFORE Settings.load and
-   loadTools so its cache catches every setter call boot makes — a cockpit
+   loadTools so its cache catches every setter call boot makes — a side panel
    that connects later gets the truth replayed, not a blank bar. Under the
    userscript gate Bridge.init finds no chrome.runtime.onConnect and goes
    inert; onState stays cheap either way. */
-Panel.onState = Bridge.state;
-// a runtime's moments (a freeze landing) become cockpit timeline entries —
+WebPanel.onState = Bridge.state;
+// a runtime's moments (a freeze landing) become side panel timeline entries —
 // same announce shape, and inert under the userscript gate like the rest
 Controller.onToolEvent = Bridge.toolEvent;
 Bridge.init();

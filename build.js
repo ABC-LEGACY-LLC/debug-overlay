@@ -185,17 +185,17 @@ function build(kind) {
     host_permissions: [`${new URL(cfg.rawBase).origin}/*`],
     background: { service_worker: 'sw.js' },
     options_ui: { page: 'options.html', open_in_tab: true },
-    /* THE COCKPIT — the extension gate's bigger face. The toolbar button
+    /* THE SIDE PANEL — the extension gate's bigger face. The toolbar button
        opens it (sw.js declares that); it mirrors the in-page panel over a
        port and survives the page refresh the in-page bar cannot. */
-    action: { default_title: `${cfg.name} — open the cockpit`,
+    action: { default_title: `${cfg.name} — open the side panel`,
               default_icon: { 16: 'icon16.png', 32: 'icon32.png',
                               48: 'icon48.png', 128: 'icon128.png' } },
     /* the options page's own logo (lucide bug on the brand tile), rendered
        to PNG by browser-extension-source/make-icons.js — generated once and
        committed, so the build never needs an image toolchain */
     icons: { 16: 'icon16.png', 32: 'icon32.png', 48: 'icon48.png', 128: 'icon128.png' },
-    side_panel: { default_path: 'cockpit.html' },
+    side_panel: { default_path: 'side-panel.html' },
     permissions: ['sidePanel'],
   }, null, 2) + '\n');
   fs.writeFileSync(path.join(EXT, 'sw.js'),
@@ -213,7 +213,7 @@ function build(kind) {
     `    chrome.runtime.openOptionsPage();\n` +
     `  }\n` +
     `});\n` +
-    `// the toolbar button opens the cockpit (declared, so it needs no handler);\n` +
+    `// the toolbar button opens the side panel (declared, so it needs no handler);\n` +
     `// guarded because browsers without a side panel still run everything else\n` +
     `chrome.sidePanel?.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});\n`);
   /* the self-updater — real template files in browser-extension-source/,
@@ -229,37 +229,38 @@ function build(kind) {
   fs.writeFileSync(path.join(EXT, 'options.js'),
     fs.readFileSync(path.join(ROOT, 'browser-extension-source', 'options.js'), 'utf8')
       .replace('__EXT_BASE__', extBase));
-  /* the cockpit: its page is copied, its program is BUNDLED — cockpit.js
+  /* the side panel: its page is copied, its program is BUNDLED — side-panel.js
      imports the shared src/core/protocol.js, which is the whole reason the
      two faces cannot drift: one vocabulary file, two importers. */
-  fs.copyFileSync(path.join(ROOT, 'browser-extension-source', 'cockpit.html'), path.join(EXT, 'cockpit.html'));
+  fs.copyFileSync(path.join(ROOT, 'browser-extension-source', 'side-panel', 'side-panel.html'),
+    path.join(EXT, 'side-panel.html'));
   for (const n of [16, 32, 48, 128]) {
     fs.copyFileSync(path.join(ROOT, 'browser-extension-source', `icon${n}.png`),
       path.join(EXT, `icon${n}.png`));
   }
-  let cockpit;
+  let sidePanel;
   try {
-    cockpit = esbuild.buildSync({
-      entryPoints: [path.join(ROOT, 'browser-extension-source', 'cockpit.js')],
+    sidePanel = esbuild.buildSync({
+      entryPoints: [path.join(ROOT, 'browser-extension-source', 'side-panel', 'side-panel.js')],
       bundle: true, format: 'iife', charset: 'utf8', legalComments: 'none',
       write: false, target: 'es2020',
     }).outputFiles[0].text;
   } catch (e) {
-    console.error('✗ esbuild failed on the cockpit:\n' + (e.errors || [e.message]).map((x) =>
+    console.error('✗ esbuild failed on the side panel:\n' + (e.errors || [e.message]).map((x) =>
       typeof x === 'string' ? x : `${x.text} (${x.location?.file}:${x.location?.line})`).join('\n'));
     process.exit(1);
   }
-  if (!cockpit.includes(VERSION_TOKEN)) {
-    console.error('✗ __VERSION__ not found in the cockpit bundle — it could not ' +
+  if (!sidePanel.includes(VERSION_TOKEN)) {
+    console.error('✗ __VERSION__ not found in the side panel bundle — it could not ' +
                   'tell a stale page from a current one');
     process.exit(1);
   }
-  fs.writeFileSync(path.join(EXT, 'cockpit.js'), cockpit.replace(VERSION_TOKEN, version));
+  fs.writeFileSync(path.join(EXT, 'side-panel.js'), sidePanel.replace(VERSION_TOKEN, version));
   try {
     cp.execSync(`node --check "${path.join(EXT, 'content.js')}"`, { stdio: 'pipe' });
     cp.execSync(`node --check "${path.join(EXT, 'sw.js')}"`, { stdio: 'pipe' });
     cp.execSync(`node --check "${path.join(EXT, 'options.js')}"`, { stdio: 'pipe' });
-    cp.execSync(`node --check "${path.join(EXT, 'cockpit.js')}"`, { stdio: 'pipe' });
+    cp.execSync(`node --check "${path.join(EXT, 'side-panel.js')}"`, { stdio: 'pipe' });
     JSON.parse(fs.readFileSync(path.join(EXT, 'manifest.json'), 'utf8'));
   } catch (e) {
     console.error('✗ dist/browser-extension is broken:\n' + (e.stderr ? e.stderr.toString() : e.message));
@@ -326,14 +327,14 @@ function build(kind) {
      disable the command prompt; a browser page they cannot disable. The
      JSON's '</' is escaped so no embedded file can close the script tag. */
   const RUNTIME = ['manifest.json', 'content.js', 'sw.js', 'options.html', 'options.js',
-                   'cockpit.html', 'cockpit.js',
+                   'side-panel.html', 'side-panel.js',
                    'icon16.png', 'icon32.png', 'icon48.png', 'icon128.png'];
   const BIN = (f) => /\.png$/i.test(f);
   /* files.json — the runtime file SET, published beside the files. The
      self-updater fetches THIS to learn what to write, because a baked-in
      list answers for the build that shipped it, not the one being fetched:
-     the v3.8.98 updater's five-name list would have written the cockpit's
-     manifest while never fetching the cockpit, leaving a folder Chrome
+     the v3.8.98 updater's five-name list would have written the side panel's
+     manifest while never fetching the side panel, leaving a folder Chrome
      refuses. The list names itself so the disk copy stays current too. */
   const SHIPPED = [...RUNTIME, 'files.json'];
   fs.writeFileSync(path.join(EXT, 'files.json'), JSON.stringify(SHIPPED, null, 2) + '\n');

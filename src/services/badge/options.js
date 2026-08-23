@@ -67,7 +67,7 @@ export const BadgeFace = defineService({
             { key: 'view', glyph: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M12 3v18" /></svg>',   // lucide 'columns-2'
               title: 'View — how much ink; press to choose',
               /* `label` is the member's SHORT name for faces that print text
-                 beside the glyph (the cockpit's chips) — the first clause of
+                 beside the glyph (the side panel's chips) — the first clause of
                  these titles is the axis name, so deriving it there printed
                  "Badge view" on both members and nothing told them apart */
               rows: view.values.map((v) => ({
