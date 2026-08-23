@@ -185,6 +185,20 @@ push — every URL (header, checker, installer, updater) derives from that one
 field. The repo was once `AlonurKomilov/debug-overlay-abc`; do not use the
 old name — the redirect dies the day anyone claims it, silently.
 
+### The permanent fix for install and update friction
+
+Both options above need Developer mode, a folder, or a userscript manager —
+and the extension's self-updater has to WRITE ITS OWN FILES to disk, which is
+the behaviour of a downloader and which security software and managed-machine
+policies will block. That is not fixable in code; it is the shape of an
+unpacked extension.
+
+`npm run ship` therefore also builds **`dist/browser-extension-store/`** — a
+Web Store package with every piece of update machinery removed and **no host
+permissions at all**. Published there, install is one click, Chrome does the
+updating silently, and no scanner is ever involved. See **[STORE.md](STORE.md)**
+for the listing copy, permission justifications, and submission steps.
+
 ### What lives where in dist/
 
 ```

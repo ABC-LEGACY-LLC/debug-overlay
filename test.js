@@ -1032,6 +1032,58 @@ let storageChecked = false;
   });
 }
 
+console.log('\nTHE STORE PACKAGE');
+/**
+ * The third artifact, and the one that ends the self-update problem rather
+ * than managing it: published through the Web Store, Chrome does the
+ * updating, so nothing fetches, nothing writes to disk, and nothing looks
+ * like a downloader to a scanner. These assertions hold it to that — the
+ * moment update machinery creeps back in, it stops being reviewable.
+ */
+{
+  const storeDir = path.join(__dirname, 'dist', 'browser-extension-store');
+  const sm = JSON.parse(fs.readFileSync(path.join(storeDir, 'manifest.json'), 'utf8'));
+  const cfgS = JSON.parse(fs.readFileSync(path.join(__dirname, 'userscript.json'), 'utf8'));
+  ok('the store build asks for NO host permission at all',
+    !sm.host_permissions,
+    'the only reason one was ever needed was the update check it no longer does');
+  ok('and carries no update machinery whatsoever',
+    !sm.options_ui &&
+    ['update.js', 'update.html', 'install.html', 'install.bat', 'files.json']
+      .every((f) => !fs.existsSync(path.join(storeDir, f))),
+    'a store extension that updates itself is against store policy AND is the ' +
+    'exact shape security software refuses');
+  /* the DROPPER shape is fetch AND write AND delete AND reload together —
+     fetching alone is what every web page does. Nothing here writes to disk,
+     removes anything, or reloads a program. */
+  ok('nothing in it writes to disk, deletes, or reloads',
+    fs.readdirSync(storeDir).filter((f) => f.endsWith('.js')).every((f) => {
+      const s = fs.readFileSync(path.join(storeDir, f), 'utf8');
+      return !/createWritable|getFileHandle|removeEntry|runtime\.reload/.test(s);
+    }),
+    'the downloader shape came back');
+  /* The shared bundle still CONTAINS the update checker — it is the same
+     bundle as the other two gates, and splitting it would be a third copy of
+     the core to drift. What matters is that this build cannot REACH the
+     update host: no host permission, and a worker with no fetch relay. Both
+     are the reviewer's to verify, and the suite's to keep true. */
+  ok('and it cannot reach the update host even though the bundle names it',
+    !sm.host_permissions &&
+    !/fetch\s*\(/.test(fs.readFileSync(path.join(storeDir, 'sw.js'), 'utf8')),
+    'a build with a way out is a build that must justify the way out');
+  ok('the bundle inside is the SAME bundle, byte for byte',
+    fs.readFileSync(path.join(storeDir, 'content.js')).equals(
+      fs.readFileSync(path.join(__dirname, 'dist', 'browser-extension', 'content.js'))),
+    'a third gate with its own copy of the core is a third thing to drift');
+  ok('the listing description fits what the store allows',
+    sm.description === cfgS.storeDescription && sm.description.length <= 132,
+    `${sm.description.length} chars`);
+  const szip = fs.readFileSync(path.join(storeDir, 'debug-overlay-store.zip'));
+  ok('and it ships as an uploadable ZIP',
+    szip.length > 1000 && szip.readUInt32LE(0) === 0x04034b50,
+    'the store takes a ZIP, so the build makes one');
+}
+
 console.log('\nSTYLESHEET');
 // Malformed CSS never fails loudly: the parser drops the broken rule and
 // every rule after it in that sheet, and raises nothing. Each sheet is

@@ -367,8 +367,74 @@ function build(kind) {
     .map((f) => [f, fs.readFileSync(path.join(EXT, f))]);
   fs.writeFileSync(path.join(EXT, 'debug-overlay-extension.zip'), zipStore(extFiles));
 
+  /* ======================================================================
+     THE STORE PACKAGE — the third artifact, and the one that ends the
+     self-update problem instead of managing it.
+
+     An unpacked extension can only be updated by WRITING ITS FILES TO
+     DISK, and a program that fetches files and writes them to disk is a
+     downloader — which is what security software calls it, correctly and
+     forever. No amount of clean code changes that shape. Published
+     through the Web Store, Chrome does the updating itself: no writes, no
+     scanner, no Developer mode, no folder to pick, one click to install.
+
+     So this package deliberately SHEDS every piece of update machinery:
+     no update screen, no installer, and — the part that matters for
+     review — no host permission at all, because the only reason one was
+     ever requested was the update check. What is left asks for exactly
+     what a page inspector needs and nothing else. The bundle inside is
+     the same bundle, byte for byte, as the other two gates.
+     ====================================================================== */
+  const STORE = path.join(DIST, 'browser-extension-store');
+  fs.rmSync(STORE, { recursive: true, force: true });
+  fs.mkdirSync(STORE, { recursive: true });
+  if (cfg.storeDescription.length > 132) {
+    console.error(`✗ storeDescription is ${cfg.storeDescription.length} chars — the store allows 132`);
+    process.exit(1);
+  }
+  fs.copyFileSync(path.join(EXT, 'content.js'), path.join(STORE, 'content.js'));
+  fs.copyFileSync(path.join(EXT, 'side-panel.html'), path.join(STORE, 'side-panel.html'));
+  fs.copyFileSync(path.join(EXT, 'side-panel.js'), path.join(STORE, 'side-panel.js'));
+  for (const n of [16, 32, 48, 128]) {
+    fs.copyFileSync(path.join(EXT, `icon${n}.png`), path.join(STORE, `icon${n}.png`));
+  }
+  // no fetch door: with no host permission there is nothing for it to fetch,
+  // and a worker that only opens the side panel is a worker a reviewer can read
+  fs.writeFileSync(path.join(STORE, 'sw.js'),
+    `// Debug Overlay service worker — opens the side panel from the toolbar button.\n` +
+    `// The store build has no network door: Chrome handles updates, so nothing\n` +
+    `// here fetches, downloads or writes anything.\n` +
+    `chrome.sidePanel?.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});\n`);
+  fs.writeFileSync(path.join(STORE, 'manifest.json'), JSON.stringify({
+    manifest_version: 3,
+    name: cfg.name,
+    version,
+    description: cfg.storeDescription,
+    content_scripts: [{ matches: ['<all_urls>'], js: ['content.js'], run_at: 'document_idle' }],
+    background: { service_worker: 'sw.js' },
+    action: { default_title: `${cfg.name} — open the side panel`,
+              default_icon: { 16: 'icon16.png', 32: 'icon32.png',
+                              48: 'icon48.png', 128: 'icon128.png' } },
+    icons: { 16: 'icon16.png', 32: 'icon32.png', 48: 'icon48.png', 128: 'icon128.png' },
+    side_panel: { default_path: 'side-panel.html' },
+    permissions: ['sidePanel'],
+  }, null, 2) + '\n');
+  try {
+    cp.execSync(`node --check "${path.join(STORE, 'content.js')}"`, { stdio: 'pipe' });
+    cp.execSync(`node --check "${path.join(STORE, 'sw.js')}"`, { stdio: 'pipe' });
+    JSON.parse(fs.readFileSync(path.join(STORE, 'manifest.json'), 'utf8'));
+  } catch (e) {
+    console.error('✗ the store package is broken:\n' + (e.stderr ? e.stderr.toString() : e.message));
+    process.exit(1);
+  }
+  const storeFiles = fs.readdirSync(STORE).sort()
+    .filter((f) => !f.endsWith('.zip'))
+    .map((f) => [f, fs.readFileSync(path.join(STORE, f))]);
+  fs.writeFileSync(path.join(STORE, 'debug-overlay-store.zip'), zipStore(storeFiles));
+
   const kb = (Buffer.byteLength(out) / 1024).toFixed(1);
-  console.log(`✓ v${version}  ${discovered} discovered + core → dist/script/${cfg.distFile}  (${kb} KB) + dist/browser-extension/ (+ legacy bridge at dist/)`);
+  console.log(`✓ v${version}  ${discovered} discovered + core → dist/script/${cfg.distFile}  (${kb} KB)` +
+    ` + dist/browser-extension/ + dist/browser-extension-store/ (+ legacy bridge at dist/)`);
   return distPath;
 }
 
