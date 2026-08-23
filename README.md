@@ -86,7 +86,7 @@ survives page refreshes (the in-page bar steps aside while it is open, and
 comes back when you close it).
 
 **Step 5 — one-time updater setup** (makes every future update one press):
-`chrome://extensions` → Debug Overlay → **Details** → **Extension options** →
+`chrome://extensions` → Debug Overlay → **Details** → **Extension options** (the update screen) →
 **"Choose install folder…"** → pick the same folder from Step 2 → Allow.
 
 *Getting updates:* an amber dot rests on ⏻ when one exists. Right-click ⏻ →
@@ -181,8 +181,8 @@ dist/
     debug-overlay.meta.js
   browser-extension/     the extension gate
     manifest.json  content.js  sw.js       the extension itself
-    side-panel.html  side-panel.js               the side-panel side panel
-    options.html  options.js               the update & repair screen
+    side-panel.html  side-panel.js           the side panel
+    update.html  update.js                  the update & repair screen
     icon16/32/48/128.png  files.json       the face, and the updater's file list
     install.html  install.bat              the no-cmd installer (+ cmd variant)
     debug-overlay-extension.zip     ← the one-link install
@@ -327,10 +327,13 @@ src/                        the overlay — everything here becomes the bundle
   app/                      interactions · controller · updates · bridge
                             (bridge = the side panel adapter; inert as a userscript)
 
-browser-extension-source/   the extension gate's templates and its own faces
-                            (options page, side panel side panel, the icon PNGs +
-                            make-icons.js that draws them); build.js
-                            substitutes/bundles and emits dist/browser-extension/
+browser-extension-source/   the extension gate's own faces, one folder each —
+  side-panel/               the side panel (bundled; imports core/protocol.js)
+  update/                   the update & repair screen
+  installer/                the no-cmd install page, and the .bat variant
+  icons/                    the PNGs, and make-icons.js which draws them
+                            build.js substitutes, bundles and flattens all of
+                            it into dist/browser-extension/
 development/                the dev harness, its server, and the perf probe —
                             instruments that never ship
 dist/                       build output only — never edit (see table above)

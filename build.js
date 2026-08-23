@@ -171,6 +171,13 @@ function build(kind) {
      no "extension version of the code" to disagree with the userscript.
      Load it via chrome://extensions → Developer mode → Load unpacked. */
   const EXT = path.join(DIST, 'browser-extension');
+  /* Cleared, not merged. Every file in here is written below, so anything
+     already present is from an older build — and a rename would otherwise
+     leave both spellings on disk AND inside the shipped ZIP, which is how a
+     dead file reaches a user's install folder in the first place. (The
+     user's OWN folder is swept by name instead: this directory the build
+     owns outright, that one it does not.) */
+  fs.rmSync(EXT, { recursive: true, force: true });
   fs.mkdirSync(EXT, { recursive: true });
   fs.writeFileSync(path.join(EXT, 'content.js'),
     `/* Debug Overlay v${version} — extension gate; same bundle as the userscript */\n` +
@@ -184,7 +191,9 @@ function build(kind) {
     // the update checker's CSP-immune door: the worker fetches, pages cannot block it
     host_permissions: [`${new URL(cfg.rawBase).origin}/*`],
     background: { service_worker: 'sw.js' },
-    options_ui: { page: 'options.html', open_in_tab: true },
+    // options_ui is CHROME's key; the page it opens is ours, and it is the
+    // update screen, so that is what it is called
+    options_ui: { page: 'update.html', open_in_tab: true },
     /* THE SIDE PANEL — the extension gate's bigger face. The toolbar button
        opens it (sw.js declares that); it mirrors the in-page panel over a
        port and survives the page refresh the in-page bar cannot. */
@@ -222,12 +231,14 @@ function build(kind) {
      any file explorer, when one is what you edit and the other is what the
      build emits — the same relationship src/ has to dist/. */
   const extBase = cfg.rawBase.replace(/\/script$/, '/browser-extension');
-  fs.copyFileSync(path.join(ROOT, 'browser-extension-source', 'options.html'), path.join(EXT, 'options.html'));
+  fs.copyFileSync(path.join(ROOT, 'browser-extension-source', 'update', 'update.html'),
+    path.join(EXT, 'update.html'));
   // the Windows helper: rides inside the ZIP so install is download →
   // extract → double-click → the two clicks the browser reserves for humans
-  fs.copyFileSync(path.join(ROOT, 'browser-extension-source', 'install.bat'), path.join(EXT, 'install.bat'));
-  fs.writeFileSync(path.join(EXT, 'options.js'),
-    fs.readFileSync(path.join(ROOT, 'browser-extension-source', 'options.js'), 'utf8')
+  fs.copyFileSync(path.join(ROOT, 'browser-extension-source', 'installer', 'install.bat'),
+    path.join(EXT, 'install.bat'));
+  fs.writeFileSync(path.join(EXT, 'update.js'),
+    fs.readFileSync(path.join(ROOT, 'browser-extension-source', 'update', 'update.js'), 'utf8')
       .replace('__EXT_BASE__', extBase));
   /* the side panel: its page is copied, its program is BUNDLED — side-panel.js
      imports the shared src/core/protocol.js, which is the whole reason the
@@ -235,7 +246,7 @@ function build(kind) {
   fs.copyFileSync(path.join(ROOT, 'browser-extension-source', 'side-panel', 'side-panel.html'),
     path.join(EXT, 'side-panel.html'));
   for (const n of [16, 32, 48, 128]) {
-    fs.copyFileSync(path.join(ROOT, 'browser-extension-source', `icon${n}.png`),
+    fs.copyFileSync(path.join(ROOT, 'browser-extension-source', 'icons', `icon${n}.png`),
       path.join(EXT, `icon${n}.png`));
   }
   let sidePanel;
@@ -259,7 +270,7 @@ function build(kind) {
   try {
     cp.execSync(`node --check "${path.join(EXT, 'content.js')}"`, { stdio: 'pipe' });
     cp.execSync(`node --check "${path.join(EXT, 'sw.js')}"`, { stdio: 'pipe' });
-    cp.execSync(`node --check "${path.join(EXT, 'options.js')}"`, { stdio: 'pipe' });
+    cp.execSync(`node --check "${path.join(EXT, 'update.js')}"`, { stdio: 'pipe' });
     cp.execSync(`node --check "${path.join(EXT, 'side-panel.js')}"`, { stdio: 'pipe' });
     JSON.parse(fs.readFileSync(path.join(EXT, 'manifest.json'), 'utf8'));
   } catch (e) {
@@ -326,7 +337,7 @@ function build(kind) {
      API. Exists because install.bat met a real machine where administrators
      disable the command prompt; a browser page they cannot disable. The
      JSON's '</' is escaped so no embedded file can close the script tag. */
-  const RUNTIME = ['manifest.json', 'content.js', 'sw.js', 'options.html', 'options.js',
+  const RUNTIME = ['manifest.json', 'content.js', 'sw.js', 'update.html', 'update.js',
                    'side-panel.html', 'side-panel.js',
                    'icon16.png', 'icon32.png', 'icon48.png', 'icon128.png'];
   const BIN = (f) => /\.png$/i.test(f);
@@ -348,7 +359,7 @@ function build(kind) {
   /* function replacement: the JSON is full of '$' sequences that string
      replacement would interpret as capture references and corrupt */
   fs.writeFileSync(path.join(EXT, 'install.html'),
-    fs.readFileSync(path.join(ROOT, 'browser-extension-source', 'install.html'), 'utf8')
+    fs.readFileSync(path.join(ROOT, 'browser-extension-source', 'installer', 'install.html'), 'utf8')
       .replace('const FILES = __FILES_JSON__;', () => `const FILES = ${filesJson};`));
 
   const extFiles = fs.readdirSync(EXT).sort()

@@ -1,5 +1,5 @@
-// Debug Overlay update screen — template in browser-extension-source/, emitted by
-// build.js with the repo base substituted. The one place the extension
+// Debug Overlay update screen — template in browser-extension-source/update/,
+// emitted as update.js with the repo base substituted. The one place the extension
 // WRITES: its own install folder, through a directory handle the user
 // granted once. Updates only ever come from the pinned repo base and only
 // on a click — silent self-update is the store's job, and remote-code
@@ -10,12 +10,12 @@
 // torn folder (an interrupted update, or an old updater that wrote a new
 // manifest without the files it names).
 'use strict';
-const BASE = '__EXT_BASE__';
+const BASE = 'https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/browser-extension';
 // the FALLBACK list — the set this build shipped with. The live list comes
 // from the repo's files.json at write time, because the set can change
 // between versions (the side panel arrived in one): an updater writing the new
 // manifest by an old list leaves a folder naming files it never fetched.
-const FILES = ['manifest.json', 'content.js', 'sw.js', 'options.html', 'options.js',
+const FILES = ['manifest.json', 'content.js', 'sw.js', 'update.html', 'update.js',
                'side-panel.html', 'side-panel.js', 'files.json'];
 /* Names this extension USED to ship and no longer does. A rename leaves the
    old files sitting in the install folder doing nothing — Chrome loads only
@@ -24,7 +24,7 @@ const FILES = ['manifest.json', 'content.js', 'sw.js', 'options.html', 'options.
    "delete anything not in files.json": the folder is one the user picked,
    and an updater that deletes by exclusion is one bad pick away from
    deleting their documents. */
-const RETIRED = ['cockpit.html', 'cockpit.js'];
+const RETIRED = ['cockpit.html', 'cockpit.js', 'options.html', 'options.js'];
 
 const $ = (id) => document.getElementById(id);
 const MINE = chrome.runtime.getManifest().version;

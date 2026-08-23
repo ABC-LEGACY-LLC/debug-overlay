@@ -361,15 +361,15 @@ console.log('\nTWO GATES, ONE CORE');
   // the self-updater: emitted, syntax-checked by the build, and PINNED —
   // its runtime is browser-only (FS Access API), so what a suite can hold
   // is the contract: where it may fetch from, and what it may write
-  const optJs = fs.readFileSync(path.join(extDir, 'options.js'), 'utf8');
+  const updJs = fs.readFileSync(path.join(extDir, 'update.js'), 'utf8');
   ok('the updater exists and its base is the pinned repo, nowhere else',
-    manifest.options_ui?.page === 'options.html' &&
-    /const BASE = 'https:\/\/raw\.githubusercontent\.com\/[^']*\/browser-extension'/.test(optJs),
-    (optJs.match(/const BASE = '[^']*'/) || ['no BASE'])[0]);
+    manifest.options_ui?.page === 'update.html' &&
+    /const BASE = 'https:\/\/raw\.githubusercontent\.com\/[^']*\/browser-extension'/.test(updJs),
+    (updJs.match(/const BASE = '[^']*'/) || ['no BASE'])[0]);
   ok('and it writes exactly the files the gate ships',
-    ['manifest.json', 'content.js', 'sw.js', 'options.html', 'options.js',
+    ['manifest.json', 'content.js', 'sw.js', 'update.html', 'update.js',
      'side-panel.html', 'side-panel.js']
-      .every((f) => optJs.includes(`'${f}'`) && fs.existsSync(path.join(extDir, f))),
+      .every((f) => updJs.includes(`'${f}'`) && fs.existsSync(path.join(extDir, f))),
     'the FILES list and the emitted files disagree');
   /* the file SET travels with the version: the updater asks the SERVER what
      to write (files.json), because a baked-in list answers for the build
@@ -381,16 +381,16 @@ console.log('\nTWO GATES, ONE CORE');
      one the user picked, and delete-what-I-do-not-recognise is one bad pick
      away from deleting their documents */
   ok('the updater clears files it no longer ships, by name',
-    /const RETIRED = \[/.test(optJs) && optJs.includes('removeEntry(f)') &&
-    optJs.includes("files.includes(f)"),
+    /const RETIRED = \[/.test(updJs) && updJs.includes('removeEntry(f)') &&
+    updJs.includes("files.includes(f)"),
     'a rename would leave dead files in every install folder forever');
   ok('and nothing still shipped is on that retired list',
-    !(optJs.match(/const RETIRED = \[([^\]]*)\]/) || [,''])[1]
+    !(updJs.match(/const RETIRED = \[([^\]]*)\]/) || [,''])[1]
       .split(',').map((s) => s.trim().replace(/'/g, '')).filter(Boolean)
       .some((f) => shipped.includes(f)),
     'the updater would delete a file it had just written');
   ok('the updater learns its file list from the repo, not from itself',
-    optJs.includes("'/files.json'") &&
+    updJs.includes("'/files.json'") &&
     shipped.includes('files.json') &&
     shipped.every((f) => fs.existsSync(path.join(extDir, f))),
     'a version that adds a file would update into a broken folder');
@@ -399,31 +399,31 @@ console.log('\nTWO GATES, ONE CORE');
      an old updater that wrote a manifest naming files it never fetched),
      it checks on open rather than making the user press to find out, and
      its page keeps all behaviour in options.js (MV3 forbids inline). */
-  const optHtml = fs.readFileSync(path.join(extDir, 'options.html'), 'utf8');
+  const updHtml = fs.readFileSync(path.join(extDir, 'update.html'), 'utf8');
   ok('the update screen can repair a torn install',
-    /repairing/.test(optJs) && optJs.includes('!repairing && !newer') &&
-    optHtml.includes('id="repair"'),
+    /repairing/.test(updJs) && updJs.includes('!repairing && !newer') &&
+    updHtml.includes('id="repair"'),
     'a broken folder would have no way back but a reinstall');
   ok('and it checks for updates on open, not on demand',
-    optJs.includes('showFolder().then(check)'),
+    updJs.includes('showFolder().then(check)'),
     'staleness the user must ask about goes unasked');
   /* …and ON DEMAND as well: the automatic check answers once, but "did my
      push land yet?" is asked minutes later, and reloading a settings page to
      find out is not an answer. Every reply carries the time it was given, so
      re-checking an unchanged answer still visibly happened. */
   ok('the update screen can be asked again, by hand',
-    optHtml.includes('id="check"') && optJs.includes("$('check').addEventListener('click', check)"),
+    updHtml.includes('id="check"') && updJs.includes("$('check').addEventListener('click', check)"),
     'the only way to re-check would be reloading the page');
   ok('and every answer says WHEN it was given',
-    optJs.includes('checkedAt()') && /toLocaleTimeString/.test(optJs),
+    updJs.includes('checkedAt()') && /toLocaleTimeString/.test(updJs),
     'repainting the same sentence reads as a button that did nothing');
   ok('the button cannot be pressed twice into the same check',
-    /\$\('check'\)\.disabled = true;/.test(optJs) &&
-    /\$\('check'\)\.disabled = false;/.test(optJs),
+    /\$\('check'\)\.disabled = true;/.test(updJs) &&
+    /\$\('check'\)\.disabled = false;/.test(updJs),
     'a second press mid-flight races the first');
   ok('and its page carries no inline script',
-    (optHtml.match(/<script\b/g) || []).length === 1 &&
-    optHtml.includes('src="options.js"'),
+    (updHtml.match(/<script\b/g) || []).length === 1 &&
+    updHtml.includes('src="update.js"'),
     'MV3 CSP would silently refuse it');
   const inst = fs.readFileSync(path.join(extDir, 'install.html'), 'utf8');
   /* what a real install walked into, one guard each:
@@ -436,10 +436,10 @@ console.log('\nTWO GATES, ONE CORE');
        makes overriding explicit; updater refuses a folder without OUR
        manifest in it) */
   ok('neither writer paints status with sticky inline colour',
-    !inst.includes('style.color') && !optJs.includes('style.color'),
+    !inst.includes('style.color') && !updJs.includes('style.color'),
     'one error would colour every success after it');
   ok('a cancelled picker is a choice, not a failure — on both pages',
-    inst.includes("'AbortError'") && optJs.includes("'AbortError'"),
+    inst.includes("'AbortError'") && updJs.includes("'AbortError'"),
     'a closed dialog would read as a crash');
   ok('the installer catches the picked-the-parent mistake',
     inst.includes('subInstalls') && inst.includes('id="override"') &&
@@ -449,8 +449,8 @@ console.log('\nTWO GATES, ONE CORE');
     inst.includes('Writing ${i} of'),
     'a stall would look identical to progress');
   ok('the updater refuses a folder this extension does not live in',
-    optJs.includes('holds no extension install') &&
-    optJs.includes('refusing to write'),
+    updJs.includes('holds no extension install') &&
+    updJs.includes('refusing to write'),
     'an update into the wrong folder is a success message over nothing');
   /* the wrong-COPY trap, caught on a real machine: the granted folder held a
      genuine install of this extension, so the name check passed — but Chrome
@@ -459,15 +459,15 @@ console.log('\nTWO GATES, ONE CORE');
      write a file into the granted folder, fetch it through the extension's
      own URL — it serves ONLY from the folder Chrome actually loaded. */
   ok('the updater PROVES the folder is the one Chrome runs',
-    optJs.includes('proveLive') && optJs.includes('chrome.runtime.getURL(') &&
-    optJs.includes('removeEntry'),
+    updJs.includes('proveLive') && updJs.includes('chrome.runtime.getURL(') &&
+    updJs.includes('removeEntry'),
     'a second copy of the install would swallow updates forever');
   ok('and refuses a proven-dead copy, pointing at Details → Source',
-    optJs.includes('Chrome is not running from') &&
-    optJs.includes('"Source" names the loaded path'),
+    updJs.includes('Chrome is not running from') &&
+    updJs.includes('"Source" names the loaded path'),
     'the refusal must say where the real folder is written down');
   ok('the version cross-check backs the probe up',
-    optJs.includes('v.mismatch'),
+    updJs.includes('v.mismatch'),
     'a copy holding v3.8.100 under a running v3.8.101 was the live signature');
   // the side panel's knock on a tab with no content script is its NORMAL retry
   // path — unread, every knock lands on the Errors page as a scary entry
@@ -506,7 +506,7 @@ console.log('\nTWO GATES, ONE CORE');
     }),
     'a wrong-sized or corrupt icon loads as a broken puzzle piece');
   ok('both writers carry binaries as bytes, never as text',
-    optJs.includes('arrayBuffer') && inst.includes('atob('),
+    updJs.includes('arrayBuffer') && inst.includes('atob('),
     'a PNG through r.text() arrives corrupt and the folder stops loading');
   ok('and no embedded file can close the installer\'s script tag',
     !!fjson && !fjson.includes('</script>'), 'unescaped </script> in the JSON');
@@ -516,6 +516,27 @@ console.log('\nTWO GATES, ONE CORE');
     zip.length > 1000 && zip.readUInt32LE(0) === 0x04034b50 &&
     zip.includes(Buffer.from('manifest.json')),
     `zip ${zip.length} bytes, magic ${zip.readUInt32LE(0).toString(16)}`);
+  /* the emitted folder is CLEARED each build, not merged: a rename would
+     otherwise leave both spellings on disk and inside the shipped ZIP,
+     which is how a dead file reaches an install folder in the first place */
+  ok('the shipped ZIP carries only what this build emits',
+    (() => {
+      /* the local-file-header signature as BYTES: Buffer.indexOf given a
+         number searches for one byte, not a four-byte word */
+      const SIG = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
+      const names = [];
+      let i = zip.indexOf(SIG);
+      while (i !== -1 && i + 30 <= zip.length) {
+        const n = zip.readUInt16LE(i + 26);
+        if (i + 30 + n > zip.length) break;
+        names.push(zip.subarray(i + 30, i + 30 + n).toString());
+        i = zip.indexOf(SIG, i + 4);
+      }
+      return names.length > 0 &&
+             names.every((n) => shipped.includes(n) ||
+                                n === 'install.html' || n === 'install.bat');
+    })(),
+    'a retired file rode along inside the one-link install');
   // the side panel: declared in the manifest, opened by the toolbar button
   ok('the manifest declares the side panel as the side panel',
     manifest.side_panel?.default_path === 'side-panel.html' &&
