@@ -253,12 +253,34 @@ async function run(repairing) {
        still describes itself as the old version, and every file that old
        manifest names is still on disk. */
     const order = [...files.filter((f) => f !== 'manifest.json'), 'manifest.json'];
+    /* THIS FILE is the one write allowed to fail. Measured on a real machine:
+       of everything shipped, only update.js both fetches from the network AND
+       writes to disk AND deletes AND reloads — which is the behaviour of a
+       downloader, so a scanner reading its bytes calls it one and refuses the
+       write. content.js, sw.js and side-panel.js do none of that and go
+       through untouched. Losing this write costs nothing structural: the
+       updater is a standalone adapter that reads its file list from the repo
+       at run time, so an older copy keeps updating everything else correctly.
+       Aborting the whole update over it — which is what used to happen — cost
+       the user every other file for the sake of one they did not need.
+
+       This is error handling, not evasion: the write is attempted plainly,
+       the refusal is reported, and the user is told what did not change. */
+    const SELF = 'update.js';
+    let selfBlocked = null;
     for (const f of order) {
-      const fh = await dir.getFileHandle(f, { create: true });
-      const w = await fh.createWritable();
-      await w.write(texts[f]);
-      await w.close();
-      log('✓ wrote ' + f, 'good');
+      try {
+        const fh = await dir.getFileHandle(f, { create: true });
+        const w = await fh.createWritable();
+        await w.write(texts[f]);
+        await w.close();
+        log('✓ wrote ' + f, 'good');
+      } catch (e) {
+        if (f !== SELF) throw e;
+        selfBlocked = e.message;
+        log('⚠ could not replace ' + SELF + ' — ' + e.message, 'warn');
+        log('  everything else still updates; this screen keeps the version it has', 'warn');
+      }
     }
     for (const f of RETIRED) {
       if (files.includes(f)) continue;          // shipped again? then it is not retired
@@ -270,6 +292,12 @@ async function run(repairing) {
     $('doneHead').textContent = repairing
       ? `Repaired — every v${remote.version} file is back in place.`
       : `Updated to v${remote.version}.`;
+    if (selfBlocked) {
+      $('doneHead').textContent +=
+        ' (This update screen itself was blocked from being replaced by ' +
+        'security software, so it stays at its current version — everything ' +
+        'else is now current, and updates keep working.)';
+    }
     $('done').classList.add('show');
     let n = 4;
     const tick = () => {

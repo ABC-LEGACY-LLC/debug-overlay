@@ -387,6 +387,27 @@ console.log('\nTWO GATES, ONE CORE');
      refuses to load at all. Written last, the manifest decides which
      version the folder claims to be, so a blocked write leaves the old
      version whole and every file it names still on disk. */
+  /* ONE file may fail to write without taking the update with it. Measured
+     live: of everything shipped, only update.js fetches AND writes to disk
+     AND deletes AND reloads — the behaviour of a downloader — so a scanner
+     reading its bytes refuses that write while every other file goes through.
+     It is also the one file nothing structural depends on: the updater reads
+     its file list from the repo at run time, so an older copy still updates
+     everything else correctly. */
+  ok('only the updater\'s OWN file may fail to write, and it is not fatal',
+    updJs.includes("const SELF = 'update.js'") &&
+    updJs.includes("if (f !== SELF) throw e;") &&
+    updJs.includes('selfBlocked'),
+    'one refused file would cost the user every other file in the update');
+  ok('and the user is told which file did not change',
+    /This update screen itself was blocked/.test(updJs),
+    'a silent skip is a lie about what the update did');
+  ok('and update.js is the ONLY shipped file with the downloader shape',
+    ['content.js', 'sw.js', 'side-panel.js'].every((f) => {
+      const s = fs.readFileSync(path.join(extDir, f), 'utf8');
+      return !/createWritable|getFileHandle|removeEntry|runtime\.reload/.test(s);
+    }),
+    'another file grew the same shape and will start being blocked too');
   ok('the manifest is written LAST — it is the commit, not the first step',
     /const order = \[\.\.\.files\.filter\(\(f\) => f !== 'manifest\.json'\), 'manifest\.json'\]/.test(updJs) &&
     updJs.includes('for (const f of order)'),
