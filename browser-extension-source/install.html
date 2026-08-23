@@ -133,18 +133,27 @@ async function scan(dir) {
   return { hasInstall, subInstalls };
 }
 
+// binaries (the icons) embed as { b64 }; text embeds as itself
+function payload(data) {
+  if (typeof data === 'string') return data;
+  const s = atob(data.b64);
+  const u = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
+  return u;
+}
+
 async function doWrite(dir, updating) {
   $('write').disabled = true;
   $('prog').textContent = '';
   try {
     const names = Object.keys(FILES);
     let i = 0;
-    for (const [name, text] of Object.entries(FILES)) {
+    for (const [name, data] of Object.entries(FILES)) {
       i++;
       st('busy', `Writing ${i} of ${names.length} — ${name}…`);
       const fh = await dir.getFileHandle(name, { create: true });
       const w = await fh.createWritable();
-      await w.write(text);
+      await w.write(payload(data));
       await w.close();
       prog('✓ ' + name, 'ok');
     }

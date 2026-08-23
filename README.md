@@ -304,7 +304,8 @@ src/                        the overlay — everything here becomes the bundle
                             (bridge = the cockpit adapter; inert as a userscript)
 
 browser-extension-source/   the extension gate's templates and its own faces
-                            (options page, cockpit side panel); build.js
+                            (options page, cockpit side panel, the icon PNGs +
+                            make-icons.js that draws them); build.js
                             substitutes/bundles and emits dist/browser-extension/
 development/                the dev harness, its server, and the perf probe —
                             instruments that never ship

@@ -212,12 +212,14 @@ async function run(repairing) {
       }
     }
     // fetch EVERYTHING first, write only when all of it arrived — a half
-    // update on disk is a broken extension
+    // update on disk is a broken extension. PNGs (the icons) travel as
+    // bytes: text-decoding a binary is a silent corruption.
+    const isBin = (f) => /\.png$/i.test(f);
     const texts = {};
     for (const f of files) {
       const r = await fetch(BASE + '/' + f, { cache: 'no-store' });
       if (!r.ok) throw new Error(f + ': http ' + r.status);
-      texts[f] = await r.text();
+      texts[f] = isBin(f) ? new Uint8Array(await r.arrayBuffer()) : await r.text();
       log('↓ fetched ' + f);
     }
     JSON.parse(texts['manifest.json']);   // refuse a torn manifest

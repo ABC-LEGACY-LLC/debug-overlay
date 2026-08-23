@@ -188,7 +188,13 @@ function build(kind) {
     /* THE COCKPIT — the extension gate's bigger face. The toolbar button
        opens it (sw.js declares that); it mirrors the in-page panel over a
        port and survives the page refresh the in-page bar cannot. */
-    action: { default_title: `${cfg.name} — open the cockpit` },
+    action: { default_title: `${cfg.name} — open the cockpit`,
+              default_icon: { 16: 'icon16.png', 32: 'icon32.png',
+                              48: 'icon48.png', 128: 'icon128.png' } },
+    /* the options page's own logo (lucide bug on the brand tile), rendered
+       to PNG by browser-extension-source/make-icons.js — generated once and
+       committed, so the build never needs an image toolchain */
+    icons: { 16: 'icon16.png', 32: 'icon32.png', 48: 'icon48.png', 128: 'icon128.png' },
     side_panel: { default_path: 'cockpit.html' },
     permissions: ['sidePanel'],
   }, null, 2) + '\n');
@@ -227,6 +233,10 @@ function build(kind) {
      imports the shared src/core/protocol.js, which is the whole reason the
      two faces cannot drift: one vocabulary file, two importers. */
   fs.copyFileSync(path.join(ROOT, 'browser-extension-source', 'cockpit.html'), path.join(EXT, 'cockpit.html'));
+  for (const n of [16, 32, 48, 128]) {
+    fs.copyFileSync(path.join(ROOT, 'browser-extension-source', `icon${n}.png`),
+      path.join(EXT, `icon${n}.png`));
+  }
   let cockpit;
   try {
     cockpit = esbuild.buildSync({
@@ -316,7 +326,9 @@ function build(kind) {
      disable the command prompt; a browser page they cannot disable. The
      JSON's '</' is escaped so no embedded file can close the script tag. */
   const RUNTIME = ['manifest.json', 'content.js', 'sw.js', 'options.html', 'options.js',
-                   'cockpit.html', 'cockpit.js'];
+                   'cockpit.html', 'cockpit.js',
+                   'icon16.png', 'icon32.png', 'icon48.png', 'icon128.png'];
+  const BIN = (f) => /\.png$/i.test(f);
   /* files.json — the runtime file SET, published beside the files. The
      self-updater fetches THIS to learn what to write, because a baked-in
      list answers for the build that shipped it, not the one being fetched:
@@ -325,8 +337,12 @@ function build(kind) {
      refuses. The list names itself so the disk copy stays current too. */
   const SHIPPED = [...RUNTIME, 'files.json'];
   fs.writeFileSync(path.join(EXT, 'files.json'), JSON.stringify(SHIPPED, null, 2) + '\n');
+  /* text files embed as strings; binaries as { b64 } — the installer
+     decodes by shape, so a PNG survives the text-only page unhurt */
   const filesJson = JSON.stringify(Object.fromEntries(
-    SHIPPED.map((f) => [f, fs.readFileSync(path.join(EXT, f), 'utf8')])))
+    SHIPPED.map((f) => [f, BIN(f)
+      ? { b64: fs.readFileSync(path.join(EXT, f)).toString('base64') }
+      : fs.readFileSync(path.join(EXT, f), 'utf8')])))
     .replace(/<\//g, '<\\/');
   /* function replacement: the JSON is full of '$' sequences that string
      replacement would interpret as capture references and corrupt */

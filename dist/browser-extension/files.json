@@ -6,5 +6,9 @@
   "options.js",
   "cockpit.html",
   "cockpit.js",
+  "icon16.png",
+  "icon32.png",
+  "icon48.png",
+  "icon128.png",
   "files.json"
 ]

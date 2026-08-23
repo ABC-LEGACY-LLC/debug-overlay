@@ -430,9 +430,29 @@ console.log('\nTWO GATES, ONE CORE');
     !!fjson && (() => {
       const files = JSON.parse(fjson.replace(/<\\\//g, '</'));
       return JSON.stringify(Object.keys(files).sort()) === JSON.stringify([...shipped].sort()) &&
-        shipped.every((f) => files[f] === fs.readFileSync(path.join(extDir, f), 'utf8'));
+        shipped.every((f) => /\.png$/.test(f)
+          ? files[f].b64 === fs.readFileSync(path.join(extDir, f)).toString('base64')
+          : files[f] === fs.readFileSync(path.join(extDir, f), 'utf8'));
     })(),
     'the installer would write files that differ from the gate it ships in');
+  /* THE ICON — the options page's bug logo as the extension's own face,
+     generated to PNG (a manifest icon must be one) and carried BINARY
+     through both writers: text-decoding a PNG is a silent corruption that
+     ships a folder Chrome refuses to load. */
+  ok('the manifest wears the icon at every size, toolbar included',
+    [16, 32, 48, 128].every((n) =>
+      manifest.icons?.[n] === `icon${n}.png` &&
+      manifest.action?.default_icon?.[n] === `icon${n}.png`),
+    JSON.stringify({ icons: manifest.icons, action: manifest.action }));
+  ok('every icon is a real PNG of its stated size',
+    [16, 32, 48, 128].every((n) => {
+      const b = fs.readFileSync(path.join(extDir, `icon${n}.png`));
+      return b.readUInt32BE(0) === 0x89504e47 && b.readUInt32BE(16) === n;
+    }),
+    'a wrong-sized or corrupt icon loads as a broken puzzle piece');
+  ok('both writers carry binaries as bytes, never as text',
+    optJs.includes('arrayBuffer') && inst.includes('atob('),
+    'a PNG through r.text() arrives corrupt and the folder stops loading');
   ok('and no embedded file can close the installer\'s script tag',
     !!fjson && !fjson.includes('</script>'), 'unescaped </script> in the JSON');
   // the one-link install: a real ZIP at a stable raw URL
