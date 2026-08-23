@@ -160,7 +160,11 @@ dist/
     debug-overlay.user.js
     debug-overlay.meta.js
   browser-extension/     the extension gate
-    manifest.json  content.js  sw.js  options.html  options.js
+    manifest.json  content.js  sw.js       the extension itself
+    cockpit.html  cockpit.js               the side-panel cockpit
+    options.html  options.js               the update & repair screen
+    icon16/32/48/128.png  files.json       the face, and the updater's file list
+    install.html  install.bat              the no-cmd installer (+ cmd variant)
     debug-overlay-extension.zip     ← the one-link install
   debug-overlay.user.js  LEGACY BRIDGE — never delete: installs from before
   debug-overlay.meta.js  the restructure poll this path forever; these
