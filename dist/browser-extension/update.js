@@ -244,7 +244,16 @@ async function run(repairing) {
       log('↓ fetched ' + f);
     }
     JSON.parse(texts['manifest.json']);   // refuse a torn manifest
-    for (const f of files) {
+    /* MANIFEST LAST. Fetching everything before writing anything protects
+       against a download dying halfway; it does NOT protect against a WRITE
+       dying halfway, and one did — a security product blocked a file mid-run
+       and left a folder whose new manifest named side-panel.html that had
+       never been written. Chrome then refuses to load the whole extension.
+       Written last, the manifest is the COMMIT: until it lands, the folder
+       still describes itself as the old version, and every file that old
+       manifest names is still on disk. */
+    const order = [...files.filter((f) => f !== 'manifest.json'), 'manifest.json'];
+    for (const f of order) {
       const fh = await dir.getFileHandle(f, { create: true });
       const w = await fh.createWritable();
       await w.write(texts[f]);
@@ -272,7 +281,20 @@ async function run(repairing) {
     tick();
   } catch (e) {
     log('failed: ' + e.message, 'err');
-    status('bad', 'That did not work.', e.message);
+    /* A write blocked partway is the case worth naming: the files already
+       written are new, the rest are old, and only the manifest decides which
+       version the folder claims to be — so the install still runs the old
+       version and pressing this again is safe. Security software blocking a
+       write is the way this happens in practice; the updater fetches remote
+       files and writes them to disk, which is the behaviour of a downloader,
+       and some scanners cannot tell the difference. */
+    const blocked = /Safe Browsing|not allowed|permission|denied|blocked/i.test(e.message);
+    status('bad', blocked ? 'A security check blocked the write.' : 'That did not work.',
+      blocked
+        ? 'Nothing is broken: the manifest is written last, so the folder still ' +
+          'runs the version it had. Press Update again — and if it keeps failing, ' +
+          'this machine is scanning the write; install from the ZIP instead. (' + e.message + ')'
+        : e.message);
   } finally {
     gate();
   }

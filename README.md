@@ -157,6 +157,15 @@ then only needs you to sign in; the script arrives on its own.
   updates now* forces it, and `npm run shipped` answers what the world sees.
 - **Updated but nothing changed:** the open tab still runs the old code —
   press **↻ Refresh page** in the ⏻ menu.
+- **"A security check blocked the write" / antivirus flags the update:** the
+  updater fetches files from the repo and writes them to disk, which is what
+  a downloader does — some scanners cannot tell the difference, and managed
+  machines may scan every browser file write. Nothing is broken when this
+  happens: the manifest is written last, so the folder still runs the version
+  it had. Press Update again; if it keeps failing, install from the ZIP
+  instead (extract it and copy the files in with File Explorer — no browser
+  write, no scan). The extension contains no `eval`, no remote code
+  execution, and can reach exactly one host, `raw.githubusercontent.com`.
 - **Extension updater says "Updated" but the version stays put:** the granted
   folder is not the one Chrome loads — a second copy swallows updates
   silently. Find the real folder at `chrome://extensions` → Debug Overlay →

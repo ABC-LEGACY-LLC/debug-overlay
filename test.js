@@ -380,6 +380,21 @@ console.log('\nTWO GATES, ONE CORE');
      clears a NAMED list rather than deleting by exclusion — the folder is
      one the user picked, and delete-what-I-do-not-recognise is one bad pick
      away from deleting their documents */
+  /* THE MANIFEST IS THE COMMIT. Fetch-all-then-write survives a dead
+     download; it does not survive a dead WRITE, and one happened — a
+     security product blocked a file mid-run and left a folder whose new
+     manifest named a side panel that had never been written, which Chrome
+     refuses to load at all. Written last, the manifest decides which
+     version the folder claims to be, so a blocked write leaves the old
+     version whole and every file it names still on disk. */
+  ok('the manifest is written LAST — it is the commit, not the first step',
+    /const order = \[\.\.\.files\.filter\(\(f\) => f !== 'manifest\.json'\), 'manifest\.json'\]/.test(updJs) &&
+    updJs.includes('for (const f of order)'),
+    'a blocked write would leave a manifest naming files that do not exist');
+  ok('and a blocked write says so, and says it is safe to retry',
+    /Safe Browsing\|not allowed/.test(updJs) &&
+    updJs.includes('A security check blocked the write.'),
+    'the commonest real failure would read as an unexplained crash');
   ok('the updater clears files it no longer ships, by name',
     /const RETIRED = \[/.test(updJs) && updJs.includes('removeEntry(f)') &&
     updJs.includes("files.includes(f)"),
