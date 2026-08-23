@@ -376,6 +376,19 @@ console.log('\nTWO GATES, ONE CORE');
      that shipped it — the v3.8.98 five-name list would have written the
      side panel's manifest while never fetching the side panel */
   const shipped = JSON.parse(fs.readFileSync(path.join(extDir, 'files.json'), 'utf8'));
+  /* a rename leaves the old names dead in the install folder; the updater
+     clears a NAMED list rather than deleting by exclusion — the folder is
+     one the user picked, and delete-what-I-do-not-recognise is one bad pick
+     away from deleting their documents */
+  ok('the updater clears files it no longer ships, by name',
+    /const RETIRED = \[/.test(optJs) && optJs.includes('removeEntry(f)') &&
+    optJs.includes("files.includes(f)"),
+    'a rename would leave dead files in every install folder forever');
+  ok('and nothing still shipped is on that retired list',
+    !(optJs.match(/const RETIRED = \[([^\]]*)\]/) || [,''])[1]
+      .split(',').map((s) => s.trim().replace(/'/g, '')).filter(Boolean)
+      .some((f) => shipped.includes(f)),
+    'the updater would delete a file it had just written');
   ok('the updater learns its file list from the repo, not from itself',
     optJs.includes("'/files.json'") &&
     shipped.includes('files.json') &&
@@ -774,6 +787,36 @@ let sidePanelChecked = false;
       k.querySelector('#optBtn').dispatchEvent(click2());
       ok('the header gear opens the extension options', optOpened === 1,
         'the updater must be one press away from the side panel');
+
+      /* THE TWO PANELS, BOTH AT ONCE — on purpose, and only on purpose.
+         Hiding the bar is right by default (two controls claiming one state
+         is a lie about which is in charge), but a screenshot for an AI wants
+         the bar IN the picture and the side panel is not in the picture. */
+      const webBtn = k.querySelector('#webBtn');
+      ok('the bar is hidden by default while the side panel drives',
+        c3.bar.classList.contains('debug-overlay-hidden') &&
+        webBtn.getAttribute('aria-pressed') === 'false',
+        'the default must stay one-panel-at-a-time');
+      webBtn.dispatchEvent(click2());
+      ok('the toggle brings the web panel back ON THE PAGE',
+        !c3.bar.classList.contains('debug-overlay-hidden'),
+        'the command never reached WebPanel.setVisible');
+      ok('and the button shows the echoed truth, not the click',
+        webBtn.getAttribute('aria-pressed') === 'true',
+        'the side panel assumed instead of listening');
+      /* PERSISTED, so the next page opens the way this one was left. Asserted
+         at the store rather than by booting a second window: jsdom gives each
+         window its own localStorage, so only the writer could ever see it —
+         and that Store hands values to a fresh boot is already proven above. */
+      ok('the choice is written to the store, not just to the screen',
+        c3.w.localStorage.getItem('__debug_overlay_webpanel') === '1',
+        'a preference that forgets itself on reload is not a preference');
+      webBtn.dispatchEvent(click2());
+      ok('and toggling back hides the bar again, and says so',
+        c3.bar.classList.contains('debug-overlay-hidden') &&
+        webBtn.getAttribute('aria-pressed') === 'false' &&
+        c3.w.localStorage.getItem('__debug_overlay_webpanel') === '0',
+        'the toggle only went one way');
 
       /* updates, both answers. The content window has no network; the stub
          IS the wire format the checker parses. */

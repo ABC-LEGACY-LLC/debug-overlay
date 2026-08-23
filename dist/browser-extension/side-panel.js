@@ -22,6 +22,8 @@
     // (version|null) — a forced check's answer, null = current
     page: null,
     // (origin) — whose page this connection speaks for
+    webPanel: null,
+    // (visible) — is the on-page bar showing alongside us
     flash: null,
     // (msg, sel)
     badgeControls: (groups) => [groups.map(packBadgeGroup)],
@@ -45,6 +47,8 @@
     updateCheck: null,
     // (force)
     updateApply: null,
+    webPanel: null,
+    // (visible) — show/hide the on-page bar
     openView: null,
     // (view) — compute and push that view's rows
     rowActivate: null,
@@ -124,7 +128,7 @@
   };
 
   // browser-extension-source/side-panel/side-panel.js
-  var VERSION = "3.8.110";
+  var VERSION = "3.8.111";
   var $ = (s) => document.querySelector(s);
   var body = document.body;
   var IC = {
@@ -134,6 +138,7 @@
     clear: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
     pin: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>',
     gear: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>',
+    webPanel: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/></svg>',
     refresh: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>'
   };
   var isSvg = (s) => /^<svg[\s>]/.test(s || "");
@@ -154,6 +159,7 @@
   ])
     putIcon($(sel + " .ic"), ic);
   putIcon($("#optBtn"), IC.gear);
+  putIcon($("#webBtn"), IC.webPanel);
   var flashing = /* @__PURE__ */ new Map();
   function flash(msg, sel) {
     const b = $(sel);
@@ -447,6 +453,13 @@
       if (v) render.update([v]);
       else flash("✓ current", "[data-upd]");
     },
+    /* the on-page bar's visibility, echoed from the page — this button shows
+       what IS, never what was asked for. Both panels at once is a deliberate
+       choice (a screenshot for an AI wants the bar in the picture), which is
+       why the default stays hidden and the answer comes back from the page. */
+    webPanel([visible]) {
+      $("#webBtn").setAttribute("aria-pressed", String(!!visible));
+    },
     page([origin]) {
       status("connected · " + String(origin || "").replace(/^\w+:\/\//, ""), "ok");
     },
@@ -599,6 +612,10 @@
     renderTimeline();
   });
   $("#optBtn").addEventListener("click", () => chrome.runtime.openOptionsPage?.());
+  $("#webBtn").addEventListener("click", () => {
+    const on = $("#webBtn").getAttribute("aria-pressed") === "true";
+    post(Protocol.cmd("webPanel", !on));
+  });
   $("[data-upd]").addEventListener("click", () => {
     flash("checking…", "[data-upd]");
     post(Protocol.cmd("updateCheck"));

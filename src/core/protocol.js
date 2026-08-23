@@ -47,6 +47,7 @@ const STATE = {
         update: null,             // (version) — a KNOWN newer version exists
         checked: null,            // (version|null) — a forced check's answer, null = current
         page: null,               // (origin) — whose page this connection speaks for
+        webPanel: null,           // (visible) — is the on-page bar showing alongside us
         flash: null,              // (msg, sel)
         badgeControls: (groups) => [groups.map(packBadgeGroup)],
         rows: (view, rows, empty) => [view, rows.map(packRow), empty],
@@ -65,6 +66,7 @@ const CMD = {
         badgeControl: null,       // (key)
         updateCheck: null,        // (force)
         updateApply: null,
+        webPanel: null,           // (visible) — show/hide the on-page bar
         openView: null,           // (view) — compute and push that view's rows
         rowActivate: null,        // (view, i)
         rowRemove: null,          // (view, i)

@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.110 — extension gate; same bundle as the userscript */
+/* Debug Overlay v3.8.111 — extension gate; same bundle as the userscript */
 (function () {
   'use strict';
 /* NOT a module and NOT bundled: build.js injects this text at the very top
@@ -41,7 +41,7 @@
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.110",
+    VERSION: "3.8.111",
     // Substituted like VERSION: where the update checker asks, and what the
     // userscript's one-click update opens. One source (userscript.json), no
     // second copy to drift.
@@ -75,6 +75,11 @@
     // browser visits. Pins add the PATH: a pin on /live-map is not a pin on
     // /settings.
     POWER_KEY: "__debug_overlay_on",
+    /* Whether the WEB PANEL's bar shows while the SIDE PANEL is driving.
+       Off by default — two controls claiming one state is what docking
+       solved — but it is a choice, because a screenshot for an AI wants
+       the bar IN the picture, and the side panel is not in the picture. */
+    WEBPANEL_KEY: "__debug_overlay_webpanel",
     PINS_KEY: "__debug_overlay_pins",
     TOOLS_KEY: "__debug_overlay_tools",
     SETTINGS_KEY: "__debug_overlay_settings",
@@ -3928,6 +3933,8 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     // (version|null) — a forced check's answer, null = current
     page: null,
     // (origin) — whose page this connection speaks for
+    webPanel: null,
+    // (visible) — is the on-page bar showing alongside us
     flash: null,
     // (msg, sel)
     badgeControls: (groups2) => [groups2.map(packBadgeGroup)],
@@ -3951,6 +3958,8 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     updateCheck: null,
     // (force)
     updateApply: null,
+    webPanel: null,
+    // (visible) — show/hide the on-page bar
     openView: null,
     // (view) — compute and push that view's rows
     rowActivate: null,
@@ -4177,9 +4186,11 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       }
     }
   }
+  var wantsWebPanel = () => Store.get(CONFIG.WEBPANEL_KEY) === "1";
   function hello() {
     send("tools", roster(), CONFIG.VERSION);
     send("page", location.origin);
+    send("webPanel", wantsWebPanel());
     for (const [id, v] of toolLast) send("tool", id, v);
     for (const [name, args] of last) send(name, ...args);
     backlogs();
@@ -4242,6 +4253,16 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       case "updateApply":
         Updates.apply();
         break;
+      // per gate; no cursor, no menu
+      /* SHOW BOTH, on purpose. Hiding the bar is the default because two
+         controls claiming one state is a lie about which one is in charge —
+         but a screenshot for an AI wants the bar IN the picture, and the side
+         panel is not in the picture. So it is a choice, and it persists. */
+      case "webPanel":
+        Store.set(CONFIG.WEBPANEL_KEY, args[0] ? "1" : "0");
+        WebPanel.setVisible(!!args[0]);
+        send("webPanel", !!args[0]);
+        break;
     }
     pushRows();
   }
@@ -4270,7 +4291,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         }
         port = p;
         watching = null;
-        WebPanel.setVisible(false);
+        WebPanel.setVisible(wantsWebPanel());
         p.onMessage.addListener((msg) => {
           const m = Protocol.read(msg);
           if (m && m.kind === "cmd") command(m);

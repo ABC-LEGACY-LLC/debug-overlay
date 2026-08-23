@@ -25,6 +25,7 @@
 import { Protocol } from '../core/protocol.js';
 import { CONFIG } from '../core/config.js';
 import { Tools, TOOLS } from '../core/registry.js';
+import { Store } from '../core/state.js';
 import { WebPanel } from '../ui/web-panel.js';
 import { Updates } from './updates.js';
 
@@ -58,11 +59,17 @@ function backlogs() {
   }
 }
 
+/** Does the user want the web panel's bar visible while the side panel
+ *  drives? Off unless they said otherwise — two controls claiming one state
+ *  is what hiding it solved. */
+const wantsWebPanel = () => Store.get(CONFIG.WEBPANEL_KEY) === '1';
+
 function hello() {
   // version rides with the roster: a side panel updated under a page that was
   // not refreshed can SAY "reload this page" instead of half-working
   send('tools', roster(), CONFIG.VERSION);
   send('page', location.origin);   // whose page this connection speaks for
+  send('webPanel', wantsWebPanel());
   for (const [id, v] of toolLast) send('tool', id, v);
   for (const [name, args] of last) send(name, ...args);
   backlogs();
@@ -110,6 +117,15 @@ function command({ name, args }) {
       Promise.resolve(Updates.check(true)).then((v) => send('checked', v || null));
       break;
     case 'updateApply': Updates.apply(); break;   // per gate; no cursor, no menu
+    /* SHOW BOTH, on purpose. Hiding the bar is the default because two
+       controls claiming one state is a lie about which one is in charge —
+       but a screenshot for an AI wants the bar IN the picture, and the side
+       panel is not in the picture. So it is a choice, and it persists. */
+    case 'webPanel':
+      Store.set(CONFIG.WEBPANEL_KEY, args[0] ? '1' : '0');
+      WebPanel.setVisible(!!args[0]);
+      send('webPanel', !!args[0]);
+      break;
   }
   // every command can move the rows (a removal, a changed setting, a sweep);
   // answering in the same breath is what lets the side panel trust its list
@@ -150,7 +166,7 @@ export const Bridge = {
       try { port?.disconnect(); } catch {}
       port = p;
       watching = null;   // the new side panel says which view it holds, if any
-      WebPanel.setVisible(false);
+      WebPanel.setVisible(wantsWebPanel());
       p.onMessage.addListener((msg) => {
         const m = Protocol.read(msg);
         if (m && m.kind === 'cmd') command(m);

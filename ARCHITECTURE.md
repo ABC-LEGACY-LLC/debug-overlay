@@ -232,10 +232,18 @@ keys, the wire envelope — and it is gone; every one of them says
 single-instance guard in `banner.js`, `Store._legacyRead`, and
 `LEGACY_FIELD` in the protocol).
 
-Only one of the two may be showing: connecting the side panel calls
+By default only one of the two shows: connecting the side panel calls
 `WebPanel.setVisible(false)`, which hides the BAR and nothing else — pins,
 marks and badges are the page's annotations and stay. Losing the port gives
 the bar back.
+
+That default is a default, not a law. Two controls claiming one state is a
+lie about which is in charge, which is why it starts hidden — but a
+screenshot taken for an AI wants the bar IN the picture, and the side panel
+is not in the picture. So the side panel's header carries a toggle
+(`webPanel` both ways: a command out, the page's answer back), the button
+renders the ECHO rather than the click, and the choice persists under
+`CONFIG.WEBPANEL_KEY` so the next page opens the way the last one was left.
 
 ## One panel, two faces — the side panel speaks the web panel's own contract
 

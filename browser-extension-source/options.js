@@ -17,6 +17,14 @@ const BASE = '__EXT_BASE__';
 // manifest by an old list leaves a folder naming files it never fetched.
 const FILES = ['manifest.json', 'content.js', 'sw.js', 'options.html', 'options.js',
                'side-panel.html', 'side-panel.js', 'files.json'];
+/* Names this extension USED to ship and no longer does. A rename leaves the
+   old files sitting in the install folder doing nothing — Chrome loads only
+   what the manifest names — so they are dead weight the user can see. Cleared
+   after a successful write, and deliberately a NAMED LIST rather than
+   "delete anything not in files.json": the folder is one the user picked,
+   and an updater that deletes by exclusion is one bad pick away from
+   deleting their documents. */
+const RETIRED = ['cockpit.html', 'cockpit.js'];
 
 const $ = (id) => document.getElementById(id);
 const MINE = chrome.runtime.getManifest().version;
@@ -229,6 +237,11 @@ async function run(repairing) {
       await w.write(texts[f]);
       await w.close();
       log('✓ wrote ' + f, 'good');
+    }
+    for (const f of RETIRED) {
+      if (files.includes(f)) continue;          // shipped again? then it is not retired
+      try { await dir.removeEntry(f); log('· removed ' + f + ' (no longer shipped)'); }
+      catch { /* not there — the ordinary case */ }
     }
     // the banner people must not miss, then the reload — in that order,
     // because chrome.runtime.reload() takes this page with it

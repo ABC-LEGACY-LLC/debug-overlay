@@ -44,6 +44,11 @@
     // browser visits. Pins add the PATH: a pin on /live-map is not a pin on
     // /settings.
     POWER_KEY: '__debug_overlay_on',
+    /* Whether the WEB PANEL's bar shows while the SIDE PANEL is driving.
+       Off by default — two controls claiming one state is what docking
+       solved — but it is a choice, because a screenshot for an AI wants
+       the bar IN the picture, and the side panel is not in the picture. */
+    WEBPANEL_KEY: '__debug_overlay_webpanel',
     PINS_KEY: '__debug_overlay_pins',
     TOOLS_KEY: '__debug_overlay_tools',
     SETTINGS_KEY: '__debug_overlay_settings',

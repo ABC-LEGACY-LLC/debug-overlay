@@ -120,6 +120,10 @@ panel's bar steps aside so two controls never claim one state — everything
 the overlay draws *on* the page (pins, marks, badges) stays exactly where it
 was. Close the side panel and the bar comes back.
 
+**Want both at once?** Press the ▣ button in the side panel's header. Useful
+when you are capturing a screenshot for an AI: the bar belongs in the
+picture, and the side panel does not. The choice is remembered.
+
 ### First 60 seconds after installing
 
 | press | you get |
