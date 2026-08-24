@@ -29,7 +29,7 @@ two copies would fight over the page.
 |---|---|---|
 | needs | Tampermonkey | nothing extra (Chrome/Edge) |
 | install | open 1 link | download ZIP, load a folder once |
-| updates | automatic after every push | re-extract, or one click once published |
+| updates | automatic after every push | one button in the update screen |
 | side panel | no | **yes** |
 
 ---
@@ -61,44 +61,20 @@ keeps running the old version until it reloads.
 
 ---
 
-### Option B — Browser extension, clean build *(recommended)*
+### Option B2 — Browser extension with the in-browser updater *(recommended)*
 
-Two extension builds exist and the difference matters. This one contains **no
-self-updater**, and that is the point: a program that downloads files and
-writes them to disk looks like a downloader to security software, and some
-machines quarantine it — which deletes the files and makes Chrome drop the
-extension. There is nothing here to quarantine.
+Same overlay, plus an update screen that fetches new files and writes them
+into your install folder — so updating is a button, not a download-and-extract
+round trip. This is what the project develops against.
 
-**Step 1.** Download and extract:
-
-```
-https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/browser-extension-store/debug-overlay-clean.zip
-```
-
-**Step 2.** Keep the folder somewhere permanent (not Downloads). Prefer a
-click-through walk-through? Open **`guide.html`** from inside that folder —
-same steps, in a page, with a copy button for the address below. It touches
-nothing on disk; it only tells you where to click.
-
-**Step 3.** `chrome://extensions` → **Developer mode** ON → **Load unpacked**
-→ select that folder.
-
-**Step 4.** Open any website: **Alt+Shift+D** for the web panel, or the
-toolbar button for the side panel.
-
-*Getting updates:* download the newer ZIP, extract it over the same folder,
-and press ↻ on `chrome://extensions`. No update button — on purpose. Once
-this is published to the Web Store it becomes one click and Chrome updates it
-silently; see **[STORE.md](STORE.md)**.
-
----
-
-### Option B2 — Browser extension with the in-browser updater
-
-Same overlay, plus an update screen that fetches and writes new files itself.
-Convenient, and it is what this project develops against — but on machines
-with strict antivirus or managed-browser policy the write gets blocked or
-quarantined. Use Option B if that happens to you.
+It **deletes nothing and restarts nothing**. It used to do both, and that was
+the mistake: fetch, write, delete, then restart the program you just wrote is
+the complete shape of a downloader, and security software read it that way —
+quarantining the files, which removed them from disk and made Chrome drop the
+extension. Sweeping stale filenames was cosmetic (Chrome loads only what the
+manifest names) and the auto-reload saved a single click. What is left is
+fetch and write, which *is* the update. If a scanner still objects on your
+machine, Option B is the fallback.
 
 **Step 1.** Download the ZIP:
 
@@ -141,6 +117,37 @@ one-time.
 
 *Firefox:* has no File System Access API and no persistent unpacked installs —
 use Option A there.
+
+---
+
+### Option B — Browser extension, no updater *(fallback)*
+
+Two extension builds exist. This one contains **no self-updater at all** —
+use it only if Option B2's updater is blocked on your machine even after the
+reductions described there. Updating means re-downloading the ZIP and
+extracting it over the same folder.
+
+**Step 1.** Download and extract:
+
+```
+https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/browser-extension-store/debug-overlay-clean.zip
+```
+
+**Step 2.** Keep the folder somewhere permanent (not Downloads). Prefer a
+click-through walk-through? Open **`guide.html`** from inside that folder —
+same steps, in a page, with a copy button for the address below. It touches
+nothing on disk; it only tells you where to click.
+
+**Step 3.** `chrome://extensions` → **Developer mode** ON → **Load unpacked**
+→ select that folder.
+
+**Step 4.** Open any website: **Alt+Shift+D** for the web panel, or the
+toolbar button for the side panel.
+
+*Getting updates:* download the newer ZIP, extract it over the same folder,
+and press ↻ on `chrome://extensions`. No update button — on purpose. Once
+this is published to the Web Store it becomes one click and Chrome updates it
+silently; see **[STORE.md](STORE.md)**.
 
 ---
 
@@ -196,25 +203,22 @@ then only needs you to sign in; the script arrives on its own.
   updates now* forces it, and `npm run shipped` answers what the world sees.
 - **Updated but nothing changed:** the open tab still runs the old code —
   press **↻ Refresh page** in the ⏻ menu.
-- **Antivirus removed the extension, or the update keeps being blocked:** use
-  the **clean build** (Option B) — it has no self-updater, so there is nothing
-  for a scanner to object to. This is not hypothetical: on a managed machine
-  the quarantine deleted the updater's files, and an unpacked extension whose
-  files vanish is dropped by Chrome. Reinstalling the self-updating build and
-  updating again repeats it.
-- **"A security check blocked the write" / antivirus flags the update:**
-  `update.js` is the only shipped file that fetches from the network *and*
-  writes to disk *and* deletes *and* reloads — the behaviour of a downloader,
-  which some scanners cannot tell apart from the real thing, and managed
-  machines may scan every browser file write. So that one write is allowed to
-  fail: everything else still updates, the screen says which file did not
-  change, and the manifest is written last so a folder is never left naming
-  files that are not there. If the whole update is blocked, install from the
-  ZIP instead — extract it and copy the files in with File Explorer, which no
-  browser policy governs. For the record: the extension contains no `eval`,
-  no remote code execution, and reaches exactly one host,
+- **Antivirus flags the update, or removed the extension:** this happened on
+  a real managed machine — the quarantine deleted the updater's files, and an
+  unpacked extension whose files vanish is dropped by Chrome. The updater was
+  reduced in response and no longer **deletes** anything or **restarts** the
+  extension; fetch-write-delete-restart is the full shape of a downloader,
+  and only the first two are the update. Sweeping stale filenames was
+  cosmetic (Chrome loads only what the manifest names) and the auto-reload
+  saved one click, so both went. If a scanner still objects on your machine,
+  Option B has no updater at all. For the record: the extension contains no
+  `eval`, no remote code execution, and reaches exactly one host,
   `raw.githubusercontent.com`; `npm run check` verifies the published files
   are byte-identical to a build from source.
+- **"A security check blocked the write":** the update screen's own file is
+  the one write allowed to fail — everything else still updates, and the
+  manifest is written last, so a blocked write never leaves a folder naming
+  files that are not there. Press Update again.
 - **Extension updater says "Updated" but the version stays put:** the granted
   folder is not the one Chrome loads — a second copy swallows updates
   silently. Find the real folder at `chrome://extensions` → Debug Overlay →

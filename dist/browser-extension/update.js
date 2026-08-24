@@ -17,13 +17,13 @@ const BASE = 'https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/mai
 // manifest by an old list leaves a folder naming files it never fetched.
 const FILES = ['manifest.json', 'content.js', 'sw.js', 'update.html', 'update.js',
                'side-panel.html', 'side-panel.js', 'files.json'];
-/* Names this extension USED to ship and no longer does. A rename leaves the
-   old files sitting in the install folder doing nothing — Chrome loads only
-   what the manifest names — so they are dead weight the user can see. Cleared
-   after a successful write, and deliberately a NAMED LIST rather than
-   "delete anything not in files.json": the folder is one the user picked,
-   and an updater that deletes by exclusion is one bad pick away from
-   deleting their documents. */
+/* Files this extension used to ship and no longer does. It USED to delete
+   them after an update. It does not any more: Chrome loads only what the
+   manifest names, so a leftover file is inert — while an updater that
+   deletes files is an updater that looks like a downloader cleaning up
+   after itself, which is what got this one quarantined. Tidiness is not
+   worth the product being removed from the browser. They are listed here
+   so guide.html can name them for anyone who wants the folder clean. */
 const RETIRED = ['cockpit.html', 'cockpit.js', 'options.html', 'options.js'];
 
 const $ = (id) => document.getElementById(id);
@@ -119,26 +119,37 @@ async function vet(dir) {
   }
 }
 
-/** The definitive current-source check: write a probe file into the granted
- *  folder, then fetch it through the extension's OWN url. Chrome serves an
- *  unpacked extension's files straight off the loaded folder, so the fetch
- *  succeeds ONLY if this folder is the one chrome://extensions loaded.
- *  true = proven live · false = proven NOT the loaded folder · null = the
- *  probe itself failed, so say nothing rather than guess. */
+/**
+ * Is the granted folder the one Chrome is actually running from? Writing
+ * anywhere else reports success while the browser keeps the old copy — the
+ * silent miss that cost a real install a lot of confusion.
+ *
+ * READ-ONLY, deliberately. This used to write a randomly-named probe file,
+ * fetch it back through the extension's own URL, and then delete it — which
+ * proved the folder exactly, and also made this file drop a file and remove
+ * it, on every single update, forever. Dropping a file and cleaning it up
+ * afterwards is the most recognisable move a downloader makes, and security
+ * software read it exactly that way.
+ *
+ * So: compare the manifest ON DISK with the manifest Chrome is SERVING.
+ * chrome.runtime.getURL() reads out of the loaded folder, so if the granted
+ * folder is that folder the two are byte-identical. A stale or duplicate
+ * copy differs — by version at minimum, since it is a copy of some other
+ * build. The one case this cannot see is a byte-identical copy of the
+ * CURRENT version, and that self-corrects: writing there makes the copy
+ * newer than what is running, so the very next visit reads a version
+ * mismatch and says so. One quiet miss instead of a permanent write-delete
+ * cycle is the right trade.
+ *
+ * true = folder matches what Chrome serves · false = provably a different
+ * copy · null = could not tell, so say nothing rather than guess.
+ */
 async function proveLive(dir) {
-  const name = 'updater-probe-' + Math.random().toString(36).slice(2) + '.txt';
   try {
-    const fh = await dir.getFileHandle(name, { create: true });
-    const w = await fh.createWritable();
-    await w.write('Debug Overlay updater probe — safe to delete');
-    await w.close();
-    let live = false;
-    try {
-      const r = await fetch(chrome.runtime.getURL(name), { cache: 'no-store' });
-      live = !!r.ok;
-    } catch {}
-    try { await dir.removeEntry(name); } catch {}
-    return live;
+    const onDisk = await (await (await dir.getFileHandle('manifest.json')).getFile()).text();
+    const served = await (await fetch(chrome.runtime.getURL('manifest.json'),
+                                      { cache: 'no-store' })).text();
+    return onDisk.trim() === served.trim();
   } catch { return null; }
 }
 
@@ -282,31 +293,27 @@ async function run(repairing) {
         log('  everything else still updates; this screen keeps the version it has', 'warn');
       }
     }
-    for (const f of RETIRED) {
-      if (files.includes(f)) continue;          // shipped again? then it is not retired
-      try { await dir.removeEntry(f); log('· removed ' + f + ' (no longer shipped)'); }
-      catch { /* not there — the ordinary case */ }
-    }
-    // the banner people must not miss, then the reload — in that order,
-    // because chrome.runtime.reload() takes this page with it
+    /* Written, and NOT reloaded. This used to count down and then call
+       reload the extension itself. Fetch, write, and then restart the
+       program you just wrote is the complete shape of a downloader, and the
+       last step is the one that buys the least: it saves a single click.
+       Chrome activates the new files on the next reload either way, so the
+       button that does it is one the user presses — on the page that is
+       already open in front of them. */
     $('doneHead').textContent = repairing
-      ? `Repaired — every v${remote.version} file is back in place.`
-      : `Updated to v${remote.version}.`;
+      ? `Repaired — every v${remote.version} file is on disk.`
+      : `v${remote.version} is on disk.`;
     if (selfBlocked) {
       $('doneHead').textContent +=
         ' (This update screen itself was blocked from being replaced by ' +
         'security software, so it stays at its current version — everything ' +
         'else is now current, and updates keep working.)';
     }
+    $('doneCount').textContent =
+      'One step left: open chrome://extensions and press the ↻ reload icon on ' +
+      'Debug Overlay. Then refresh any tabs you had open.';
     $('done').classList.add('show');
-    let n = 4;
-    const tick = () => {
-      n--;
-      if (n <= 0) { chrome.runtime.reload(); return; }
-      $('doneCount').textContent = `Reloading the extension in ${n}…`;
-      setTimeout(tick, 1000);
-    };
-    tick();
+    $('copyExt').hidden = false;
   } catch (e) {
     log('failed: ' + e.message, 'err');
     /* A write blocked partway is the case worth naming: the files already
@@ -363,6 +370,10 @@ $('pick').addEventListener('click', async () => {
   }
   await showFolder();
   check();   // the hint under the status may change now a folder exists
+});
+$('copyExt').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText('chrome://extensions'); } catch {}
+  $('copyExt').textContent = 'Copied ✓ — paste it in the address bar';
 });
 $('check').addEventListener('click', check);
 $('apply').addEventListener('click', () => run(false));

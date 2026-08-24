@@ -416,15 +416,25 @@ console.log('\nTWO GATES, ONE CORE');
     /Safe Browsing\|not allowed/.test(updJs) &&
     updJs.includes('A security check blocked the write.'),
     'the commonest real failure would read as an unexplained crash');
-  ok('the updater clears files it no longer ships, by name',
-    /const RETIRED = \[/.test(updJs) && updJs.includes('removeEntry(f)') &&
-    updJs.includes("files.includes(f)"),
-    'a rename would leave dead files in every install folder forever');
-  ok('and nothing still shipped is on that retired list',
-    !(updJs.match(/const RETIRED = \[([^\]]*)\]/) || [,''])[1]
-      .split(',').map((s) => s.trim().replace(/'/g, '')).filter(Boolean)
-      .some((f) => shipped.includes(f)),
-    'the updater would delete a file it had just written');
+  /* THE UPDATER DELETES NOTHING, AND RESTARTS NOTHING. It used to do both:
+     sweep retired filenames after a write, and reload the extension itself
+     on a countdown. Fetch, write, delete, restart is the complete shape of a
+     downloader, and security software read it exactly that way — it
+     quarantined the files, which removed them from disk and made Chrome drop
+     the whole extension, twice, on a real machine.
+
+     Both were optional. A leftover file is inert (Chrome loads only what the
+     manifest names) and the reload saves exactly one click. What remains is
+     fetch and write, which IS the update and cannot be given up. This is a
+     real reduction in what the program does — not the same actions wearing a
+     disguise, which would deserve the detection. */
+  ok('the updater deletes nothing — no sweep, no probe cleanup, nothing',
+    !/removeEntry/.test(updJs),
+    'deleting files after writing them is the most recognisable move a dropper makes');
+  ok('and it restarts nothing — the user presses reload, on purpose',
+    !/runtime\.reload\s*\(/.test(updJs) &&
+    /chrome:\/\/extensions and press the ↻ reload icon/.test(updJs),
+    'fetch, write, then restart the program you just wrote is the whole shape');
   ok('the updater learns its file list from the repo, not from itself',
     updJs.includes("'/files.json'") &&
     shipped.includes('files.json') &&
@@ -491,12 +501,16 @@ console.log('\nTWO GATES, ONE CORE');
   /* the wrong-COPY trap, caught on a real machine: the granted folder held a
      genuine install of this extension, so the name check passed — but Chrome
      was loaded from a different folder, so every "successful" update changed
-     nothing and v3.8.101 kept running. The probe is the definitive answer:
-     write a file into the granted folder, fetch it through the extension's
-     own URL — it serves ONLY from the folder Chrome actually loaded. */
-  ok('the updater PROVES the folder is the one Chrome runs',
+     nothing and v3.8.101 kept running. Still checked, now WITHOUT writing:
+     the manifest on disk is compared to the manifest chrome.runtime.getURL()
+     serves, which reads out of the folder Chrome actually loaded. The old
+     version proved it by dropping a probe file and deleting it afterwards,
+     on every update, forever — accuracy bought at the price of looking
+     exactly like a dropper. */
+  ok('the updater still proves the folder, and does it read-only',
     updJs.includes('proveLive') && updJs.includes('chrome.runtime.getURL(') &&
-    updJs.includes('removeEntry'),
+    !/removeEntry/.test(updJs) &&
+    /onDisk\.trim\(\) === served\.trim\(\)/.test(updJs),
     'a second copy of the install would swallow updates forever');
   ok('and refuses a proven-dead copy, pointing at Details → Source',
     updJs.includes('Chrome is not running from') &&
