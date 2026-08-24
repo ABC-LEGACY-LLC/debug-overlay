@@ -340,19 +340,20 @@ async function run(repairing) {
 
        This is error handling, not evasion: the write is attempted plainly,
        the refusal is reported, and the user is told what did not change. */
-    /* THIS FILE IS NOT WRITTEN. It used to be written and the failure
-       tolerated — on the theory that a refused write leaves the old file
-       alone. It does not. createWritable() opens a swap over the target, so
-       when a security policy aborts the write partway the ORIGINAL is gone:
-       measured on a real machine, where update.js ended up missing entirely
-       and this page became dead HTML — the script 404'd, so nothing ran and
-       "Checking for updates…" hung forever with no way to fix it from here.
+    /* THIS FILE GOES LAST, and it does go. Both extremes were wrong.
+       Writing it FIRST-among-equals and tolerating the failure destroyed it
+       — a blocked or quarantined write leaves nothing, the page 404s its own
+       script, and the updater is dead. Refusing to write it at all was worse
+       in a way that took longer to see: a bug IN this file then becomes
+       permanent, because the one thing that could ship the fix is the thing
+       that is broken. That is what happened — a typo here survived two
+       releases because the updater kept skipping itself.
 
-       Attempting the write cannot succeed on such a machine and can destroy
-       the updater. Not attempting costs almost nothing: this file reads its
-       file list from the repo on every run, so an older copy keeps updating
-       everything else correctly. It changes rarely, and when it does the ZIP
-       carries it. Skipping is stated out loud rather than done quietly. */
+       So: everything else lands first, the manifest commits, and only then
+       is this file replaced. A failure at that point costs the updater page
+       and nothing else — every other file is already updated and the version
+       is already committed — and the page SAYS so, with the one-line manual
+       fix. update.html ships its warning visible for exactly this case. */
     const SELF = 'update.js';
     const selfStale = texts[SELF] !== undefined &&
                       texts[SELF] !== await readOwn(dir, SELF);
@@ -369,9 +370,27 @@ async function run(repairing) {
       await w.close();
       log('✓ wrote ' + f, 'good');
     }
-    if (selfStale) {
-      log('· ' + SELF + ' is newer in the repo and was NOT written — on purpose', 'warn');
-      log('  (writing it can be blocked partway, which destroys it; the ZIP carries it)', 'warn');
+    /* …and now this file, after the commit. Verified by reading it back:
+       a write that "succeeds" and is then quarantined looks identical to one
+       that worked, and the difference is whether this page exists tomorrow. */
+    let selfLost = null;
+    if (selfStale && texts[SELF] !== undefined) {
+      status('busy', `Replacing ${SELF}…`);
+      ticking('writing ' + SELF);
+      try {
+        const fh = await dir.getFileHandle(SELF, { create: true });
+        const w = await fh.createWritable();
+        await w.write(texts[SELF]);
+        await w.close();
+        const back = await readOwn(dir, SELF);
+        if (back !== texts[SELF]) throw new Error('written, but it did not read back');
+        log('✓ wrote ' + SELF + ' (this page — reload it to run the new one)', 'good');
+      } catch (e) {
+        selfLost = e.message;
+        log('⚠ could not replace ' + SELF + ' — ' + e.message, 'warn');
+        log('  everything ELSE is updated and committed. Copy update.js out of the ' +
+            'ZIP into your install folder to finish.', 'warn');
+      }
     }
     /* Written, and NOT reloaded. This used to count down and then call
        reload the extension itself. Fetch, write, and then restart the
@@ -384,19 +403,18 @@ async function run(repairing) {
        lead with "every file is on disk" and then take it back in the next
        sentence — while a write had in fact been refused. A summary that
        needs its own footnote to stop being wrong is a wrong summary. */
-    $('doneHead').textContent = selfStale
+    $('doneHead').textContent = selfLost
       ? (repairing
           ? `Repaired — every v${remote.version} file is on disk except this page.`
           : `v${remote.version} is on disk, except this page.`)
       : (repairing
           ? `Repaired — every v${remote.version} file is on disk.`
           : `v${remote.version} is on disk.`);
-    if (selfStale) {
+    if (selfLost) {
       $('doneHead').textContent +=
-        ' This update screen is never rewritten by itself, on purpose — writing' +
-        ' it can be interrupted partway, which destroys it. It reads its file' +
-        ' list from the repo every run, so an older copy keeps updating' +
-        ' everything else; the ZIP carries the newer one when you want it.';
+        ' This page could not be replaced (' + selfLost + '). Everything else is' +
+        ' updated and committed — copy update.js out of the ZIP into your install' +
+        ' folder to finish the job.';
     }
     $('doneCount').textContent =
       'One step left: open chrome://extensions and press the ↻ reload icon on ' +

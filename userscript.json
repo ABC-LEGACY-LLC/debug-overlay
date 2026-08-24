@@ -1,7 +1,7 @@
 {
   "name": "Debug Overlay — AI-friendly UI inspector",
   "namespace": "alonur.tools",
-  "version": "3.8.128",
+  "version": "3.8.129",
   "description": "Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.",
   "storeDescription": "Inspect any page: sizes, spacing, contrast, grid. Pin elements, audit the page, copy an AI-ready report.",
   "author": "Alonur",

@@ -403,14 +403,27 @@ console.log('\nTWO GATES, ONE CORE');
      never resolved. Skipping cannot fail, and costs nearly nothing: the
      updater reads its file list from the repo each run, so an older copy
      keeps updating everything else. */
-  ok('the updater never writes its own file — a refused write destroys it',
+  /* THE UPDATER WRITES ITSELF, BUT LAST. Both extremes were wrong and both
+     were shipped. Writing it among the others and tolerating failure
+     destroyed it — the page then 404s its own script and is dead. Refusing
+     to write it at all was worse, more slowly: a bug in this file became
+     permanent, because the only thing that could deliver the fix was the
+     broken thing. A typo survived two releases that way. So it goes after
+     the manifest commit, and it is read back to confirm — a write that
+     "succeeds" and is then quarantined is indistinguishable from one that
+     worked, until tomorrow. */
+  ok('the updater writes its own file LAST, after the manifest commits',
     updJs.includes("const SELF = 'update.js'") &&
     /if \(f === SELF\) continue;/.test(updJs) &&
-    !/if \(f !== SELF\) throw e;/.test(updJs),
-    'attempting it can leave the updater missing and the page dead');
-  ok('and the user is told when the repo has a newer copy of it',
-    /was NOT written — on purpose/.test(updJs),
-    'a silent skip is a lie about what the update did');
+    updJs.indexOf("getFileHandle(SELF") > updJs.indexOf("wrote ' + f, 'good'"),
+    'a bug in the updater can only be fixed by an updater that updates itself');
+  ok('and reads it back, because a quarantine looks like a success',
+    /if \(back !== texts\[SELF\]\) throw new Error/.test(updJs),
+    'a file written then removed reports as written');
+  ok('and if that one write fails, the fix is one line the user can act on',
+    /Copy update\.js out of the/.test(updJs) &&
+    /everything ELSE is updated and committed/.test(updJs),
+    'losing only the updater is recoverable, but only if it says how');
   /* the page must be able to report its own script being gone — the state it
      was in when this was found, where every button rendered and none worked */
   /* NOTHING MAY HANG WITHOUT SAYING SO. "Checking for updates…" with no
@@ -461,7 +474,7 @@ console.log('\nTWO GATES, ONE CORE');
      summary that needs a correction attached to stop being false is a false
      summary — the exception belongs in the sentence that claims success. */
   ok('and the headline itself says so — no claim that a footnote has to retract',
-    /except this page/.test(updJs) && /selfStale\s*\n?\s*\?/.test(updJs),
+    /except this page/.test(updJs) && /selfLost\s*\n?\s*\?/.test(updJs),
     'the completion banner claimed every file landed while one had not');
   ok('and update.js is the ONLY shipped file with the downloader shape',
     ['content.js', 'sw.js', 'side-panel.js'].every((f) => {
@@ -1301,9 +1314,12 @@ let updaterRan = false;
       ok('a repair writes every shipped file',
         shippedList.filter((f) => f !== 'update.js').every((f) => log.includes('wrote ' + f)),
         log.slice(-300));
-      ok('and it does NOT rewrite its own file',
-        !/wrote update\.js/.test(log),
-        'writing it can be interrupted partway, which destroys it');
+      /* it DOES rewrite its own file, last, and the log says so in a way that
+         tells you the running page is now stale — the one thing a
+         self-replacing script must admit */
+      ok('and it rewrites its own file last, telling you to reload the page',
+        /wrote update\.js \(this page — reload it to run the new one\)/.test(log),
+        'a page that replaced itself and said nothing is a page running old code');
       ok('and it finishes without throwing — no "failed:" at the end',
         !/failed:/.test(log),
         log.slice(-300));

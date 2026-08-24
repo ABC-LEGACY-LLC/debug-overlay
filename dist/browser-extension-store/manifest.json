@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Debug Overlay — AI-friendly UI inspector",
-  "version": "3.8.128",
+  "version": "3.8.129",
   "description": "Inspect any page: sizes, spacing, contrast, grid. Pin elements, audit the page, copy an AI-ready report.",
   "content_scripts": [
     {
