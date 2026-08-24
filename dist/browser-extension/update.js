@@ -384,18 +384,19 @@ async function run(repairing) {
        lead with "every file is on disk" and then take it back in the next
        sentence — while a write had in fact been refused. A summary that
        needs its own footnote to stop being wrong is a wrong summary. */
-    $('doneHead').textContent = selfBlocked
+    $('doneHead').textContent = selfStale
       ? (repairing
-          ? `Repaired — every v${remote.version} file is on disk except this one.`
-          : `v${remote.version} is on disk, except this update screen.`)
+          ? `Repaired — every v${remote.version} file is on disk except this page.`
+          : `v${remote.version} is on disk, except this page.`)
       : (repairing
           ? `Repaired — every v${remote.version} file is on disk.`
           : `v${remote.version} is on disk.`);
-    if (selfBlocked) {
+    if (selfStale) {
       $('doneHead').textContent +=
-        ' Security software refused to replace this update screen, so it stays' +
-        ' at the version it has — which changes nothing: it reads its file list' +
-        ' from the repo each time, so it keeps updating everything else.';
+        ' This update screen is never rewritten by itself, on purpose — writing' +
+        ' it can be interrupted partway, which destroys it. It reads its file' +
+        ' list from the repo every run, so an older copy keeps updating' +
+        ' everything else; the ZIP carries the newer one when you want it.';
     }
     $('doneCount').textContent =
       'One step left: open chrome://extensions and press the ↻ reload icon on ' +
@@ -411,13 +412,26 @@ async function run(repairing) {
        write is the way this happens in practice; the updater fetches remote
        files and writes them to disk, which is the behaviour of a downloader,
        and some scanners cannot tell the difference. */
-    const blocked = /Safe Browsing|not allowed|permission|denied|blocked/i.test(e.message);
-    status('bad', blocked ? 'A security check blocked the write.' : 'That did not work.',
-      blocked
-        ? 'Nothing is broken: the manifest is written last, so the folder still ' +
-          'runs the version it had. Press Update again — and if it keeps failing, ' +
-          'this machine is scanning the write; install from the ZIP instead. (' + e.message + ')'
-        : e.message);
+    /* CLASSIFY BY WHAT CHROME ACTUALLY SAYS, and never by a loose word. This
+       matched /blocked/ anywhere, so when a bug in this file threw
+       "selfBlocked is not defined" the page announced a security block that
+       had not happened — after an update that had in fact fully succeeded.
+       A wrong diagnosis is worse than a raw error message: it sends someone
+       to fight their antivirus over a typo. */
+    const isBug = e instanceof ReferenceError || e instanceof TypeError;
+    const blocked = !isBug && /Safe Browsing|security policy|not allowed|NotAllowedError/i
+      .test(e.name + ' ' + e.message);
+    status('bad',
+      isBug ? 'This update page hit a bug in itself.'
+            : blocked ? 'A security check blocked the write.' : 'That did not work.',
+      isBug
+        ? 'Not a security problem and not your install — the files above that say ' +
+          '"wrote" did land. Please report this message: ' + e.name + ': ' + e.message
+        : blocked
+          ? 'Nothing is broken: the manifest is written last, so the folder still ' +
+            'runs the version it had. Press Update again — and if it keeps failing, ' +
+            'this machine is scanning the write; install from the ZIP instead. (' + e.message + ')'
+          : e.message);
   } finally {
     progressDone();
     gate();

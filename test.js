@@ -461,8 +461,7 @@ console.log('\nTWO GATES, ONE CORE');
      summary that needs a correction attached to stop being false is a false
      summary — the exception belongs in the sentence that claims success. */
   ok('and the headline itself says so — no claim that a footnote has to retract',
-    /except this one|except this update screen/.test(updJs) &&
-    /selfBlocked\s*\n?\s*\?/.test(updJs),
+    /except this page/.test(updJs) && /selfStale\s*\n?\s*\?/.test(updJs),
     'the completion banner claimed every file landed while one had not');
   ok('and update.js is the ONLY shipped file with the downloader shape',
     ['content.js', 'sw.js', 'side-panel.js'].every((f) => {
@@ -475,9 +474,19 @@ console.log('\nTWO GATES, ONE CORE');
     updJs.includes('for (const f of order)'),
     'a blocked write would leave a manifest naming files that do not exist');
   ok('and a blocked write says so, and says it is safe to retry',
-    /Safe Browsing\|not allowed/.test(updJs) &&
+    /Safe Browsing\|security policy/.test(updJs) &&
     updJs.includes('A security check blocked the write.'),
     'the commonest real failure would read as an unexplained crash');
+  /* …but ONLY a real one. The classifier matched /blocked/ anywhere, so a
+     bug in this file throwing "selfBlocked is not defined" announced a
+     security block that never happened — after an update that had actually
+     succeeded. A wrong diagnosis sends someone to fight their antivirus over
+     a typo, which is worse than showing the raw error. */
+  ok('and a bug in the page is called a bug, not a security block',
+    /e instanceof ReferenceError \|\| e instanceof TypeError/.test(updJs) &&
+    updJs.includes('This update page hit a bug in itself.') &&
+    !/\|blocked\//.test(updJs),
+    'our own crash was being reported to the user as their antivirus');
   /* THE UPDATER DELETES NOTHING, AND RESTARTS NOTHING. It used to do both:
      sweep retired filenames after a write, and reload the extension itself
      on a countdown. Fetch, write, delete, restart is the complete shape of a
@@ -1194,6 +1203,118 @@ let storageChecked = false;
           storageChecked = true;
         });
       });
+    });
+  });
+}
+
+console.log('\nTHE UPDATER, ACTUALLY RUN');
+/**
+ * Every previous assertion about this file greps its SOURCE. That is why a
+ * plain ReferenceError shipped: `selfBlocked` was renamed in one place and
+ * left behind in two others, `node --check` saw valid syntax, every regex
+ * still matched, and the page crashed at the end of a successful update —
+ * reporting it, thanks to a loose classifier, as a security block that had
+ * not happened.
+ *
+ * So drive the real thing: the shipped update.html + update.js, over mocked
+ * chrome / fetch / IndexedDB / directory handle, and press the buttons. A
+ * crash anywhere in the path now fails here instead of on someone's machine.
+ */
+let updaterRan = false;
+{
+  const extDir = path.join(__dirname, 'dist', 'browser-extension');
+  const html = fs.readFileSync(path.join(extDir, 'update.html'), 'utf8');
+  const js = fs.readFileSync(path.join(extDir, 'update.js'), 'utf8');
+  const localManifest = fs.readFileSync(path.join(extDir, 'manifest.json'), 'utf8');
+  const shippedList = JSON.parse(fs.readFileSync(path.join(extDir, 'files.json'), 'utf8'));
+  const MINE = JSON.parse(localManifest).version;
+
+  /** One updater page, wired to a fake disk and a fake repo. */
+  const rig = (remoteVersion) => {
+    const dom = new JSDOM(html, { url: 'chrome-extension://test/update.html',
+      pretendToBeVisual: true, runScripts: 'outside-only',
+      virtualConsole: new VirtualConsole() });
+    const w = dom.window;
+    const disk = new Map([['manifest.json', localManifest]]);
+    const remoteManifest = localManifest.replace(`"version": "${MINE}"`,
+                                                 `"version": "${remoteVersion}"`);
+    const dirHandle = {
+      name: 'debug-overlay',
+      requestPermission: async () => 'granted',
+      getFileHandle: async (name, opts) => {
+        if (!disk.has(name) && !opts?.create) throw new Error('NotFoundError');
+        return {
+          getFile: async () => ({ text: async () => disk.get(name) }),
+          createWritable: async () => ({
+            write: async (d) => disk.set(name, typeof d === 'string' ? d : '<binary>'),
+            close: async () => {},
+          }),
+        };
+      },
+    };
+    // IndexedDB, only enough of it: this page stores exactly one handle
+    const store = new Map([['dir', dirHandle]]);
+    w.indexedDB = { open: () => {
+      const req = {};
+      setTimeout(() => {
+        req.result = { createObjectStore() {}, transaction: () => ({ objectStore: () => ({
+          get: (k) => { const r = {}; setTimeout(() => { r.result = store.get(k); r.onsuccess?.(); }, 0); return r; },
+          put: (v, k) => { const r = {}; store.set(k, v); setTimeout(() => r.onsuccess?.(), 0); return r; },
+        }) }) };
+        req.onsuccess?.();
+      }, 0);
+      return req;
+    } };
+    w.chrome = { runtime: {
+      id: 'test-id',
+      getManifest: () => JSON.parse(localManifest),
+      getURL: (p) => 'chrome-extension://test/' + p,
+    } };
+    w.fetch = async (url) => {
+      const name = String(url).split('/').pop();
+      // what Chrome SERVES is our own manifest — that is what proveLive compares
+      if (String(url).startsWith('chrome-extension://')) {
+        return { ok: true, text: async () => disk.get(name) };
+      }
+      if (name === 'manifest.json') return { ok: true, text: async () => remoteManifest,
+                                             json: async () => JSON.parse(remoteManifest) };
+      if (name === 'files.json') return { ok: true, text: async () => JSON.stringify(shippedList) };
+      return { ok: true, text: async () => `/* ${name} @ ${remoteVersion} */`,
+               arrayBuffer: async () => new ArrayBuffer(8) };
+    };
+    w.eval(js);
+    return { w, dom, disk, logText: () => w.document.getElementById('log').textContent };
+  };
+
+  // 1) REPAIR — same version, rewrites everything. This is the exact run that
+  //    wrote all eleven files and then died on the last line.
+  const r = rig(MINE);
+  // wait for boot: the folder handle loads from IndexedDB and the opening
+  // check runs, and only then is Verify & repair live
+  whenPainted(() => !r.w.document.getElementById('repair').disabled, () => {
+    r.w.document.getElementById('repair').dispatchEvent(new r.w.MouseEvent('click', { bubbles: true }));
+    // …then for the run to finish: the banner is the last thing it writes
+    whenPainted(() => r.w.document.getElementById('doneHead').textContent.length > 0 ||
+                      /failed:/.test(r.logText()), () => {
+      console.log('\nTHE UPDATER, ACTUALLY RUN');
+      const log = r.logText();
+      ok('a repair writes every shipped file',
+        shippedList.filter((f) => f !== 'update.js').every((f) => log.includes('wrote ' + f)),
+        log.slice(-300));
+      ok('and it does NOT rewrite its own file',
+        !/wrote update\.js/.test(log),
+        'writing it can be interrupted partway, which destroys it');
+      ok('and it finishes without throwing — no "failed:" at the end',
+        !/failed:/.test(log),
+        log.slice(-300));
+      ok('the completion banner actually renders',
+        /is on disk/.test(r.w.document.getElementById('doneHead').textContent),
+        r.w.document.getElementById('doneHead').textContent || '(empty)');
+      ok('and the manifest landed LAST, so a partial run never commits',
+        log.lastIndexOf('wrote manifest.json') > log.lastIndexOf('wrote content.js'),
+        'manifest first would leave a folder naming files that are not there');
+      r.dom.window.close();
+      updaterRan = true;
     });
   });
 }
@@ -3646,7 +3767,7 @@ function whenPainted(ready, run, waited = 0) {
   setTimeout(() => whenPainted(ready, run, waited + 25), 25);
 }
 
-whenPainted(() => perfChecked && sidePanelChecked && storageChecked &&
+whenPainted(() => perfChecked && sidePanelChecked && storageChecked && updaterRan &&
                   window.document.querySelector('#__debug-overlay-root .debug-overlay-flag') &&
                   w3.document.querySelector('#__debug-overlay-root .debug-overlay-badge'), () => {
   console.log('\nREVIEW FIXES (after a frame)');
