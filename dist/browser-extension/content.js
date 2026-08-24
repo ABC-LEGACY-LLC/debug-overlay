@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.135 — extension gate; same bundle as the userscript */
+/* Debug Overlay v3.8.136 — extension gate; same bundle as the userscript */
 (function () {
   'use strict';
 /* NOT a module and NOT bundled: build.js injects this text at the very top
@@ -41,7 +41,7 @@
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.135",
+    VERSION: "3.8.136",
     // Substituted like VERSION: where the update checker asks, and what the
     // userscript's one-click update opens. One source (userscript.json), no
     // second copy to drift.
@@ -2290,7 +2290,10 @@
     #__debug-overlay-root :focus-visible { outline: 2px solid #58c4ff; outline-offset: 2px; }
     /* WCAG 2.5.8 wants 24x24. These three were 18x21, 20x20 and 15x15. */
     #__debug-overlay-bar .debug-overlay-cnt { min-width: 24px; min-height: 24px; }
-    #__debug-overlay-list .debug-overlay-rm { width: 24px; height: 24px; }
+    /* already at the floor — kept explicit because it is DESTRUCTIVE and the
+       smallest interactive thing in a scrolling list (audit S5) */
+    #__debug-overlay-list .debug-overlay-rm { width: 24px; height: 24px;
+      display: inline-flex; align-items: center; justify-content: center; }
     #__debug-overlay-list .debug-overlay-tick { width: 24px; height: 24px; }
     #__debug-overlay-bar .debug-overlay-cnt.debug-overlay-armed { background: #ff8a65; color: #1a1a1a; }
 
@@ -2328,7 +2331,11 @@
       box-shadow: 0 4px 18px rgba(0,0,0,.55); user-select: none; touch-action: none;
       transition: transform .22s cubic-bezier(.2,.8,.3,1), opacity .22s ease; }
     #__debug-overlay-bar.debug-overlay-dragging { transition: none; opacity: .9; }
-    #__debug-overlay-bar .debug-overlay-grip { width: 22px; height: 12px; cursor: grab; flex: none;
+    /* 24px is a FLOOR, not a target (audit S5). This was 22x12 — under the
+       floor on both axes, on the control that positions the entire overlay,
+       while every button beside it is 34px. The hit area grows; the dots
+       stay small, because ink size and target size are separate things. */
+    #__debug-overlay-bar .debug-overlay-grip { width: 24px; height: 24px; cursor: grab; flex: none;
       display: flex; align-items: center; justify-content: center;
       color: #6a6a72; font-size: 11px; letter-spacing: 1px; line-height: 1; }
     #__debug-overlay-bar.debug-overlay-dragging .debug-overlay-grip { cursor: grabbing; }
@@ -2438,9 +2445,25 @@
     #__debug-overlay-bar .debug-overlay-cnt.debug-overlay-armed:hover { background: #ff8a65; }
 
     /* tool + action buttons */
+    /* ONE SHAPE PER ROLE CLASS (audit S3). These three used to share one
+       rule, so eleven controls were the same circle and the only thing
+       separating an input from a detector from a destructive action was a
+       1px hairline. Same 34px box for all of them — the column rhythm and
+       the 24px floor are untouched — but three silhouettes:
+         circle    a DETECTOR: changes what you see, changes nothing else
+         squircle  an INPUT: your clicks become pins and groups
+         rounded   an ACTION: does something to the page or the session
+       The role is derived from hooks where the button is built, so no tool
+       id appears there or here. Two things this comment must not contain,
+       both learned the hard way: a backtick (this whole sheet is one
+       template literal) and a bare dotted filename (the namespace test
+       reads every dot-token here as a class name). */
     #__debug-overlay-bar button.debug-overlay-tool, #__debug-overlay-bar button.debug-overlay-act, #__debug-overlay-bar button.debug-overlay-bctl {
       width: 34px; height: 34px; border-radius: 50%; border: 0; cursor: pointer;
       background: #2c2c31; color: #fff; font-size: 15px; }
+    #__debug-overlay-bar button.debug-overlay-tool.debug-overlay-input { border-radius: 11px; }
+    #__debug-overlay-bar button.debug-overlay-act {
+      border-radius: 9px; border: 1px solid #3f3f46; background: #232328; }
     /* NO display here: .debug-overlay-whenOn owns display (none ↔ flex with centring), and
        a more specific display on the buttons out-guns the hider — the exact
        mistake the fam flyout already made once. One icon set (lucide, ISC),
@@ -2784,7 +2807,8 @@
     WebPanel = (() => {
       const el2 = document.createElement("div");
       el2.id = "__debug-overlay-bar";
-      const toolBtn = (t) => `<button class="debug-overlay-tool debug-overlay-whenOn ${Tools.feedsAudit(t) ? "debug-overlay-checks" : ""}" data-tool="${t.id}" title="${t.family ? t.family[0].toUpperCase() + t.family.slice(1) + " › " : ""}${t.title}
+      const isInput = (t) => Tools.rolesOf(t).includes("Select");
+      const toolBtn = (t) => `<button class="debug-overlay-tool debug-overlay-whenOn ${isInput(t) ? "debug-overlay-input" : ""} ${Tools.feedsAudit(t) ? "debug-overlay-checks" : ""}" data-tool="${t.id}" title="${t.family ? t.family[0].toUpperCase() + t.family.slice(1) + " › " : ""}${t.title}
 ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the page audit" : ""}${t.options || t.uses ? "\nright-click for its options" : ""}">${t.icon}</button>`;
       const toolRuns = Tools.runs().map((run) => {
         const out = [];

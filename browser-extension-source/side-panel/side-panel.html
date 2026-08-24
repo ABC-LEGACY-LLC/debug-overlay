@@ -83,7 +83,7 @@
   #badge .grp > .lbl { color: #8f8f96; font-size: 11px; margin: 0 0 4px; }
   #badge .members { display: flex; flex-wrap: wrap; gap: 5px; }
   #badge .members button { padding: 4px 9px; border-radius: 999px; font-size: 12px;
-    display: inline-flex; align-items: center; gap: 6px; }
+    display: inline-flex; align-items: center; gap: 6px; min-height: 24px; }
   #badge .members svg { width: 13px; height: 13px; }
 
   /* the lists: three view buttons, one rows panel under them */
@@ -118,8 +118,11 @@
   .rrow .go { flex: 1; display: flex; align-items: center; gap: 8px; background: none;
     border: 0; padding: 0; text-align: left; min-width: 0; font-size: inherit; cursor: pointer; }
   .rrow .go:hover { background: none; }
+  /* the smallest interactive element in a scrolling list, and destructive */
   .rm { flex: none; background: none; border: 0; color: #8f8f96; padding: 2px 6px;
-    border-radius: 6px; font-size: 12px; cursor: pointer; }
+    border-radius: 6px; font-size: 12px; cursor: pointer;
+    min-width: 24px; min-height: 24px;
+    display: inline-flex; align-items: center; justify-content: center; }
   .rm:hover { color: #ff5c5c; background: #2c2228; }
   .rrow select, .rrow input[type="number"] { font: inherit; color: inherit;
     background: #17171b; border: 1px solid #3a3a42; border-radius: 6px; padding: 3px 6px; }
@@ -135,8 +138,11 @@
 
   /* the timeline: history the page cannot hold — newest first */
   #tlHead { display: flex; align-items: center; gap: 8px; }
+  /* 24px is a floor, not a target (audit S5). These rendered at ~14px,
+     ~18px and ~22px tall; the ink is unchanged, the hit area is not. */
   .mini { padding: 1px 8px; font-size: 10px; font-weight: 600; border-radius: 999px;
-    text-transform: none; letter-spacing: 0; }
+    text-transform: none; letter-spacing: 0;
+    min-height: 24px; display: inline-flex; align-items: center; }
   #timeline { background: #202026; border: 1px solid #2e2e34; border-radius: 10px;
     padding: 6px; max-height: 34vh; overflow: auto; }
   #timeline .empty { color: #8f8f96; font-size: 12px; padding: 8px; }

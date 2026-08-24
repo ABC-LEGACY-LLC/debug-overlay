@@ -24,8 +24,16 @@ import { List } from './list.js';
      * wiring, so arming and menus need no second code path. One button per
      * family, so a family that grows shrinks the bar rather than growing it.
      */
+    /* THE SHAPE DECLARES THE ROLE (audit S3). Every control in the bar was
+       one 34px circle — inputs, detectors and actions alike — so nothing but
+       a 1px hairline said which button changes what you SEE and which one
+       acts on the page, and one of the actions is destructive. The class is
+       derived from the SELECT role, never from an id: a tool that keeps or
+       groups selections is an input, and a lasso shipped tomorrow gets the
+       input shape without this file learning its name. */
+    const isInput = (t) => Tools.rolesOf(t).includes('Select');
     const toolBtn = (t) =>
-      `<button class="debug-overlay-tool debug-overlay-whenOn ${Tools.feedsAudit(t) ? 'debug-overlay-checks' : ''}" data-tool="${t.id}"` +
+      `<button class="debug-overlay-tool debug-overlay-whenOn ${isInput(t) ? 'debug-overlay-input' : ''} ${Tools.feedsAudit(t) ? 'debug-overlay-checks' : ''}" data-tool="${t.id}"` +
       ` title="${t.family ? t.family[0].toUpperCase() + t.family.slice(1) + ' › ' : ''}` +
       `${t.title}\n${Tools.rolesOf(t).join(' · ')}` +
       `${Tools.feedsAudit(t) ? ' · also runs in the page audit' : ''}` +

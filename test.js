@@ -130,18 +130,46 @@ ok('the decorative layer is hidden from a11y',
 ok('the overlay is never made inert', root && !root.hasAttribute('inert'),
   'inert would take the power button and the drag grip with it');
 
-ok('the decorative layer is hidden from a11y',
-  !!root && [...root.children].some((c) =>
-    c.tagName === 'DIV' && c.getAttribute('aria-hidden') === 'true'),
-  'the painted layer carries no text anyone needs announced');
-/* NEVER inert. jsdom sets the attribute without implementing its semantics, so
-   this can only assert the attribute is absent — but in a real browser inert
-   disables the whole subtree, and that includes ⏻ and the grip. v3.8.48 shipped
-   with it and the panel could not be switched back on by mouse at all. What
-   inert was meant to achieve is already true: everything that should be
-   unreachable when off is `display: none`. */
-ok('the overlay is never made inert', root && !root.hasAttribute('inert'),
-  'inert would take the power button and the drag grip with it');
+/* LAYOUT AUDIT (ux-audit-composition-layout v1.1.0, 2026-08-24).
+   S3 — the shape declares the role. Every control in the bar was one 34px
+   circle, so nothing but a 1px hairline separated an input from a detector
+   from a DESTRUCTIVE action. Three silhouettes now, same box, and the class
+   comes from the derived Select role — no tool id anywhere, so a lasso
+   shipped tomorrow is shaped correctly without this file learning its name. */
+{
+  const barCss = [...window.document.querySelectorAll('#__debug-overlay-root style')]
+    .map((s) => s.textContent).join('\n');
+  const radius = (sel) => {
+    const i = barCss.indexOf(sel);
+    if (i < 0) return null;
+    const m = barCss.slice(i).match(/border-radius:\s*([^;]+);/);
+    return m && m[1].trim();
+  };
+  const detector = radius('button.debug-overlay-tool, #__debug-overlay-bar button.debug-overlay-act');
+  const input = radius('button.debug-overlay-tool.debug-overlay-input');
+  const action = radius('#__debug-overlay-bar button.debug-overlay-act {');
+  ok('inputs, detectors and actions do not share one silhouette',
+    !!detector && !!input && !!action && new Set([detector, input, action]).size === 3,
+    `detector=${detector} input=${input} action=${action}`);
+  ok('and the input shape comes from the ROLE, never from a tool id',
+    /rolesOf\(t\)\.includes\("Select"\)|rolesOf\(t\)\.includes\('Select'\)/.test(source),
+    'a lasso shipped tomorrow must get the right shape without being named here');
+  /* S5 — 24px is a FLOOR, not a target. The grip was 22x12 while being the
+     control that positions the whole overlay. Ink size and target size are
+     separate: this sweeps every fixed box the bar declares. */
+  const tooSmall = [...barCss.matchAll(/([^{}]+)\{([^}]*)\}/g)]
+    .filter(([, sel]) => /#__debug-overlay-bar/.test(sel))
+    // interactive only: a button, or the grip that drags the whole bar.
+    // svg/::after/hr are ink and dividers — the floor is about hit areas.
+    .filter(([, sel]) => /button|debug-overlay-grip/.test(sel) &&
+                         !/svg|::after|::before|\bhr\b/.test(sel))
+    .map(([, sel, body]) => [sel, body.match(/width:\s*(\d+)px/),
+                             body.match(/height:\s*(\d+)px/)])
+    .filter(([, w, h]) => (w && Number(w[1]) < 24) || (h && Number(h[1]) < 24))
+    .map(([sel, w, h]) => `${sel.trim().slice(-28)} ${w && w[1]}x${h && h[1]}`);
+  ok('nothing interactive in the bar sits below the 24px floor',
+    tooSmall.length === 0, `below floor: ${tooSmall.join(', ')}`);
+}
 /* THE RENAME'S ONE SILENT DANGER. During an update an OLD instance can be
    live in the page while a new build injects into a fresh sandbox: the
    window flag is gone but the old root is still in the DOM. A guard that
