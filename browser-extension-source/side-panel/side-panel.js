@@ -60,6 +60,28 @@ for (const [sel, ic] of [['[data-sweep]', IC.sweep], ['[data-copy]', IC.copy], [
 putIcon($('#optBtn'), IC.gear);
 putIcon($('#webBtn'), IC.webPanel);
 
+/* WHAT THIS BUILD CAN ACTUALLY DO — asked of our own manifest, at startup.
+   Both of these are facts about the EXTENSION, not about the page: the side
+   panel and the content script are one extension with one manifest, so there
+   is nothing to ask the page about and no reason to wait for it. Waiting was
+   the bug in the first attempt at this — the controls start visible in the
+   HTML, so a side panel sitting on "waiting for a page" showed both of them,
+   dead, which is the exact symptom this is meant to remove.
+
+   The clean build ships no options_ui (nothing for the gear to open) and no
+   host_permissions (the update check can never reach the update host, so
+   "Check for updates" could only ever fail — and a failure that renders as
+   "✓ current" is a confident lie, not a silence). Hide rather than disable:
+   a control that cannot work in THIS build is not a disabled control, it is
+   not a control. A throw is treated as capable, matching the page-side
+   check — it cannot happen on an extension page, and if it somehow did,
+   losing the full build's updater would be the worse failure. */
+try {
+  const mf = chrome.runtime.getManifest();
+  $('#optBtn').hidden = !mf.options_ui;
+  $('[data-upd]').hidden = !(mf.host_permissions && mf.host_permissions.length);
+} catch {}
+
 const flashing = new Map();
 function flash(msg, sel) {
   const b = $(sel);
@@ -369,18 +391,6 @@ const render = {
   },
   page([origin]) {
     status('connected · ' + String(origin || '').replace(/^\w+:\/\//, ''), 'ok');
-  },
-  /* Hide, never disable-and-leave-visible: a control that cannot ever work
-     in THIS build is not a control, it is a promise the page cannot keep.
-     The gear opened "Extension options — updates & repair" — a page that
-     does not exist in the clean build, so pressing it did nothing and said
-     nothing. "Check for updates" was worse: it always failed to reach the
-     network and reported that failure as "✓ current", which is confidently
-     wrong, not silent. Both are gated on what THIS install can actually do,
-     sent once on hello. */
-  capabilities([caps]) {
-    $('#optBtn').hidden = !caps.options;
-    $('[data-upd]').hidden = !caps.updates;
   },
   badgeControls([groups]) {
     const box = $('#badge');

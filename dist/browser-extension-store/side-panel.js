@@ -22,10 +22,6 @@
     // (version|null) — a forced check's answer, null = current
     page: null,
     // (origin) — whose page this connection speaks for
-    capabilities: null,
-    // ({updates, options}) — what this build's chrome APIs can
-    // actually do; sent on hello, so the side panel never offers
-    // a control it cannot honour
     webPanel: null,
     // (visible) — is the on-page bar showing alongside us
     flash: null,
@@ -132,7 +128,7 @@
   };
 
   // browser-extension-source/side-panel/side-panel.js
-  var VERSION = "3.8.119";
+  var VERSION = "3.8.120";
   var $ = (s) => document.querySelector(s);
   var body = document.body;
   var IC = {
@@ -164,6 +160,12 @@
     putIcon($(sel + " .ic"), ic);
   putIcon($("#optBtn"), IC.gear);
   putIcon($("#webBtn"), IC.webPanel);
+  try {
+    const mf = chrome.runtime.getManifest();
+    $("#optBtn").hidden = !mf.options_ui;
+    $("[data-upd]").hidden = !(mf.host_permissions && mf.host_permissions.length);
+  } catch {
+  }
   var flashing = /* @__PURE__ */ new Map();
   function flash(msg, sel) {
     const b = $(sel);
@@ -466,18 +468,6 @@
     },
     page([origin]) {
       status("connected · " + String(origin || "").replace(/^\w+:\/\//, ""), "ok");
-    },
-    /* Hide, never disable-and-leave-visible: a control that cannot ever work
-       in THIS build is not a control, it is a promise the page cannot keep.
-       The gear opened "Extension options — updates & repair" — a page that
-       does not exist in the clean build, so pressing it did nothing and said
-       nothing. "Check for updates" was worse: it always failed to reach the
-       network and reported that failure as "✓ current", which is confidently
-       wrong, not silent. Both are gated on what THIS install can actually do,
-       sent once on hello. */
-    capabilities([caps]) {
-      $("#optBtn").hidden = !caps.options;
-      $("[data-upd]").hidden = !caps.updates;
     },
     badgeControls([groups]) {
       const box = $("#badge");

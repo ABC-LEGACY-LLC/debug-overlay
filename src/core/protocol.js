@@ -47,9 +47,6 @@ const STATE = {
         update: null,             // (version) — a KNOWN newer version exists
         checked: null,            // (version|null) — a forced check's answer, null = current
         page: null,               // (origin) — whose page this connection speaks for
-        capabilities: null,       // ({updates, options}) — what this build's chrome APIs can
-                                  // actually do; sent on hello, so the side panel never offers
-                                  // a control it cannot honour
         webPanel: null,           // (visible) — is the on-page bar showing alongside us
         flash: null,              // (msg, sel)
         badgeControls: (groups) => [groups.map(packBadgeGroup)],
