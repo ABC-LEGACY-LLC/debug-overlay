@@ -61,11 +61,12 @@ keeps running the old version until it reloads.
 
 ---
 
-### Option B2 — Browser extension with the in-browser updater *(recommended)*
+### Option B — Browser extension *(recommended)*
 
-Same overlay, plus an update screen that fetches new files and writes them
-into your install folder — so updating is a button, not a download-and-extract
-round trip. This is what the project develops against.
+Same overlay, plus a side panel that survives page reloads and an update
+screen that fetches new files and writes them into your install folder — so
+updating is a button, not a download-and-extract round trip. This is what the
+project develops against.
 
 It **deletes nothing and restarts nothing**. It used to do both, and that was
 the mistake: fetch, write, delete, then restart the program you just wrote is
@@ -74,7 +75,8 @@ quarantining the files, which removed them from disk and made Chrome drop the
 extension. Sweeping stale filenames was cosmetic (Chrome loads only what the
 manifest names) and the auto-reload saved a single click. What is left is
 fetch and write, which *is* the update. If a scanner still objects on your
-machine, Option B is the fallback.
+machine, tell the updater to skip that one file by installing from the ZIP
+instead — everything else still updates.
 
 **Step 1.** Download the ZIP:
 
@@ -117,37 +119,6 @@ one-time.
 
 *Firefox:* has no File System Access API and no persistent unpacked installs —
 use Option A there.
-
----
-
-### Option B — Browser extension, no updater *(fallback)*
-
-Two extension builds exist. This one contains **no self-updater at all** —
-use it only if Option B2's updater is blocked on your machine even after the
-reductions described there. Updating means re-downloading the ZIP and
-extracting it over the same folder.
-
-**Step 1.** Download and extract:
-
-```
-https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/browser-extension-store/debug-overlay-no-updater.zip
-```
-
-**Step 2.** Keep the folder somewhere permanent (not Downloads). Prefer a
-click-through walk-through? Open **`guide.html`** from inside that folder —
-same steps, in a page, with a copy button for the address below. It touches
-nothing on disk; it only tells you where to click.
-
-**Step 3.** `chrome://extensions` → **Developer mode** ON → **Load unpacked**
-→ select that folder.
-
-**Step 4.** Open any website: **Alt+Shift+D** for the web panel, or the
-toolbar button for the side panel.
-
-*Getting updates:* download the newer ZIP, extract it over the same folder,
-and press ↻ on `chrome://extensions`. No update button — on purpose. Once
-this is published to the Web Store it becomes one click and Chrome updates it
-silently; see **[STORE.md](STORE.md)**.
 
 ---
 
@@ -211,7 +182,7 @@ then only needs you to sign in; the script arrives on its own.
   and only the first two are the update. Sweeping stale filenames was
   cosmetic (Chrome loads only what the manifest names) and the auto-reload
   saved one click, so both went. If a scanner still objects on your machine,
-  Option B has no updater at all. For the record: the extension contains no
+  install from the ZIP instead. For the record: the extension contains no
   `eval`, no remote code execution, and reaches exactly one host,
   `raw.githubusercontent.com`; `npm run check` verifies the published files
   are byte-identical to a build from source.
@@ -236,18 +207,6 @@ old name — the redirect dies the day anyone claims it, silently.
 
 ### The permanent fix for install and update friction
 
-Both options above need Developer mode, a folder, or a userscript manager —
-and the extension's self-updater has to WRITE ITS OWN FILES to disk, which is
-the behaviour of a downloader and which security software and managed-machine
-policies will block. That is not fixable in code; it is the shape of an
-unpacked extension.
-
-`npm run ship` therefore also builds **`dist/browser-extension-store/`** — a
-Web Store package with every piece of update machinery removed and **no host
-permissions at all**. Published there, install is one click, Chrome does the
-updating silently, and no scanner is ever involved. See **[STORE.md](STORE.md)**
-for the listing copy, permission justifications, and submission steps.
-
 ### What lives where in dist/
 
 ```
@@ -262,12 +221,6 @@ dist/
     icon16/32/48/128.png  files.json       the face, and the updater's file list
     install.html  install.bat              the no-cmd installer (+ cmd variant)
     debug-overlay-extension.zip     ← the one-link install
-  browser-extension-store/    the Web Store package — see STORE.md
-    manifest.json  content.js  sw.js       no host permission, no updater
-    side-panel.html  side-panel.js         same side panel as above
-    icon16/32/48/128.png
-    INSTALL.txt  guide.html               two install guides, neither writes anything
-    debug-overlay-no-updater.zip     ← Option B's download, and the store upload
   debug-overlay.user.js  LEGACY BRIDGE — never delete: installs from before
   debug-overlay.meta.js  the restructure poll this path forever; these
                          byte-identical copies point at script/, so an old

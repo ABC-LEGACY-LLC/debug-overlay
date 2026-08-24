@@ -701,8 +701,17 @@ let sidePanelChecked = false;
   // fake chrome.runtime.getManifest() that drifts from what build.js
   // actually emits would pass tests against a build nobody ships
   const fullManifest = JSON.parse(fs.readFileSync(path.join(extDir, 'manifest.json'), 'utf8'));
-  const cleanManifest = JSON.parse(fs.readFileSync(
-    path.join(__dirname, 'dist', 'browser-extension-store', 'manifest.json'), 'utf8'));
+  /* A manifest with nothing behind the two optional controls, derived from
+     the real one by removing exactly those keys. Built here rather than read
+     off disk: this asserts what the CODE does with a manifest shape, so
+     isolating the two variables is the point, and it does not go stale when
+     the set of shipped packages changes. */
+  const cleanManifest = (() => {
+    const m = JSON.parse(JSON.stringify(fullManifest));
+    delete m.options_ui;        // nothing for the gear to open
+    delete m.host_permissions;  // no way to reach the update host
+    return m;
+  })();
 
   // the content side: a page window whose chrome looks like a content script's.
   // manifest defaults to the FULL gate's shape — this rig is testing
@@ -1333,131 +1342,6 @@ let updaterRan = false;
       updaterRan = true;
     });
   });
-}
-
-console.log('\nTHE STORE PACKAGE');
-/**
- * The third artifact, and the one that ends the self-update problem rather
- * than managing it: published through the Web Store, Chrome does the
- * updating, so nothing fetches, nothing writes to disk, and nothing looks
- * like a downloader to a scanner. These assertions hold it to that — the
- * moment update machinery creeps back in, it stops being reviewable.
- */
-{
-  const storeDir = path.join(__dirname, 'dist', 'browser-extension-store');
-  const sm = JSON.parse(fs.readFileSync(path.join(storeDir, 'manifest.json'), 'utf8'));
-  const cfgS = JSON.parse(fs.readFileSync(path.join(__dirname, 'userscript.json'), 'utf8'));
-  ok('the store build asks for NO host permission at all',
-    !sm.host_permissions,
-    'the only reason one was ever needed was the update check it no longer does');
-  ok('and carries no update machinery whatsoever',
-    !sm.options_ui &&
-    ['update.js', 'update.html', 'install.html', 'install.bat', 'files.json']
-      .every((f) => !fs.existsSync(path.join(storeDir, f))),
-    'a store extension that updates itself is against store policy AND is the ' +
-    'exact shape security software refuses');
-  /* the DROPPER shape is fetch AND write AND delete AND reload together —
-     fetching alone is what every web page does. Nothing here writes to disk,
-     removes anything, or reloads a program. */
-  ok('nothing in it writes to disk, deletes, or reloads',
-    fs.readdirSync(storeDir).filter((f) => f.endsWith('.js')).every((f) => {
-      const s = fs.readFileSync(path.join(storeDir, f), 'utf8');
-      return !/createWritable|getFileHandle|removeEntry|runtime\.reload/.test(s);
-    }),
-    'the downloader shape came back');
-  /* The shared bundle still CONTAINS the update checker — it is the same
-     bundle as the other two gates, and splitting it would be a third copy of
-     the core to drift. What matters is that this build cannot REACH the
-     update host: no host permission, and a worker with no fetch relay. Both
-     are the reviewer's to verify, and the suite's to keep true. */
-  ok('and it cannot reach the update host even though the bundle names it',
-    !sm.host_permissions &&
-    !/fetch\s*\(/.test(fs.readFileSync(path.join(storeDir, 'sw.js'), 'utf8')),
-    'a build with a way out is a build that must justify the way out');
-  ok('the bundle inside is the SAME bundle, byte for byte',
-    fs.readFileSync(path.join(storeDir, 'content.js')).equals(
-      fs.readFileSync(path.join(__dirname, 'dist', 'browser-extension', 'content.js'))),
-    'a third gate with its own copy of the core is a third thing to drift');
-  ok('the listing description fits what the store allows',
-    sm.description === cfgS.storeDescription && sm.description.length <= 132,
-    `${sm.description.length} chars`);
-  const szip = fs.readFileSync(path.join(storeDir, 'debug-overlay-no-updater.zip'));
-  /* the same package installs UNPACKED for anyone whose machine quarantines
-     the updater — measured twice on a real managed machine, where the
-     quarantine deleted the files and Chrome dropped the extension. Someone
-     who just extracted a ZIP looks inside it for instructions, so that is
-     where they are. */
-  const installTxt = fs.readFileSync(path.join(storeDir, 'INSTALL.txt'), 'utf8');
-  const guideHtml = fs.readFileSync(path.join(storeDir, 'guide.html'), 'utf8');
-  ok('it carries its own install instructions, inside the ZIP',
-    /Load unpacked/.test(installTxt),
-    'a downloaded folder with no instructions in it is a puzzle');
-  /* THE WRONG-ZIP TRAP, walked into for real. Two downloads exist and this
-     one lacks the update button — and it was once called "clean", which
-     reads like the better one, so it got downloaded again and again by
-     someone looking for exactly the feature it does not have. The name says
-     what it lacks now, and both guides inside it name the other ZIP, so
-     arriving here by mistake is self-correcting rather than silent. */
-  for (const [what, body] of [['INSTALL.txt', installTxt],
-                              ['guide.html', guideHtml]]) {
-    ok(`${what} says this build has no updater, and names the ZIP that does`,
-      /no update button/i.test(body) && /debug-overlay-extension\.zip/.test(body),
-      'someone here by mistake would keep looking for a button that is not coming');
-  }
-  /* A .txt file is what someone sees the instant they open the folder; it is
-     not what makes the walk-through EASY for someone who does not know what
-     "Load unpacked" means. guide.html is the same steps as a clickable page —
-     copy button for chrome://extensions, real version number — and since
-     this build has no reason to touch the filesystem at all, the guide must
-     not gain any write capability either: that would be the exact shape this
-     whole package exists to avoid. */
-  ok('and a clickable guide rides alongside it — no plain text wall',
-    guideHtml.includes('Load unpacked') && guideHtml.includes(`v${cfgS.version}`) &&
-    guideHtml.includes("navigator.clipboard.writeText('chrome://extensions')"),
-    'a first-time installer with only a .txt file is the friction this build was meant to remove');
-  ok('the guide touches no filesystem API — it only tells you where to click',
-    !/showDirectoryPicker|createWritable|getFileHandle|removeEntry/.test(guideHtml),
-    'an instructional page that can also write files is a second copy of the thing this package refuses to be');
-  ok('and it ships as an uploadable ZIP',
-    szip.length > 1000 && szip.readUInt32LE(0) === 0x04034b50,
-    'the store takes a ZIP, so the build makes one');
-  /* THE ZIP IS THE PRODUCT — for the store AND for Load Unpacked. Chrome
-     refuses an extension whose manifest names a file that is not there, and
-     it refuses it at load time with a message most people will not go
-     looking for. So resolve every reference the manifest makes, plus every
-     src/href the side panel's own page makes, against the ZIP's actual
-     entries. A file dropped from RUNTIME in build.js is otherwise invisible
-     until someone installs it. */
-  {
-    const zipNames = (() => {
-      const SIG = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
-      const out = [];
-      let i = szip.indexOf(SIG);
-      while (i !== -1 && i + 30 <= szip.length) {
-        const n = szip.readUInt16LE(i + 26);
-        if (i + 30 + n > szip.length) break;
-        out.push(szip.subarray(i + 30, i + 30 + n).toString());
-        i = szip.indexOf(SIG, i + 4);
-      }
-      return out;
-    })();
-    const need = new Set(['manifest.json']);
-    for (const cs of sm.content_scripts || []) (cs.js || []).forEach((f) => need.add(f));
-    if (sm.background) need.add(sm.background.service_worker);
-    if (sm.side_panel) need.add(sm.side_panel.default_path);
-    if (sm.options_ui) need.add(sm.options_ui.page);
-    Object.values(sm.icons || {}).forEach((f) => need.add(f));
-    Object.values(sm.action?.default_icon || {}).forEach((f) => need.add(f));
-    // whatever the side panel page itself pulls in — its script and favicon
-    const panelHtml = fs.readFileSync(path.join(storeDir, sm.side_panel.default_path), 'utf8');
-    for (const m of panelHtml.matchAll(/(?:src|href)="([^"]+)"/g)) {
-      if (!/^(https?:|data:|#)/.test(m[1])) need.add(m[1]);
-    }
-    const missing = [...need].filter((f) => !zipNames.includes(f));
-    ok('every file the manifest and the side panel reference is IN the ZIP',
-      missing.length === 0,
-      `missing from the ZIP: ${missing.join(', ')}`);
-  }
 }
 
 console.log('\nSTYLESHEET');
