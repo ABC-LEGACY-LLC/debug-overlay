@@ -48,6 +48,7 @@
   section { margin: 0 0 16px; }
   h2 { font-size: 10px; font-weight: 800; letter-spacing: 1px; color: #8f8f96;
     text-transform: uppercase; margin: 0 0 8px; }
+  .secnote { color: #8f8f96; font-size: 11px; margin: -4px 0 8px; line-height: 1.4; }
 
   button { font: inherit; color: inherit; background: #26262c; border: 1px solid #33333a;
     border-radius: 8px; cursor: pointer; padding: 7px 10px; text-align: left; }
@@ -190,7 +191,13 @@
       <div id="tools"></div>
     </section>
     <section class="whenOn">
-      <h2>Badge</h2>
+      <!-- "Badge" was the name of a rendering mode, not of anything the user
+           can point at (audit C1). The heading now says what it controls, and
+           the line under it names the object it acts ON before introducing
+           View/Facets, which were five new nouns arriving unexplained. -->
+      <h2>Badge contents</h2>
+      <p class="secnote">What each armed tool prints on the element you hover
+        or pin.</p>
       <div id="badge"></div>
     </section>
     <section class="whenOn">

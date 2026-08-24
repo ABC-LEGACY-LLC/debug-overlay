@@ -129,6 +129,19 @@ ok('the decorative layer is hidden from a11y',
    unreachable when off is `display: none`. */
 ok('the overlay is never made inert', root && !root.hasAttribute('inert'),
   'inert would take the power button and the drag grip with it');
+
+ok('the decorative layer is hidden from a11y',
+  !!root && [...root.children].some((c) =>
+    c.tagName === 'DIV' && c.getAttribute('aria-hidden') === 'true'),
+  'the painted layer carries no text anyone needs announced');
+/* NEVER inert. jsdom sets the attribute without implementing its semantics, so
+   this can only assert the attribute is absent — but in a real browser inert
+   disables the whole subtree, and that includes ⏻ and the grip. v3.8.48 shipped
+   with it and the panel could not be switched back on by mouse at all. What
+   inert was meant to achieve is already true: everything that should be
+   unreachable when off is `display: none`. */
+ok('the overlay is never made inert', root && !root.hasAttribute('inert'),
+  'inert would take the power button and the drag grip with it');
 /* THE RENAME'S ONE SILENT DANGER. During an update an OLD instance can be
    live in the page while a new build injects into a fresh sandbox: the
    window flag is gone but the old root is still in the DOM. A guard that
@@ -548,6 +561,35 @@ console.log('\nTWO GATES, ONE CORE');
      push land yet?" is asked minutes later, and reloading a settings page to
      find out is not an answer. Every reply carries the time it was given, so
      re-checking an unchanged answer still visibly happened. */
+  /* AUDIT FIXES (ux-audit-psychology, 2026-08-24) — each pins a finding.
+     C3: a disabled control that says nothing reads as a broken control; both
+     buttons here grey out from a cause one card above them. P2: a step that
+     is done must stop looking like a step that is waiting. */
+  ok('every disabled state names what would enable it',
+    updJs.includes("$('gateWhy')") &&
+    /Both buttons need step 1 first/.test(updJs) &&
+    /Nothing to update/.test(updJs),
+    'a silently disabled button is indistinguishable from a broken one');
+  ok('and a finished step stops looking unfinished',
+    /\$\('step1'\)\.classList\.toggle\('done', haveFolder\)/.test(updJs) &&
+    /\.step\.done::after \{ content: '✓'/.test(updHtml),
+    'numbered steps that never complete give no sense of progress');
+  /* P1 + C3 on the install flow: a blank decision at the worst moment, and a
+     browser requirement whose consequence was never stated. */
+  {
+    const inst2 = fs.readFileSync(path.join(extDir, 'install.html'), 'utf8');
+    ok('the installer names a concrete folder instead of "somewhere permanent"',
+      /Documents\\debug-overlay/.test(inst2),
+      'the strongest default is the one the user does not have to invent');
+    ok('and explains Developer mode, including that turning it off breaks things',
+      /Chrome requires it for any/.test(inst2) &&
+      /disables Debug Overlay/.test(inst2),
+      'a user tidying their browser later loses the product with no idea why');
+    ok('and says what the thing DOES before asking for five steps of setup',
+      /What you are installing/.test(inst2) && inst2.indexOf('What you are installing') <
+        inst2.indexOf('Step 2 — write the files'),
+      'all give and no get, before the first pixel of value');
+  }
   ok('the update screen can be asked again, by hand',
     updHtml.includes('id="check"') && updJs.includes("$('check').addEventListener('click', check)"),
     'the only way to re-check would be reloading the page');
@@ -1350,6 +1392,40 @@ let updaterRan = false;
       updaterRan = true;
     });
   });
+}
+
+/* AUDIT FIX (C3 — first-run comprehension). Powered on with nothing pinned,
+   the bar showed eleven controls and no instruction. The sentence explaining
+   the core gesture DID exist — inside the pin popover, reachable only by
+   clicking the chip a new user has no reason to press. It is on the surface
+   now, and it leaves the moment the gesture is used: taught, not dismissed.
+
+   Its own window, because it needs the overlay POWERED ON and the rest of
+   this section is written against a booted-but-off bar. */
+{
+  const d = makeDom();
+  const w = d.window;
+  w.eval(source);
+  w.dispatchEvent(new w.KeyboardEvent('keydown',
+    { altKey: true, shiftKey: true, ctrlKey: false, code: 'KeyD', bubbles: true }));
+  const hint = () => w.document.querySelector('.debug-overlay-hint');
+  ok('a first-run user is told the core gesture, without opening anything',
+    !!hint() && /Shift\+click two to measure/.test(hint().textContent),
+    'the one instruction that mattered was hidden behind the control it explains');
+  ok('and it cannot eat a click meant for the page',
+    !!hint() && w.getComputedStyle(hint()).pointerEvents === 'none',
+    'an instruction is not a control');
+  // jsdom has no elementFromPoint, and the click path resolves its target
+  // through it — the same stub every other pinning test here uses
+  const target = w.document.getElementById('a');
+  w.document.elementFromPoint = () => target;
+  target.dispatchEvent(new w.MouseEvent('click', { bubbles: true, cancelable: true }));
+  ok('using the gesture retires the instruction',
+    !hint(), 'a hint that outstays its welcome becomes furniture');
+  ok('and it stays retired on the next visit',
+    w.localStorage.getItem('__debug_overlay_taught') === '1',
+    'teaching the same thing twice is not teaching');
+  d.window.close();
 }
 
 console.log('\nSTYLESHEET');

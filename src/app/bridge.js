@@ -54,7 +54,12 @@ function roster() {
  *  REPLACES that tool's entries for this page visit, side-panel side, so
  *  sending it again (a re-arm, a reconnect) never doubles history. */
 function backlogs() {
-  for (const t of Tools.withHook('timeline', true)) {
+  /* ALL tools with the hook, not only armed ones. A tool's timeline is "this
+     page visit's story so far", and some of that story (the page load) is a
+     fact the browser recorded before anything was armed. Asking only armed
+     tools left the section saying "nothing yet" on a page that had visibly
+     just loaded. Arming still decides what is MEASURED from here on. */
+  for (const t of Tools.withHook('timeline', false)) {
     try { send('events', t.id, t.timeline.call(t) || [], true); } catch {}
   }
 }

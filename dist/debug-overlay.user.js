@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.132
+// @version      3.8.133
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -359,7 +359,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.132",
+    VERSION: "3.8.133",
     // Substituted like VERSION: where the update checker asks, and what the
     // userscript's one-click update opens. One source (userscript.json), no
     // second copy to drift.
@@ -405,6 +405,10 @@ HOW TO USE
     // set answers for tools that no longer exist and stays silent about ones
     // shipped since — so a new capability arrives switched off and invisible.
     SEEN_KEY: "__debug_overlay_seen",
+    /* Whether the one-line "what do I do now" hint has been earned away. It
+       clears on the first pin — the moment the user has demonstrably learned
+       the gesture it teaches. */
+    TAUGHT_KEY: "__debug_overlay_taught",
     FLASH_MS: 1200,
     // how long a button shows a transient message
     LIST_GAP: 10,
@@ -2016,20 +2020,7 @@ HOW TO USE
       Monitor.startedAt = Date.now();
       Monitor._armedAtPerf = performance.now();
       Monitor.pre = [];
-      Monitor.load = null;
-      try {
-        const nav = performance.getEntriesByType?.("navigation")?.[0];
-        if (nav) {
-          const fcp = performance.getEntriesByType?.("paint")?.find((e) => e.name === "first-contentful-paint");
-          Monitor.load = {
-            server: Math.round(nav.responseStart - nav.startTime),
-            dom: Math.round(nav.domContentLoadedEventEnd - nav.startTime),
-            done: nav.loadEventEnd ? Math.round(nav.loadEventEnd - nav.startTime) : null,
-            fcp: fcp ? Math.round(fcp.startTime) : null
-          };
-        }
-      } catch {
-      }
+      Monitor.load = readLoad();
       const types = typeof PerformanceObserver !== "undefined" && PerformanceObserver.supportedEntryTypes || [];
       const classify = (e, src) => {
         if (e.startTime + e.duration <= Monitor._armedAtPerf) {
@@ -2136,9 +2127,25 @@ HOW TO USE
   function unwatch() {
     Monitor.stop();
   }
+  function readLoad() {
+    try {
+      const nav = performance.getEntriesByType?.("navigation")?.[0];
+      if (!nav) return null;
+      const fcp = performance.getEntriesByType?.("paint")?.find((e) => e.name === "first-contentful-paint");
+      return {
+        server: Math.round(nav.responseStart - nav.startTime),
+        dom: Math.round(nav.domContentLoadedEventEnd - nav.startTime),
+        done: nav.loadEventEnd ? Math.round(nav.loadEventEnd - nav.startTime) : null,
+        fcp: fcp ? Math.round(fcp.startTime) : null
+      };
+    } catch {
+      return null;
+    }
+  }
   function timeline() {
     const out = [];
-    if (Monitor.load) out.push({ kind: "load", at: 0, ...Monitor.load });
+    const load = Monitor.load || readLoad();
+    if (load) out.push({ kind: "load", at: 0, ...load });
     for (const p of Monitor.pre) out.push({ kind: "pre", at: null, ms: p.ms, src: p.src || null });
     const navStart = Date.now() - performance.now();
     for (const e of Monitor.log) {
@@ -2667,6 +2674,20 @@ HOW TO USE
        buttons. */
     #__debug-overlay-bar.debug-overlay-hidden { display: none; }
 
+    /* THE FIRST-RUN INSTRUCTION. The empty pin list already carried this
+       sentence, and it was invisible: it lived inside the popover that opens
+       from the pin chip, so it only ever reached people who had already
+       worked out what the pin chip was (audit C3). On the surface, once,
+       until the gesture is used. pointer-events none — it teaches, it is
+       not a control, and it must never eat a click meant for the page. */
+    .debug-overlay-hint { position: fixed; left: 50%; transform: translateX(-50%);
+      bottom: 18px; z-index: 2147483646; pointer-events: none;
+      background: rgba(22, 22, 26, .92); color: #eaeaea;
+      border: 1px solid #2e2e34; border-radius: 999px; padding: 7px 16px;
+      font: 12px/1.4 system-ui, -apple-system, sans-serif;
+      white-space: nowrap; max-width: 92vw; overflow: hidden;
+      text-overflow: ellipsis; }
+
     /* things that only make sense once powered on */
     #__debug-overlay-bar .debug-overlay-whenOn { display: none; }
     #__debug-overlay-bar.debug-overlay-on .debug-overlay-whenOn { display: flex; align-items: center; justify-content: center; }
@@ -3139,6 +3160,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         )
       });
       const flashing = /* @__PURE__ */ new Map();
+      let hintEl = null;
       let badgeGroups = [];
       function renderBadgeFly() {
         const fly = el2.querySelector("[data-badge-fly]");
@@ -3212,6 +3234,39 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
             untuck();
           } else scheduleTuck();
           api.onState?.("on", v);
+          api.hint?.(v);
+        },
+        /**
+         * The one instruction a new user needs, on the surface — not behind a
+         * click on a control they have no reason to press yet. The empty pin
+         * list already said "click to inspect, Shift+click to measure", which
+         * is exactly right and exactly invisible: it lives inside the popover
+         * that opens from the pin chip, so it only ever reached people who had
+         * already worked out what the pin chip was (audit C3).
+         *
+         * It disappears the moment the gesture is used — taught, not dismissed
+         * — so it costs a returning user nothing and nobody has to find an ✕.
+         */
+        hint(on) {
+          const key = CONFIG.TAUGHT_KEY;
+          if (!on || Store.get(key) === "1") {
+            hintEl?.remove();
+            hintEl = null;
+            return;
+          }
+          if (hintEl) return;
+          hintEl = document.createElement("div");
+          hintEl.className = "debug-overlay-hint";
+          hintEl.textContent = "Click any element to inspect it · Shift+click two to measure between them";
+          root.append(hintEl);
+          api.place?.();
+        },
+        /** The gesture was used, so the instruction has done its job. */
+        taught() {
+          if (Store.get(CONFIG.TAUGHT_KEY) === "1") return;
+          Store.set(CONFIG.TAUGHT_KEY, "1");
+          hintEl?.remove();
+          hintEl = null;
         },
         /**
          * Another surface is presenting this panel's state (the extension's
@@ -3222,6 +3277,10 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
          */
         setVisible(v) {
           el2.classList.toggle("debug-overlay-hidden", !v);
+          if (!v) {
+            hintEl?.remove();
+            hintEl = null;
+          }
           if (v) {
             api.toggleList(false);
             api.closeFlyouts();
@@ -4518,7 +4577,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     }));
   }
   function backlogs() {
-    for (const t of Tools.withHook("timeline", true)) {
+    for (const t of Tools.withHook("timeline", false)) {
       try {
         send("events", t.id, t.timeline.call(t) || [], true);
       } catch {
@@ -5096,6 +5155,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
      * referred to nothing and could not be read off a screenshot.
      */
     pinsChanged() {
+      if (State.pins.length) WebPanel.taught?.();
       Controller.persistPins();
       Render.schedule();
       Controller.refreshList();

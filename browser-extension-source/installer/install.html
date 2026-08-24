@@ -12,6 +12,11 @@
   button.quiet { background: #2c2c31; color: #eaeaea; }
   code { background: #2c2c31; border-radius: 6px; padding: 2px 8px; }
   .muted { color: #9a9aa4; font-size: 13px; }
+  /* value before the ask (audit P3 — Reciprocity): say what this does before
+     asking for five steps of setup */
+  .why { background: #182018; border: 1px solid #2a3a2a; border-radius: 12px;
+         padding: 14px 18px; margin: 14px 0; font-size: 14px; line-height: 1.6; }
+  .why b { color: #b5e853; }
 
   /* the status area: ONE element, coloured by CLASS — an inline colour set
      on an error once stayed for every message after it, which is how a
@@ -33,15 +38,29 @@
   #prog .ok { color: #b5e853; }
 </style>
 <h1>Debug Overlay — installer</h1>
-<p class="muted">This page carries the whole extension inside itself and needs
-no command prompt — it works even where administrators disable cmd. The
-browser reserves two clicks for you; everything else happens here.</p>
+
+<div class="why">
+  <b>What you are installing.</b> Hover any element on any page and read its
+  exact size, padding, margin and font. Pin two things and get the measured
+  distance between them. Audit a whole page for contrast failures, off-grid
+  spacing and duplicate ids — every finding marked where it is, not just
+  listed. Then copy one structured report to paste into an AI chat.
+  <span class="muted">All of it reads the rendered page, so the numbers are
+  what the browser actually did — not what the CSS intended.</span>
+</div>
+
+<p class="muted"><b>Step 1 of 4 is already done</b> — you extracted the ZIP,
+which is why this page is open. Three left. This page carries the whole
+extension inside itself and needs no command prompt, so it works even where
+administrators disable cmd; the browser reserves two clicks for you.</p>
 
 <div class="step">
-  <b>Step 1 — write the files.</b><br>
-  Press the button, then <i>create or choose</i> a permanent folder — for
-  example a new folder called <code>debug-overlay-extension</code> in your
-  Documents. Not Downloads: the browser will read this folder forever.<br>
+  <b>Step 2 — write the files.</b><br>
+  Press the button and choose <code>Documents\debug-overlay</code> — create
+  it in the picker if it does not exist. Any permanent folder works; that one
+  is suggested so you do not have to decide. <b>Not Downloads</b> and not a
+  temp folder: Chrome re-reads this folder every time it starts, so if it
+  disappears, the extension does.<br>
   <span class="muted">Already installed? Pick your <i>existing</i> install
   folder — the exact folder you loaded unpacked — and this page updates it
   in place.</span><br><br>
@@ -52,7 +71,7 @@ browser reserves two clicks for you; everything else happens here.</p>
 </div>
 
 <div class="step">
-  <b>Step 2 — open the extensions page.</b><br>
+  <b>Step 3 — open the extensions page.</b><br>
   A web page is not allowed to open it for you. Copy the address and paste it
   into the address bar:<br><br>
   <code id="addr">chrome://extensions</code>
@@ -61,10 +80,14 @@ browser reserves two clicks for you; everything else happens here.</p>
 </div>
 
 <div class="step">
-  <b>Step 3 — the two clicks the browser requires from a human.</b><br>
+  <b>Step 4 — the two clicks the browser requires from a human.</b><br>
   On that page: switch ON <b>Developer mode</b> (top-right), press
-  <b>Load unpacked</b>, and select the folder from Step&nbsp;1.<br>
-  <span class="muted">Updated an existing folder in Step 1? Then just press
+  <b>Load unpacked</b>, and select the folder from Step&nbsp;2.<br>
+  <span class="muted"><b>Why Developer mode:</b> Chrome requires it for any
+  extension not installed from its store — this is the browser's rule, not
+  ours. <b>Leave it on.</b> Switching it off later disables Debug Overlay,
+  and the reason is not obvious when it happens.</span><br>
+  <span class="muted">Updated an existing folder in Step 2? Then just press
   ↻ <b>Reload</b> on Debug Overlay instead — it is already loaded.</span><br>
   Then open any website and press <b>Alt+Shift+D</b>.
 </div>

@@ -282,6 +282,8 @@ import { Render } from '../ui/renderer.js';
      * referred to nothing and could not be read off a screenshot.
      */
     pinsChanged() {
+      // the instruction has been followed, so it stops being shown (audit C3)
+      if (State.pins.length) WebPanel.taught?.();
       Controller.persistPins();
       Render.schedule();
       Controller.refreshList();

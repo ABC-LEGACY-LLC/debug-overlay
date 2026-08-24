@@ -91,6 +91,7 @@ import { List } from './list.js';
 
     // button -> { original, timer } while a transient message is showing
     const flashing = new Map();
+    let hintEl = null;   // the first-run instruction, removed once the gesture is used
 
     // the 🏷 flyout's groups, kept so a settings change can re-render with
     // the axis the user had open still open
@@ -178,6 +179,35 @@ import { List } from './list.js';
         if (!v) { api.toggleList(false); api.closeFlyouts(); }
         if (v) { clearTimeout(tuckTimer); untuck(); } else scheduleTuck();
         api.onState?.('on', v);
+        api.hint?.(v);
+      },
+      /**
+       * The one instruction a new user needs, on the surface — not behind a
+       * click on a control they have no reason to press yet. The empty pin
+       * list already said "click to inspect, Shift+click to measure", which
+       * is exactly right and exactly invisible: it lives inside the popover
+       * that opens from the pin chip, so it only ever reached people who had
+       * already worked out what the pin chip was (audit C3).
+       *
+       * It disappears the moment the gesture is used — taught, not dismissed
+       * — so it costs a returning user nothing and nobody has to find an ✕.
+       */
+      hint(on) {
+        const key = CONFIG.TAUGHT_KEY;
+        if (!on || Store.get(key) === '1') { hintEl?.remove(); hintEl = null; return; }
+        if (hintEl) return;
+        hintEl = document.createElement('div');
+        hintEl.className = 'debug-overlay-hint';
+        hintEl.textContent = 'Click any element to inspect it · Shift+click two to measure between them';
+        root.append(hintEl);
+        api.place?.();
+      },
+      /** The gesture was used, so the instruction has done its job. */
+      taught() {
+        if (Store.get(CONFIG.TAUGHT_KEY) === '1') return;
+        Store.set(CONFIG.TAUGHT_KEY, '1');
+        hintEl?.remove();
+        hintEl = null;
       },
       /**
        * Another surface is presenting this panel's state (the extension's
@@ -188,6 +218,7 @@ import { List } from './list.js';
        */
       setVisible(v) {
         el.classList.toggle('debug-overlay-hidden', !v);
+        if (!v) { hintEl?.remove(); hintEl = null; }   // the bar is gone; so is its hint
         if (v) { api.toggleList(false); api.closeFlyouts(); }
       },
       /**

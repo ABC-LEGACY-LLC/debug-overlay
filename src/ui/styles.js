@@ -245,6 +245,20 @@ import { CONFIG } from '../core/config.js';
        buttons. */
     #__debug-overlay-bar.debug-overlay-hidden { display: none; }
 
+    /* THE FIRST-RUN INSTRUCTION. The empty pin list already carried this
+       sentence, and it was invisible: it lived inside the popover that opens
+       from the pin chip, so it only ever reached people who had already
+       worked out what the pin chip was (audit C3). On the surface, once,
+       until the gesture is used. pointer-events none — it teaches, it is
+       not a control, and it must never eat a click meant for the page. */
+    .debug-overlay-hint { position: fixed; left: 50%; transform: translateX(-50%);
+      bottom: 18px; z-index: 2147483646; pointer-events: none;
+      background: rgba(22, 22, 26, .92); color: #eaeaea;
+      border: 1px solid #2e2e34; border-radius: 999px; padding: 7px 16px;
+      font: 12px/1.4 system-ui, -apple-system, sans-serif;
+      white-space: nowrap; max-width: 92vw; overflow: hidden;
+      text-overflow: ellipsis; }
+
     /* things that only make sense once powered on */
     #__debug-overlay-bar .debug-overlay-whenOn { display: none; }
     #__debug-overlay-bar.debug-overlay-on .debug-overlay-whenOn { display: flex; align-items: center; justify-content: center; }

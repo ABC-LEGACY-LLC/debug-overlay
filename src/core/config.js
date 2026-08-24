@@ -56,6 +56,10 @@
     // set answers for tools that no longer exist and stays silent about ones
     // shipped since — so a new capability arrives switched off and invisible.
     SEEN_KEY: '__debug_overlay_seen',
+    /* Whether the one-line "what do I do now" hint has been earned away. It
+       clears on the first pin — the moment the user has demonstrably learned
+       the gesture it teaches. */
+    TAUGHT_KEY: '__debug_overlay_taught',
     FLASH_MS: 1200,           // how long a button shows a transient message
     LIST_GAP: 10,             // px between the bar and the popover it opens
     LIST_PAD: 6,              // px the popover keeps from the viewport edge

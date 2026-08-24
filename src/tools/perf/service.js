@@ -84,22 +84,10 @@ export const Monitor = {
           /* THE LOAD ITSELF — the thing a live-only monitor can never see.
              Navigation and paint timing are static facts about this page's
              birth, and the buffered observers below can hand us long tasks
-             from before this script even ran. Guarded per browser: absent
-             APIs just mean an absent section, never a wrong one. */
-          Monitor.load = null;
-          try {
-            const nav = performance.getEntriesByType?.('navigation')?.[0];
-            if (nav) {
-              const fcp = performance.getEntriesByType?.('paint')
-                ?.find((e) => e.name === 'first-contentful-paint');
-              Monitor.load = {
-                server: Math.round(nav.responseStart - nav.startTime),
-                dom: Math.round(nav.domContentLoadedEventEnd - nav.startTime),
-                done: nav.loadEventEnd ? Math.round(nav.loadEventEnd - nav.startTime) : null,
-                fcp: fcp ? Math.round(fcp.startTime) : null,
-              };
-            }
-          } catch {}
+             from before this script even ran. readLoad() is shared with
+             timeline(), which reports the load whether or not this is
+             running — the numbers exist either way. */
+          Monitor.load = readLoad();
 
           const types = (typeof PerformanceObserver !== 'undefined' &&
                          PerformanceObserver.supportedEntryTypes) || [];
@@ -233,9 +221,35 @@ export function unwatch() { Monitor.stop(); }
  * connects or the tool arms, then rides the live events; the two sources
  * never mix because a backlog replaces.
  */
+/**
+ * This navigation's timings, read on demand. Deliberately NOT dependent on
+ * the monitor running: navigation timing is a static fact the browser has
+ * had since before this script existed, so the page load can be reported
+ * whether or not anyone armed anything. The timeline used to open empty and
+ * say "nothing yet" on a page that had demonstrably just loaded — a section
+ * declaring it had nothing to show while holding the one thing it always
+ * has (audit P2 — Goal Gradient: never start at zero when the first step is
+ * already done).
+ */
+function readLoad() {
+  try {
+    const nav = performance.getEntriesByType?.('navigation')?.[0];
+    if (!nav) return null;
+    const fcp = performance.getEntriesByType?.('paint')
+      ?.find((e) => e.name === 'first-contentful-paint');
+    return {
+      server: Math.round(nav.responseStart - nav.startTime),
+      dom: Math.round(nav.domContentLoadedEventEnd - nav.startTime),
+      done: nav.loadEventEnd ? Math.round(nav.loadEventEnd - nav.startTime) : null,
+      fcp: fcp ? Math.round(fcp.startTime) : null,
+    };
+  } catch { return null; }
+}
+
 export function timeline() {
   const out = [];
-  if (Monitor.load) out.push({ kind: 'load', at: 0, ...Monitor.load });
+  const load = Monitor.load || readLoad();
+  if (load) out.push({ kind: 'load', at: 0, ...load });
   for (const p of Monitor.pre) out.push({ kind: 'pre', at: null, ms: p.ms, src: p.src || null });
   const navStart = Date.now() - performance.now();
   for (const e of Monitor.log) {

@@ -82,6 +82,11 @@ try {
   $('[data-upd]').hidden = !(mf.host_permissions && mf.host_permissions.length);
 } catch {}
 
+/* What each tool examines, for the tools that belong to no family. Keyed by
+   id and used for display only — the roster still arrives from the page. */
+const SUBJECT = { dupid: 'ids', grid: 'spacing', perf: 'time',
+                  pin: 'input', select: 'input' };
+
 const flashing = new Map();
 function flash(msg, sel) {
   const b = $(sel);
@@ -346,12 +351,15 @@ const render = {
       name.className = 'name';
       name.textContent = t.title.split(/[—–]/)[0].trim();
       b.append(ic, name);
-      if (t.fam) {
-        const f = document.createElement('span');
-        f.className = 'fam';
-        f.textContent = t.fam;
-        b.append(f);
-      }
+      /* A per-row attribute is present on EVERY row or it is not a column
+         (audit C2). Two of seven tools carry a family, so the tag read as a
+         status only some tools have. Every row now shows what the tool
+         EXAMINES — the family where there is one, the tool's own subject
+         where there is not — which is the same fact for every row. */
+      const f = document.createElement('span');
+      f.className = 'fam';
+      f.textContent = t.fam || SUBJECT[t.id] || '';
+      b.append(f);
       b.addEventListener('click', () => post(Protocol.cmd('tool', t.id)));
       // the bar's right-click gesture, kept: a tool's own options as a view
       b.addEventListener('contextmenu', (e) => { e.preventDefault(); setView('tool:' + t.id); });

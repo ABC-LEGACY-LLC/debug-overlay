@@ -122,9 +122,26 @@ function ticking(label, limitMs) {
   tick = setInterval(paint, 1000);
 }
 
+/* DISABLE WITH A REASON, NEVER IN SILENCE. Both buttons used to grey out
+   with nothing saying why, while step 1 above them looked finished enough to
+   ignore — so a disabled Update read as a broken Update. (Audit C3; also
+   walked into for real.) Every disabled state now names the thing that would
+   enable it, in the sentence right under the buttons. */
 function gate() {
-  $('apply').disabled = !(haveFolder && remoteVersion && newer(remoteVersion, MINE));
+  const canUpdate = haveFolder && remoteVersion && newer(remoteVersion, MINE);
+  $('apply').disabled = !canUpdate;
   $('repair').disabled = !haveFolder;
+  const why = !haveFolder
+    ? 'Both buttons need step 1 first — choose the folder this extension was loaded from.'
+    : !remoteVersion
+      ? 'Update needs a successful check — press Check now above. Verify & repair works regardless.'
+      : !newer(remoteVersion, MINE)
+        ? `Nothing to update — v${MINE} is the newest published version. Verify & repair still works.`
+        : '';
+  $('gateWhy').textContent = why;
+  $('gateWhy').hidden = !why;
+  // and the step number stops looking un-done once it is done (audit P2)
+  $('step1').classList.toggle('done', haveFolder);
 }
 
 async function showFolder() {

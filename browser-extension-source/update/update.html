@@ -34,6 +34,13 @@
   .step { flex: none; width: 20px; height: 20px; border-radius: 50%; background: #2e2e35;
     color: #b5e853; font-size: 11px; font-weight: 800; display: inline-flex;
     align-items: center; justify-content: center; }
+  /* a finished step stops looking like a waiting one (audit P2 — Goal Gradient) */
+  /* font-size:0 hides the TEXT NODE holding the number — `> *` would not,
+     since there is no element child to hide */
+  .step.done { background: #b5e853; color: #16161a; font-size: 0; }
+  .step.done::after { content: '✓'; font-size: 12px; }
+  /* why a disabled button is disabled — never silence (audit C3) */
+  #gateWhy { margin: 10px 0 0; color: #ffd54f; font-size: 12px; }
 
   /* the status card changes colour with what it knows */
   #status { border-left: 3px solid #8f8f96; display: flex; align-items: center; gap: 12px; }
@@ -144,7 +151,7 @@
   </div>
 
   <div class="card">
-    <h2><span class="step">1</span> Install folder <span id="folderState">— not chosen yet</span></h2>
+    <h2><span class="step" id="step1">1</span> Install folder <span id="folderState">— not chosen yet</span></h2>
     <p>One-time: point at the folder this extension was loaded from, so the
        updater may write there. Nothing is written outside it, ever.</p>
     <div class="row"><button id="pick">Choose install folder…</button></div>
@@ -160,6 +167,7 @@
       <button id="apply" class="primary" disabled>Update</button>
       <button id="repair" disabled>Verify &amp; repair</button>
     </div>
+    <p id="gateWhy" hidden></p>
     <p id="repairHint" style="margin-top:10px; font-size:12px; color:#8f8f96">
        Repair rewrites every current file — use it if the extension misbehaves
        or an update was interrupted. It never needs a newer version to exist.</p>

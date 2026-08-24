@@ -128,7 +128,7 @@
   };
 
   // browser-extension-source/side-panel/side-panel.js
-  var VERSION = "3.8.132";
+  var VERSION = "3.8.133";
   var $ = (s) => document.querySelector(s);
   var body = document.body;
   var IC = {
@@ -166,6 +166,13 @@
     $("[data-upd]").hidden = !(mf.host_permissions && mf.host_permissions.length);
   } catch {
   }
+  var SUBJECT = {
+    dupid: "ids",
+    grid: "spacing",
+    perf: "time",
+    pin: "input",
+    select: "input"
+  };
   var flashing = /* @__PURE__ */ new Map();
   function flash(msg, sel) {
     const b = $(sel);
@@ -421,12 +428,10 @@
         name.className = "name";
         name.textContent = t.title.split(/[—–]/)[0].trim();
         b.append(ic, name);
-        if (t.fam) {
-          const f = document.createElement("span");
-          f.className = "fam";
-          f.textContent = t.fam;
-          b.append(f);
-        }
+        const f = document.createElement("span");
+        f.className = "fam";
+        f.textContent = t.fam || SUBJECT[t.id] || "";
+        b.append(f);
         b.addEventListener("click", () => post(Protocol.cmd("tool", t.id)));
         b.addEventListener("contextmenu", (e) => {
           e.preventDefault();
