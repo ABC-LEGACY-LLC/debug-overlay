@@ -362,6 +362,7 @@ console.log('\nTWO GATES, ONE CORE');
   // its runtime is browser-only (FS Access API), so what a suite can hold
   // is the contract: where it may fetch from, and what it may write
   const updJs = fs.readFileSync(path.join(extDir, 'update.js'), 'utf8');
+  const updHtml = fs.readFileSync(path.join(extDir, 'update.html'), 'utf8');
   ok('the updater exists and its base is the pinned repo, nowhere else',
     manifest.options_ui?.page === 'update.html' &&
     /const BASE = 'https:\/\/raw\.githubusercontent\.com\/[^']*\/browser-extension'/.test(updJs),
@@ -394,14 +395,40 @@ console.log('\nTWO GATES, ONE CORE');
      It is also the one file nothing structural depends on: the updater reads
      its file list from the repo at run time, so an older copy still updates
      everything else correctly. */
-  ok('only the updater\'s OWN file may fail to write, and it is not fatal',
+  /* THE UPDATER NEVER WRITES ITSELF. It used to write it and tolerate the
+     failure, on the theory that a refused write leaves the old file alone.
+     It does not: createWritable() opens a swap over the target, so an abort
+     partway leaves NOTHING. Measured on a real machine — update.js vanished,
+     this page became dead HTML, and the only symptom was a spinner that
+     never resolved. Skipping cannot fail, and costs nearly nothing: the
+     updater reads its file list from the repo each run, so an older copy
+     keeps updating everything else. */
+  ok('the updater never writes its own file — a refused write destroys it',
     updJs.includes("const SELF = 'update.js'") &&
-    updJs.includes("if (f !== SELF) throw e;") &&
-    updJs.includes('selfBlocked'),
-    'one refused file would cost the user every other file in the update');
-  ok('and the user is told which file did not change',
-    /Security software refused to replace this update screen/.test(updJs),
+    /if \(f === SELF\) continue;/.test(updJs) &&
+    !/if \(f !== SELF\) throw e;/.test(updJs),
+    'attempting it can leave the updater missing and the page dead');
+  ok('and the user is told when the repo has a newer copy of it',
+    /was NOT written — on purpose/.test(updJs),
     'a silent skip is a lie about what the update did');
+  /* the page must be able to report its own script being gone — the state it
+     was in when this was found, where every button rendered and none worked */
+  /* NOTHING MAY HANG WITHOUT SAYING SO. "Checking for updates…" with no
+     timeout looks identical to a dead page, which is how a real user spent
+     minutes staring at one. Every network call is bounded, and the multi-file
+     download counts itself so the wait is legibly progress and not a stall. */
+  ok('every fetch is bounded — a stall ends in a message, not a spinner',
+    /AbortController/.test(updJs) && /signal: ac\.signal/.test(updJs) &&
+    !/await fetch\(BASE/.test(updJs),
+    'an unbounded fetch is indistinguishable from a dead page');
+  ok('and a multi-file download reports which file it is on',
+    /Downloading \$\{\+\+got\} of \$\{files\.length\}/.test(updJs),
+    'a long silent wait reads as broken');
+  ok('the page warns FAIL-VISIBLE when its script never loads',
+    /id="noScript"/.test(updHtml) &&
+    /update\.js<\/code> is missing/.test(updHtml) &&
+    /\$\('noScript'\)\.hidden = true;/.test(updJs),
+    'a dead page that looks alive is the worst version of broken');
   /* …and the HEADLINE carries it, not just a footnote under it. The first
      version announced "every file is on disk" and then took it back one
      sentence later, on a run where a write had actually been refused. A
@@ -454,7 +481,6 @@ console.log('\nTWO GATES, ONE CORE');
      an old updater that wrote a manifest naming files it never fetched),
      it checks on open rather than making the user press to find out, and
      its page keeps all behaviour in options.js (MV3 forbids inline). */
-  const updHtml = fs.readFileSync(path.join(extDir, 'update.html'), 'utf8');
   ok('the update screen can repair a torn install',
     /repairing/.test(updJs) && updJs.includes('!repairing && !newer') &&
     updHtml.includes('id="repair"'),

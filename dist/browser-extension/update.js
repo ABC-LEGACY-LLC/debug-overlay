@@ -27,6 +27,11 @@ const FILES = ['manifest.json', 'content.js', 'sw.js', 'update.html', 'update.js
 const RETIRED = ['cockpit.html', 'cockpit.js', 'options.html', 'options.js'];
 
 const $ = (id) => document.getElementById(id);
+/* The page ships this warning VISIBLE. Reaching this line means the script
+   loaded, so it is not true, so it goes away. Anything that stops the script
+   loading leaves it on screen — which is the one case the page could not
+   otherwise report, having no script to report it with. */
+$('noScript').hidden = true;
 const MINE = chrome.runtime.getManifest().version;
 
 // segment-wise numeric compare — mirrors app/updates.js `newer()`; this file
@@ -153,6 +158,12 @@ async function proveLive(dir) {
   } catch { return null; }
 }
 
+/** What the folder currently holds for one file, or null. Read-only. */
+async function readOwn(dir, name) {
+  try { return await (await (await dir.getFileHandle(name)).getFile()).text(); }
+  catch { return null; }
+}
+
 const FIND_IT = 'find the real folder: chrome://extensions → Debug Overlay → ' +
   'Details — "Source" names the loaded path. Choose THAT folder in step 1.';
 
@@ -167,11 +178,21 @@ const checkedAt = () => {
   } catch { return ''; }
 };
 
+/** A fetch that cannot hang. Without this a stalled connection leaves the
+ *  page on "Checking for updates…" with no end and no explanation — which is
+ *  indistinguishable, to the person watching it, from the page being dead. */
+async function fetchSoon(url, ms = 15000) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), ms);
+  try { return await fetch(url, { cache: 'no-store', signal: ac.signal }); }
+  finally { clearTimeout(timer); }
+}
+
 async function check() {
   $('check').disabled = true;
-  status('', 'Checking for updates…');
+  status('', 'Checking for updates…', 'asking ' + new URL(BASE).host + '…');
   try {
-    const remote = await (await fetch(BASE + '/manifest.json', { cache: 'no-store' })).json();
+    const remote = await (await fetchSoon(BASE + '/manifest.json')).json();
     remoteVersion = remote.version;
     if (newer(remoteVersion, MINE)) {
       status('upd', `v${remoteVersion} is available.`,
@@ -225,7 +246,7 @@ async function run(repairing) {
       log(FIND_IT, 'warn');
       return;
     }
-    const remote = await (await fetch(BASE + '/manifest.json', { cache: 'no-store' })).json();
+    const remote = await (await fetchSoon(BASE + '/manifest.json')).json();
     if (!repairing && !newer(remote.version, MINE)) {
       log('already current: v' + MINE, 'good'); return;
     }
@@ -235,7 +256,7 @@ async function run(repairing) {
     // whole; the baked-in list only answers if the repo predates files.json.
     // Plain names only — a list is data, never a path.
     let files = FILES;
-    const fl = await fetch(BASE + '/files.json', { cache: 'no-store' });
+    const fl = await fetchSoon(BASE + '/files.json');
     if (fl.ok) {
       files = JSON.parse(await fl.text());
       if (!Array.isArray(files) || !files.includes('manifest.json') ||
@@ -248,8 +269,10 @@ async function run(repairing) {
     // bytes: text-decoding a binary is a silent corruption.
     const isBin = (f) => /\.png$/i.test(f);
     const texts = {};
+    let got = 0;
     for (const f of files) {
-      const r = await fetch(BASE + '/' + f, { cache: 'no-store' });
+      status('busy', `Downloading ${++got} of ${files.length} — ${f}…`);
+      const r = await fetchSoon(BASE + '/' + f);
       if (!r.ok) throw new Error(f + ': http ' + r.status);
       texts[f] = isBin(f) ? new Uint8Array(await r.arrayBuffer()) : await r.text();
       log('↓ fetched ' + f);
@@ -277,21 +300,33 @@ async function run(repairing) {
 
        This is error handling, not evasion: the write is attempted plainly,
        the refusal is reported, and the user is told what did not change. */
+    /* THIS FILE IS NOT WRITTEN. It used to be written and the failure
+       tolerated — on the theory that a refused write leaves the old file
+       alone. It does not. createWritable() opens a swap over the target, so
+       when a security policy aborts the write partway the ORIGINAL is gone:
+       measured on a real machine, where update.js ended up missing entirely
+       and this page became dead HTML — the script 404'd, so nothing ran and
+       "Checking for updates…" hung forever with no way to fix it from here.
+
+       Attempting the write cannot succeed on such a machine and can destroy
+       the updater. Not attempting costs almost nothing: this file reads its
+       file list from the repo on every run, so an older copy keeps updating
+       everything else correctly. It changes rarely, and when it does the ZIP
+       carries it. Skipping is stated out loud rather than done quietly. */
     const SELF = 'update.js';
-    let selfBlocked = null;
+    const selfStale = texts[SELF] !== undefined &&
+                      texts[SELF] !== await readOwn(dir, SELF);
     for (const f of order) {
-      try {
-        const fh = await dir.getFileHandle(f, { create: true });
-        const w = await fh.createWritable();
-        await w.write(texts[f]);
-        await w.close();
-        log('✓ wrote ' + f, 'good');
-      } catch (e) {
-        if (f !== SELF) throw e;
-        selfBlocked = e.message;
-        log('⚠ could not replace ' + SELF + ' — ' + e.message, 'warn');
-        log('  everything else still updates; this screen keeps the version it has', 'warn');
-      }
+      if (f === SELF) continue;
+      const fh = await dir.getFileHandle(f, { create: true });
+      const w = await fh.createWritable();
+      await w.write(texts[f]);
+      await w.close();
+      log('✓ wrote ' + f, 'good');
+    }
+    if (selfStale) {
+      log('· ' + SELF + ' is newer in the repo and was NOT written — on purpose', 'warn');
+      log('  (writing it can be blocked partway, which destroys it; the ZIP carries it)', 'warn');
     }
     /* Written, and NOT reloaded. This used to count down and then call
        reload the extension itself. Fetch, write, and then restart the
