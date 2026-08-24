@@ -442,12 +442,19 @@ function build(kind) {
      writes anything: Load Unpacked needs no file-system access from us at
      all, which is the whole reason this package exists. */
   fs.writeFileSync(path.join(STORE, 'INSTALL.txt'),
-    ['Debug Overlay ' + version + ' — the clean build',
+    ['Debug Overlay ' + version + ' — the NO-UPDATER build',
      '',
-     'This build contains NO self-updater. That is the point: a program that',
-     'downloads files and writes them to disk looks like a downloader to',
-     'security software, and some machines quarantine it. There is nothing',
-     'here to quarantine.',
+     '*** THIS BUILD HAS NO UPDATE BUTTON AND NO OPTIONS PAGE. ***',
+     'That is deliberate, and it is probably NOT the one you want.',
+     '',
+     'If you want one-button updates, close this and download instead:',
+     '  debug-overlay-extension.zip',
+     'Same overlay, plus an update screen. Use THIS build only if your',
+     'antivirus objects to that one.',
+     '',
+     'Why this build exists: a program that downloads files and writes them',
+     'to disk resembles a downloader, and some machines quarantine it. There',
+     'is nothing here to quarantine — and nothing here to update with, either.',
      '',
      'To install:',
      '  1. Keep this folder somewhere permanent (not Downloads).',
@@ -473,7 +480,7 @@ function build(kind) {
   const storeFiles = fs.readdirSync(STORE).sort()
     .filter((f) => !f.endsWith('.zip'))
     .map((f) => [f, fs.readFileSync(path.join(STORE, f))]);
-  fs.writeFileSync(path.join(STORE, 'debug-overlay-clean.zip'), zipStore(storeFiles));
+  fs.writeFileSync(path.join(STORE, 'debug-overlay-no-updater.zip'), zipStore(storeFiles));
 
   const kb = (Buffer.byteLength(out) / 1024).toFixed(1);
   console.log(`✓ v${version}  ${discovered} discovered + core → dist/script/${cfg.distFile}  (${kb} KB)` +

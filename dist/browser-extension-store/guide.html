@@ -13,17 +13,27 @@
   .why { background: #182018; border: 1px solid #2a3a2a; border-radius: 12px;
          padding: 14px 18px; margin: 14px 0; font-size: 14px; }
   .why b { color: #b5e853; }
+  .warn { background: #2a2417; border: 1px solid #5a4a1a; border-radius: 12px;
+          padding: 14px 18px; margin: 14px 0; font-size: 14px; color: #ffd54f; }
+  .warn b { color: #ffd54f; }
+  .warn code { background: #3a2f14; }
 </style>
-<h1>Debug Overlay <span class="muted">v3.8.122 — clean build</span></h1>
+<h1>Debug Overlay <span class="muted">v3.8.124 — clean build</span></h1>
+
+<div class="warn">
+  <b>This is the no-updater build — probably not the one you want.</b>
+  It has <b>no update button and no options page</b>, on purpose. If you want
+  one-button updates, download <code>debug-overlay-extension.zip</code>
+  instead: same overlay, plus an update screen. Use this build only if your
+  antivirus objects to that one.
+</div>
 
 <div class="why">
-  <b>Why this page and not a one-click installer:</b> this build contains
-  <b>no self-updater</b> — nothing here fetches files, writes to disk, or
-  reloads itself. That is deliberate: a program that downloads files and
-  writes them to disk looks like a downloader to security software, and on
-  some machines it gets quarantined, which deletes the files and makes Chrome
-  drop the extension. This page only tells you where to click; it does not
-  touch your disk.
+  <b>Why it exists:</b> a program that downloads files and writes them to
+  disk resembles a downloader, and on some machines it gets quarantined —
+  which deletes the files and makes Chrome drop the extension. Nothing here
+  fetches, writes to disk, or reloads itself, so there is nothing to
+  quarantine. This page only tells you where to click.
 </div>
 
 <div class="step">

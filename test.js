@@ -1183,17 +1183,29 @@ console.log('\nTHE STORE PACKAGE');
   ok('the listing description fits what the store allows',
     sm.description === cfgS.storeDescription && sm.description.length <= 132,
     `${sm.description.length} chars`);
-  const szip = fs.readFileSync(path.join(storeDir, 'debug-overlay-clean.zip'));
+  const szip = fs.readFileSync(path.join(storeDir, 'debug-overlay-no-updater.zip'));
   /* the same package installs UNPACKED for anyone whose machine quarantines
-     the self-updater — measured twice on a real managed machine, where the
+     the updater — measured twice on a real managed machine, where the
      quarantine deleted the files and Chrome dropped the extension. Someone
      who just extracted a ZIP looks inside it for instructions, so that is
      where they are. */
+  const installTxt = fs.readFileSync(path.join(storeDir, 'INSTALL.txt'), 'utf8');
+  const guideHtml = fs.readFileSync(path.join(storeDir, 'guide.html'), 'utf8');
   ok('it carries its own install instructions, inside the ZIP',
-    fs.existsSync(path.join(storeDir, 'INSTALL.txt')) &&
-    /Load unpacked/.test(fs.readFileSync(path.join(storeDir, 'INSTALL.txt'), 'utf8')) &&
-    /NO self-updater/.test(fs.readFileSync(path.join(storeDir, 'INSTALL.txt'), 'utf8')),
-    'the clean build is now a real install route, not just a store upload');
+    /Load unpacked/.test(installTxt),
+    'a downloaded folder with no instructions in it is a puzzle');
+  /* THE WRONG-ZIP TRAP, walked into for real. Two downloads exist and this
+     one lacks the update button — and it was once called "clean", which
+     reads like the better one, so it got downloaded again and again by
+     someone looking for exactly the feature it does not have. The name says
+     what it lacks now, and both guides inside it name the other ZIP, so
+     arriving here by mistake is self-correcting rather than silent. */
+  for (const [what, body] of [['INSTALL.txt', installTxt],
+                              ['guide.html', guideHtml]]) {
+    ok(`${what} says this build has no updater, and names the ZIP that does`,
+      /no update button/i.test(body) && /debug-overlay-extension\.zip/.test(body),
+      'someone here by mistake would keep looking for a button that is not coming');
+  }
   /* A .txt file is what someone sees the instant they open the folder; it is
      not what makes the walk-through EASY for someone who does not know what
      "Load unpacked" means. guide.html is the same steps as a clickable page —
@@ -1201,7 +1213,6 @@ console.log('\nTHE STORE PACKAGE');
      this build has no reason to touch the filesystem at all, the guide must
      not gain any write capability either: that would be the exact shape this
      whole package exists to avoid. */
-  const guideHtml = fs.readFileSync(path.join(storeDir, 'guide.html'), 'utf8');
   ok('and a clickable guide rides alongside it — no plain text wall',
     guideHtml.includes('Load unpacked') && guideHtml.includes(`v${cfgS.version}`) &&
     guideHtml.includes("navigator.clipboard.writeText('chrome://extensions')"),

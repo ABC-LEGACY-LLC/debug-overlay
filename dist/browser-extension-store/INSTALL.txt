@@ -1,9 +1,16 @@
-Debug Overlay 3.8.122 — the clean build
+Debug Overlay 3.8.124 — the NO-UPDATER build
 
-This build contains NO self-updater. That is the point: a program that
-downloads files and writes them to disk looks like a downloader to
-security software, and some machines quarantine it. There is nothing
-here to quarantine.
+*** THIS BUILD HAS NO UPDATE BUTTON AND NO OPTIONS PAGE. ***
+That is deliberate, and it is probably NOT the one you want.
+
+If you want one-button updates, close this and download instead:
+  debug-overlay-extension.zip
+Same overlay, plus an update screen. Use THIS build only if your
+antivirus objects to that one.
+
+Why this build exists: a program that downloads files and writes them
+to disk resembles a downloader, and some machines quarantine it. There
+is nothing here to quarantine — and nothing here to update with, either.
 
 To install:
   1. Keep this folder somewhere permanent (not Downloads).

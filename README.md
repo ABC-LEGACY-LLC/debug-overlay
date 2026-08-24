@@ -130,7 +130,7 @@ extracting it over the same folder.
 **Step 1.** Download and extract:
 
 ```
-https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/browser-extension-store/debug-overlay-clean.zip
+https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/browser-extension-store/debug-overlay-no-updater.zip
 ```
 
 **Step 2.** Keep the folder somewhere permanent (not Downloads). Prefer a
@@ -267,7 +267,7 @@ dist/
     side-panel.html  side-panel.js         same side panel as above
     icon16/32/48/128.png
     INSTALL.txt  guide.html               two install guides, neither writes anything
-    debug-overlay-clean.zip     ← Option B's download, and the store upload
+    debug-overlay-no-updater.zip     ← Option B's download, and the store upload
   debug-overlay.user.js  LEGACY BRIDGE — never delete: installs from before
   debug-overlay.meta.js  the restructure poll this path forever; these
                          byte-identical copies point at script/, so an old
