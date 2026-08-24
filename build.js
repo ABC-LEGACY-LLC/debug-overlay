@@ -427,10 +427,40 @@ function build(kind) {
     console.error('✗ the store package is broken:\n' + (e.stderr ? e.stderr.toString() : e.message));
     process.exit(1);
   }
+  /* This package has a SECOND job it was not built for, and it is now the
+     more urgent one. On a machine whose security software quarantines the
+     self-updater, the files get deleted off disk and Chrome drops the
+     extension — measured, twice, on a real managed machine. This build has
+     no updater to quarantine, so it installs unpacked and simply keeps
+     working. The instructions ride inside the ZIP, because that is where
+     someone who just extracted it will look. */
+  fs.writeFileSync(path.join(STORE, 'INSTALL.txt'),
+    ['Debug Overlay ' + version + ' — the clean build',
+     '',
+     'This build contains NO self-updater. That is the point: a program that',
+     'downloads files and writes them to disk looks like a downloader to',
+     'security software, and some machines quarantine it. There is nothing',
+     'here to quarantine.',
+     '',
+     'To install:',
+     '  1. Keep this folder somewhere permanent (not Downloads).',
+     '  2. Open  chrome://extensions',
+     '  3. Turn ON "Developer mode" (top right).',
+     '  4. Press "Load unpacked" and select THIS folder.',
+     '  5. Open any website. Press Alt+Shift+D, or click the toolbar button',
+     '     for the side panel.',
+     '',
+     'To update later: download the newer ZIP, extract it over this folder,',
+     'then press the reload arrow on chrome://extensions. There is no update',
+     'button in this build, on purpose.',
+     '',
+     'This same package is what gets published to the Chrome Web Store, where',
+     'installing is one click and Chrome handles updates by itself.',
+     ''].join('\n'));
   const storeFiles = fs.readdirSync(STORE).sort()
     .filter((f) => !f.endsWith('.zip'))
     .map((f) => [f, fs.readFileSync(path.join(STORE, f))]);
-  fs.writeFileSync(path.join(STORE, 'debug-overlay-store.zip'), zipStore(storeFiles));
+  fs.writeFileSync(path.join(STORE, 'debug-overlay-clean.zip'), zipStore(storeFiles));
 
   const kb = (Buffer.byteLength(out) / 1024).toFixed(1);
   console.log(`✓ v${version}  ${discovered} discovered + core → dist/script/${cfg.distFile}  (${kb} KB)` +

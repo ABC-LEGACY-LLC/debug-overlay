@@ -16,7 +16,7 @@ Store, Chrome does the updating itself, and the entire problem disappears:
 | what can go wrong | wrong folder, torn write, blocked write | nothing to get wrong |
 
 `npm run ship` builds the package at **`dist/browser-extension-store/`** —
-upload `debug-overlay-store.zip`.
+upload `debug-overlay-clean.zip`.
 
 ---
 
@@ -49,7 +49,7 @@ asserts all of the above (`npm run check`, section **THE STORE PACKAGE**).
 
 ## Publishing
 
-1. **New item** → upload `dist/browser-extension-store/debug-overlay-store.zip`.
+1. **New item** → upload `dist/browser-extension-store/debug-overlay-clean.zip`.
 2. Fill in the listing (copy below).
 3. **Visibility:** choose **Unlisted** if this is for your team — it does not
    appear in search and is installable only by people who have the link.

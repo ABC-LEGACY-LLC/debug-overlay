@@ -1078,7 +1078,17 @@ console.log('\nTHE STORE PACKAGE');
   ok('the listing description fits what the store allows',
     sm.description === cfgS.storeDescription && sm.description.length <= 132,
     `${sm.description.length} chars`);
-  const szip = fs.readFileSync(path.join(storeDir, 'debug-overlay-store.zip'));
+  const szip = fs.readFileSync(path.join(storeDir, 'debug-overlay-clean.zip'));
+  /* the same package installs UNPACKED for anyone whose machine quarantines
+     the self-updater — measured twice on a real managed machine, where the
+     quarantine deleted the files and Chrome dropped the extension. Someone
+     who just extracted a ZIP looks inside it for instructions, so that is
+     where they are. */
+  ok('it carries its own install instructions, inside the ZIP',
+    fs.existsSync(path.join(storeDir, 'INSTALL.txt')) &&
+    /Load unpacked/.test(fs.readFileSync(path.join(storeDir, 'INSTALL.txt'), 'utf8')) &&
+    /NO self-updater/.test(fs.readFileSync(path.join(storeDir, 'INSTALL.txt'), 'utf8')),
+    'the clean build is now a real install route, not just a store upload');
   ok('and it ships as an uploadable ZIP',
     szip.length > 1000 && szip.readUInt32LE(0) === 0x04034b50,
     'the store takes a ZIP, so the build makes one');

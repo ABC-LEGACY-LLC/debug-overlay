@@ -7,8 +7,9 @@ alongside the screenshot.
 
 One codebase, two ways to install: a **Tampermonkey userscript** that updates
 itself after every `git push`, and a **browser extension** built from the
-byte-identical bundle, with a one-press self-updater. Sessions survive a page
-refresh; a performance monitor (⚡) can watch a pinned component's cost live.
+byte-identical bundle, which adds a browser side panel that outlives page
+reloads. Sessions survive a page refresh; a performance monitor (⚡) can watch
+a pinned component's cost live.
 
 **Jump to:** [Install](#install) ·
 [First 60 seconds](#first-60-seconds-after-installing) ·
@@ -24,11 +25,12 @@ refresh; a performance monitor (⚡) can watch a pinned component's cost live.
 Two ways to run it. **Pick ONE per browser** — they are the same overlay, and
 two copies would fight over the page.
 
-| | A · Userscript *(recommended)* | B · Browser extension |
+| | A · Userscript | B · Browser extension |
 |---|---|---|
 | needs | Tampermonkey | nothing extra (Chrome/Edge) |
 | install | open 1 link | download ZIP, load a folder once |
-| updates | automatic after every push | one press inside the overlay |
+| updates | automatic after every push | re-extract, or one click once published |
+| side panel | no | **yes** |
 
 ---
 
@@ -59,7 +61,41 @@ keeps running the old version until it reloads.
 
 ---
 
-### Option B — Browser extension (Chrome / Edge, no Tampermonkey)
+### Option B — Browser extension, clean build *(recommended)*
+
+Two extension builds exist and the difference matters. This one contains **no
+self-updater**, and that is the point: a program that downloads files and
+writes them to disk looks like a downloader to security software, and some
+machines quarantine it — which deletes the files and makes Chrome drop the
+extension. There is nothing here to quarantine.
+
+**Step 1.** Download and extract:
+
+```
+https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/browser-extension-store/debug-overlay-clean.zip
+```
+
+**Step 2.** Keep the folder somewhere permanent (not Downloads).
+
+**Step 3.** `chrome://extensions` → **Developer mode** ON → **Load unpacked**
+→ select that folder.
+
+**Step 4.** Open any website: **Alt+Shift+D** for the web panel, or the
+toolbar button for the side panel.
+
+*Getting updates:* download the newer ZIP, extract it over the same folder,
+and press ↻ on `chrome://extensions`. No update button — on purpose. Once
+this is published to the Web Store it becomes one click and Chrome updates it
+silently; see **[STORE.md](STORE.md)**.
+
+---
+
+### Option B2 — Browser extension with the in-browser updater
+
+Same overlay, plus an update screen that fetches and writes new files itself.
+Convenient, and it is what this project develops against — but on machines
+with strict antivirus or managed-browser policy the write gets blocked or
+quarantined. Use Option B if that happens to you.
 
 **Step 1.** Download the ZIP:
 
@@ -157,6 +193,12 @@ then only needs you to sign in; the script arrives on its own.
   updates now* forces it, and `npm run shipped` answers what the world sees.
 - **Updated but nothing changed:** the open tab still runs the old code —
   press **↻ Refresh page** in the ⏻ menu.
+- **Antivirus removed the extension, or the update keeps being blocked:** use
+  the **clean build** (Option B) — it has no self-updater, so there is nothing
+  for a scanner to object to. This is not hypothetical: on a managed machine
+  the quarantine deleted the updater's files, and an unpacked extension whose
+  files vanish is dropped by Chrome. Reinstalling the self-updating build and
+  updating again repeats it.
 - **"A security check blocked the write" / antivirus flags the update:**
   `update.js` is the only shipped file that fetches from the network *and*
   writes to disk *and* deletes *and* reloads — the behaviour of a downloader,
