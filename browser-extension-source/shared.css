@@ -1,0 +1,61 @@
+/* ======================================================================
+   SHARED — the extension pages' one design system.
+
+   Three pages (side panel, update screen, installer) each invented their
+   own button: their own padding, radius, hover and disabled treatment.
+   That is why the 24px target floor was breached in three different
+   places by three different files, and why the same grey exists as
+   #1b1b20, #17171b and #16161a depending on which page you are reading.
+
+   build.js INLINES this into each page's <style> at build time. It is
+   deliberately not a shipped file: another file in the package means
+   another entry in files.json, in the installer's embed, and in the
+   updater's write list — real machinery for one stylesheet. One source,
+   three copies, zero packaging.
+   ====================================================================== */
+:root {
+  --debug-overlay-accent: #b5e853;      /* armed · success · primary */
+  --debug-overlay-on-accent: #16161a;   /* text ON accent */
+  --debug-overlay-warn: #ffd54f;        /* asks for a decision */
+  --debug-overlay-danger: #ff5c5c;      /* destructive · failure */
+  --debug-overlay-info: #58c4ff;        /* focus · in progress */
+  --debug-overlay-ink: #e8e8ec;         /* primary text */
+  --debug-overlay-muted: #8f8f96;       /* secondary text */
+  --debug-overlay-ground: #1b1b20;      /* the page itself */
+  --debug-overlay-surface: #202026;     /* a card on the ground */
+  --debug-overlay-raised: #2b2b32;      /* a control */
+  --debug-overlay-raised-hi: #33333b;   /* a control, hovered */
+  --debug-overlay-line: #2e2e34;        /* a border */
+  --debug-overlay-r-inner: 6px;
+  --debug-overlay-r-control: 10px;
+  --debug-overlay-r-card: 12px;
+}
+
+/* THE BUTTON, once. 24px is a floor, not a target: the hit area never goes
+   below it however small the ink is. */
+button {
+  font: inherit;
+  color: var(--debug-overlay-ink);
+  background: var(--debug-overlay-raised);
+  border: 1px solid var(--debug-overlay-line);
+  border-radius: var(--debug-overlay-r-control);
+  cursor: pointer;
+  padding: 7px 12px;
+  min-height: 24px;
+  text-align: left;
+}
+button:hover { background: var(--debug-overlay-raised-hi); }
+button:focus-visible { outline: 2px solid var(--debug-overlay-accent); outline-offset: 1px; }
+button[disabled] { opacity: .45; cursor: default; }
+button[disabled]:hover { background: var(--debug-overlay-raised); }
+button.primary {
+  background: var(--debug-overlay-accent);
+  border-color: var(--debug-overlay-accent);
+  color: var(--debug-overlay-on-accent);
+}
+button.primary:hover { background: #c3f168; }
+button.primary[disabled]:hover { background: var(--debug-overlay-accent); }
+
+/* [hidden] must actually hide: its only effect is display:none in the UA
+   sheet, and any author rule with a display beats it. Shipped broken once. */
+[hidden] { display: none !important; }

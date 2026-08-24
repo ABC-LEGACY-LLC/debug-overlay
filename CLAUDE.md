@@ -551,6 +551,56 @@ and keep the sheets separate.
 version increases, so never hand-edit the version in `userscript.json` down,
 and never commit `dist/` without running the build.
 
+## The design system (audit.js and test.js enforce the guards)
+
+There wasn't one, and the audit that found that counted the cost: 47 colour
+literals in `ui/styles.js` alone, 23 distinct dark neutrals across the four
+surfaces, eleven radius values. Two greys — `#3a3a40` and `#3a3a41` — differed
+by one digit and did the same job. Nobody chose any of it; each call site
+invented its own value because nothing named the alternatives.
+
+**Colour and radius are tokens now, and literals are a test failure.** The
+tokens live in two places, deliberately:
+
+- `ui/styles.js` declares them on `#__debug-overlay-root` — never `:root`. A
+  host page's custom properties must not reach in and ours must not leak out,
+  the same reason every class carries the namespace.
+- `browser-extension-source/shared.css` declares the same names for the three
+  extension pages, and `build.js` INLINES it into each page's `<style>`. It is
+  not a shipped file on purpose: another file in the package means another
+  entry in `files.json`, in the installer's embed, and in the updater's write
+  list — real machinery for one stylesheet.
+
+| token | means |
+|---|---|
+| `--debug-overlay-accent` | armed · success · primary |
+| `--debug-overlay-warn` | asks for a decision |
+| `--debug-overlay-danger` | destructive · failure |
+| `--debug-overlay-info` | focus · in progress |
+| `--debug-overlay-ink` / `-ink-dim` / `-muted` | text, three weights |
+| `--debug-overlay-ground` / `-surface` / `-raised` / `-raised-hi` / `-line` | the four-step neutral ramp |
+| `--debug-overlay-r-chip / -r-inner / -r-control / -r-card` | the radius ladder; `999px` pill and `50%` circle stay literal |
+
+**Two kinds of colour, and only one of them is a token.** A THEME value says
+how the product feels — recolour it and everything follows. An IDENTITY value
+says *which thing this is*: a pin's kind, a badge field, a severity. Those must
+NOT move when the theme moves, so they stay literals and live in the test's
+allow-list, where each one carries a reason. Adding to that list is a decision;
+leaving a literal at a call site is a failure.
+
+**The guards are cheap because the sheets are already parsed** for brace
+balance and for the namespace — this is one more regex over text being read
+anyway, which is what makes a rule outlive its author. Both were verified by
+reintroducing real drift: a stray `#7c7c88` and an off-ladder `9px` each fail
+by name.
+
+**Three shapes must be three LADDER steps apart.** The bar's first attempt at
+one-shape-per-role used `11px` for inputs and `9px` for actions — which the
+design-system audit then flagged as one value wearing two names. It was right:
+at 34px those are the same picture, and the distinction existed only in the
+source.
+
+
 ## The instrument declaration — for UX audit skills
 
 This block is a **project value**, in the sense the ABC skill family means it:

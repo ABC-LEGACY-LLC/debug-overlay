@@ -10,20 +10,22 @@
 <title>Debug Overlay</title>
 <link rel="icon" href="icon32.png">
 <style>
+  /* buttons, tokens and [hidden] come from shared.css, inlined above */
+
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
-  body { margin: 0; background: #1b1b20; color: #e8e8ec; min-width: 280px;
+  body { margin: 0; background: var(--debug-overlay-ground); color: var(--debug-overlay-ink); min-width: 280px;
     font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
   svg { width: 16px; height: 16px; display: inline-block; vertical-align: -3px; }
 
   header { display: flex; align-items: center; gap: 8px; padding: 12px 14px;
-    border-bottom: 1px solid #2e2e34; position: sticky; top: 0; background: #1b1b20; }
+    border-bottom: 1px solid var(--debug-overlay-line); position: sticky; top: 0; background: var(--debug-overlay-ground); }
   header h1 { font-size: 14px; margin: 0; font-weight: 700; letter-spacing: .2px; }
-  header .ver { color: #8f8f96; font-size: 11px; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: #8f8f96; margin-left: auto; flex: none; }
-  .dot.ok { background: #b5e853; }
-  .dot.bad { background: #ffd54f; }
-  #status { color: #8f8f96; font-size: 11px; overflow: hidden; text-overflow: ellipsis;
+  header .ver { color: var(--debug-overlay-muted); font-size: 11px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--debug-overlay-muted); margin-left: auto; flex: none; }
+  .dot.ok { background: var(--debug-overlay-accent); }
+  .dot.bad { background: var(--debug-overlay-warn); }
+  #status { color: var(--debug-overlay-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis;
     white-space: nowrap; min-width: 0; }
   /* [hidden] must actually hide. Its whole effect is `display: none` in the
      UA stylesheet, and ANY author rule with a display beats that — .iconbtn
@@ -32,36 +34,31 @@
      once. !important here rather than removing the displays, because the
      displays are load-bearing for layout and this rule is what `hidden` was
      always supposed to mean. */
-  [hidden] { display: none !important; }
   .iconbtn { flex: none; width: 26px; height: 26px; padding: 0; border-radius: 7px;
     display: inline-flex; align-items: center; justify-content: center; }
   .iconbtn svg { width: 14px; height: 14px; }
 
   /* full-screen answers for the states where there is no page to mirror */
   .screen { padding: 28px 18px; color: #b9b9c0; display: none; }
-  .screen b { color: #e8e8ec; }
-  .screen p { margin: 8px 0 0; color: #8f8f96; font-size: 12px; }
+  .screen b { color: var(--debug-overlay-ink); }
+  .screen p { margin: 8px 0 0; color: var(--debug-overlay-muted); font-size: 12px; }
   body[data-mode="waiting"] #scrWaiting, body[data-mode="stale"] #scrStale { display: block; }
   body[data-mode="waiting"] main, body[data-mode="stale"] main { display: none; }
 
   main { padding: 12px 14px 20px; }
   section { margin: 0 0 16px; }
-  h2 { font-size: 10px; font-weight: 800; letter-spacing: 1px; color: #8f8f96;
+  h2 { font-size: 10px; font-weight: 800; letter-spacing: 1px; color: var(--debug-overlay-muted);
     text-transform: uppercase; margin: 0 0 8px; }
-  .secnote { color: #8f8f96; font-size: 11px; margin: -4px 0 8px; line-height: 1.4; }
+  .secnote { color: var(--debug-overlay-muted); font-size: 11px; margin: -4px 0 8px; line-height: 1.4; }
 
-  button { font: inherit; color: inherit; background: #26262c; border: 1px solid #33333a;
-    border-radius: 8px; cursor: pointer; padding: 7px 10px; text-align: left; }
-  button:hover { background: #2e2e35; }
-  button:focus-visible { outline: 2px solid #b5e853; outline-offset: 1px; }
-  button[aria-pressed="true"] { border-color: #b5e853; color: #b5e853; background: #262c1f; }
+  button[aria-pressed="true"] { border-color: var(--debug-overlay-accent); color: var(--debug-overlay-accent); background: #262c1f; }
   button[aria-disabled="true"] { opacity: .5; cursor: default; }
 
   #power { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; }
-  #power .st { font-weight: 800; font-size: 11px; letter-spacing: .5px; color: #8f8f96; }
-  body[data-on="1"] #power { border-color: #b5e853; }
-  body[data-on="1"] #power svg { color: #b5e853; }
-  body[data-on="1"] #power .st { color: #b5e853; }
+  #power .st { font-weight: 800; font-size: 11px; letter-spacing: .5px; color: var(--debug-overlay-muted); }
+  body[data-on="1"] #power { border-color: var(--debug-overlay-accent); }
+  body[data-on="1"] #power svg { color: var(--debug-overlay-accent); }
+  body[data-on="1"] #power .st { color: var(--debug-overlay-accent); }
 
   /* everything below power dims until the overlay is on — the bar's .whenOn,
      said the side-panel way: visible but honest about being unavailable */
@@ -71,16 +68,16 @@
   #tools { display: grid; gap: 6px; }
   #tools button { display: flex; align-items: center; gap: 9px; width: 100%; }
   #tools .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #tools .fam { color: #8f8f96; font-size: 10px; flex: none; }
+  #tools .fam { color: var(--debug-overlay-muted); font-size: 10px; flex: none; }
 
   #actions { display: grid; gap: 6px; }
   #actions button { display: flex; align-items: center; gap: 9px; }
-  #actions .n { margin-left: auto; color: #8f8f96; font-variant-numeric: tabular-nums; }
-  [data-sweep].swept { border-color: #ffd54f; }
-  [data-sweep].swept .n { color: #ffd54f; font-weight: 700; }
+  #actions .n { margin-left: auto; color: var(--debug-overlay-muted); font-variant-numeric: tabular-nums; }
+  [data-sweep].swept { border-color: var(--debug-overlay-warn); }
+  [data-sweep].swept .n { color: var(--debug-overlay-warn); font-weight: 700; }
 
   #badge .grp { margin: 0 0 8px; }
-  #badge .grp > .lbl { color: #8f8f96; font-size: 11px; margin: 0 0 4px; }
+  #badge .grp > .lbl { color: var(--debug-overlay-muted); font-size: 11px; margin: 0 0 4px; }
   #badge .members { display: flex; flex-wrap: wrap; gap: 5px; }
   #badge .members button { padding: 4px 9px; border-radius: 999px; font-size: 12px;
     display: inline-flex; align-items: center; gap: 6px; min-height: 24px; }
@@ -90,48 +87,48 @@
   #views { display: flex; gap: 6px; margin: 0 0 8px; }
   #views button { flex: 1; display: flex; align-items: center; justify-content: center;
     gap: 7px; padding: 7px 4px; font-size: 12px; }
-  #views .n { color: #8f8f96; font-variant-numeric: tabular-nums; }
+  #views .n { color: var(--debug-overlay-muted); font-variant-numeric: tabular-nums; }
   #views button[aria-pressed="true"] .n { color: inherit; }
 
-  #rowsBox { display: none; background: #202026; border: 1px solid #2e2e34;
+  #rowsBox { display: none; background: var(--debug-overlay-surface); border: 1px solid var(--debug-overlay-line);
     border-radius: 10px; padding: 6px; max-height: 44vh; overflow: auto; }
   #rowsBox.show { display: block; }
-  .rowhead { font-size: 10px; font-weight: 800; letter-spacing: 1px; color: #8f8f96;
+  .rowhead { font-size: 10px; font-weight: 800; letter-spacing: 1px; color: var(--debug-overlay-muted);
     text-transform: uppercase; padding: 8px 8px 4px; display: flex; align-items: center; gap: 8px; }
   .rowhead .note { font-weight: 400; text-transform: none; letter-spacing: 0; }
   .viewhead { font-size: 12px; font-weight: 700; padding: 8px 8px 4px;
     display: flex; align-items: center; gap: 8px; }
-  .empty { color: #8f8f96; font-size: 12px; padding: 10px 8px; }
+  .empty { color: var(--debug-overlay-muted); font-size: 12px; padding: 10px 8px; }
   .rrow { display: flex; align-items: center; gap: 8px; padding: 5px 8px;
     border-radius: 7px; font-size: 12px; }
-  .rrow:hover { background: #26262c; }
+  .rrow:hover { background: var(--debug-overlay-raised); }
   .rrow.inert { opacity: .6; }
-  .rrow .tag { flex: none; min-width: 34px; color: #8f8f96; font-weight: 600;
+  .rrow .tag { flex: none; min-width: 34px; color: var(--debug-overlay-muted); font-weight: 600;
     display: inline-flex; align-items: center; }
   .rrow .tag svg { width: 14px; height: 14px; }
   .rrow .lbl { flex: 1 1 55%; min-width: 0; overflow: hidden; text-overflow: ellipsis;
     white-space: nowrap; }
   .rrow .det { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
-    white-space: nowrap; color: #8f8f96; }
-  .rrow[data-accent="warn"] .tag { color: #ffd54f; }
-  .rrow[data-accent="error"] .tag, .rrow[data-accent="bad"] .tag { color: #ff5c5c; }
+    white-space: nowrap; color: var(--debug-overlay-muted); }
+  .rrow[data-accent="warn"] .tag { color: var(--debug-overlay-warn); }
+  .rrow[data-accent="error"] .tag, .rrow[data-accent="bad"] .tag { color: var(--debug-overlay-danger); }
   .rrow .go { flex: 1; display: flex; align-items: center; gap: 8px; background: none;
     border: 0; padding: 0; text-align: left; min-width: 0; font-size: inherit; cursor: pointer; }
   .rrow .go:hover { background: none; }
   /* the smallest interactive element in a scrolling list, and destructive */
-  .rm { flex: none; background: none; border: 0; color: #8f8f96; padding: 2px 6px;
+  .rm { flex: none; background: none; border: 0; color: var(--debug-overlay-muted); padding: 2px 6px;
     border-radius: 6px; font-size: 12px; cursor: pointer;
     min-width: 24px; min-height: 24px;
     display: inline-flex; align-items: center; justify-content: center; }
-  .rm:hover { color: #ff5c5c; background: #2c2228; }
+  .rm:hover { color: var(--debug-overlay-danger); background: #2c2228; }
   .rrow select, .rrow input[type="number"] { font: inherit; color: inherit;
     background: #17171b; border: 1px solid #3a3a42; border-radius: 6px; padding: 3px 6px; }
   .rrow input[type="number"] { width: 64px; }
-  .rrow input[type="checkbox"] { accent-color: #b5e853; width: 15px; height: 15px; }
-  .rrow .unit { color: #8f8f96; font-size: 11px; margin-left: 4px; }
+  .rrow input[type="checkbox"] { accent-color: var(--debug-overlay-accent); width: 15px; height: 15px; }
+  .rrow .unit { color: var(--debug-overlay-muted); font-size: 11px; margin-left: 4px; }
 
   #upd { display: none; margin: 0 0 14px; padding: 8px 10px; border: 1px solid #5a4a1a;
-    background: #2a2417; border-radius: 8px; color: #ffd54f; font-size: 12px; }
+    background: #2a2417; border-radius: 8px; color: var(--debug-overlay-warn); font-size: 12px; }
   #upd.show { display: flex; align-items: center; gap: 8px; }
   #upd #updTxt { flex: 1; min-width: 0; }
   #upd .mini { flex: none; }
@@ -143,20 +140,20 @@
   .mini { padding: 1px 8px; font-size: 10px; font-weight: 600; border-radius: 999px;
     text-transform: none; letter-spacing: 0;
     min-height: 24px; display: inline-flex; align-items: center; }
-  #timeline { background: #202026; border: 1px solid #2e2e34; border-radius: 10px;
+  #timeline { background: var(--debug-overlay-surface); border: 1px solid var(--debug-overlay-line); border-radius: 10px;
     padding: 6px; max-height: 34vh; overflow: auto; }
-  #timeline .empty { color: #8f8f96; font-size: 12px; padding: 8px; }
+  #timeline .empty { color: var(--debug-overlay-muted); font-size: 12px; padding: 8px; }
   .tlrow { display: flex; align-items: baseline; gap: 8px; padding: 4px 8px;
     border-radius: 6px; font-size: 12px; }
-  .tlrow:hover { background: #26262c; }
-  .tlrow .when { flex: none; min-width: 52px; color: #8f8f96;
+  .tlrow:hover { background: var(--debug-overlay-raised); }
+  .tlrow .when { flex: none; min-width: 52px; color: var(--debug-overlay-muted);
     font-variant-numeric: tabular-nums; font-size: 11px; }
   .tlrow .what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
     white-space: nowrap; }
   .tlrow .what b { font-weight: 600; }
-  .tlrow.freeze .what b { color: #ffd54f; }
-  .tlrow .why { color: #8f8f96; }
-  .tl-reload { display: flex; align-items: center; gap: 8px; color: #58c4ff;
+  .tlrow.freeze .what b { color: var(--debug-overlay-warn); }
+  .tlrow .why { color: var(--debug-overlay-muted); }
+  .tl-reload { display: flex; align-items: center; gap: 8px; color: var(--debug-overlay-info);
     font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
     padding: 6px 8px 2px; }
   .tl-reload::before, .tl-reload::after { content: ''; flex: 1; height: 1px;

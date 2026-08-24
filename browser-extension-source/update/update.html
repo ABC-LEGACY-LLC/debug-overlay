@@ -9,92 +9,85 @@
 <title>Debug Overlay — updates</title>
 <link rel="icon" href="icon32.png">
 <style>
+  /* buttons and tokens come from shared.css, inlined above */
+
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
-  body { margin: 0; background: #1b1b20; color: #e8e8ec;
+  body { margin: 0; background: var(--debug-overlay-ground); color: var(--debug-overlay-ink);
     font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
 
   .wrap { max-width: 560px; margin: 0 auto; padding: 28px 20px 48px; }
 
   header { display: flex; align-items: center; gap: 12px; margin: 0 0 22px; }
-  .logo { width: 40px; height: 40px; border-radius: 10px; background: #26262c;
+  .logo { width: 40px; height: 40px; border-radius: 10px; background: var(--debug-overlay-raised);
     border: 1px solid #33333a; display: flex; align-items: center; justify-content: center; }
-  .logo svg { width: 22px; height: 22px; color: #b5e853; }
+  .logo svg { width: 22px; height: 22px; color: var(--debug-overlay-accent); }
   header h1 { font-size: 17px; margin: 0; font-weight: 700; }
-  header .sub { color: #8f8f96; font-size: 12px; }
-  header .ver { margin-left: auto; text-align: right; color: #8f8f96; font-size: 12px; }
-  header .ver b { display: block; color: #e8e8ec; font-size: 14px; font-variant-numeric: tabular-nums; }
+  header .sub { color: var(--debug-overlay-muted); font-size: 12px; }
+  header .ver { margin-left: auto; text-align: right; color: var(--debug-overlay-muted); font-size: 12px; }
+  header .ver b { display: block; color: var(--debug-overlay-ink); font-size: 14px; font-variant-numeric: tabular-nums; }
 
-  .card { background: #202026; border: 1px solid #2e2e34; border-radius: 12px;
+  .card { background: var(--debug-overlay-surface); border: 1px solid var(--debug-overlay-line); border-radius: 12px;
     padding: 16px 18px; margin: 0 0 14px; }
   .card h2 { display: flex; align-items: center; gap: 8px; font-size: 13px;
     margin: 0 0 6px; font-weight: 700; }
-  .card p { margin: 0 0 10px; color: #a9a9b2; font-size: 13px; }
+  .card p { margin: 0 0 10px; color: var(--debug-overlay-muted); font-size: 13px; }
   .card p:last-child { margin-bottom: 0; }
-  .step { flex: none; width: 20px; height: 20px; border-radius: 50%; background: #2e2e35;
-    color: #b5e853; font-size: 11px; font-weight: 800; display: inline-flex;
+  .step { flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--debug-overlay-raised-hi);
+    color: var(--debug-overlay-accent); font-size: 11px; font-weight: 800; display: inline-flex;
     align-items: center; justify-content: center; }
   /* a finished step stops looking like a waiting one (audit P2 — Goal Gradient) */
   /* font-size:0 hides the TEXT NODE holding the number — `> *` would not,
      since there is no element child to hide */
-  .step.done { background: #b5e853; color: #16161a; font-size: 0; }
+  .step.done { background: var(--debug-overlay-accent); color: var(--debug-overlay-ground); font-size: 0; }
   .step.done::after { content: '✓'; font-size: 12px; }
   /* why a disabled button is disabled — never silence (audit C3) */
-  #gateWhy { margin: 10px 0 0; color: #ffd54f; font-size: 12px; }
+  #gateWhy { margin: 10px 0 0; color: var(--debug-overlay-warn); font-size: 12px; }
 
   /* the status card changes colour with what it knows */
-  #status { border-left: 3px solid #8f8f96; display: flex; align-items: center; gap: 12px; }
+  #status { border-left: 3px solid var(--debug-overlay-muted); display: flex; align-items: center; gap: 12px; }
   #statusMain { flex: 1; min-width: 0; }
   #check { flex: none; }
-  #status.ok { border-left-color: #b5e853; }
-  #status.upd { border-left-color: #ffd54f; }
-  #status.bad { border-left-color: #ff5c5c; }
-  #statusText { font-size: 14px; color: #e8e8ec; }
-  #noScriptHead { font-size: 14px; color: #ff8a8a; font-weight: 600; }
-  #noScriptHint { color: #8f8f96; font-size: 12px; margin-top: 2px; }
+  #status.ok { border-left-color: var(--debug-overlay-accent); }
+  #status.upd { border-left-color: var(--debug-overlay-warn); }
+  #status.bad { border-left-color: var(--debug-overlay-danger); }
+  #statusText { font-size: 14px; color: var(--debug-overlay-ink); }
+  #noScriptHead { font-size: 14px; color: var(--debug-overlay-danger); font-weight: 600; }
+  #noScriptHint { color: var(--debug-overlay-muted); font-size: 12px; margin-top: 2px; }
   /* progress: a real bar, plus a ticking elapsed count in the hint line, so
      "still working" and "wedged" look different from across the room */
-  #bar { margin-top: 8px; height: 4px; border-radius: 2px; background: #2e2e34;
+  #bar { margin-top: 8px; height: 4px; border-radius: 2px; background: var(--debug-overlay-line);
          overflow: hidden; }
-  #barFill { display: block; height: 100%; width: 0; background: #b5e853;
+  #barFill { display: block; height: 100%; width: 0; background: var(--debug-overlay-accent);
              border-radius: 2px; transition: width .2s; }
   #bar.indet #barFill { width: 35%; animation: slide 1.1s ease-in-out infinite; }
   @keyframes slide { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
-  #statusHint { color: #8f8f96; font-size: 12px; margin-top: 2px; }
+  #statusHint { color: var(--debug-overlay-muted); font-size: 12px; margin-top: 2px; }
 
-  button { font: inherit; font-weight: 600; color: #e8e8ec; background: #2b2b32;
-    border: 1px solid #3a3a42; border-radius: 9px; cursor: pointer; padding: 9px 16px; }
-  button:hover { background: #33333b; }
-  button:focus-visible { outline: 2px solid #b5e853; outline-offset: 1px; }
-  button.primary { background: #b5e853; border-color: #b5e853; color: #16161a; }
-  button.primary:hover { background: #c3f168; }
-  button[disabled] { opacity: .45; cursor: default; }
-  button[disabled]:hover { background: #2b2b32; }
-  button.primary[disabled]:hover { background: #b5e853; }
   .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
-  #folderState { color: #8f8f96; font-size: 12px; }
-  #folderState.set { color: #b5e853; }
+  #folderState { color: var(--debug-overlay-muted); font-size: 12px; }
+  #folderState.set { color: var(--debug-overlay-accent); }
 
   /* the write log: one line per step, ✓ when it landed */
-  #log { display: none; background: #17171b; border: 1px solid #2e2e34;
+  #log { display: none; background: #17171b; border: 1px solid var(--debug-overlay-line);
     border-radius: 12px; padding: 12px 16px; margin: 0 0 14px;
-    font: 12px/1.7 ui-monospace, Consolas, monospace; color: #a9a9b2;
+    font: 12px/1.7 ui-monospace, Consolas, monospace; color: var(--debug-overlay-muted);
     white-space: pre-wrap; word-break: break-word; }
   #log.show { display: block; }
-  #log .good { color: #b5e853; }
-  #log .warn { color: #ffd54f; }
-  #log .err { color: #ff5c5c; }
+  #log .good { color: var(--debug-overlay-accent); }
+  #log .warn { color: var(--debug-overlay-warn); }
+  #log .err { color: var(--debug-overlay-danger); }
 
   /* the after-update banner — the one thing people must not miss */
-  #done { display: none; background: #202a18; border: 1px solid #b5e853;
+  #done { display: none; background: #202a18; border: 1px solid var(--debug-overlay-accent);
     border-radius: 12px; padding: 16px 18px; margin: 0 0 14px; }
   #done.show { display: block; }
-  #done b { color: #b5e853; }
+  #done b { color: var(--debug-overlay-accent); }
   #done p { margin: 6px 0 0; color: #cfe6a8; font-size: 13px; }
 
   details { margin: 0 0 14px; }
-  summary { color: #8f8f96; font-size: 12px; cursor: pointer; }
+  summary { color: var(--debug-overlay-muted); font-size: 12px; cursor: pointer; }
   details .card { margin-top: 10px; }
 
   footer { color: #6f6f76; font-size: 11px; line-height: 1.6; }
@@ -174,7 +167,7 @@
       <button id="repair" disabled>Verify &amp; repair</button>
     </div>
     <p id="gateWhy" hidden></p>
-    <p id="repairHint" style="margin-top:10px; font-size:12px; color:#8f8f96">
+    <p id="repairHint" style="margin-top:10px; font-size:12px; color:var(--debug-overlay-muted)">
        Repair rewrites every current file — use it if the extension misbehaves
        or an update was interrupted. It never needs a newer version to exist.</p>
   </div>

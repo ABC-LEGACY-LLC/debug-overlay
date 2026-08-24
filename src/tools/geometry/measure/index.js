@@ -14,27 +14,27 @@ import { Tools } from '../../../core/registry.js';
     .debug-overlay-leader { position: fixed; pointer-events: none; background: rgba(255,255,255,.55); }
     .debug-overlay-line { position: fixed; pointer-events: none; background: rgba(181,232,83,.85);
       border-radius: 1px; box-shadow: 0 0 0 .5px rgba(0,0,0,.4); }
-    .debug-overlay-cap { position: fixed; pointer-events: none; background: #b5e853;
+    .debug-overlay-cap { position: fixed; pointer-events: none; background: var(--debug-overlay-accent);
       border-radius: 1px; box-shadow: 0 0 0 .5px rgba(0,0,0,.5); }
     .debug-overlay-arrow { position: fixed; pointer-events: none; width: 0; height: 0;
       filter: drop-shadow(0 0 .5px rgba(0,0,0,.6)); }
     .debug-overlay-arrow.debug-overlay-up    { border-left: 5px solid transparent; border-right: 5px solid transparent;
-                         border-bottom: 7px solid #b5e853; }
+                         border-bottom: 7px solid var(--debug-overlay-accent); }
     .debug-overlay-arrow.debug-overlay-down  { border-left: 5px solid transparent; border-right: 5px solid transparent;
-                         border-top: 7px solid #b5e853; }
+                         border-top: 7px solid var(--debug-overlay-accent); }
     .debug-overlay-arrow.debug-overlay-left  { border-top: 5px solid transparent; border-bottom: 5px solid transparent;
-                         border-right: 7px solid #b5e853; }
+                         border-right: 7px solid var(--debug-overlay-accent); }
     .debug-overlay-arrow.debug-overlay-right { border-top: 5px solid transparent; border-bottom: 5px solid transparent;
-                         border-left: 7px solid #b5e853; }
+                         border-left: 7px solid var(--debug-overlay-accent); }
     .debug-overlay-ext { position: fixed; pointer-events: none;
       background: repeating-linear-gradient(to right,
         rgba(181,232,83,.7) 0 4px, transparent 4px 8px); }
     .debug-overlay-ext.debug-overlay-v { background: repeating-linear-gradient(to bottom,
         rgba(181,232,83,.7) 0 4px, transparent 4px 8px); }
     .debug-overlay-dist { position: fixed; pointer-events: none;
-      background: rgba(24,28,14,.95); color: #b5e853; border-radius: 7px;
+      background: rgba(24,28,14,.95); color: var(--debug-overlay-accent); border-radius: var(--debug-overlay-r-inner);
       padding: 3px 8px; font-size: 12px; font-weight: 700; white-space: nowrap; }
-    .debug-overlay-dist.debug-overlay-vert { border-left: 2px solid #b5e853; }
+    .debug-overlay-dist.debug-overlay-vert { border-left: 2px solid var(--debug-overlay-accent); }
     `,
       id: 'measure',
       family: 'geometry',   // audited: must match the domain folder this sits in

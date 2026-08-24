@@ -1,41 +1,42 @@
 <!doctype html>
 <meta charset="utf-8"><title>Debug Overlay — installer</title>
 <style>
-  body { font: 15px/1.7 system-ui, sans-serif; background: #16161a; color: #eaeaea;
+  /* buttons and tokens come from shared.css, inlined above */
+
+  body { font: 15px/1.7 system-ui, sans-serif; background: var(--debug-overlay-ground); color: var(--debug-overlay-ink);
          max-width: 640px; margin: 40px auto; padding: 0 16px; }
   h1 { font-size: 20px; }
-  .step { background: #1f1f24; border-radius: 12px; padding: 16px 20px; margin: 14px 0; }
-  .step b { color: #b5e853; }
-  button { font: inherit; padding: 10px 16px; border: 0; border-radius: 8px;
-           background: #58c4ff; color: #0d1b24; cursor: pointer; }
-  button[disabled] { opacity: .5; cursor: default; }
-  button.quiet { background: #2c2c31; color: #eaeaea; }
-  code { background: #2c2c31; border-radius: 6px; padding: 2px 8px; }
-  .muted { color: #9a9aa4; font-size: 13px; }
+  .step { background: var(--debug-overlay-surface); border-radius: 12px; padding: 16px 20px; margin: 14px 0; }
+  .step b { color: var(--debug-overlay-accent); }
+  /* the CTA uses the shared .primary; .quiet was this page's word for the
+     shared default, so it needs no rule of its own any more */
+
+  code { background: var(--debug-overlay-raised); border-radius: 6px; padding: 2px 8px; }
+  .muted { color: var(--debug-overlay-muted); font-size: 13px; }
   /* value before the ask (audit P3 — Reciprocity): say what this does before
      asking for five steps of setup */
   .why { background: #182018; border: 1px solid #2a3a2a; border-radius: 12px;
          padding: 14px 18px; margin: 14px 0; font-size: 14px; line-height: 1.6; }
-  .why b { color: #b5e853; }
+  .why b { color: var(--debug-overlay-accent); }
 
   /* the status area: ONE element, coloured by CLASS — an inline colour set
      on an error once stayed for every message after it, which is how a
      green success came out red */
   #st { display: none; margin-top: 12px; padding: 10px 12px; border-radius: 8px;
-        background: #17171b; border: 1px solid #2e2e34; }
+        background: #17171b; border: 1px solid var(--debug-overlay-line); }
   #st.show { display: block; }
   #st .head { font-weight: 600; }
-  #st .hint { color: #9a9aa4; font-size: 13px; margin-top: 2px; }
-  #st.busy .head { color: #58c4ff; }
-  #st.good { border-color: #b5e853; } #st.good .head { color: #b5e853; }
-  #st.warn { border-color: #ffd54f; } #st.warn .head { color: #ffd54f; }
-  #st.err  { border-color: #ff8a8a; } #st.err .head  { color: #ff8a8a; }
+  #st .hint { color: var(--debug-overlay-muted); font-size: 13px; margin-top: 2px; }
+  #st.busy .head { color: var(--debug-overlay-info); }
+  #st.good { border-color: var(--debug-overlay-accent); } #st.good .head { color: var(--debug-overlay-accent); }
+  #st.warn { border-color: var(--debug-overlay-warn); } #st.warn .head { color: var(--debug-overlay-warn); }
+  #st.err  { border-color: var(--debug-overlay-danger); } #st.err .head  { color: var(--debug-overlay-danger); }
   #override { display: none; margin-top: 10px; }
 
   #prog { display: none; margin-top: 10px; font: 13px/1.7 ui-monospace, Consolas, monospace;
-          color: #9a9aa4; white-space: pre-wrap; }
+          color: var(--debug-overlay-muted); white-space: pre-wrap; }
   #prog.show { display: block; }
-  #prog .ok { color: #b5e853; }
+  #prog .ok { color: var(--debug-overlay-accent); }
 </style>
 <h1>Debug Overlay — installer</h1>
 
@@ -64,7 +65,7 @@ administrators disable cmd; the browser reserves two clicks for you.</p>
   <span class="muted">Already installed? Pick your <i>existing</i> install
   folder — the exact folder you loaded unpacked — and this page updates it
   in place.</span><br><br>
-  <button id="write">Choose install folder &amp; write files…</button>
+  <button id="write" class="primary">Choose install folder &amp; write files…</button>
   <div id="st"><div class="head"></div><div class="hint"></div>
     <button id="override" class="quiet"></button></div>
   <div id="prog"></div>

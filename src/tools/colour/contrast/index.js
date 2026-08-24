@@ -11,7 +11,7 @@ import { Colour } from './service.js';
   defineTool({
     // visuals owned by this tool — appended to the stylesheet at boot
     css: `
-    .debug-overlay-badge .debug-overlay-ok  { color: #b5e853; }
+    .debug-overlay-badge .debug-overlay-ok  { color: var(--debug-overlay-accent); }
     .debug-overlay-badge .debug-overlay-bad { color: #ff6b6b; font-weight: 700; }
     .debug-overlay-badge .debug-overlay-unk { color: #8ab4f8; font-style: italic; }
     `,

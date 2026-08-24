@@ -1468,6 +1468,53 @@ let updaterRan = false;
   d.window.close();
 }
 
+console.log('\nTHE DESIGN SYSTEM');
+/**
+ * There was none: 47 colour literals in the overlay sheet, 23 distinct dark
+ * neutrals across four surfaces, eleven radius values — including #3a3a40
+ * and #3a3a41, one digit apart doing the same job, and 9/10/11/12px, four
+ * ways to say "a control". Nobody chose any of that; each call site invented
+ * its own, because nothing named the alternatives.
+ *
+ * These guards are cheap for one reason: the sheets are ALREADY parsed here
+ * for brace balance and for the namespace. This is one more regex over text
+ * that is being read anyway, which is what makes a rule survive its author.
+ */
+{
+  const overlayCss = [...window.document.querySelectorAll('#__debug-overlay-root style')]
+    .map((s) => s.textContent).join('\n');
+  // the token block itself is the one place literals are allowed to live
+  const body = overlayCss.slice(overlayCss.indexOf('--debug-overlay-r-card'));
+
+  const strays = [...new Set([...body.matchAll(/(#[0-9a-fA-F]{3,8})\b/g)].map((m) => m[1]))];
+  /* A short allow-list, each entry a DOCUMENTED exception rather than a
+     leftover: tool-identity colours (a pin's kind, a finding's severity)
+     carry meaning of their own and are not theme values. Naming them here
+     is what makes them exceptions instead of drift. */
+  const allowed = new Set([
+    // IDENTITY colours: they say WHICH thing this is, not how the theme
+    // feels. A pin's kind, a badge field, a severity — recolouring the
+    // theme must not recolour these, so they are not theme values.
+    '#ff8a65',   // pin count
+    '#9ad0ff', '#8ab4f8', '#d7c4ff', '#c084fc',  // badge fields · pin kinds
+    '#ff6b6b', '#ff2f2f',                        // severity · armed remove chip
+    '#16200a', '#241333',                        // text tinted to ITS fill
+    '#fff',                                      // pure white, deliberate
+    '#232328', '#3f3f46', '#0d1b24',             // one-off chrome
+  ]);
+  const rogue = strays.filter((c) => !allowed.has(c));
+  ok('no un-tokenised colour outside the token block',
+    rogue.length === 0, `stray literals: ${rogue.join(' ')}`);
+
+  const radii = [...new Set([...body.matchAll(/border-radius:\s*([0-9]+px)/g)].map((m) => m[1]))];
+  /* 999px is the pill and 1px is a hairline — neither is a step anyone can
+     land one off. Everything between them must be a named ladder value. */
+  const okRadius = new Set(['999px', '1px']);
+  ok('every radius is on the ladder, or is the pill',
+    radii.every((r) => okRadius.has(r)),
+    `off-ladder: ${radii.filter((r) => !okRadius.has(r)).join(' ')}`);
+}
+
 console.log('\nSTYLESHEET');
 // Malformed CSS never fails loudly: the parser drops the broken rule and
 // every rule after it in that sheet, and raises nothing. Each sheet is
@@ -3699,8 +3746,13 @@ let perfChecked = false;
           (r3.match(/\[warn\] perf-churn[^\n]*/) || ['no churn finding'])[0]);
         ok('and the rule documents itself in ## rules',
           /## rules[\s\S]*perf-churn/.test(r3), 'no rules doc');
+        /* fmt() prints "600ms" under a second and "1.0s" over it. This regex
+           only ever matched the first form, so the assertion failed whenever
+           the machine was loaded enough to push the measured block past 1s —
+           a real freeze, correctly blamed, reported as a failure. Match what
+           the product actually prints, both branches of it. */
         ok('a freeze during the storm blames the stormed subtree',
-          /during the \d+m?s? ?\w* block: .*×\d+ mutations/.test(r3) || /during: /.test(r3),
+          /during the [\d.]+m?s block: .*×\d+ mutations/.test(r3) || /during: /.test(r3),
           (r3.match(/during[^\n]*/) || ['no correlation line'])[0]);
         perfChecked = true;
         w.close();

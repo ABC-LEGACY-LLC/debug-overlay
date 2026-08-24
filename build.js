@@ -170,6 +170,23 @@ function build(kind) {
      byte-identical inside, which is what makes drift impossible — there is
      no "extension version of the code" to disagree with the userscript.
      Load it via chrome://extensions → Developer mode → Load unpacked. */
+  /* ONE design system for the three extension pages, inlined rather than
+     shipped. Each page used to invent its own button, its own greys and its
+     own radii — which is how the 24px target floor got breached in three
+     files independently. A shipped .css would mean another entry in
+     files.json, in the installer's embed and in the updater's write list;
+     inlining costs nothing and keeps one source of truth. */
+  const SHARED = fs.readFileSync(
+    path.join(ROOT, 'browser-extension-source', 'shared.css'), 'utf8');
+  const withShared = (html) => {
+    if (!html.includes('<style>')) {
+      console.error('✗ a page has no <style> to inline the shared sheet into');
+      process.exit(1);
+    }
+    return html.replace('<style>', '<style>\n/* --- shared.css (inlined by build.js) --- */\n' +
+      SHARED + '\n/* --- end shared.css --- */\n');
+  };
+
   const EXT = path.join(DIST, 'browser-extension');
   /* Cleared, not merged. Every file in here is written below, so anything
      already present is from an older build — and a rename would otherwise
@@ -231,8 +248,8 @@ function build(kind) {
      any file explorer, when one is what you edit and the other is what the
      build emits — the same relationship src/ has to dist/. */
   const extBase = cfg.rawBase.replace(/\/script$/, '/browser-extension');
-  fs.copyFileSync(path.join(ROOT, 'browser-extension-source', 'update', 'update.html'),
-    path.join(EXT, 'update.html'));
+  fs.writeFileSync(path.join(EXT, 'update.html'), withShared(
+    fs.readFileSync(path.join(ROOT, 'browser-extension-source', 'update', 'update.html'), 'utf8')));
   // the Windows helper: rides inside the ZIP so install is download →
   // extract → double-click → the two clicks the browser reserves for humans
   fs.copyFileSync(path.join(ROOT, 'browser-extension-source', 'installer', 'install.bat'),
@@ -243,8 +260,8 @@ function build(kind) {
   /* the side panel: its page is copied, its program is BUNDLED — side-panel.js
      imports the shared src/core/protocol.js, which is the whole reason the
      two faces cannot drift: one vocabulary file, two importers. */
-  fs.copyFileSync(path.join(ROOT, 'browser-extension-source', 'side-panel', 'side-panel.html'),
-    path.join(EXT, 'side-panel.html'));
+  fs.writeFileSync(path.join(EXT, 'side-panel.html'), withShared(
+    fs.readFileSync(path.join(ROOT, 'browser-extension-source', 'side-panel', 'side-panel.html'), 'utf8')));
   for (const n of [16, 32, 48, 128]) {
     fs.copyFileSync(path.join(ROOT, 'browser-extension-source', 'icons', `icon${n}.png`),
       path.join(EXT, `icon${n}.png`));
@@ -359,7 +376,7 @@ function build(kind) {
   /* function replacement: the JSON is full of '$' sequences that string
      replacement would interpret as capture references and corrupt */
   fs.writeFileSync(path.join(EXT, 'install.html'),
-    fs.readFileSync(path.join(ROOT, 'browser-extension-source', 'installer', 'install.html'), 'utf8')
+    withShared(fs.readFileSync(path.join(ROOT, 'browser-extension-source', 'installer', 'install.html'), 'utf8'))
       .replace('const FILES = __FILES_JSON__;', () => `const FILES = ${filesJson};`));
 
   const extFiles = fs.readdirSync(EXT).sort()
