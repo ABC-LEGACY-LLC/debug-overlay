@@ -125,10 +125,16 @@
     <div id="noScriptHint">
       <code>update.js</code> is missing from the install folder — security
       software removes it on some machines. Nothing on this page will work
-      until it is back. Fix: download
-      <code>debug-overlay-extension.zip</code>, extract it, copy
-      <code>update.js</code> into your install folder, then press ↻ on
-      <code>chrome://extensions</code>.
+      until it is back.<br><br>
+      <b>Fix:</b> download <code>debug-overlay-extension.zip</code>, extract
+      it, copy <code>update.js</code> into your install folder, then press ↻
+      on <code>chrome://extensions</code>.<br><br>
+      <b>Checking whether it is really missing:</b> Windows hides file
+      extensions, so <code>update.js</code> and <code>update.html</code> both
+      show as just <b>update</b>. Look at the <b>Type</b> column instead —
+      you need one row saying <i>JavaScript File</i>. <code>side-panel</code>
+      is the reference: it correctly appears twice, once as
+      <i>Chrome HTML Document</i> and once as <i>JavaScript File</i>.
     </div>
   </div>
 
