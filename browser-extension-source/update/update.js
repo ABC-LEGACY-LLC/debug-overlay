@@ -417,9 +417,10 @@ async function run(repairing) {
         ' folder to finish the job.';
     }
     $('doneCount').textContent =
-      'One step left: open chrome://extensions and press the ↻ reload icon on ' +
-      'Debug Overlay. Then refresh any tabs you had open.';
+      'One step left: reload the extension so Chrome reads the new files. ' +
+      'Then refresh any tabs you had open.';
     $('done').classList.add('show');
+    $('reloadExt').hidden = false;
     $('copyExt').hidden = false;
   } catch (e) {
     log('failed: ' + e.message, 'err');
@@ -491,6 +492,23 @@ $('pick').addEventListener('click', async () => {
   }
   await showFolder();
   check();   // the hint under the status may change now a folder exists
+});
+/* THE RELOAD, ON A BUTTON. This used to happen by itself on a countdown,
+   and was removed because fetch-write-delete-RESTART is the shape security
+   software reads as a downloader. Removing it was right; leaving the user
+   with "copy this address, paste it, find the row, press the icon" was not —
+   that is four steps to replace one, and I was not the one making them.
+
+   A button is the honest middle. The distinction is real rather than
+   cosmetic: a downloader restarts what it installed silently and without
+   consent, and nothing here happens unless someone presses this. If a
+   scanner ever objects to the extension again, THIS is the first thing to
+   remove — it is the only piece of that shape left. */
+$('reloadExt').addEventListener('click', () => {
+  $('doneCount').textContent =
+    'Reloading — this page will close. Reopen it from chrome://extensions → ' +
+    'Details → Extension options if you need it.';
+  setTimeout(() => chrome.runtime.reload(), 400);
 });
 $('copyExt').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText('chrome://extensions'); } catch {}

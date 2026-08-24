@@ -68,15 +68,19 @@ screen that fetches new files and writes them into your install folder — so
 updating is a button, not a download-and-extract round trip. This is what the
 project develops against.
 
-It **deletes nothing and restarts nothing**. It used to do both, and that was
-the mistake: fetch, write, delete, then restart the program you just wrote is
-the complete shape of a downloader, and security software read it that way —
-quarantining the files, which removed them from disk and made Chrome drop the
-extension. Sweeping stale filenames was cosmetic (Chrome loads only what the
-manifest names) and the auto-reload saved a single click. What is left is
-fetch and write, which *is* the update. If a scanner still objects on your
-machine, tell the updater to skip that one file by installing from the ZIP
-instead — everything else still updates.
+It **deletes nothing, and never restarts itself.** It used to do both, and
+that was the mistake: fetch, write, delete, then restart the program you just
+wrote is the complete shape of a downloader, and security software read it
+that way — quarantining the files, which removed them from disk and made
+Chrome drop the extension. Sweeping stale filenames was cosmetic; Chrome
+loads only what the manifest names.
+
+The restart came back as a **button** on the finished banner, because
+removing it left four steps (copy an address, paste it, find the row, press
+an icon) in place of one. The difference that matters is consent, not the
+API: a downloader restarts what it installed silently, and nothing here
+happens unless you press it. If a scanner ever objects again, that button is
+the first thing to remove — it is the only piece of that shape left.
 
 **Step 1.** Download the ZIP:
 

@@ -515,10 +515,18 @@ console.log('\nTWO GATES, ONE CORE');
   ok('the updater deletes nothing — no sweep, no probe cleanup, nothing',
     !/removeEntry/.test(updJs),
     'deleting files after writing them is the most recognisable move a dropper makes');
-  ok('and it restarts nothing — the user presses reload, on purpose',
-    !/runtime\.reload\s*\(/.test(updJs) &&
-    /chrome:\/\/extensions and press the ↻ reload icon/.test(updJs),
-    'fetch, write, then restart the program you just wrote is the whole shape');
+  /* IT NEVER RESTARTS ITSELF; it offers a button that does. The automatic
+     countdown-then-reload was removed because fetch-write-delete-RESTART is
+     what a downloader looks like — but replacing one click with "copy this
+     address, paste it, find the row, press the icon" was a bad trade made by
+     someone who was not making those four steps. The line that matters is
+     consent, not the API: a dropper restarts what it installed silently.
+     So the call may exist ONLY inside a click handler, and never on a timer. */
+  ok('it never restarts itself — the reload is a button the user presses',
+    /\$\('reloadExt'\)\.addEventListener\('click'/.test(updJs) &&
+    (updJs.match(/chrome\.runtime\.reload\s*\(/g) || []).length === 1 &&
+    !/const tick = \(\) => \{[\s\S]*?chrome\.runtime\.reload/.test(updJs),
+    'an automatic restart after writing files is the shape, and the consent is the difference');
   ok('the updater learns its file list from the repo, not from itself',
     updJs.includes("'/files.json'") &&
     shipped.includes('files.json') &&
