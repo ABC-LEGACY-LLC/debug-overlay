@@ -25,6 +25,14 @@
   .dot.bad { background: #ffd54f; }
   #status { color: #8f8f96; font-size: 11px; overflow: hidden; text-overflow: ellipsis;
     white-space: nowrap; min-width: 0; }
+  /* [hidden] must actually hide. Its whole effect is `display: none` in the
+     UA stylesheet, and ANY author rule with a display beats that — .iconbtn
+     and `#actions button` below both set one, so a control marked hidden
+     stayed on screen while el.hidden read true. Shipped exactly that way
+     once. !important here rather than removing the displays, because the
+     displays are load-bearing for layout and this rule is what `hidden` was
+     always supposed to mean. */
+  [hidden] { display: none !important; }
   .iconbtn { flex: none; width: 26px; height: 26px; padding: 0; border-radius: 7px;
     display: inline-flex; align-items: center; justify-content: center; }
   .iconbtn svg { width: 14px; height: 14px; }

@@ -962,11 +962,19 @@ let sidePanelChecked = false;
                         tabs: { query: async () => [], connect: () => { throw new Error('no tab'); },
                                 onActivated: { addListener() {} }, onUpdated: { addListener() {} } } };
           wc.eval(sidePanelSrc);
-          ok('the gear is hidden with no page connected at all — not merely once one answers',
-            wc.document.querySelector('#optBtn').hidden,
+          /* COMPUTED STYLE, not the attribute. Setting el.hidden only adds an
+             attribute whose entire effect is `display: none` in the UA
+             stylesheet — and ANY author rule with a display beats it.
+             `.iconbtn` and `#actions button` both set one, so the first
+             version of this shipped with the attribute set and the buttons
+             still on screen, while a test asserting `.hidden` passed. Ask
+             what the browser would actually paint. */
+          const gone = (w, sel) => w.getComputedStyle(w.document.querySelector(sel)).display === 'none';
+          ok('the gear is GONE with no page connected — computed, not just attributed',
+            gone(wc, '#optBtn'),
             'a side panel on "waiting for a page" showed a gear that opens nothing');
           ok('and so is "Check for updates" — it could only ever fail',
-            wc.document.querySelector('[data-upd]').hidden,
+            gone(wc, '[data-upd]'),
             'this is the one that lied: it reported "✓ current" without ever asking');
           /* the same page, built the FULL way, must still offer both — a
              capability check that hides everything everywhere is not a fix */
@@ -979,8 +987,7 @@ let sidePanelChecked = false;
                                 onActivated: { addListener() {} }, onUpdated: { addListener() {} } } };
           wf.eval(sidePanelSrc);
           ok('while the full build still shows both — the check hides what is absent, not everything',
-            !wf.document.querySelector('#optBtn').hidden &&
-            !wf.document.querySelector('[data-upd]').hidden,
+            !gone(wf, '#optBtn') && !gone(wf, '[data-upd]'),
             'the updater gate is the full build\'s main update path; hiding it would be worse');
 
           // the SAME honesty on the on-page ⏻ menu, which is its own surface
@@ -1191,6 +1198,43 @@ console.log('\nTHE STORE PACKAGE');
   ok('and it ships as an uploadable ZIP',
     szip.length > 1000 && szip.readUInt32LE(0) === 0x04034b50,
     'the store takes a ZIP, so the build makes one');
+  /* THE ZIP IS THE PRODUCT — for the store AND for Load Unpacked. Chrome
+     refuses an extension whose manifest names a file that is not there, and
+     it refuses it at load time with a message most people will not go
+     looking for. So resolve every reference the manifest makes, plus every
+     src/href the side panel's own page makes, against the ZIP's actual
+     entries. A file dropped from RUNTIME in build.js is otherwise invisible
+     until someone installs it. */
+  {
+    const zipNames = (() => {
+      const SIG = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
+      const out = [];
+      let i = szip.indexOf(SIG);
+      while (i !== -1 && i + 30 <= szip.length) {
+        const n = szip.readUInt16LE(i + 26);
+        if (i + 30 + n > szip.length) break;
+        out.push(szip.subarray(i + 30, i + 30 + n).toString());
+        i = szip.indexOf(SIG, i + 4);
+      }
+      return out;
+    })();
+    const need = new Set(['manifest.json']);
+    for (const cs of sm.content_scripts || []) (cs.js || []).forEach((f) => need.add(f));
+    if (sm.background) need.add(sm.background.service_worker);
+    if (sm.side_panel) need.add(sm.side_panel.default_path);
+    if (sm.options_ui) need.add(sm.options_ui.page);
+    Object.values(sm.icons || {}).forEach((f) => need.add(f));
+    Object.values(sm.action?.default_icon || {}).forEach((f) => need.add(f));
+    // whatever the side panel page itself pulls in — its script and favicon
+    const panelHtml = fs.readFileSync(path.join(storeDir, sm.side_panel.default_path), 'utf8');
+    for (const m of panelHtml.matchAll(/(?:src|href)="([^"]+)"/g)) {
+      if (!/^(https?:|data:|#)/.test(m[1])) need.add(m[1]);
+    }
+    const missing = [...need].filter((f) => !zipNames.includes(f));
+    ok('every file the manifest and the side panel reference is IN the ZIP',
+      missing.length === 0,
+      `missing from the ZIP: ${missing.join(', ')}`);
+  }
 }
 
 console.log('\nSTYLESHEET');
