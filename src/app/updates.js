@@ -35,6 +35,24 @@ export function newer(a, b) {
         return false;
 }
 
+/**
+ * Can this build even ASK? The userscript and the dev page always can (GM or
+ * plain fetch); the extension only can if its OWN manifest gave it the host
+ * permission to reach the update host. The clean/store build deliberately
+ * does not — that is its entire point — so without this check `check()`
+ * would send a message nobody answers, fail the exact same way a genuine
+ * "nothing found" does, and the UI would report "✓ current" for a build
+ * that never actually looked. Not known and not applicable are different
+ * answers; this is what tells them apart.
+ */
+function capable() {
+        if (typeof chrome === 'undefined' || !chrome.runtime?.id) return true;
+        try {
+          const m = chrome.runtime.getManifest();
+          return !!(m.host_permissions && m.host_permissions.length);
+        } catch { return true; }
+}
+
 function fetchText(url) {
         // extension content script: the worker's door
         if (typeof chrome !== 'undefined' && chrome.runtime?.id) {
@@ -67,8 +85,10 @@ function fetchText(url) {
 export const Updates = {
         latest: null,          // a KNOWN newer version, or null
         applied: false,        // the user pressed Update THIS page-session
+        capable: capable(),    // can this build reach the update host AT ALL
 
         async check(force) {
+          if (!Updates.capable) return null;   // nothing to ask; see capable() above
           let saved = {};
           try { saved = JSON.parse(Store.get('__debug_overlay_upd') || '{}') || {}; } catch {}
           if (!force && Date.now() - (saved.t || 0) < CONFIG.UPDATE.EVERY) {
@@ -124,6 +144,13 @@ export const Updates = {
          *  where a sentence cannot fit, and painted as smear. */
         menu(x, y, answered) {
           const rows = [];
+          if (!Updates.capable) {
+            // one honest row, no live button pretending it could ever answer
+            rows.push({ label: 'This build cannot check for updates — see the ZIP page',
+                        run: () => {} });
+            Menu.open(x, y, rows);
+            return;
+          }
           if (Updates.applied && Updates.latest) {
             // the update is installed (or installing) — this PAGE still runs
             // the old code, and only a reload changes that

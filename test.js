@@ -600,13 +600,31 @@ let sidePanelChecked = false;
   const extDir = path.join(__dirname, 'dist', 'browser-extension');
   const sidePanelSrc = fs.readFileSync(path.join(extDir, 'side-panel.js'), 'utf8');
   const sidePanelHtml = fs.readFileSync(path.join(extDir, 'side-panel.html'), 'utf8');
+  // read the REAL shipped manifests rather than hand-copy their shape — a
+  // fake chrome.runtime.getManifest() that drifts from what build.js
+  // actually emits would pass tests against a build nobody ships
+  const fullManifest = JSON.parse(fs.readFileSync(path.join(extDir, 'manifest.json'), 'utf8'));
+  const cleanManifest = JSON.parse(fs.readFileSync(
+    path.join(__dirname, 'dist', 'browser-extension-store', 'manifest.json'), 'utf8'));
 
-  // the content side: a page window whose chrome looks like a content script's
-  const bootContent = () => {
+  // the content side: a page window whose chrome looks like a content script's.
+  // manifest defaults to the FULL gate's shape — this rig is testing
+  // dist/browser-extension, so Updates.capable/optionsCapable must read TRUE
+  // here or the existing gear/check-now assertions below would be exercising
+  // a button that only LOOKS clickable in jsdom, never in a real browser.
+  // `id` defaults to absent — c1/c2/c3 rely on that: fetchText()'s extension
+  // branch is gated on chrome.runtime?.id, and leaving it unset is what lets
+  // those windows fall through to the plain-fetch stub instead of needing a
+  // sendMessage relay mock. A REAL content script always has `id` populated
+  // BEFORE any of its code runs, so a window that needs `Updates.capable` to
+  // read truthfully must have it set here, before eval — not after, which
+  // is too late for a value the bundle computes once at module load.
+  const bootContent = (manifest = fullManifest, id) => {
     const d = makeDom();
     const w = d.window;
     let onConnect = null;
-    w.chrome = { runtime: { onConnect: { addListener: (f) => { onConnect = f; } } } };
+    w.chrome = { runtime: { onConnect: { addListener: (f) => { onConnect = f; } },
+                            getManifest: () => manifest, ...(id ? { id } : {}) } };
     w.eval(source);
     // reveal scrolls the page; jsdom needs a spy where a browser has motion
     w.eval('Element.prototype.scrollIntoView = function () {' +
@@ -921,11 +939,48 @@ let sidePanelChecked = false;
             !c3.bar.classList.contains('debug-overlay-hidden'),
             'the bar stayed hidden with nothing left to replace it');
 
-          c1.d.window.close();
-          c2.d.window.close();
-          c3.d.window.close();
-          w2.close();
-          sidePanelChecked = true;
+          /* THE BUG A REAL INSTALL FOUND: the clean/store build ships no
+             options page and cannot reach the update host at all (that is
+             its entire point), but the side panel's gear button and "Check
+             for updates" row were unconditionally visible and wired anyway.
+             The gear opened nothing and said nothing; worse, "Check for
+             updates" always failed to reach the network and reported that
+             failure as "✓ current" — a confident wrong answer, not a
+             visible absence. Reconnect to a CONTENT SCRIPT SHAPED LIKE THE
+             CLEAN BUILD and prove both controls disappear instead of lying. */
+          const c5 = bootContent(cleanManifest, 'clean-test-id');
+          target = c5;
+          lastPair[0].disconnect();
+          fireUpdated(7, { status: 'complete' });
+          whenPainted(() => k.body.dataset.mode === 'main' && k.querySelector('#optBtn').hidden,
+            () => {
+              console.log('\nTHE CLEAN BUILD HAS NOTHING TO LIE WITH');
+              ok('reconnected to the clean-shaped page', k.body.dataset.mode === 'main');
+              ok('the gear (Extension options) is hidden — there is no options page to open',
+                k.querySelector('#optBtn').hidden,
+                'a control promising a page that does not exist is worse than no control');
+              ok('and "Check for updates" is hidden too — there is no way to ever check',
+                k.querySelector('[data-upd]').hidden,
+                'this is the one that lied: it always reported "✓ current" without ever asking');
+
+              // the SAME honesty on the on-page ⏻ menu, checked directly on c5
+              const rclickPwr = (w) => w.document.querySelector('#__debug-overlay-bar .debug-overlay-pwr')
+                .dispatchEvent(new w.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+              const menuRows = (w) => [...w.document.querySelectorAll('#__debug-overlay-menu button')]
+                .map((b) => b.textContent);
+              rclickPwr(c5.w);
+              ok('the on-page ⏻ menu says the same thing, not "Check for updates now"',
+                !menuRows(c5.w).some((x) => /Check for updates now|Check again/.test(x)) &&
+                menuRows(c5.w).some((x) => /cannot check for updates/.test(x)),
+                menuRows(c5.w).join(' | ') || '(no menu)');
+
+              c1.d.window.close();
+              c2.d.window.close();
+              c3.d.window.close();
+              c5.d.window.close();
+              w2.close();
+              sidePanelChecked = true;
+            });
         });
       });
     });

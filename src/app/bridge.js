@@ -64,12 +64,22 @@ function backlogs() {
  *  is what hiding it solved. */
 const wantsWebPanel = () => Store.get(CONFIG.WEBPANEL_KEY) === '1';
 
+/** Whether openOptionsPage() would do anything. The clean/store build ships
+ *  no options_ui at all — a different capability from Updates.capable (that
+ *  one is about REACHING the update host), so it gets checked on its own
+ *  rather than assumed to travel with it, even though today they happen to
+ *  move together. */
+function optionsCapable() {
+  try { return !!chrome.runtime.getManifest().options_ui; } catch { return false; }
+}
+
 function hello() {
   // version rides with the roster: a side panel updated under a page that was
   // not refreshed can SAY "reload this page" instead of half-working
   send('tools', roster(), CONFIG.VERSION);
   send('page', location.origin);   // whose page this connection speaks for
   send('webPanel', wantsWebPanel());
+  send('capabilities', { updates: Updates.capable, options: optionsCapable() });
   for (const [id, v] of toolLast) send('tool', id, v);
   for (const [name, args] of last) send(name, ...args);
   backlogs();

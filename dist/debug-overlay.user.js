@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.118
+// @version      3.8.119
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -359,7 +359,7 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.118",
+    VERSION: "3.8.119",
     // Substituted like VERSION: where the update checker asks, and what the
     // userscript's one-click update opens. One source (userscript.json), no
     // second copy to drift.
@@ -4251,6 +4251,10 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     // (version|null) — a forced check's answer, null = current
     page: null,
     // (origin) — whose page this connection speaks for
+    capabilities: null,
+    // ({updates, options}) — what this build's chrome APIs can
+    // actually do; sent on hello, so the side panel never offers
+    // a control it cannot honour
     webPanel: null,
     // (visible) — is the on-page bar showing alongside us
     flash: null,
@@ -4366,6 +4370,15 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     }
     return false;
   }
+  function capable() {
+    if (typeof chrome === "undefined" || !chrome.runtime?.id) return true;
+    try {
+      const m = chrome.runtime.getManifest();
+      return !!(m.host_permissions && m.host_permissions.length);
+    } catch {
+      return true;
+    }
+  }
   function fetchText(url) {
     if (typeof chrome !== "undefined" && chrome.runtime?.id) {
       return new Promise((resolve, reject) => {
@@ -4397,7 +4410,10 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     // a KNOWN newer version, or null
     applied: false,
     // the user pressed Update THIS page-session
+    capable: capable(),
+    // can this build reach the update host AT ALL
     async check(force) {
+      if (!Updates.capable) return null;
       let saved = {};
       try {
         saved = JSON.parse(Store.get("__debug_overlay_upd") || "{}") || {};
@@ -4443,6 +4459,15 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
      *  where a sentence cannot fit, and painted as smear. */
     menu(x, y, answered) {
       const rows = [];
+      if (!Updates.capable) {
+        rows.push({
+          label: "This build cannot check for updates — see the ZIP page",
+          run: () => {
+          }
+        });
+        Menu.open(x, y, rows);
+        return;
+      }
       if (Updates.applied && Updates.latest) {
         rows.push({
           label: `↻ Refresh page — activate v${Updates.latest}`,
@@ -4505,10 +4530,18 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     }
   }
   var wantsWebPanel = () => Store.get(CONFIG.WEBPANEL_KEY) === "1";
+  function optionsCapable() {
+    try {
+      return !!chrome.runtime.getManifest().options_ui;
+    } catch {
+      return false;
+    }
+  }
   function hello() {
     send("tools", roster(), CONFIG.VERSION);
     send("page", location.origin);
     send("webPanel", wantsWebPanel());
+    send("capabilities", { updates: Updates.capable, options: optionsCapable() });
     for (const [id, v] of toolLast) send("tool", id, v);
     for (const [name, args] of last) send(name, ...args);
     backlogs();

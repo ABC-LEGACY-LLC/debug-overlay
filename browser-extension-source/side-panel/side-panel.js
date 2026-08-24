@@ -370,6 +370,18 @@ const render = {
   page([origin]) {
     status('connected · ' + String(origin || '').replace(/^\w+:\/\//, ''), 'ok');
   },
+  /* Hide, never disable-and-leave-visible: a control that cannot ever work
+     in THIS build is not a control, it is a promise the page cannot keep.
+     The gear opened "Extension options — updates & repair" — a page that
+     does not exist in the clean build, so pressing it did nothing and said
+     nothing. "Check for updates" was worse: it always failed to reach the
+     network and reported that failure as "✓ current", which is confidently
+     wrong, not silent. Both are gated on what THIS install can actually do,
+     sent once on hello. */
+  capabilities([caps]) {
+    $('#optBtn').hidden = !caps.options;
+    $('[data-upd]').hidden = !caps.updates;
+  },
   badgeControls([groups]) {
     const box = $('#badge');
     box.textContent = '';
