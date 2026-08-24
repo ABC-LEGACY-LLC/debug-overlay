@@ -433,10 +433,22 @@ console.log('\nTWO GATES, ONE CORE');
   ok('and reads it back, because a quarantine looks like a success',
     /if \(back !== texts\[SELF\]\) throw new Error/.test(updJs),
     'a file written then removed reports as written');
-  ok('and if that one write fails, the fix is one line the user can act on',
-    /Copy update\.js out of the/.test(updJs) &&
-    /everything ELSE is updated and committed/.test(updJs),
-    'losing only the updater is recoverable, but only if it says how');
+  /* THE REHEARSAL. Writing this file directly is what destroys it — a
+     refused write leaves nothing, and the file it takes is the updater, so
+     the page then 404s its own script and can repair nothing. Measured
+     twice on a real machine. The refusal is about the CONTENT, not the name
+     (content.js and side-panel.js are also .js and land fine), so the same
+     bytes go down under a different name first: if that lands the real
+     write is safe, and if it does not the real file is never touched. */
+  ok('the self-write is rehearsed under another name before the real file',
+    /const REHEARSAL = 'update-rehearsal\.js'/.test(updJs) &&
+    updJs.indexOf('REHEARSAL, { create: true }') < updJs.indexOf('getFileHandle(SELF, { create: true })'),
+    'writing the updater directly is what destroyed it, twice');
+  ok('and a refused rehearsal leaves the working updater alone, and says so',
+    /left as it was — this machine refuses to write it/.test(updJs) &&
+    /this page still works/.test(updJs) &&
+    /copy update\.js out of the ZIP/i.test(updJs),
+    'losing only the updater is recoverable, but not losing it is better');
   /* the page must be able to report its own script being gone — the state it
      was in when this was found, where every button rendered and none worked */
   /* NOTHING MAY HANG WITHOUT SAYING SO. "Checking for updates…" with no

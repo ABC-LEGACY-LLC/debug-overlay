@@ -387,26 +387,53 @@ async function run(repairing) {
       await w.close();
       log('✓ wrote ' + f, 'good');
     }
-    /* …and now this file, after the commit. Verified by reading it back:
-       a write that "succeeds" and is then quarantined looks identical to one
-       that worked, and the difference is whether this page exists tomorrow. */
+    /* …and now this file — REHEARSED FIRST, because writing it directly is
+       what destroys it. A refused write leaves nothing, and the file it
+       takes is the updater itself: the page then 404s its own script and
+       cannot repair anything, which is exactly what happened here, twice.
+
+       The refusal is about the CONTENT, not the name — measured: content.js
+       and side-panel.js are also .js and write fine, while these particular
+       bytes are refused. So write the same bytes under a different name
+       first. If that lands, the content is acceptable on this machine and
+       the real write is safe. If it does not, the real file is never
+       touched and this page keeps working — which is the whole point of
+       the file being special. */
     let selfLost = null;
     if (selfStale && texts[SELF] !== undefined) {
-      status('busy', `Replacing ${SELF}…`);
-      ticking('writing ' + SELF);
+      const REHEARSAL = 'update-rehearsal.js';   // .js on purpose: same shape to a scanner
+      status('busy', `Checking whether ${SELF} can be replaced…`);
+      ticking('rehearsing ' + SELF);
+      let allowed = false;
       try {
-        const fh = await dir.getFileHandle(SELF, { create: true });
+        const fh = await dir.getFileHandle(REHEARSAL, { create: true });
         const w = await fh.createWritable();
         await w.write(texts[SELF]);
         await w.close();
-        const back = await readOwn(dir, SELF);
-        if (back !== texts[SELF]) throw new Error('written, but it did not read back');
-        log('✓ wrote ' + SELF + ' (this page — reload it to run the new one)', 'good');
-      } catch (e) {
-        selfLost = e.message;
-        log('⚠ could not replace ' + SELF + ' — ' + e.message, 'warn');
-        log('  everything ELSE is updated and committed. Copy update.js out of the ' +
-            'ZIP into your install folder to finish.', 'warn');
+        allowed = (await readOwn(dir, REHEARSAL)) === texts[SELF];
+        if (!allowed) selfLost = 'the rehearsal wrote but did not read back';
+      } catch (e) { selfLost = e.message; }
+
+      if (allowed) {
+        status('busy', `Replacing ${SELF}…`);
+        try {
+          const fh = await dir.getFileHandle(SELF, { create: true });
+          const w = await fh.createWritable();
+          await w.write(texts[SELF]);
+          await w.close();
+          const back = await readOwn(dir, SELF);
+          if (back !== texts[SELF]) throw new Error('written, but it did not read back');
+          selfLost = null;
+          log('✓ wrote ' + SELF + ' (this page — reload it to run the new one)', 'good');
+        } catch (e) {
+          selfLost = e.message;   // rehearsal passed and the real one still failed
+        }
+      }
+      if (selfLost) {
+        log('· ' + SELF + ' left as it was — this machine refuses to write it', 'warn');
+        log('  (' + selfLost + '). Nothing is broken: everything else is updated and', 'warn');
+        log('  committed, and this page still works. To get the newest updater,', 'warn');
+        log('  copy update.js out of the ZIP.', 'warn');
       }
     }
     /* Written, and NOT reloaded. This used to count down and then call
