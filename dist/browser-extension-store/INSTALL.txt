@@ -1,4 +1,4 @@
-Debug Overlay 3.8.117 — the clean build
+Debug Overlay 3.8.118 — the clean build
 
 This build contains NO self-updater. That is the point: a program that
 downloads files and writes them to disk looks like a downloader to
@@ -12,6 +12,9 @@ To install:
   4. Press "Load unpacked" and select THIS folder.
   5. Open any website. Press Alt+Shift+D, or click the toolbar button
      for the side panel.
+
+Prefer clicking through it? Open  guide.html  from this same folder —
+same steps, in your browser, with a copy button for chrome://extensions.
 
 To update later: download the newer ZIP, extract it over this folder,
 then press the reload arrow on chrome://extensions. There is no update

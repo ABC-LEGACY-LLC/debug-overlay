@@ -434,6 +434,13 @@ function build(kind) {
      no updater to quarantine, so it installs unpacked and simply keeps
      working. The instructions ride inside the ZIP, because that is where
      someone who just extracted it will look. */
+  /* Two guides, same facts, different reader. INSTALL.txt is what someone
+     sees the instant they open the extracted folder in a file browser — no
+     click needed. guide.html is the same steps as a real page, with a
+     copy-to-clipboard button for chrome://extensions, for anyone who would
+     rather read it in the browser they are about to configure. Neither
+     writes anything: Load Unpacked needs no file-system access from us at
+     all, which is the whole reason this package exists. */
   fs.writeFileSync(path.join(STORE, 'INSTALL.txt'),
     ['Debug Overlay ' + version + ' — the clean build',
      '',
@@ -450,6 +457,9 @@ function build(kind) {
      '  5. Open any website. Press Alt+Shift+D, or click the toolbar button',
      '     for the side panel.',
      '',
+     'Prefer clicking through it? Open  guide.html  from this same folder —',
+     'same steps, in your browser, with a copy button for chrome://extensions.',
+     '',
      'To update later: download the newer ZIP, extract it over this folder,',
      'then press the reload arrow on chrome://extensions. There is no update',
      'button in this build, on purpose.',
@@ -457,6 +467,9 @@ function build(kind) {
      'This same package is what gets published to the Chrome Web Store, where',
      'installing is one click and Chrome handles updates by itself.',
      ''].join('\n'));
+  fs.writeFileSync(path.join(STORE, 'guide.html'),
+    fs.readFileSync(path.join(ROOT, 'browser-extension-source', 'store', 'guide.html'), 'utf8')
+      .replace('__VERSION__', version));
   const storeFiles = fs.readdirSync(STORE).sort()
     .filter((f) => !f.endsWith('.zip'))
     .map((f) => [f, fs.readFileSync(path.join(STORE, f))]);

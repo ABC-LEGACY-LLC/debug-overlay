@@ -1089,6 +1089,21 @@ console.log('\nTHE STORE PACKAGE');
     /Load unpacked/.test(fs.readFileSync(path.join(storeDir, 'INSTALL.txt'), 'utf8')) &&
     /NO self-updater/.test(fs.readFileSync(path.join(storeDir, 'INSTALL.txt'), 'utf8')),
     'the clean build is now a real install route, not just a store upload');
+  /* A .txt file is what someone sees the instant they open the folder; it is
+     not what makes the walk-through EASY for someone who does not know what
+     "Load unpacked" means. guide.html is the same steps as a clickable page —
+     copy button for chrome://extensions, real version number — and since
+     this build has no reason to touch the filesystem at all, the guide must
+     not gain any write capability either: that would be the exact shape this
+     whole package exists to avoid. */
+  const guideHtml = fs.readFileSync(path.join(storeDir, 'guide.html'), 'utf8');
+  ok('and a clickable guide rides alongside it — no plain text wall',
+    guideHtml.includes('Load unpacked') && guideHtml.includes(`v${cfgS.version}`) &&
+    guideHtml.includes("navigator.clipboard.writeText('chrome://extensions')"),
+    'a first-time installer with only a .txt file is the friction this build was meant to remove');
+  ok('the guide touches no filesystem API — it only tells you where to click',
+    !/showDirectoryPicker|createWritable|getFileHandle|removeEntry/.test(guideHtml),
+    'an instructional page that can also write files is a second copy of the thing this package refuses to be');
   ok('and it ships as an uploadable ZIP',
     szip.length > 1000 && szip.readUInt32LE(0) === 0x04034b50,
     'the store takes a ZIP, so the build makes one');

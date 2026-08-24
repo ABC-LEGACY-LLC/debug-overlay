@@ -75,7 +75,10 @@ extension. There is nothing here to quarantine.
 https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/browser-extension-store/debug-overlay-clean.zip
 ```
 
-**Step 2.** Keep the folder somewhere permanent (not Downloads).
+**Step 2.** Keep the folder somewhere permanent (not Downloads). Prefer a
+click-through walk-through? Open **`guide.html`** from inside that folder —
+same steps, in a page, with a copy button for the address below. It touches
+nothing on disk; it only tells you where to click.
 
 **Step 3.** `chrome://extensions` → **Developer mode** ON → **Load unpacked**
 → select that folder.
@@ -255,6 +258,12 @@ dist/
     icon16/32/48/128.png  files.json       the face, and the updater's file list
     install.html  install.bat              the no-cmd installer (+ cmd variant)
     debug-overlay-extension.zip     ← the one-link install
+  browser-extension-store/    the Web Store package — see STORE.md
+    manifest.json  content.js  sw.js       no host permission, no updater
+    side-panel.html  side-panel.js         same side panel as above
+    icon16/32/48/128.png
+    INSTALL.txt  guide.html               two install guides, neither writes anything
+    debug-overlay-clean.zip     ← Option B's download, and the store upload
   debug-overlay.user.js  LEGACY BRIDGE — never delete: installs from before
   debug-overlay.meta.js  the restructure poll this path forever; these
                          byte-identical copies point at script/, so an old

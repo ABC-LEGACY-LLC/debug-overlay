@@ -39,6 +39,18 @@ drift; it still contains the update-checker code, which in this build cannot
 reach anything — there is no host permission and no fetch relay. The suite
 asserts all of the above (`npm run check`, section **THE STORE PACKAGE**).
 
+**Two files exist only for people installing this ZIP before it is on the
+store: `INSTALL.txt` and `guide.html`.** Neither belongs in the store upload
+conceptually (the store's own "Add to Chrome" button replaces them), but
+neither hurts it either — `install.html`/`install.bat` were excluded above
+because they *write files*; these two only display text and copy a string to
+the clipboard. They exist because this same ZIP is also README's Option B —
+a real install route for a machine whose security software quarantined the
+self-updating build (see the git history for that incident). Once the store
+listing is live and is the recommendation, these can be dropped from the
+store upload if a reviewer objects to unrelated files; they were never
+required for the review itself, and the manifest never references them.
+
 ---
 
 ## One-time setup
