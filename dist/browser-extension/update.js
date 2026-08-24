@@ -300,14 +300,22 @@ async function run(repairing) {
        Chrome activates the new files on the next reload either way, so the
        button that does it is one the user presses — on the page that is
        already open in front of them. */
-    $('doneHead').textContent = repairing
-      ? `Repaired — every v${remote.version} file is on disk.`
-      : `v${remote.version} is on disk.`;
+    /* The headline states what is TRUE, not what was attempted. It used to
+       lead with "every file is on disk" and then take it back in the next
+       sentence — while a write had in fact been refused. A summary that
+       needs its own footnote to stop being wrong is a wrong summary. */
+    $('doneHead').textContent = selfBlocked
+      ? (repairing
+          ? `Repaired — every v${remote.version} file is on disk except this one.`
+          : `v${remote.version} is on disk, except this update screen.`)
+      : (repairing
+          ? `Repaired — every v${remote.version} file is on disk.`
+          : `v${remote.version} is on disk.`);
     if (selfBlocked) {
       $('doneHead').textContent +=
-        ' (This update screen itself was blocked from being replaced by ' +
-        'security software, so it stays at its current version — everything ' +
-        'else is now current, and updates keep working.)';
+        ' Security software refused to replace this update screen, so it stays' +
+        ' at the version it has — which changes nothing: it reads its file list' +
+        ' from the repo each time, so it keeps updating everything else.';
     }
     $('doneCount').textContent =
       'One step left: open chrome://extensions and press the ↻ reload icon on ' +

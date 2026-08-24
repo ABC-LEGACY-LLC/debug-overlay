@@ -400,8 +400,17 @@ console.log('\nTWO GATES, ONE CORE');
     updJs.includes('selfBlocked'),
     'one refused file would cost the user every other file in the update');
   ok('and the user is told which file did not change',
-    /This update screen itself was blocked/.test(updJs),
+    /Security software refused to replace this update screen/.test(updJs),
     'a silent skip is a lie about what the update did');
+  /* …and the HEADLINE carries it, not just a footnote under it. The first
+     version announced "every file is on disk" and then took it back one
+     sentence later, on a run where a write had actually been refused. A
+     summary that needs a correction attached to stop being false is a false
+     summary — the exception belongs in the sentence that claims success. */
+  ok('and the headline itself says so — no claim that a footnote has to retract',
+    /except this one|except this update screen/.test(updJs) &&
+    /selfBlocked\s*\n?\s*\?/.test(updJs),
+    'the completion banner claimed every file landed while one had not');
   ok('and update.js is the ONLY shipped file with the downloader shape',
     ['content.js', 'sw.js', 'side-panel.js'].every((f) => {
       const s = fs.readFileSync(path.join(extDir, f), 'utf8');
