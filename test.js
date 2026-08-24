@@ -422,8 +422,34 @@ console.log('\nTWO GATES, ONE CORE');
     !/await fetch\(BASE/.test(updJs),
     'an unbounded fetch is indistinguishable from a dead page');
   ok('and a multi-file download reports which file it is on',
-    /Downloading \$\{\+\+got\} of \$\{files\.length\}/.test(updJs),
+    /Downloading \$\{got\} of \$\{files\.length\}/.test(updJs) &&
+    /Writing \$\{put\} of/.test(updJs),
     'a long silent wait reads as broken');
+  /* PROOF OF LIFE, not just progress. A single request has no percentage to
+     show, so it gets an indeterminate bar and a ticking elapsed count — a
+     number that MOVES is what separates "still working" from "wedged". A
+     dead page was mistaken for a slow one here precisely because nothing on
+     screen was changing. */
+  ok('a long wait shows a live elapsed count, so stuck looks different from slow',
+    /setInterval\(paint, 1000\)/.test(updJs) &&
+    /gives up at \$\{Math\.round\(limitMs \/ 1000\)\}s/.test(updJs),
+    'without a moving number, waiting and wedged are the same picture');
+  ok('and the multi-file run drives a REAL percentage bar',
+    /const steps = files\.length \* 2;/.test(updJs) &&
+    /progress\(\(\(files\.length \+ put\) \/ steps\) \* 100\)/.test(updJs),
+    'a bar that is not tied to the work is decoration');
+  /* the ids this page uses must be unique — the fail-visible banner reused
+     statusText/statusHint, getElementById returned the HIDDEN one, and every
+     status update went into an invisible element while the visible card kept
+     its initial "Checking for updates…" forever. The overlay ships a tool
+     that finds exactly this; the page it ships in did not have it run on it. */
+  {
+    const ids = [...updHtml.matchAll(/id="([^"]+)"/g)].map((m) => m[1]);
+    const dupes = ids.filter((v, i) => ids.indexOf(v) !== i);
+    ok('the update page has no duplicate ids',
+      dupes.length === 0,
+      `duplicated: ${[...new Set(dupes)].join(', ')} — getElementById returns the first, silently`);
+  }
   ok('the page warns FAIL-VISIBLE when its script never loads',
     /id="noScript"/.test(updHtml) &&
     /update\.js<\/code> is missing/.test(updHtml) &&

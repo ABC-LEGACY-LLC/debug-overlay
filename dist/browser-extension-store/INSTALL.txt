@@ -1,4 +1,4 @@
-Debug Overlay 3.8.126 — the NO-UPDATER build
+Debug Overlay 3.8.127 — the NO-UPDATER build
 
 *** THIS BUILD HAS NO UPDATE BUTTON AND NO OPTIONS PAGE. ***
 That is deliberate, and it is probably NOT the one you want.

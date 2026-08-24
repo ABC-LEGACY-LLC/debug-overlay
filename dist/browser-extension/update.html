@@ -43,6 +43,16 @@
   #status.upd { border-left-color: #ffd54f; }
   #status.bad { border-left-color: #ff5c5c; }
   #statusText { font-size: 14px; color: #e8e8ec; }
+  #noScriptHead { font-size: 14px; color: #ff8a8a; font-weight: 600; }
+  #noScriptHint { color: #8f8f96; font-size: 12px; margin-top: 2px; }
+  /* progress: a real bar, plus a ticking elapsed count in the hint line, so
+     "still working" and "wedged" look different from across the room */
+  #bar { margin-top: 8px; height: 4px; border-radius: 2px; background: #2e2e34;
+         overflow: hidden; }
+  #barFill { display: block; height: 100%; width: 0; background: #b5e853;
+             border-radius: 2px; transition: width .2s; }
+  #bar.indet #barFill { width: 35%; animation: slide 1.1s ease-in-out infinite; }
+  @keyframes slide { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
   #statusHint { color: #8f8f96; font-size: 12px; margin-top: 2px; }
 
   button { font: inherit; font-weight: 600; color: #e8e8ec; background: #2b2b32;
@@ -104,8 +114,8 @@
        in a console the user had no reason to open. MV3 forbids inline script,
        so a fail-visible element is the way to say this without one. -->
   <div class="card" id="noScript">
-    <div id="statusText" style="color:#ff8a8a">This page's script did not load.</div>
-    <div id="statusHint">
+    <div id="noScriptHead">This page's script did not load.</div>
+    <div id="noScriptHint">
       <code>update.js</code> is missing from the install folder — security
       software removes it on some machines. Nothing on this page will work
       until it is back. Fix: download
@@ -119,6 +129,7 @@
     <div id="statusMain">
       <div id="statusText">Checking for updates…</div>
       <div id="statusHint"></div>
+      <div id="bar" hidden><i id="barFill"></i></div>
     </div>
     <button id="check" title="Ask the repository what the latest version is">Check now</button>
   </div>

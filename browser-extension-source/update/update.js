@@ -89,6 +89,39 @@ function status(cls, text, hint) {
   $('statusHint').textContent = hint || '';
 }
 
+/* PROGRESS, AND PROOF OF LIFE. Two different questions get two different
+   answers: a download of N files has a real percentage, while a single
+   request has none — so that one gets an indeterminate bar and a ticking
+   elapsed count instead. The ticking is the point. A number that moves is
+   the difference between "still working" and "wedged", and without it a
+   long wait and a dead page look exactly alike — which is precisely how a
+   dead page was mistaken for a slow one here. */
+let tick = 0;
+function progress(pct) {           // null = indeterminate, 0..100 = real
+  const bar = $('bar');
+  bar.hidden = false;
+  bar.classList.toggle('indet', pct == null);
+  if (pct != null) $('barFill').style.width = Math.round(pct) + '%';
+}
+function progressDone() {
+  clearInterval(tick);
+  $('bar').hidden = true;
+  $('bar').classList.remove('indet');
+  $('barFill').style.width = '0';
+}
+/** Run `label` with a live "…Ns" counter until something stops it. */
+function ticking(label, limitMs) {
+  clearInterval(tick);
+  const t0 = Date.now();
+  const paint = () => {
+    const s = Math.round((Date.now() - t0) / 1000);
+    $('statusHint').textContent =
+      `${label} — ${s}s${limitMs ? ` (gives up at ${Math.round(limitMs / 1000)}s)` : ''}`;
+  };
+  paint();
+  tick = setInterval(paint, 1000);
+}
+
 function gate() {
   $('apply').disabled = !(haveFolder && remoteVersion && newer(remoteVersion, MINE));
   $('repair').disabled = !haveFolder;
@@ -190,7 +223,9 @@ async function fetchSoon(url, ms = 15000) {
 
 async function check() {
   $('check').disabled = true;
-  status('', 'Checking for updates…', 'asking ' + new URL(BASE).host + '…');
+  status('', 'Checking for updates…');
+  progress(null);
+  ticking('asking ' + new URL(BASE).host, 15000);
   try {
     const remote = await (await fetchSoon(BASE + '/manifest.json')).json();
     remoteVersion = remote.version;
@@ -207,6 +242,7 @@ async function check() {
     status('bad', "Couldn't reach the repository.",
       'Check your connection, then press Check now.' + checkedAt());
   }
+  progressDone();
   $('check').disabled = false;
   gate();
 }
@@ -270,8 +306,12 @@ async function run(repairing) {
     const isBin = (f) => /\.png$/i.test(f);
     const texts = {};
     let got = 0;
+    const steps = files.length * 2;   // every file is fetched, then written
     for (const f of files) {
-      status('busy', `Downloading ${++got} of ${files.length} — ${f}…`);
+      got++;
+      status('busy', `Downloading ${got} of ${files.length} — ${f}`);
+      progress((got / steps) * 100);
+      ticking('fetching ' + f, 15000);
       const r = await fetchSoon(BASE + '/' + f);
       if (!r.ok) throw new Error(f + ': http ' + r.status);
       texts[f] = isBin(f) ? new Uint8Array(await r.arrayBuffer()) : await r.text();
@@ -316,8 +356,13 @@ async function run(repairing) {
     const SELF = 'update.js';
     const selfStale = texts[SELF] !== undefined &&
                       texts[SELF] !== await readOwn(dir, SELF);
+    let put = 0;
     for (const f of order) {
       if (f === SELF) continue;
+      put++;
+      status('busy', `Writing ${put} of ${order.length - 1} — ${f}`);
+      progress(((files.length + put) / steps) * 100);
+      ticking('writing ' + f);
       const fh = await dir.getFileHandle(f, { create: true });
       const w = await fh.createWritable();
       await w.write(texts[f]);
@@ -374,6 +419,7 @@ async function run(repairing) {
           'this machine is scanning the write; install from the ZIP instead. (' + e.message + ')'
         : e.message);
   } finally {
+    progressDone();
     gate();
   }
 }
