@@ -54,7 +54,18 @@ button.primary {
   color: var(--debug-overlay-on-accent);
 }
 button.primary:hover { background: #c3f168; }
-button.primary[disabled]:hover { background: var(--debug-overlay-accent); }
+/* A disabled PRIMARY stops being primary. `opacity: .45` alone was the whole
+   treatment, and the accent survives it perfectly legibly — accent MEANS
+   "armed · primary", so a button that could not act went on wearing the
+   colour of the one that can. Seen on the update page with its script
+   quarantined: every control was dead, and Update still read as the live
+   thing to press. Dimming an affordance is not the same as withdrawing it. */
+button.primary[disabled],
+button.primary[disabled]:hover {
+  background: var(--debug-overlay-raised);
+  border-color: var(--debug-overlay-line);
+  color: var(--debug-overlay-ink);
+}
 
 /* [hidden] must actually hide: its only effect is display:none in the UA
    sheet, and any author rule with a display beats it. Shipped broken once. */

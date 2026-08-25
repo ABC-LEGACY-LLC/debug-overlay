@@ -404,6 +404,10 @@ console.log('\nTWO GATES, ONE CORE');
   // is the contract: where it may fetch from, and what it may write
   const updJs = fs.readFileSync(path.join(extDir, 'update.js'), 'utf8');
   const updHtml = fs.readFileSync(path.join(extDir, 'update.html'), 'utf8');
+  // the shared token/primitive sheet — build.js INLINES it into each page, so
+  // the source is what to assert against; there is no shipped file to read
+  const sharedCss = fs.readFileSync(
+    path.join(__dirname, 'browser-extension-source', 'shared.css'), 'utf8');
   ok('the updater exists and its base is the pinned repo, nowhere else',
     manifest.options_ui?.page === 'update.html' &&
     /const BASE = 'https:\/\/raw\.githubusercontent\.com\/[^']*\/browser-extension'/.test(updJs),
@@ -521,6 +525,36 @@ console.log('\nTWO GATES, ONE CORE');
     /update\.js<\/code> is missing/.test(updHtml) &&
     /\$\('noScript'\)\.hidden = true;/.test(updJs),
     'a dead page that looks alive is the worst version of broken');
+  /* THE OTHER HALF OF FAIL-VISIBLE, and the half that was missing: warning
+     is not enough while the rest of the page goes on performing. Shipped
+     markup is the ENTIRE product when the script is gone, so every claim in
+     it must be true unaided and every control inert. It shipped saying
+     "Checking for updates…" — a prediction about showFolder().then(check) —
+     so a scripted-out page sat claiming to be busy forever, with Check now
+     live to press. Both are assertions about the HTML alone; neither can be
+     satisfied by anything update.js does.
+
+     It is the PROGRESSIVE form that is banned, not the word: "Not checked
+     yet." is a true resting state and contains "checked". A first cut read
+     /Check/i and failed on the fix itself — the tense is where the lie
+     lives, because only "…ing" asserts something is happening right now. */
+  ok('the page makes no claim its own markup cannot keep',
+    !/id="statusText">[^<]*Checking/i.test(updHtml) &&
+    /status\('', 'Checking for updates…'\)/.test(updJs),
+    'the static status predicted the script; with no script the prediction never expires');
+  ok('every control ships inert and the script is what arms them',
+    /id="check"[^>]*\sdisabled/.test(updHtml) &&
+    /id="apply"[^>]*\sdisabled/.test(updHtml) &&
+    /id="repair"[^>]*\sdisabled/.test(updHtml) &&
+    /\$\('check'\)\.disabled = false;/.test(updJs),
+    'a button that cannot act must not look like one that can');
+  /* …and "cannot act" has to SURVIVE the accent. opacity:.45 was the whole
+     disabled treatment, and the accent means armed — so the dead Update
+     button on that quarantined page was still the greenest thing on screen.
+     Proven by removing the rule: the assertion fails. */
+  ok('a disabled primary stops wearing the accent, not merely dims it',
+    /button\.primary\[disabled\][^{]*\{[^}]*background:\s*var\(--debug-overlay-raised\)/.test(sharedCss),
+    'dimming an affordance is not withdrawing it');
   /* …and the HEADLINE carries it, not just a footnote under it. The first
      version announced "every file is on disk" and then took it back one
      sentence later, on a run where a write had actually been refused. A

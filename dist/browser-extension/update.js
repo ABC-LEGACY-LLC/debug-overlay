@@ -32,6 +32,14 @@ const $ = (id) => document.getElementById(id);
    loading leaves it on screen — which is the one case the page could not
    otherwise report, having no script to report it with. */
 $('noScript').hidden = true;
+/* …and the same handoff in the other direction: every CONTROL ships inert
+   and every CLAIM ships true, because the markup is all there is when the
+   script is gone. The status used to ship reading "Checking for updates…",
+   predicting what showFolder().then(check) would do — so a page with no
+   script sat claiming to be busy forever, beside an Update button that
+   looked live. A page reporting its own script is missing may not also be
+   pretending to work. */
+$('check').disabled = false;
 const MINE = chrome.runtime.getManifest().version;
 
 // segment-wise numeric compare — mirrors app/updates.js `newer()`; this file
