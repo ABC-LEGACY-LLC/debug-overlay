@@ -162,6 +162,10 @@ function gate() {
         : '';
   $('gateWhy').textContent = why;
   $('gateWhy').hidden = !why;
+  /* Two of the three reasons name something the reader must go and do; the
+     third reports that there is nothing to do. Same sentence slot, opposite
+     meanings, and they were the same colour. */
+  $('gateWhy').classList.toggle('calm', haveFolder && !!remoteVersion);
   // and the step number stops looking un-done once it is done (audit P2)
   $('step1').classList.toggle('done', haveFolder);
 }

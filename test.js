@@ -506,6 +506,15 @@ console.log('\nTWO GATES, ONE CORE');
      unexplained modal mid-update is something a careful person declines —
      which IS the failure. Announced before it can appear, and the failure
      message names both answers, because they arrive as the same string. */
+  /* warn means "asks for a decision". Two of gate()'s three reasons name
+     something the reader must go and do; the third says there is nothing to
+     do, and it wore the same attention colour as the two that were blocking
+     something. A palette where the good state and the blocked state look
+     alike has stopped carrying information. */
+  ok('being up to date is not painted as a warning',
+    /#gateWhy\.calm \{ color: var\(--debug-overlay-muted\)/.test(updHtml) &&
+    /classList\.toggle\('calm', haveFolder && !!remoteVersion\)/.test(updJs),
+    'the happy path and the blocked path were the same colour');
   ok('the confirmation prompt is announced before it can appear',
     /Chrome may ask "Save update\.js\?" — choose Save/.test(updJs) &&
     /may now ask to confirm ' \+ SELF \+ ' — choose Save/.test(updJs),

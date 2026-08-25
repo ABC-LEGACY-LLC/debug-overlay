@@ -43,6 +43,13 @@
   .step.done::after { content: '✓'; font-size: 12px; }
   /* why a disabled button is disabled — never silence (audit C3) */
   #gateWhy { margin: 10px 0 0; color: var(--debug-overlay-warn); font-size: 12px; }
+  /* …unless nothing is being asked for. In this design system warn means
+     "asks for a decision", and "you are up to date" asks for nothing — it
+     explains a button disabled BECAUSE everything is fine. Painting the
+     happy path in the attention colour is how a palette stops meaning
+     anything: when the good state and the blocked state look alike, the
+     colour has stopped carrying information. */
+  #gateWhy.calm { color: var(--debug-overlay-muted); }
 
   /* the status card changes colour with what it knows */
   #status { border-left: 3px solid var(--debug-overlay-muted); display: flex; align-items: center; gap: 12px; }
