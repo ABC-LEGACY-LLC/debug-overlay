@@ -519,6 +519,27 @@ async function run(repairing) {
          would re-run a variable already settled, on the one path that must
          not fail. It reads as a misnomer now; that is the cheaper cost. */
       const STAGE = 'update-rehearsal.js';
+      /* ONE REFUSAL IS ENOUGH. A refused move does NOT leave the destination
+         alone. Measured: update.js was in the folder before the attempt and
+         gone after, on a run whose own log said it was untouched because
+         nothing had opened it. Nothing had — and it went anyway.
+
+         So attempting this again on a machine that has already said no is
+         not persistence. It is destroying the working updater once per
+         release for an answer already known. Remembered, and the staged file
+         becomes the delivery instead: the bytes land under a name this
+         machine accepts and the reader renames them. A successful move
+         clears the flag, so a machine that stops refusing goes straight back
+         to updating itself with no ceremony. */
+      const refusedBefore = await kvGet('selfWriteRefused');
+      if (refusedBefore) {
+        selfLost = 'this machine refused it before — not risking ' + SELF + ' again';
+        log('· ' + SELF + ' was left alone on purpose', 'warn');
+        log('  This machine refused to let the page replace it once already,', 'warn');
+        log('  and a refusal takes the file with it. The new one is on disk as', 'warn');
+        log('  ' + STAGE + ' — rename it to ' + SELF + ' to finish.', 'warn');
+      }
+      if (!refusedBefore) {
       status('busy', `Writing ${SELF} under a temporary name…`);
       ticking('staging ' + SELF);
       let staged = null;
@@ -554,12 +575,15 @@ async function run(repairing) {
           if ((await readOwn(dir, SELF)) !== texts[SELF])
             throw new Error('renamed, but it did not read back');
           selfLost = null;
+          await kvSet('selfWriteRefused', 0);   // it works here after all
           log('✓ wrote ' + SELF + ' (this page — reload it to run the new one)', 'good');
         } catch (e) {
           selfLost = e.message;
         }
       }
-      if (selfLost) {
+      }   // end: not refused before
+      if (selfLost && !refusedBefore) {
+        await kvSet('selfWriteRefused', 1);
         log('· ' + SELF + ' was NOT replaced (' + selfLost + ')', 'warn');
         if (/security policy|Abort/i.test(selfLost)) {
           /* Both answers to Chrome's modal arrive here as the same string, so
@@ -572,8 +596,8 @@ async function run(repairing) {
           log('  was declined, or security software answered it. Pressing Update', 'warn');
           log('  again and choosing Save will tell you which.', 'warn');
         }
-        log('  It is untouched — nothing here opened it. The new one is already', 'warn');
-        log('  on disk as ' + STAGE + ', with the right contents.', 'warn');
+        log('  A refused move can still take the destination with it — check', 'warn');
+        log('  whether ' + SELF + ' is still there. The new one is on disk as', 'warn');
         log('  To finish: rename ' + STAGE + ' to ' + SELF + ' in your install folder.', 'warn');
       }
     }

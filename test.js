@@ -522,12 +522,37 @@ console.log('\nTWO GATES, ONE CORE');
   ok('and a refusal does not blame antivirus it cannot see',
     /was declined, or security software answered it/.test(updJs),
     'a wrong diagnosis sends someone to fight their antivirus over a dialog they dismissed');
-  ok('a refused rename leaves the updater untouched and names the one-step fix',
+  /* THE GUARANTEE THAT WAS NOT ONE. This asserted the page told the reader
+     update.js was "untouched — nothing here opened it", which was true about
+     what the code did and false about what happened: the file was in the
+     folder before a refused move and gone after. Nothing opened it, and it
+     went anyway. A test can lock in a promise the code has no power to keep;
+     this one did, and it passed while the file was being destroyed. The
+     claim is banned outright now — the page may say what it DID, never what
+     survived. */
+  ok('a refused rename names the one-step fix and promises nothing about the file',
     /was NOT replaced/.test(updJs) &&
-    /nothing here opened it/.test(updJs) &&
+    !/untouched — nothing here opened it/.test(updJs) &&
+    /A refused move can still take the destination with it/.test(updJs) &&
     /rename ' \+ STAGE \+ ' to ' \+ SELF/.test(updJs) &&
     !/out of the ZIP/i.test(updJs),
-    'the fix must not be bigger than the failure');
+    'the fix must not be bigger than the failure, and no claim bigger than the evidence');
+  /* ONE REFUSAL IS ENOUGH. Retrying every release costs the working updater
+     each time, for an answer already given. Remembered, and cleared by a
+     success so a machine that stops refusing needs no intervention. */
+  ok('a machine that refused once is not asked to destroy the file again',
+    /const refusedBefore = await kvGet\('selfWriteRefused'\)/.test(updJs) &&
+    /await kvSet\('selfWriteRefused', 1\)/.test(updJs) &&
+    /await kvSet\('selfWriteRefused', 0\)/.test(updJs),
+    'persistence that costs a file per release is not persistence');
+  /* …and the fail-visible banner must offer the file already sitting beside
+     it. It sent the reader to download a ZIP for bytes the failed run had
+     just written into the same folder. */
+  ok('the dead-page banner leads with the rename, not a download',
+    updHtml.indexOf('rename\n      it to <code>update.js</code>') <
+    updHtml.indexOf('debug-overlay-extension.zip') ||
+    /update-rehearsal\.js<\/code> is in that folder/.test(updHtml),
+    'the staged file was in the folder the whole time');
 
   /* the page must be able to report its own script being gone — the state it
      was in when this was found, where every button rendered and none worked */

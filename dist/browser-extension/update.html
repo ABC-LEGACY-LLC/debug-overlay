@@ -209,9 +209,12 @@ button.primary[disabled]:hover {
       <code>update.js</code> is missing from the install folder — security
       software removes it on some machines. Nothing on this page will work
       until it is back.<br><br>
-      <b>Fix:</b> download <code>debug-overlay-extension.zip</code>, extract
-      it, copy <code>update.js</code> into your install folder, then press ↻
-      on <code>chrome://extensions</code>.<br><br>
+      <b>Fix, if <code>update-rehearsal.js</code> is in that folder:</b> rename
+      it to <code>update.js</code>. That file IS the new updater — already
+      written, already correct. A rename, not a download.<br><br>
+      <b>Otherwise:</b> download <code>debug-overlay-extension.zip</code>,
+      extract it, copy <code>update.js</code> into your install folder, then
+      press ↻ on <code>chrome://extensions</code>.<br><br>
       <b>Checking whether it is really missing:</b> Windows hides file
       extensions, so <code>update.js</code> and <code>update.html</code> both
       show as just <b>update</b>. Look at the <b>Type</b> column instead —
