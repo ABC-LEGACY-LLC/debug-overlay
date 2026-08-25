@@ -533,10 +533,24 @@ console.log('\nTWO GATES, ONE CORE');
   ok('a refused rename names the one-step fix and promises nothing about the file',
     /was NOT replaced/.test(updJs) &&
     !/untouched — nothing here opened it/.test(updJs) &&
-    /A refused move can still take the destination with it/.test(updJs) &&
+    /A refused move takes BOTH files/.test(updJs) &&
     /rename ' \+ STAGE \+ ' to ' \+ SELF/.test(updJs) &&
     !/out of the ZIP/i.test(updJs),
     'the fix must not be bigger than the failure, and no claim bigger than the evidence');
+  /* THE ESCAPE HATCH MUST SURVIVE THE THING THAT NEEDS IT. Measured: after
+     a refused move the folder held neither update.js nor update-rehearsal.js.
+     move() destroys the destination — already known — and consumes the
+     SOURCE as well, so the staged copy the failure message told the reader to
+     rename had been eaten by the operation that made the rename necessary.
+     That message appeared on the last screen shown before the page went
+     dead, and it pointed at nothing. Staging writes have never failed here,
+     so the copy is written again, and the message says which of the two
+     outcomes actually happened rather than assuming the good one. */
+  ok('a refused move re-stages the copy it consumed',
+    /restaged = \(await readOwn\(dir, STAGE\)\) === texts\[SELF\]/.test(updJs) &&
+    /if \(restaged\) \{/.test(updJs) &&
+    /could not be written back either/.test(updJs),
+    'the failure message pointed at a file the failure had deleted');
   /* ONE REFUSAL IS ENOUGH. Retrying every release costs the working updater
      each time, for an answer already given. Remembered, and cleared by a
      success so a machine that stops refusing needs no intervention. */

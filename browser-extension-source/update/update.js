@@ -479,6 +479,12 @@ async function run(repairing) {
        touched and this page keeps working — which is the whole point of
        the file being special. */
     let selfLost = null;
+    /* Beside selfLost, not beside `staged`. Declared inside the attempt
+       block it was out of scope by the time the failure message read it, and
+       the ReferenceError took the whole run down AFTER every file had landed
+       — a crash at the end of a successful update, which is precisely the
+       bug the execution rig was built for. It caught it. */
+    let restaged = true;   // the escape hatch is intact unless a move ate it
     /* ALREADY CURRENT IS AN ANSWER, AND IT HAS TO BE GIVEN. When the bytes on
        disk already match, every branch below is skipped and nothing was
        logged — so a run fetched twelve files, reported writing eleven, and
@@ -590,6 +596,21 @@ async function run(repairing) {
           log('✓ wrote ' + SELF + ' (this page — reload it to run the new one)', 'good');
         } catch (e) {
           selfLost = e.message;
+          /* A REFUSED move() TAKES THE SOURCE TOO. Measured: after a refusal
+             the folder held neither update.js NOR update-rehearsal.js — the
+             destination was destroyed, as already known, and the staged copy
+             went with it. So the message telling the reader to rename the
+             staged file was pointing at nothing, on the one screen shown
+             when the page is about to be dead. The promised escape hatch had
+             been consumed by the operation that made it necessary.
+             Staging writes have never once failed here, so write it again. */
+          try {
+            const fh = await dir.getFileHandle(STAGE, { create: true });
+            const w = await fh.createWritable();
+            await w.write(texts[SELF]);
+            await w.close();
+            restaged = (await readOwn(dir, STAGE)) === texts[SELF];
+          } catch { restaged = false; }
         }
       }
       }   // end: not refused before
@@ -607,9 +628,15 @@ async function run(repairing) {
           log('  was declined, or security software answered it. Pressing Update', 'warn');
           log('  again and choosing Save will tell you which.', 'warn');
         }
-        log('  A refused move can still take the destination with it — check', 'warn');
-        log('  whether ' + SELF + ' is still there. The new one is on disk as', 'warn');
-        log('  To finish: rename ' + STAGE + ' to ' + SELF + ' in your install folder.', 'warn');
+        log('  A refused move takes BOTH files — the destination and the staged', 'warn');
+        log('  copy. ' + SELF + ' is most likely gone from the folder now.', 'warn');
+        if (restaged) {
+          log('  ' + STAGE + ' has been written again, with the right contents.', 'warn');
+          log('  To finish: rename ' + STAGE + ' to ' + SELF + ' in the folder.', 'warn');
+        } else {
+          log('  ' + STAGE + ' could not be written back either. To finish: copy', 'err');
+          log('  ' + SELF + ' out of debug-overlay-extension.zip into the folder.', 'err');
+        }
       }
     }
     /* Written, and NOT reloaded. This used to count down and then call
