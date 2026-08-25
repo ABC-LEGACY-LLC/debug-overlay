@@ -475,6 +475,17 @@ async function run(repairing) {
        touched and this page keeps working — which is the whole point of
        the file being special. */
     let selfLost = null;
+    /* ALREADY CURRENT IS AN ANSWER, AND IT HAS TO BE GIVEN. When the bytes on
+       disk already match, every branch below is skipped and nothing was
+       logged — so a run fetched twelve files, reported writing eleven, and
+       said not one word about the twelfth. The reader is left to notice the
+       arithmetic and guess, about the single file in this package with a
+       history of silently not being there. Skipped-because-identical and
+       skipped-because-something-ate-it look the same in a log that mentions
+       neither. */
+    if (!selfStale && texts[SELF] !== undefined) {
+      log('· ' + SELF + ' is already current — nothing to replace', 'good');
+    }
     if (selfStale && texts[SELF] !== undefined) {
       /* STAGE, THEN RENAME — and never open a writable on SELF.
 

@@ -1384,6 +1384,7 @@ console.log('\nTHE UPDATER, ACTUALLY RUN');
 let updaterRan = false;
 let settleChecked = false;
 let refusalChecked = false;
+let currentChecked = false;
 {
   const extDir = path.join(__dirname, 'dist', 'browser-extension');
   const html = fs.readFileSync(path.join(extDir, 'update.html'), 'utf8');
@@ -1494,6 +1495,15 @@ let refusalChecked = false;
          as feeding a page nobody wrote, read by nothing. It therefore said
          nothing about install.bat, which sat in every install folder being
          the most flagged file in the package. Named now, never deleted. */
+      /* EVERY FETCHED FILE IS ACCOUNTED FOR. A repair fetches twelve and
+         writes eleven, because SELF is handled apart — and when SELF already
+         matches, the old code skipped it in silence. Twelve in, eleven out,
+         no mention of the twelfth: exactly the arithmetic a reader would
+         have to notice and guess at, about the one file here with a history
+         of quietly not existing. */
+      ok('the self file is accounted for on the path this run took',
+        /wrote update\.js/.test(log),
+        'twelve fetched and eleven written, with no word about the twelfth');
       ok('a run NAMES retired files still in the folder, and deletes nothing',
         /install\.bat/.test(js) &&
         /no longer part of the extension and can be deleted/.test(r.logText()) &&
@@ -1516,6 +1526,34 @@ let refusalChecked = false;
       updaterRan = true;
     });
   });
+
+  /* 5) ALREADY CURRENT. The repair rig starts with update.js absent, so it
+        always takes the stale path — an assertion written as an alternation
+        over "wrote OR already-current OR refused" passes there and never
+        reaches the branch it was named after. Deleting the line under test
+        left the suite green, which is how it was caught. This rig seeds the
+        exact bytes the repo will serve, so nothing is stale and the only
+        thing the run CAN say about SELF is that there was nothing to do. */
+  {
+    const s = rig(MINE);
+    s.disk.set('update.js', '/* update.js @ ' + MINE + ' */');
+    whenPainted(() => !s.w.document.getElementById('repair').disabled, () => {
+      s.w.document.getElementById('repair')
+        .dispatchEvent(new s.w.MouseEvent('click', { bubbles: true }));
+      whenPainted(() => s.w.document.getElementById('doneHead').textContent.length > 0 ||
+                        /failed:/.test(s.logText()), () => {
+        ok('a self file that needs no change says so instead of going quiet',
+          /update\.js is already current/.test(s.logText()),
+          'silent-because-identical reads exactly like silent-because-it-vanished');
+        ok('and it is left exactly as it was',
+          s.disk.get('update.js') === '/* update.js @ ' + MINE + ' */' &&
+          !s.disk.has('update-rehearsal.js'),
+          'nothing to do means nothing done — no staging file either');
+        s.dom.window.close();
+        currentChecked = true;
+      });
+    });
+  }
 
   /* 4) THE REFUSAL, SURVIVED — the assertion both lost copies of update.js
         were owed. The old design opened SELF for writing and let the abort
@@ -3997,7 +4035,7 @@ function whenPainted(ready, run, waited = 0) {
 }
 
 whenPainted(() => perfChecked && sidePanelChecked && storageChecked && updaterRan &&
-                  settleChecked && refusalChecked &&
+                  settleChecked && refusalChecked && currentChecked &&
                   window.document.querySelector('#__debug-overlay-root .debug-overlay-flag') &&
                   w3.document.querySelector('#__debug-overlay-root .debug-overlay-badge'), () => {
   console.log('\nREVIEW FIXES (after a frame)');
