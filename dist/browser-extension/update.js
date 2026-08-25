@@ -795,6 +795,78 @@ $('copyExt').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText('chrome://extensions'); } catch {}
   $('copyExt').textContent = 'Copied ✓ — paste it in the address bar';
 });
+/* ---- THE PROBE ------------------------------------------------------
+   Two axes, four writes, one answer.
+
+   Everything measured so far was confounded. update.js is refused; the
+   same 38 KB written as update-rehearsal.js is allowed — which looked like
+   proof that the NAME decides. But Chrome also puts up "Save update.js?"
+   and that was assumed to be the gate, until Save was chosen and the write
+   was refused anyway. So the prompt is not the gate, and neither variable
+   has ever been moved on its own.
+
+   This moves them one at a time. A four-byte file under the refused name
+   answers it outright: refused means the name alone is enough and nothing
+   inside the file matters; allowed means the contents are being read and
+   bisecting them is the next step.
+
+   Into a SCRATCH folder, never the install folder — writing a stub named
+   update.js into a working install is the one way this diagnostic could
+   cost more than it explains. */
+async function probe() {
+  const out = $('probeOut');
+  out.hidden = false;
+  out.textContent = 'Choosing a folder…';
+  let dir;
+  try {
+    dir = await showDirectoryPicker({ mode: 'readwrite' });
+  } catch { out.textContent = 'Cancelled — nothing was written.'; return; }
+
+  out.textContent = 'Fetching the real bytes to test with…\n';
+  let real;
+  try {
+    real = await (await fetchSoon(BASE + '/' + SELF)).text();
+  } catch (e) { out.textContent = 'Could not fetch ' + SELF + ': ' + e.message; return; }
+
+  const TINY = '// four bytes of nothing\n';
+  const cases = [
+    ['update.js', TINY, 'refused name + trivial content'],
+    ['update.js', real, 'refused name + the real updater'],
+    ['update-rehearsal.js', TINY, 'accepted name + trivial content'],
+    ['update-rehearsal.js', real, 'accepted name + the real updater'],
+  ];
+  const rows = [];
+  for (const [name, body, label] of cases) {
+    let verdict;
+    try {
+      const fh = await dir.getFileHandle(name, { create: true });
+      const w = await fh.createWritable();
+      await w.write(body);
+      await w.close();
+      verdict = (await readOwn(dir, name)) === body ? 'WROTE' : 'wrote, did not read back';
+    } catch (e) { verdict = 'REFUSED — ' + e.message; }
+    rows.push(`${verdict.startsWith('WROTE') ? '✓' : '✗'} ${label}\n    ${name} (${body.length} bytes) → ${verdict}`);
+    out.textContent = rows.join('\n');
+  }
+  /* The reading is stated here rather than left to be inferred, because the
+     two interesting outcomes look similar in a list and mean opposite
+     things about what to do next. */
+  const tinyRefused = rows[0].startsWith('✗');
+  const realAllowedElsewhere = rows[3].startsWith('✓');
+  out.textContent = rows.join('\n') + '\n\n' + (
+    tinyRefused && realAllowedElsewhere
+      ? 'READING: the NAME alone decides. A file of 24 bytes was refused under\n'
+        + 'that name while the whole 38 KB updater was accepted under another.\n'
+        + 'Nothing inside the file is being read, so splitting it would find\n'
+        + 'nothing — every piece would be refused exactly as the whole is.'
+      : !tinyRefused && rows[1].startsWith('✗')
+        ? 'READING: the CONTENTS are being read. The same name took a trivial\n'
+          + 'file and refused the real one, so something in those bytes is what\n'
+          + 'is objected to, and bisecting them will find it.'
+        : 'READING: not clean either way — send this table over and I will read it\n'
+          + 'rather than guess. Both controls need to behave for the run to count.');
+}
+$('probeRun').addEventListener('click', probe);
 $('check').addEventListener('click', check);
 $('apply').addEventListener('click', () => run(false));
 $('repair').addEventListener('click', () => run(true));

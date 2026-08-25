@@ -126,6 +126,12 @@ button.primary[disabled]:hover {
      anything: when the good state and the blocked state look alike, the
      colour has stopped carrying information. */
   #gateWhy.calm { color: var(--debug-overlay-muted); }
+  #probeSum { cursor: pointer; font-weight: 600; }
+  #probeOut {
+    margin: 12px 0 0; padding: 10px; white-space: pre-wrap; font-size: 12px;
+    background: var(--debug-overlay-ground); border-radius: var(--debug-overlay-r-inner);
+    color: var(--debug-overlay-ink-dim);
+  }
 
   /* the status card changes colour with what it knows */
   #status { border-left: 3px solid var(--debug-overlay-muted); display: flex; align-items: center; gap: 12px; }
@@ -264,6 +270,18 @@ button.primary[disabled]:hover {
     <p id="repairHint" style="margin-top:10px; font-size:12px; color:var(--debug-overlay-muted)">
        Repair rewrites every current file — use it if the extension misbehaves
        or an update was interrupted. It never needs a newer version to exist.</p>
+  </div>
+
+  <div class="card">
+    <details id="probe">
+      <summary id="probeSum">Why was <code>update.js</code> refused? — run a test</summary>
+      <p>Four writes into a <b>scratch folder you pick</b> — never your install
+         folder, nothing here is installed. Two names × two contents, so the
+         answer separates "it is the filename" from "it is what is inside the
+         file". Delete the folder afterwards.</p>
+      <div class="row"><button id="probeRun">Choose a scratch folder…</button></div>
+      <pre id="probeOut" hidden></pre>
+    </details>
   </div>
 
   <div id="log"></div>

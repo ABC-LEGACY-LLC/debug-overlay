@@ -515,6 +515,27 @@ console.log('\nTWO GATES, ONE CORE');
     /#gateWhy\.calm \{ color: var\(--debug-overlay-muted\)/.test(updHtml) &&
     /classList\.toggle\('calm', haveFolder && !!remoteVersion\)/.test(updJs),
     'the happy path and the blocked path were the same colour');
+  /* THE PROBE. Every measurement so far moved two variables at once: the
+     refused file has both the name update.js AND the updater's contents,
+     and the accepted one has neither. Chrome's "Save update.js?" modal
+     looked like the gate until Save was chosen and the write was refused
+     anyway — so the prompt is not it, and the two axes have never been
+     separated. Four writes do that: same name with trivial contents, same
+     contents under the accepted name, and both controls. It writes into a
+     folder the reader picks, never the install folder — a stub named
+     update.js landing in a working install is the one way this diagnostic
+     could cost more than it explains. */
+  ok('the refusal can be diagnosed without splitting the shipped file',
+    /const TINY = '\/\/ four bytes of nothing/.test(updJs) &&
+    /\['update\.js', TINY,/.test(updJs) &&
+    /\['update-rehearsal\.js', real,/.test(updJs) &&
+    /id="probeOut"/.test(updHtml),
+    'two variables moved together explain nothing');
+  ok('and it never touches the install folder',
+    /showDirectoryPicker\(\{ mode: 'readwrite' \}\)/.test(updJs) &&
+    /never your install/i.test(updHtml) &&
+    !/probe[\s\S]{0,400}kvGet\('dir'\)/.test(updJs),
+    'a stub named update.js in a live install would cost more than it explains');
   ok('the confirmation prompt is announced before it can appear',
     /Chrome may ask "Save update\.js\?" — choose Save/.test(updJs) &&
     /may now ask to confirm ' \+ SELF \+ ' — choose Save/.test(updJs),
