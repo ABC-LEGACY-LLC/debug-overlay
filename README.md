@@ -92,9 +92,15 @@ https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/browser
 it opens in the browser (no command prompt involved, so it works even where
 administrators disable cmd), and its one button writes the extension into a
 permanent folder you choose — for example a new `debug-overlay-extension`
-folder in Documents. It then walks the remaining clicks. *(Windows machines
-where cmd IS allowed can use `install.bat` instead; or do it by hand —
+folder in Documents. It then walks the remaining clicks. *(Or do it by hand —
 extract to a permanent folder yourself, not Downloads, not a git checkout.)*
+
+There used to be an `install.bat` beside it. It copied the files into
+`%LOCALAPPDATA%` with `robocopy /MIR` and then launched the browser, which
+is the shape of a dropper whatever it happens to be copying — Windows
+Defender eventually said so about the whole ZIP. It was redundant anyway:
+the page above works everywhere the batch file did, and in the place it
+did not.
 
 **Step 3.** On the page that opened: **Developer mode** ON →
 **Load unpacked** → select that folder. These two clicks are the browser's
@@ -223,7 +229,7 @@ dist/
     side-panel.html  side-panel.js           the side panel
     update.html  update.js                  the update & repair screen
     icon16/32/48/128.png  files.json       the face, and the updater's file list
-    install.html  install.bat              the no-cmd installer (+ cmd variant)
+    install.html                            the installer (no cmd involved)
     debug-overlay-extension.zip     ← the one-link install
   debug-overlay.user.js  LEGACY BRIDGE — never delete: installs from before
   debug-overlay.meta.js  the restructure poll this path forever; these

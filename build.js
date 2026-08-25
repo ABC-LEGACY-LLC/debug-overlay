@@ -250,10 +250,24 @@ function build(kind) {
   const extBase = cfg.rawBase.replace(/\/script$/, '/browser-extension');
   fs.writeFileSync(path.join(EXT, 'update.html'), withShared(
     fs.readFileSync(path.join(ROOT, 'browser-extension-source', 'update', 'update.html'), 'utf8')));
-  // the Windows helper: rides inside the ZIP so install is download →
-  // extract → double-click → the two clicks the browser reserves for humans
-  fs.copyFileSync(path.join(ROOT, 'browser-extension-source', 'installer', 'install.bat'),
-    path.join(EXT, 'install.bat'));
+  /* NO install.bat. It ran `robocopy /MIR` into %LOCALAPPDATA% and then
+     launched a browser — an archive off the internet copying a payload into
+     the canonical user-writable staging directory and starting a process.
+     That is not a scanner misreading innocent code; it is the behaviour,
+     and it is the behaviour a dropper is defined by. Defender issued a
+     cloud verdict against the whole ZIP.
+
+     It went because it was REDUNDANT, not to get past anything. install.html
+     already does the same job through a folder the user picks, with no shell
+     — and it exists precisely because the .bat could not run on machines
+     where administrators disable cmd, which is where this project actually
+     lives. Keeping a second install path that only works where the first one
+     was not needed, at the cost of the whole package being flagged, is a bad
+     trade in every direction.
+
+     Removing files to look less like a downloader is exactly what update.js
+     stopped doing, for the same reason. This is the other half of that
+     decision, finally applied to the installer. */
   fs.writeFileSync(path.join(EXT, 'update.js'),
     fs.readFileSync(path.join(ROOT, 'browser-extension-source', 'update', 'update.js'), 'utf8')
       .replace('__EXT_BASE__', extBase));
@@ -351,8 +365,9 @@ function build(kind) {
   };
   /* install.html — the no-cmd installer: a self-contained page carrying
      every runtime file inline, writing them out via the File System Access
-     API. Exists because install.bat met a real machine where administrators
-     disable the command prompt; a browser page they cannot disable. The
+     API. Exists because the retired install.bat met a real machine where
+     administrators disable the command prompt; a browser page they cannot
+     disable. It is now the only installer. The
      JSON's '</' is escaped so no embedded file can close the script tag. */
   const RUNTIME = ['manifest.json', 'content.js', 'sw.js', 'update.html', 'update.js',
                    'side-panel.html', 'side-panel.js',

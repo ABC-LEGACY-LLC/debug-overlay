@@ -23,8 +23,15 @@ const FILES = ['manifest.json', 'content.js', 'sw.js', 'update.html', 'update.js
    deletes files is an updater that looks like a downloader cleaning up
    after itself, which is what got this one quarantined. Tidiness is not
    worth the product being removed from the browser. They are listed here
-   so guide.html can name them for anyone who wants the folder clean. */
-const RETIRED = ['cockpit.html', 'cockpit.js', 'options.html', 'options.js'];
+   so a run can NAME the ones still present. It does not remove them.
+
+   This list was dead for three releases. It was declared, commented as
+   feeding a page that was never written, and read by nothing — so it stayed
+   quiet while install.bat sat in every install folder, being the single most
+   flagged file in the package. A constant that documents an intention is not
+   the same as code that acts on one. */
+const RETIRED = ['cockpit.html', 'cockpit.js', 'options.html', 'options.js',
+                 'install.bat'];
 
 const $ = (id) => document.getElementById(id);
 /* The page ships this warning VISIBLE. Reaching this line means the script
@@ -564,6 +571,15 @@ async function run(repairing) {
     $('copyExt').hidden = false;
     // not awaited: the run IS finished, and its report stands. This only ever
     // adds "…and then this happened", which is a fact about the minute after.
+    /* NAMED, NOT REMOVED. Deleting other files is precisely the shape this
+       project spent two releases stepping away from, and the reader deleting
+       one file by hand costs them a second. Saying nothing cost more. */
+    const stale = [];
+    for (const f of RETIRED) if (await stillThere(dir, f)) stale.push(f);
+    if (stale.length) {
+      log('· these are no longer part of the extension and can be deleted:', 'warn');
+      for (const f of stale) log('    ' + f, 'warn');
+    }
     settle(dir, Object.keys(texts)).catch(() => {});
     /* …and the card comes to rest. Nothing set it after the last step, so it
        froze mid-verb beside a done card announcing the run had finished —

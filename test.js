@@ -805,8 +805,8 @@ console.log('\nTWO GATES, ONE CORE');
         i = zip.indexOf(SIG, i + 4);
       }
       return names.length > 0 &&
-             names.every((n) => shipped.includes(n) ||
-                                n === 'install.html' || n === 'install.bat');
+             names.every((n) => shipped.includes(n) || n === 'install.html') &&
+             !names.includes('install.bat');
     })(),
     'a retired file rode along inside the one-link install');
   // the side panel: declared in the manifest, opened by the toolbar button
@@ -1471,6 +1471,7 @@ let refusalChecked = false;
   // 1) REPAIR — same version, rewrites everything. This is the exact run that
   //    wrote all eleven files and then died on the last line.
   const r = rig(MINE);
+  r.disk.set('install.bat', '@echo off');   // a real install folder still has it
   // wait for boot: the folder handle loads from IndexedDB and the opening
   // check runs, and only then is Verify & repair live
   whenPainted(() => !r.w.document.getElementById('repair').disabled, () => {
@@ -1489,6 +1490,16 @@ let refusalChecked = false;
       ok('and it delivers its own file last, telling you to reload the page',
         /wrote update\.js \(this page — reload it to run the new one\)/.test(log),
         'a page that replaced itself and said nothing is a page running old code');
+      /* RETIRED was a dead constant for three releases — declared, commented
+         as feeding a page nobody wrote, read by nothing. It therefore said
+         nothing about install.bat, which sat in every install folder being
+         the most flagged file in the package. Named now, never deleted. */
+      ok('a run NAMES retired files still in the folder, and deletes nothing',
+        /install\.bat/.test(js) &&
+        /no longer part of the extension and can be deleted/.test(r.logText()) &&
+        /install\.bat/.test(r.logText()) &&
+        r.disk.has('install.bat'),
+        'a list nothing reads is a comment wearing a constant');
       ok('and the staging file is consumed by the rename, not left as litter',
         !r.disk.has('update-rehearsal.js') && r.disk.has('update.js'),
         [...r.disk.keys()].join(', '));
