@@ -407,7 +407,9 @@ console.log('\nTWO GATES, ONE CORE');
      opens 'update.js' is asserting the design that was removed. It also
      catches the failure this rename could most easily cause: exactly one
      such file must exist, and update.html must point at that one. */
-  const updName = fs.readdirSync(extDir).filter((f) => /^update-.*\.js$/.test(f));
+  const updName = (fs.existsSync(path.join(extDir, 'updater'))
+    ? fs.readdirSync(path.join(extDir, 'updater')).map((f) => 'updater/' + f) : [])
+    .filter((f) => /\.js$/.test(f));
   const updJs = fs.readFileSync(path.join(extDir, ...updName[0].split('/')), 'utf8');
   const updHtml = fs.readFileSync(path.join(extDir, 'update.html'), 'utf8');
   // the shared token/primitive sheet — build.js INLINES it into each page, so
@@ -483,9 +485,28 @@ console.log('\nTWO GATES, ONE CORE');
      Ship the reader first; use the format a release later. The path-walking
      and the folder-tolerant validator are already out there doing nothing,
      which is what makes that later release a one-line change. */
-  ok('files.json stays readable by the updaters already installed',
+  /* THE BOOTSTRAP RULE, and the floor it is measured against.
+
+     files.json is consumed by the updater ALREADY INSTALLED, never by the
+     one shipping beside it. v3.8.155 relaxed the validator and used the
+     relaxation in the same release, so every install refused the list and
+     stopped before its first fetch — with the fix inside the file it had
+     just refused. Observed exactly that way, twice, on the one machine
+     whose only route to the remedy was the thing that failed.
+
+     v3.8.157 shipped the reader and used none of it. This is the release
+     that uses it, so the floor moves to 3.8.157 — deliberately, and it is
+     a real cliff: an older install cannot be updated past this point, only
+     reinstalled from the ZIP. Nothing shipped now can soften the message it
+     prints, because that message comes from code already on its disk.
+
+     What the guard enforces is the discipline, not a fixed pattern: this
+     expression must be the validator of the OLDEST install still supported,
+     and it may only be loosened one release after that loosening ships
+     unused. */
+  ok('files.json is readable by every install this build still supports',
     JSON.parse(fs.readFileSync(path.join(extDir, 'files.json'), 'utf8'))
-      .every((f) => /^[a-z0-9_.-]+$/i.test(f)),
+      .every((f) => /^(?:[a-z0-9_-]+\/)?[a-z0-9_-][a-z0-9_.-]*$/i.test(f)),
     'a format only the version shipping it can read cannot be delivered');
   ok('and files.json names it, so an installed copy can fetch it',
     (() => { const s = JSON.parse(fs.readFileSync(path.join(extDir, 'files.json'), 'utf8'));
@@ -589,7 +610,7 @@ console.log('\nTWO GATES, ONE CORE');
   }
   ok('the page warns FAIL-VISIBLE when its script never loads',
     /id="noScript"/.test(updHtml) &&
-    /update-[^<]*\.js<\/code> is missing/.test(updHtml) &&
+    /updater\/[^<]*\.js<\/code> is missing/.test(updHtml) &&
     /\$\('noScript'\)\.hidden = true;/.test(updJs),
     'a dead page that looks alive is the worst version of broken');
   /* THE OTHER HALF OF FAIL-VISIBLE, and the half that was missing: warning
@@ -735,7 +756,7 @@ console.log('\nTWO GATES, ONE CORE');
     'a second press mid-flight races the first');
   ok('and its page carries no inline script',
     (updHtml.match(/<script\b/g) || []).length === 1 &&
-    /src="update-[^"]*\.js"/.test(updHtml),
+    /src="updater\/[^"]*\.js"/.test(updHtml),
     'MV3 CSP would silently refuse it');
   const inst = fs.readFileSync(path.join(extDir, 'install.html'), 'utf8');
   /* what a real install walked into, one guard each:
@@ -1430,8 +1451,8 @@ let settleChecked = false;
 {
   const extDir = path.join(__dirname, 'dist', 'browser-extension');
   const html = fs.readFileSync(path.join(extDir, 'update.html'), 'utf8');
-  const js = fs.readFileSync(path.join(extDir,
-    fs.readdirSync(extDir).find((f) => /^update-.*\.js$/.test(f))), 'utf8');
+  const js = fs.readFileSync(path.join(extDir, 'updater',
+    fs.readdirSync(path.join(extDir, 'updater'))[0]), 'utf8');
   const localManifest = fs.readFileSync(path.join(extDir, 'manifest.json'), 'utf8');
   const shippedList = JSON.parse(fs.readFileSync(path.join(extDir, 'files.json'), 'utf8'));
   const MINE = JSON.parse(localManifest).version;

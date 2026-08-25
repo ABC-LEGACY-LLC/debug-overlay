@@ -2,7 +2,7 @@
   "manifest.json",
   "content.js",
   "sw.js",
-  "update-fe752e489cea.js",
+  "updater/fe752e489cea.js",
   "update.html",
   "side-panel.html",
   "side-panel.js",

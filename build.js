@@ -265,22 +265,25 @@ function build(kind) {
   const updText = fs.readFileSync(
     path.join(ROOT, 'browser-extension-source', 'update', 'update.js'), 'utf8')
     .replace('__EXT_BASE__', extBase);
-  /* ROOT, NOT updater/ — YET. Putting the path in files.json deadlocked
-     every existing install: the updater already out there validates that
-     list against /^[a-z0-9_.-]+$/, refuses anything with a slash, and stops
-     before its first fetch. The fix for that validator lives INSIDE the
-     updater it can no longer fetch. Data shipped ahead of the reader, and
-     the reader was the thing the data was for.
+  /* updater/<hash>.js — the folder, now that the READER is out there.
 
-     So the hash lands in the root, where every shipped validator already
-     accepts it, and it alone fixes the accumulation this was really about:
-     the name changes when the FILE changes, not when the version does.
-     Everything the folder needs — path-walking reads and writes, a
-     recursing zip, a validator that allows one folder — is already here and
-     tested, doing nothing. That is the order this should have gone in.
-     Moving into updater/ is then a one-line change, safe once installs
-     carry a reader that can be told about it. */
-  const UPDATER = `update-${require('crypto').createHash('sha256')
+     v3.8.155 tried this and deadlocked every install: files.json is read by
+     the updater ALREADY INSTALLED, and every build before 3.8.157 validates
+     that list against /^[a-z0-9_.-]+$/ — one slash and it stops before its
+     first fetch, with the relaxed validator sitting inside the file it just
+     refused. v3.8.157 shipped the reader alone and used none of it. This
+     release uses it.
+
+     THE FLOOR IS 3.8.157, and it is a real cliff: an install older than
+     that refuses this list and cannot be updated out of it — only
+     reinstalled from the ZIP. Nothing here can soften the message it
+     prints, because that message comes from code already on disk.
+
+     The hash is what made the folder worth having: the name changes when
+     the FILE changes rather than when the version does, so a superseded
+     updater is left behind about one release in twelve instead of every
+     one, and updater/ is where those wait to be deleted. */
+  const UPDATER = `updater/${require('crypto').createHash('sha256')
     .update(updText).digest('hex').slice(0, 12)}.js`;
   fs.writeFileSync(path.join(EXT, 'update.html'), withShared(
     fs.readFileSync(path.join(ROOT, 'browser-extension-source', 'update', 'update.html'), 'utf8')
