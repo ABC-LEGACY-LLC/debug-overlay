@@ -541,10 +541,20 @@ console.log('\nTWO GATES, ONE CORE');
      each time, for an answer already given. Remembered, and cleared by a
      success so a machine that stops refusing needs no intervention. */
   ok('a machine that refused once is not asked to destroy the file again',
-    /const refusedBefore = await kvGet\('selfWriteRefused'\)/.test(updJs) &&
+    /const refusedBefore = !repairing && await kvGet\('selfWriteRefused'\)/.test(updJs) &&
     /await kvSet\('selfWriteRefused', 1\)/.test(updJs) &&
     /await kvSet\('selfWriteRefused', 0\)/.test(updJs),
     'persistence that costs a file per release is not persistence');
+  /* …AND THERE HAS TO BE A WAY BACK. Shipped one release without one, the
+     flag was a one-way door: it suppressed the attempt, and the only thing
+     that cleared it was a successful attempt, which could no longer happen.
+     A machine that refused once would be refused forever, including after
+     the user fixed whatever was refusing. Repair is the escape — pressed on
+     purpose, so risking the file is the reader's decision, not the page's. */
+  ok('and Verify & repair always retries, so the memory is not a one-way door',
+    /!repairing && await kvGet/.test(updJs) &&
+    /always tries again/.test(updJs),
+    'a flag only a success can clear, guarding the only path to success, never clears');
   /* …and the fail-visible banner must offer the file already sitting beside
      it. It sent the reader to download a ZIP for bytes the failed run had
      just written into the same folder. */

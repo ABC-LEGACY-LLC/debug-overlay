@@ -531,13 +531,24 @@ async function run(repairing) {
          machine accepts and the reader renames them. A successful move
          clears the flag, so a machine that stops refusing goes straight back
          to updating itself with no ceremony. */
-      const refusedBefore = await kvGet('selfWriteRefused');
+      /* …and REPAIR IS THE WAY BACK. Shipped without this, the flag was a
+         one-way door: it suppressed the attempt, and the only thing that
+         cleared it was a successful attempt, which could no longer happen.
+         A machine that refused once was refused forever, including after
+         the user fixed whatever was refusing.
+
+         Verify & repair is exactly the right escape — it is the explicit
+         "fix my install" gesture, pressed on purpose, so choosing to risk
+         the file is the user's decision rather than the page's. Update stays
+         safe by default; repair always tries. */
+      const refusedBefore = !repairing && await kvGet('selfWriteRefused');
       if (refusedBefore) {
         selfLost = 'this machine refused it before — not risking ' + SELF + ' again';
         log('· ' + SELF + ' was left alone on purpose', 'warn');
         log('  This machine refused to let the page replace it once already,', 'warn');
         log('  and a refusal takes the file with it. The new one is on disk as', 'warn');
         log('  ' + STAGE + ' — rename it to ' + SELF + ' to finish.', 'warn');
+        log('  (Or press Verify & repair, which always tries again.)', 'warn');
       }
       if (!refusedBefore) {
       status('busy', `Writing ${SELF} under a temporary name…`);
