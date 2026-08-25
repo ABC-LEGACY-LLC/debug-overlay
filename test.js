@@ -1367,6 +1367,7 @@ console.log('\nTHE UPDATER, ACTUALLY RUN');
  * crash anywhere in the path now fails here instead of on someone's machine.
  */
 let updaterRan = false;
+let settleChecked = false;
 {
   const extDir = path.join(__dirname, 'dist', 'browser-extension');
   const html = fs.readFileSync(path.join(extDir, 'update.html'), 'utf8');
@@ -1390,7 +1391,8 @@ let updaterRan = false;
       getFileHandle: async (name, opts) => {
         if (!disk.has(name) && !opts?.create) throw new Error('NotFoundError');
         return {
-          getFile: async () => ({ text: async () => disk.get(name) }),
+          getFile: async () => ({ text: async () => disk.get(name),
+                                   size: String(disk.get(name) ?? '').length }),
           createWritable: async () => ({
             write: async (d) => disk.set(name, typeof d === 'string' ? d : '<binary>'),
             close: async () => {},
@@ -1428,8 +1430,14 @@ let updaterRan = false;
       return { ok: true, text: async () => `/* ${name} @ ${remoteVersion} */`,
                arrayBuffer: async () => new ArrayBuffer(8) };
     };
-    w.eval(js);
-    return { w, dom, disk, logText: () => w.document.getElementById('log').textContent };
+    /* The page is a plain script with no module system and nothing to
+       export, so its declarations are not reachable from out here. Naming
+       the one helper this suite drives directly is a smaller lie than
+       either alternative: a production export nothing uses, or a test that
+       waits out the real 60s schedule to observe it. */
+    w.eval(js + '\n;window.__drive = { settle };');
+    return { w, dom, disk, dirHandle,
+             logText: () => w.document.getElementById('log').textContent };
   };
 
   // 1) REPAIR — same version, rewrites everything. This is the exact run that
@@ -1466,6 +1474,38 @@ let updaterRan = false;
       updaterRan = true;
     });
   });
+
+  /* 3) THE SETTLE CHECK. Every other assertion about writing is synchronous,
+        which is precisely the blind spot: a scanner that quarantines lets the
+        write succeed, lets the read-back match, and removes the file a few
+        seconds later. The page reported "on disk" accurately about a folder
+        that no longer held update.js — true when written, false when read.
+
+        Driven directly rather than through a run, with setTimeout collapsed:
+        what is under test is what it REPORTS, not that it can wait 60s. The
+        Map is the disk, so "quarantined" is a delete, which is what it is.
+
+        kept.js is the half that keeps the rig honest. The mock File had no
+        .size until this test needed it, so an unfaithful rig would have
+        called every file missing and this assertion would have passed
+        without the code working at all. */
+  {
+    const s = rig(MINE);
+    s.w.setTimeout = (fn) => { fn(); return 0; };
+    s.disk.set('kept.js', 'still here');
+    s.disk.set('taken.js', 'written fine');
+    s.disk.delete('taken.js');            // …and a second later, it is not
+    s.w.__drive.settle(s.dirHandle, ['kept.js', 'taken.js']).then(() => {
+      const note = s.w.document.getElementById('settleNote');
+      ok('a file written and then TAKEN is named, not reported as success',
+        !note.hidden && /taken\.js/.test(note.textContent),
+        'quarantine is asynchronous; every other check in the file is not');
+      ok('and a file that stayed is not accused',
+        !/kept\.js/.test(note.textContent) && /removed from disk/.test(note.textContent),
+        'a check that flags everything has measured nothing');
+      settleChecked = true;
+    }, (e) => { ok('the settle check runs', false, e.message); settleChecked = true; });
+  }
 }
 
 /* AUDIT FIX (C3 — first-run comprehension). Powered on with nothing pinned,
@@ -3878,6 +3918,7 @@ function whenPainted(ready, run, waited = 0) {
 }
 
 whenPainted(() => perfChecked && sidePanelChecked && storageChecked && updaterRan &&
+                  settleChecked &&
                   window.document.querySelector('#__debug-overlay-root .debug-overlay-flag') &&
                   w3.document.querySelector('#__debug-overlay-root .debug-overlay-badge'), () => {
   console.log('\nREVIEW FIXES (after a frame)');

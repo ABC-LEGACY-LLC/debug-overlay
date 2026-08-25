@@ -139,6 +139,13 @@ button.primary[disabled]:hover {
   #bar.indet #barFill { width: 35%; animation: slide 1.1s ease-in-out infinite; }
   @keyframes slide { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
   #statusHint { color: var(--debug-overlay-muted); font-size: 12px; margin-top: 2px; }
+  /* the settle check speaks only when a written file has since vanished, so
+     it is never decoration — danger, and it outranks the success headline
+     above it, because it is the newer and worse fact */
+  #settleNote {
+    margin-top: 10px; font-size: 13px; color: var(--debug-overlay-danger);
+    border-left: 3px solid var(--debug-overlay-danger); padding-left: 10px;
+  }
 
   .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
@@ -219,6 +226,7 @@ button.primary[disabled]:hover {
   <div id="done" role="status">
     <b id="doneHead"></b>
     <p id="doneCount"></p>
+    <p id="settleNote" hidden></p>
     <div class="row">
       <button id="reloadExt" class="primary" hidden>Reload the extension now</button>
       <button id="copyExt" hidden>Copy chrome://extensions instead</button>

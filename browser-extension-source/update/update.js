@@ -216,6 +216,59 @@ async function proveLive(dir) {
   } catch { return null; }
 }
 
+/* THE SETTLE CHECK — the one verification that cannot be done in line.
+
+   Every check in this file is synchronous: write, read it back, move on. A
+   scanner that QUARANTINES does not work that way. The write succeeds, the
+   read-back matches, and the file is removed seconds later — so this page
+   reported "v3.8.137 is on disk", accurately, about a folder that no longer
+   held update.js by the time anyone looked at it. The report was true when
+   made and false when read, which is the hardest kind of wrong to chase.
+
+   So after the run finishes, look again. Read-only, three times, out to a
+   minute, and say nothing unless something actually went.
+
+   It can catch its own removal, which is the case that matters most here:
+   this script is already in memory, so it keeps running perfectly well
+   after its file is deleted. The page can therefore watch itself disappear
+   and say so, in the same visit, instead of the user finding out on the
+   next visit via a banner that can only guess why.
+
+   "Written, then taken" and "refused at write time" are different failures
+   with different answers, and until now they produced the same report. */
+const SETTLE_AT = [5000, 20000, 60000];
+
+/** Is the file still there and non-empty? Read-only; false on any error. */
+async function stillThere(dir, name) {
+  try { return (await (await dir.getFileHandle(name)).getFile()).size > 0; }
+  catch { return false; }
+}
+
+async function settle(dir, names) {
+  const gone = [];
+  let waited = 0;
+  for (const at of SETTLE_AT) {
+    await new Promise((r) => setTimeout(r, at - waited));
+    waited = at;
+    for (const n of names) {
+      if (gone.includes(n) || await stillThere(dir, n)) continue;
+      gone.push(n);
+      log('· ' + n + ' was written, and is no longer on disk (' +
+          Math.round(waited / 1000) + 's later)', 'err');
+    }
+    if (!gone.length) continue;
+    const note = $('settleNote');
+    note.hidden = false;
+    note.textContent =
+      gone.length + (gone.length === 1 ? ' file was' : ' files were') +
+      ' written successfully and then removed from disk by something on this' +
+      ' machine: ' + gone.join(', ') + '. The update itself worked — these were' +
+      ' deleted afterwards, which is what security software does when it' +
+      ' quarantines. Look in its protection history for those names; that entry' +
+      ' names the exact rule, which is the one thing this page cannot see.';
+  }
+}
+
 /** What the folder currently holds for one file, or null. Read-only. */
 async function readOwn(dir, name) {
   try { return await (await (await dir.getFileHandle(name)).getFile()).text(); }
@@ -474,6 +527,9 @@ async function run(repairing) {
     $('done').classList.add('show');
     $('reloadExt').hidden = false;
     $('copyExt').hidden = false;
+    // not awaited: the run IS finished, and its report stands. This only ever
+    // adds "…and then this happened", which is a fact about the minute after.
+    settle(dir, Object.keys(texts)).catch(() => {});
   } catch (e) {
     log('failed: ' + e.message, 'err');
     /* A write blocked partway is the case worth naming: the files already
