@@ -265,7 +265,22 @@ function build(kind) {
   const updText = fs.readFileSync(
     path.join(ROOT, 'browser-extension-source', 'update', 'update.js'), 'utf8')
     .replace('__EXT_BASE__', extBase);
-  const UPDATER = `updater/${require('crypto').createHash('sha256')
+  /* ROOT, NOT updater/ — YET. Putting the path in files.json deadlocked
+     every existing install: the updater already out there validates that
+     list against /^[a-z0-9_.-]+$/, refuses anything with a slash, and stops
+     before its first fetch. The fix for that validator lives INSIDE the
+     updater it can no longer fetch. Data shipped ahead of the reader, and
+     the reader was the thing the data was for.
+
+     So the hash lands in the root, where every shipped validator already
+     accepts it, and it alone fixes the accumulation this was really about:
+     the name changes when the FILE changes, not when the version does.
+     Everything the folder needs — path-walking reads and writes, a
+     recursing zip, a validator that allows one folder — is already here and
+     tested, doing nothing. That is the order this should have gone in.
+     Moving into updater/ is then a one-line change, safe once installs
+     carry a reader that can be told about it. */
+  const UPDATER = `update-${require('crypto').createHash('sha256')
     .update(updText).digest('hex').slice(0, 12)}.js`;
   fs.writeFileSync(path.join(EXT, 'update.html'), withShared(
     fs.readFileSync(path.join(ROOT, 'browser-extension-source', 'update', 'update.html'), 'utf8')

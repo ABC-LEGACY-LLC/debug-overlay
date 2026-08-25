@@ -407,9 +407,7 @@ console.log('\nTWO GATES, ONE CORE');
      opens 'update.js' is asserting the design that was removed. It also
      catches the failure this rename could most easily cause: exactly one
      such file must exist, and update.html must point at that one. */
-  const updName = (fs.existsSync(path.join(extDir, 'updater'))
-    ? fs.readdirSync(path.join(extDir, 'updater')).map((f) => 'updater/' + f)
-    : []).filter((f) => /\.js$/.test(f));
+  const updName = fs.readdirSync(extDir).filter((f) => /^update-.*\.js$/.test(f));
   const updJs = fs.readFileSync(path.join(extDir, ...updName[0].split('/')), 'utf8');
   const updHtml = fs.readFileSync(path.join(extDir, 'update.html'), 'utf8');
   // the shared token/primitive sheet — build.js INLINES it into each page, so
@@ -470,6 +468,25 @@ console.log('\nTWO GATES, ONE CORE');
   ok('and the page loads that exact file',
     updHtml.includes(`src="${updName[0]}"`),
     (updHtml.match(/<script src="[^"]*"/) || ['no script tag'])[0]);
+  /* THE BOOTSTRAP RULE, and it cost a release to learn.
+
+     files.json is consumed by the updater ALREADY INSTALLED, never by the
+     one being shipped alongside it. So relaxing the list's validator and
+     USING the relaxation in the same release deadlocks every install that
+     exists: it refuses the list, stops before its first fetch, and the fix
+     for its validator is inside the file it just refused to fetch. Observed
+     exactly that way — "failed: files.json is not a sane file list", twice,
+     on a machine whose only route to the fix was the thing that failed.
+
+     The list must therefore satisfy the STRICTEST validator any shipped
+     install might still be running, which is the original plain-name one.
+     Ship the reader first; use the format a release later. The path-walking
+     and the folder-tolerant validator are already out there doing nothing,
+     which is what makes that later release a one-line change. */
+  ok('files.json stays readable by the updaters already installed',
+    JSON.parse(fs.readFileSync(path.join(extDir, 'files.json'), 'utf8'))
+      .every((f) => /^[a-z0-9_.-]+$/i.test(f)),
+    'a format only the version shipping it can read cannot be delivered');
   ok('and files.json names it, so an installed copy can fetch it',
     (() => { const s = JSON.parse(fs.readFileSync(path.join(extDir, 'files.json'), 'utf8'));
              return s.includes(updName[0]) && !s.includes('update.js'); })(),
@@ -572,7 +589,7 @@ console.log('\nTWO GATES, ONE CORE');
   }
   ok('the page warns FAIL-VISIBLE when its script never loads',
     /id="noScript"/.test(updHtml) &&
-    /updater\/[^<]*\.js<\/code> is missing/.test(updHtml) &&
+    /update-[^<]*\.js<\/code> is missing/.test(updHtml) &&
     /\$\('noScript'\)\.hidden = true;/.test(updJs),
     'a dead page that looks alive is the worst version of broken');
   /* THE OTHER HALF OF FAIL-VISIBLE, and the half that was missing: warning
@@ -718,7 +735,7 @@ console.log('\nTWO GATES, ONE CORE');
     'a second press mid-flight races the first');
   ok('and its page carries no inline script',
     (updHtml.match(/<script\b/g) || []).length === 1 &&
-    /src="updater\/[^"]*\.js"/.test(updHtml),
+    /src="update-[^"]*\.js"/.test(updHtml),
     'MV3 CSP would silently refuse it');
   const inst = fs.readFileSync(path.join(extDir, 'install.html'), 'utf8');
   /* what a real install walked into, one guard each:
@@ -1413,8 +1430,8 @@ let settleChecked = false;
 {
   const extDir = path.join(__dirname, 'dist', 'browser-extension');
   const html = fs.readFileSync(path.join(extDir, 'update.html'), 'utf8');
-  const js = fs.readFileSync(path.join(extDir, 'updater',
-    fs.readdirSync(path.join(extDir, 'updater'))[0]), 'utf8');
+  const js = fs.readFileSync(path.join(extDir,
+    fs.readdirSync(extDir).find((f) => /^update-.*\.js$/.test(f))), 'utf8');
   const localManifest = fs.readFileSync(path.join(extDir, 'manifest.json'), 'utf8');
   const shippedList = JSON.parse(fs.readFileSync(path.join(extDir, 'files.json'), 'utf8'));
   const MINE = JSON.parse(localManifest).version;
