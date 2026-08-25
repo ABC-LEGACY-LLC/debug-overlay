@@ -489,6 +489,30 @@ console.log('\nTWO GATES, ONE CORE');
      staged file is already on disk with the right contents — telling someone
      to go and fetch a ZIP for bytes sitting in the folder they are looking
      at is work invented by the page. */
+  /* …and the settle check must be told what was WRITTEN, not what was
+     fetched. Handed every fetched name, it announced "update.js was written,
+     and is no longer on disk" four lines under a log saying update.js was
+     NOT replaced and is untouched. Never written, merely absent — and the
+     reader was sent to search a quarantine history for a removal that never
+     happened. Source-level, because the behavioural half is already covered
+     where settle is driven directly: what it cannot be trusted with is the
+     LIST, and the list is chosen here. */
+  ok('settle is told what landed, not what was fetched',
+    /const landed = order\.filter\(\(f\) => f !== SELF\);/.test(updJs) &&
+    /if \(!selfLost && texts\[SELF\] !== undefined\) landed\.push\(SELF\);/.test(updJs) &&
+    !/settle\(dir, Object\.keys\(texts\)\)/.test(updJs),
+    'it reported a file it never wrote as one that vanished');
+  /* Chrome's own dangerous-file-type modal is part of this path, and an
+     unexplained modal mid-update is something a careful person declines —
+     which IS the failure. Announced before it can appear, and the failure
+     message names both answers, because they arrive as the same string. */
+  ok('the confirmation prompt is announced before it can appear',
+    /Chrome may ask "Save update\.js\?" — choose Save/.test(updJs) &&
+    /may now ask to confirm ' \+ SELF \+ ' — choose Save/.test(updJs),
+    'a modal nobody was warned about gets dismissed, and dismissing it is the failure');
+  ok('and a refusal does not blame antivirus it cannot see',
+    /was declined, or security software answered it/.test(updJs),
+    'a wrong diagnosis sends someone to fight their antivirus over a dialog they dismissed');
   ok('a refused rename leaves the updater untouched and names the one-step fix',
     /was NOT replaced/.test(updJs) &&
     /nothing here opened it/.test(updJs) &&

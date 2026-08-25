@@ -529,8 +529,20 @@ async function run(repairing) {
       } catch (e) { selfLost = e.message; }
 
       if (staged) {
-        status('busy', `Renaming it to ${SELF}…`);
-        ticking('renaming ' + STAGE);
+        /* CHROME MAY ASK, SO SAY SO FIRST. Writing a .js under a name it
+           has not already granted sends the operation through Chrome's own
+           dangerous-file-type check, which puts up "Save update.js? This
+           file of type (.js) can be dangerous." — a modal with Save and
+           Don't save. Answer no and the API throws "Aborted due to security
+           policy", which reads exactly like antivirus and is not.
+
+           Announcing it beforehand is the whole fix for that confusion: an
+           unexplained modal during an update is something a careful person
+           declines, and declining is the failure. */
+        status('busy', `Renaming it to ${SELF}…`,
+          'Chrome may ask "Save update.js?" — choose Save. It is this page ' +
+          'replacing its own script.');
+        log('· Chrome may now ask to confirm ' + SELF + ' — choose Save', 'warn');
         try {
           if (typeof staged.move !== 'function')
             throw new Error('this browser cannot rename a file in place');
@@ -545,6 +557,17 @@ async function run(repairing) {
       }
       if (selfLost) {
         log('· ' + SELF + ' was NOT replaced (' + selfLost + ')', 'warn');
+        if (/security policy|Abort/i.test(selfLost)) {
+          /* Both answers to Chrome's modal arrive here as the same string, so
+             name both rather than picking one. Saying "a security check
+             blocked it" when the truth may be "you clicked Don't save" is a
+             wrong diagnosis, and a wrong diagnosis sends someone to fight
+             their antivirus over a dialog they dismissed. */
+          log('  That is Chrome refusing the write. Either the "Save ' + SELF +
+              '?" prompt', 'warn');
+          log('  was declined, or security software answered it. Pressing Update', 'warn');
+          log('  again and choosing Save will tell you which.', 'warn');
+        }
         log('  It is untouched — nothing here opened it. The new one is already', 'warn');
         log('  on disk as ' + STAGE + ', with the right contents.', 'warn');
         log('  To finish: rename ' + STAGE + ' to ' + SELF + ' in your install folder.', 'warn');
@@ -591,7 +614,20 @@ async function run(repairing) {
       log('· these are no longer part of the extension and can be deleted:', 'warn');
       for (const f of stale) log('    ' + f, 'warn');
     }
-    settle(dir, Object.keys(texts)).catch(() => {});
+    /* ONLY WATCH WHAT WAS ACTUALLY PUT THERE. Handed every fetched name,
+       this reported "update.js was written, and is no longer on disk" about
+       a run whose log said, four lines above, that update.js was NOT
+       replaced and is untouched. It was never written; it was simply absent,
+       as it had been before the run started.
+
+       A check that cannot tell "we put it there and it vanished" from "it
+       was never there" produces the one output worse than silence: it sent
+       the reader to hunt a quarantine history for a removal that did not
+       happen. That is the same failure as the classifier that reported a
+       typo as a security block, and it is mine, one release old. */
+    const landed = order.filter((f) => f !== SELF);
+    if (!selfLost && texts[SELF] !== undefined) landed.push(SELF);
+    settle(dir, landed).catch(() => {});
     /* …and the card comes to rest. Nothing set it after the last step, so it
        froze mid-verb beside a done card announcing the run had finished —
        one moment, two widgets, two different answers. The card above says
