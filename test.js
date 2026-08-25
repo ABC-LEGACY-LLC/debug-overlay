@@ -402,7 +402,13 @@ console.log('\nTWO GATES, ONE CORE');
   // the self-updater: emitted, syntax-checked by the build, and PINNED —
   // its runtime is browser-only (FS Access API), so what a suite can hold
   // is the contract: where it may fetch from, and what it may write
-  const updJs = fs.readFileSync(path.join(extDir, 'update.js'), 'utf8');
+  /* Derived, never spelled. The updater is version-named now — that is the
+     whole mechanism by which it can be delivered at all — so a test that
+     opens 'update.js' is asserting the design that was removed. It also
+     catches the failure this rename could most easily cause: exactly one
+     such file must exist, and update.html must point at that one. */
+  const updName = fs.readdirSync(extDir).filter((f) => /^update-.*\.js$/.test(f));
+  const updJs = fs.readFileSync(path.join(extDir, updName[0]), 'utf8');
   const updHtml = fs.readFileSync(path.join(extDir, 'update.html'), 'utf8');
   // the shared token/primitive sheet — build.js INLINES it into each page, so
   // the source is what to assert against; there is no shipped file to read
@@ -413,10 +419,37 @@ console.log('\nTWO GATES, ONE CORE');
     /const BASE = 'https:\/\/raw\.githubusercontent\.com\/[^']*\/browser-extension'/.test(updJs),
     (updJs.match(/const BASE = '[^']*'/) || ['no BASE'])[0]);
   ok('and it writes exactly the files the gate ships',
-    ['manifest.json', 'content.js', 'sw.js', 'update.html', 'update.js',
+    ['manifest.json', 'content.js', 'sw.js', 'update.html',
      'side-panel.html', 'side-panel.js']
-      .every((f) => updJs.includes(`'${f}'`) && fs.existsSync(path.join(extDir, f))),
+      .every((f) => fs.existsSync(path.join(extDir, f))),
     'the FILES list and the emitted files disagree');
+  /* THE VERSIONED UPDATER, and the three ways this rename could break.
+
+     Replacing a file called update.js is refused outright by Chrome on at
+     least one real install, and every route the API offers destroys it in
+     the process — so the updater is version-named and nothing replaces it.
+     That buys an automatic self-update and costs one new invariant: EXACTLY
+     one such file must exist, update.html must point at that one, and
+     files.json must list it. Get any of the three wrong and the page 404s
+     its own script — the identical dead-page symptom the whole apparatus
+     was built to survive, arriving instead through a typo. */
+  ok('exactly one versioned updater is emitted',
+    updName.length === 1, updName.join(', ') || 'none');
+  ok('and the page loads that exact file',
+    updHtml.includes(`src="${updName[0]}"`),
+    (updHtml.match(/<script src="[^"]*"/) || ['no script tag'])[0]);
+  ok('and files.json names it, so an installed copy can fetch it',
+    (() => { const s = JSON.parse(fs.readFileSync(path.join(extDir, 'files.json'), 'utf8'));
+             return s.includes(updName[0]) && !s.includes('update.js'); })(),
+    fs.readFileSync(path.join(extDir, 'files.json'), 'utf8'));
+  /* …and nothing is skipped any more. The loop used to pass over SELF and
+     hand it to four hundred lines of special handling; the count it printed
+     said "of N-1" to match. Both are gone, so a run writing everything it
+     fetched is the assertion. */
+  ok('the write loop skips nothing — every fetched file is written',
+    !/if \(f === SELF\) continue;/.test(updJs) &&
+    /Writing \$\{put\} of \$\{order\.length\}/.test(updJs),
+    'a file handled apart is a file that can go missing without a line about it');
   /* the file SET travels with the version: the updater asks the SERVER what
      to write (files.json), because a baked-in list answers for the build
      that shipped it — the v3.8.98 five-name list would have written the
@@ -440,68 +473,10 @@ console.log('\nTWO GATES, ONE CORE');
      It is also the one file nothing structural depends on: the updater reads
      its file list from the repo at run time, so an older copy still updates
      everything else correctly. */
-  /* THE UPDATER NEVER WRITES ITSELF. It used to write it and tolerate the
-     failure, on the theory that a refused write leaves the old file alone.
-     It does not: createWritable() opens a swap over the target, so an abort
-     partway leaves NOTHING. Measured on a real machine — update.js vanished,
-     this page became dead HTML, and the only symptom was a spinner that
-     never resolved. Skipping cannot fail, and costs nearly nothing: the
-     updater reads its file list from the repo each run, so an older copy
-     keeps updating everything else. */
-  /* THE UPDATER WRITES ITSELF, BUT LAST. Both extremes were wrong and both
-     were shipped. Writing it among the others and tolerating failure
-     destroyed it — the page then 404s its own script and is dead. Refusing
-     to write it at all was worse, more slowly: a bug in this file became
-     permanent, because the only thing that could deliver the fix was the
-     broken thing. A typo survived two releases that way. So it goes after
-     the manifest commit, and it is read back to confirm — a write that
-     "succeeds" and is then quarantined is indistinguishable from one that
-     worked, until tomorrow. */
-  ok('the updater delivers its own file LAST, after the manifest commits',
-    updJs.includes("const SELF = 'update.js'") &&
-    /if \(f === SELF\) continue;/.test(updJs) &&
-    updJs.indexOf("const STAGE =") > updJs.indexOf("wrote ' + f, 'good'"),
-    'a bug in the updater can only be fixed by an updater that updates itself');
-  /* STAGE, THEN RENAME — and the belief this replaces was wrong, so the
-     guard that encoded it had to go with it.
-
-     The rehearsal wrote the same bytes under another name to prove the
-     CONTENT was acceptable, then let the real write proceed. The affected
-     machine ran exactly that and reported: staged copy written, update.js
-     "Aborted due to security policy". Same bytes, same folder, same
-     extension, seconds apart. The content was never what was refused, so
-     the rehearsal tested a variable that was never in question — and by
-     passing, it authorised the write that destroyed the file.
-
-     A test can encode a wrong theory as faithfully as a right one. This one
-     did, and it stayed green through both losses. What replaces it asserts
-     a PROPERTY instead of a procedure: SELF is never opened for writing.
-     That holds whatever the scanner turns out to object to. */
-  ok('nothing ever opens the updater for writing — it is renamed into place',
-    !/getFileHandle\(SELF, \{ create: true \}\)/.test(updJs) &&
-    /const STAGE = 'update-rehearsal\.js'/.test(updJs) &&
-    /await staged\.move\(SELF\)/.test(updJs),
-    'createWritable() replaces the target as it opens, so an abort leaves nothing');
-  ok('and the renamed file is read back before it is called done',
-    /if \(\(await readOwn\(dir, SELF\)\) !== texts\[SELF\]\)/.test(updJs),
-    'a rename that reports success and lands nothing is the failure being fixed');
   /* …and when it cannot, the instruction is one rename, not a download. The
      staged file is already on disk with the right contents — telling someone
      to go and fetch a ZIP for bytes sitting in the folder they are looking
      at is work invented by the page. */
-  /* …and the settle check must be told what was WRITTEN, not what was
-     fetched. Handed every fetched name, it announced "update.js was written,
-     and is no longer on disk" four lines under a log saying update.js was
-     NOT replaced and is untouched. Never written, merely absent — and the
-     reader was sent to search a quarantine history for a removal that never
-     happened. Source-level, because the behavioural half is already covered
-     where settle is driven directly: what it cannot be trusted with is the
-     LIST, and the list is chosen here. */
-  ok('settle is told what landed, not what was fetched',
-    /const landed = order\.filter\(\(f\) => f !== SELF\);/.test(updJs) &&
-    /if \(!selfLost && texts\[SELF\] !== undefined\) landed\.push\(SELF\);/.test(updJs) &&
-    !/settle\(dir, Object\.keys\(texts\)\)/.test(updJs),
-    'it reported a file it never wrote as one that vanished');
   /* Chrome's own dangerous-file-type modal is part of this path, and an
      unexplained modal mid-update is something a careful person declines —
      which IS the failure. Announced before it can appear, and the failure
@@ -515,81 +490,6 @@ console.log('\nTWO GATES, ONE CORE');
     /#gateWhy\.calm \{ color: var\(--debug-overlay-muted\)/.test(updHtml) &&
     /classList\.toggle\('calm', haveFolder && !!remoteVersion\)/.test(updJs),
     'the happy path and the blocked path were the same colour');
-  /* THE PROBE. Every measurement so far moved two variables at once: the
-     refused file has both the name update.js AND the updater's contents,
-     and the accepted one has neither. Chrome's "Save update.js?" modal
-     looked like the gate until Save was chosen and the write was refused
-     anyway — so the prompt is not it, and the two axes have never been
-     separated. Four writes do that: same name with trivial contents, same
-     contents under the accepted name, and both controls. It writes into a
-     folder the reader picks, never the install folder — a stub named
-     update.js landing in a working install is the one way this diagnostic
-     could cost more than it explains. */
-  ok('the refusal can be diagnosed without splitting the shipped file',
-    /const TINY = '\/\/ four bytes of nothing/.test(updJs) &&
-    /\['update\.js', TINY,/.test(updJs) &&
-    /\['update-rehearsal\.js', real,/.test(updJs) &&
-    /id="probeOut"/.test(updHtml),
-    'two variables moved together explain nothing');
-  ok('and it never touches the install folder',
-    /showDirectoryPicker\(\{ mode: 'readwrite' \}\)/.test(updJs) &&
-    /never your install/i.test(updHtml) &&
-    !/probe[\s\S]{0,400}kvGet\('dir'\)/.test(updJs),
-    'a stub named update.js in a live install would cost more than it explains');
-  ok('the confirmation prompt is announced before it can appear',
-    /Chrome may ask "Save update\.js\?" — choose Save/.test(updJs) &&
-    /may now ask to confirm ' \+ SELF \+ ' — choose Save/.test(updJs),
-    'a modal nobody was warned about gets dismissed, and dismissing it is the failure');
-  ok('and a refusal does not blame antivirus it cannot see',
-    /was declined, or security software answered it/.test(updJs),
-    'a wrong diagnosis sends someone to fight their antivirus over a dialog they dismissed');
-  /* THE GUARANTEE THAT WAS NOT ONE. This asserted the page told the reader
-     update.js was "untouched — nothing here opened it", which was true about
-     what the code did and false about what happened: the file was in the
-     folder before a refused move and gone after. Nothing opened it, and it
-     went anyway. A test can lock in a promise the code has no power to keep;
-     this one did, and it passed while the file was being destroyed. The
-     claim is banned outright now — the page may say what it DID, never what
-     survived. */
-  ok('a refused rename names the one-step fix and promises nothing about the file',
-    /was NOT replaced/.test(updJs) &&
-    !/untouched — nothing here opened it/.test(updJs) &&
-    /A refused move takes BOTH files/.test(updJs) &&
-    /rename ' \+ STAGE \+ ' to ' \+ SELF/.test(updJs) &&
-    !/out of the ZIP/i.test(updJs),
-    'the fix must not be bigger than the failure, and no claim bigger than the evidence');
-  /* THE ESCAPE HATCH MUST SURVIVE THE THING THAT NEEDS IT. Measured: after
-     a refused move the folder held neither update.js nor update-rehearsal.js.
-     move() destroys the destination — already known — and consumes the
-     SOURCE as well, so the staged copy the failure message told the reader to
-     rename had been eaten by the operation that made the rename necessary.
-     That message appeared on the last screen shown before the page went
-     dead, and it pointed at nothing. Staging writes have never failed here,
-     so the copy is written again, and the message says which of the two
-     outcomes actually happened rather than assuming the good one. */
-  ok('a refused move re-stages the copy it consumed',
-    /restaged = \(await readOwn\(dir, STAGE\)\) === texts\[SELF\]/.test(updJs) &&
-    /if \(restaged\) \{/.test(updJs) &&
-    /could not be written back either/.test(updJs),
-    'the failure message pointed at a file the failure had deleted');
-  /* ONE REFUSAL IS ENOUGH. Retrying every release costs the working updater
-     each time, for an answer already given. Remembered, and cleared by a
-     success so a machine that stops refusing needs no intervention. */
-  ok('a machine that refused once is not asked to destroy the file again',
-    /const refusedBefore = !repairing && await kvGet\('selfWriteRefused'\)/.test(updJs) &&
-    /await kvSet\('selfWriteRefused', 1\)/.test(updJs) &&
-    /await kvSet\('selfWriteRefused', 0\)/.test(updJs),
-    'persistence that costs a file per release is not persistence');
-  /* …AND THERE HAS TO BE A WAY BACK. Shipped one release without one, the
-     flag was a one-way door: it suppressed the attempt, and the only thing
-     that cleared it was a successful attempt, which could no longer happen.
-     A machine that refused once would be refused forever, including after
-     the user fixed whatever was refusing. Repair is the escape — pressed on
-     purpose, so risking the file is the reader's decision, not the page's. */
-  ok('and Verify & repair always retries, so the memory is not a one-way door',
-    /!repairing && await kvGet/.test(updJs) &&
-    /always tries again/.test(updJs),
-    'a flag only a success can clear, guarding the only path to success, never clears');
   /* …and the fail-visible banner must offer the file already sitting beside
      it. It sent the reader to download a ZIP for bytes the failed run had
      just written into the same folder. */
@@ -640,7 +540,7 @@ console.log('\nTWO GATES, ONE CORE');
   }
   ok('the page warns FAIL-VISIBLE when its script never loads',
     /id="noScript"/.test(updHtml) &&
-    /update\.js<\/code> is missing/.test(updHtml) &&
+    /update-[^<]*\.js<\/code> is missing/.test(updHtml) &&
     /\$\('noScript'\)\.hidden = true;/.test(updJs),
     'a dead page that looks alive is the worst version of broken');
   /* THE OTHER HALF OF FAIL-VISIBLE, and the half that was missing: warning
@@ -673,14 +573,6 @@ console.log('\nTWO GATES, ONE CORE');
   ok('a disabled primary stops wearing the accent, not merely dims it',
     /button\.primary\[disabled\][^{]*\{[^}]*background:\s*var\(--debug-overlay-raised\)/.test(sharedCss),
     'dimming an affordance is not withdrawing it');
-  /* …and the HEADLINE carries it, not just a footnote under it. The first
-     version announced "every file is on disk" and then took it back one
-     sentence later, on a run where a write had actually been refused. A
-     summary that needs a correction attached to stop being false is a false
-     summary — the exception belongs in the sentence that claims success. */
-  ok('and the headline itself says so — no claim that a footnote has to retract',
-    /except this page/.test(updJs) && /selfLost\s*\n?\s*\?/.test(updJs),
-    'the completion banner claimed every file landed while one had not');
   ok('and update.js is the ONLY shipped file with the downloader shape',
     ['content.js', 'sw.js', 'side-panel.js'].every((f) => {
       const s = fs.readFileSync(path.join(extDir, f), 'utf8');
@@ -794,7 +686,7 @@ console.log('\nTWO GATES, ONE CORE');
     'a second press mid-flight races the first');
   ok('and its page carries no inline script',
     (updHtml.match(/<script\b/g) || []).length === 1 &&
-    updHtml.includes('src="update.js"'),
+    /src="update-[^"]*\.js"/.test(updHtml),
     'MV3 CSP would silently refuse it');
   const inst = fs.readFileSync(path.join(extDir, 'install.html'), 'utf8');
   /* what a real install walked into, one guard each:
@@ -1486,13 +1378,11 @@ console.log('\nTHE UPDATER, ACTUALLY RUN');
  */
 let updaterRan = false;
 let settleChecked = false;
-let refusalChecked = false;
-let currentChecked = false;
-let rememberChecked = false;
 {
   const extDir = path.join(__dirname, 'dist', 'browser-extension');
   const html = fs.readFileSync(path.join(extDir, 'update.html'), 'utf8');
-  const js = fs.readFileSync(path.join(extDir, 'update.js'), 'utf8');
+  const js = fs.readFileSync(path.join(extDir,
+    fs.readdirSync(extDir).find((f) => /^update-.*\.js$/.test(f))), 'utf8');
   const localManifest = fs.readFileSync(path.join(extDir, 'manifest.json'), 'utf8');
   const shippedList = JSON.parse(fs.readFileSync(path.join(extDir, 'files.json'), 'utf8'));
   const MINE = JSON.parse(localManifest).version;
@@ -1589,25 +1479,10 @@ let rememberChecked = false;
       ok('a repair writes every shipped file',
         shippedList.filter((f) => f !== 'update.js').every((f) => log.includes('wrote ' + f)),
         log.slice(-300));
-      /* it DOES deliver its own file, last, and the log says so in a way that
-         tells you the running page is now stale — the one thing a
-         self-replacing script must admit */
-      ok('and it delivers its own file last, telling you to reload the page',
-        /wrote update\.js \(this page — reload it to run the new one\)/.test(log),
-        'a page that replaced itself and said nothing is a page running old code');
       /* RETIRED was a dead constant for three releases — declared, commented
          as feeding a page nobody wrote, read by nothing. It therefore said
          nothing about install.bat, which sat in every install folder being
          the most flagged file in the package. Named now, never deleted. */
-      /* EVERY FETCHED FILE IS ACCOUNTED FOR. A repair fetches twelve and
-         writes eleven, because SELF is handled apart — and when SELF already
-         matches, the old code skipped it in silence. Twelve in, eleven out,
-         no mention of the twelfth: exactly the arithmetic a reader would
-         have to notice and guess at, about the one file here with a history
-         of quietly not existing. */
-      ok('the self file is accounted for on the path this run took',
-        /wrote update\.js/.test(log),
-        'twelve fetched and eleven written, with no word about the twelfth');
       ok('a run NAMES retired files still in the folder, and deletes nothing',
         /install\.bat/.test(js) &&
         /not used by the extension — safe to delete/.test(r.logText()) &&
@@ -1624,12 +1499,10 @@ let rememberChecked = false;
      Install. Seen on a real folder — every file at v3.8.149, install.html
      still at the version from a dozen releases earlier. */
   ok('the stale installer is named too — its one action is a downgrade',
-    /'install\.html'\]/.test(js) &&
-    !shippedList.includes('install.html'),
+    /'install\.html',/.test(js) &&
+    !shippedList.includes('install.html') &&
+    /'update\.js'\]/.test(js),   // …and the pre-versioning orphan beside it
     'a page that rewrites every file from a frozen snapshot, and is never refreshed');
-      ok('and the staging file is consumed by the rename, not left as litter',
-        !r.disk.has('update-rehearsal.js') && r.disk.has('update.js'),
-        [...r.disk.keys()].join(', '));
       ok('and it finishes without throwing — no "failed:" at the end',
         !/failed:/.test(log),
         log.slice(-300));
@@ -1643,106 +1516,6 @@ let rememberChecked = false;
       updaterRan = true;
     });
   });
-
-  /* 6) A REMEMBERED REFUSAL STILL DELIVERS. Skipping the ATTEMPT must not
-        skip the DELIVERY, and shipped once it did: the branch reported "the
-        new one is on disk as update-rehearsal.js — rename it" and returned
-        without writing it, because the staging write lived inside the branch
-        that had just been skipped. The reader was sent to rename a file that
-        was never created — the second time a message named a file that was
-        not there, immediately after the fix for the first time.
-
-        Both had one shape: a claim about the disk placed next to the code
-        meant to put it there, rather than after the write that proves it. So
-        this asks the DISK, on the exact path that lied. */
-  {
-    const s = rig('9.9.9');
-    s.store.set('selfWriteRefused', 1);
-    s.disk.set('update.js', 'THE WORKING UPDATER');
-    whenPainted(() => !s.w.document.getElementById('apply').disabled, () => {
-      s.w.document.getElementById('apply')
-        .dispatchEvent(new s.w.MouseEvent('click', { bubbles: true }));
-      whenPainted(() => s.w.document.getElementById('doneHead').textContent.length > 0 ||
-                        /failed:/.test(s.logText()), () => {
-        ok('a remembered refusal still writes the new updater under the safe name',
-          s.disk.get('update-rehearsal.js') === '/* update.js @ 9.9.9 */',
-          'the message said "rename it" about a file the run never created');
-        ok('and does not touch the working one it declined to replace',
-          s.disk.get('update.js') === 'THE WORKING UPDATER',
-          'the whole point of remembering was to stop destroying it');
-        ok('and the log tells the reader to rename it',
-          /rename it to update\.js to finish/.test(s.logText()),
-          s.logText().slice(-200));
-        s.dom.window.close();
-        rememberChecked = true;
-      });
-    });
-  }
-
-  /* 5) ALREADY CURRENT. The repair rig starts with update.js absent, so it
-        always takes the stale path — an assertion written as an alternation
-        over "wrote OR already-current OR refused" passes there and never
-        reaches the branch it was named after. Deleting the line under test
-        left the suite green, which is how it was caught. This rig seeds the
-        exact bytes the repo will serve, so nothing is stale and the only
-        thing the run CAN say about SELF is that there was nothing to do. */
-  {
-    const s = rig(MINE);
-    s.disk.set('update.js', '/* update.js @ ' + MINE + ' */');
-    whenPainted(() => !s.w.document.getElementById('repair').disabled, () => {
-      s.w.document.getElementById('repair')
-        .dispatchEvent(new s.w.MouseEvent('click', { bubbles: true }));
-      whenPainted(() => s.w.document.getElementById('doneHead').textContent.length > 0 ||
-                        /failed:/.test(s.logText()), () => {
-        ok('a self file that needs no change says so instead of going quiet',
-          /update\.js is already current/.test(s.logText()),
-          'silent-because-identical reads exactly like silent-because-it-vanished');
-        ok('and it is left exactly as it was',
-          s.disk.get('update.js') === '/* update.js @ ' + MINE + ' */' &&
-          !s.disk.has('update-rehearsal.js'),
-          'nothing to do means nothing done — no staging file either');
-        s.dom.window.close();
-        currentChecked = true;
-      });
-    });
-  }
-
-  /* 4) THE REFUSAL, SURVIVED — the assertion both lost copies of update.js
-        were owed. The old design opened SELF for writing and let the abort
-        arrive afterwards; createWritable() had already replaced the target,
-        so "refused" and "destroyed" were the same event. Nothing detected
-        it, because every test asked what the page SAID.
-
-        This one asks the disk. Rename refused, exactly as the machine
-        refuses it — and the original bytes must still be sitting there. */
-  {
-    const s = rig('9.9.9');
-    s.disk.set('update.js', 'THE WORKING UPDATER');
-    const realGet = s.dirHandle.getFileHandle;
-    s.dirHandle.getFileHandle = async (n2, o2) => {
-      const h = await realGet(n2, o2);
-      h.move = async () => { throw new Error('Aborted due to security policy.'); };
-      return h;
-    };
-    whenPainted(() => !s.w.document.getElementById('apply').disabled, () => {
-      s.w.document.getElementById('apply')
-        .dispatchEvent(new s.w.MouseEvent('click', { bubbles: true }));
-      whenPainted(() => s.w.document.getElementById('doneHead').textContent.length > 0 ||
-                        /failed:/.test(s.logText()), () => {
-        ok('a REFUSED rename leaves the working updater exactly as it was',
-          s.disk.get('update.js') === 'THE WORKING UPDATER',
-          'this is the failure that killed update.js twice: refused == destroyed');
-        ok('and the new bytes wait on disk under the staging name',
-          s.disk.get('update-rehearsal.js') === '/* update.js @ 9.9.9 */',
-          'the one-step fix is only real if the file is actually there');
-        ok('and the page says so rather than claiming a clean update',
-          /except this page/.test(s.w.document.getElementById('doneHead').textContent),
-          s.w.document.getElementById('doneHead').textContent || '(empty)');
-        s.dom.window.close();
-        refusalChecked = true;
-      });
-    });
-  }
 
   /* 3) THE SETTLE CHECK. Every other assertion about writing is synchronous,
         which is precisely the blind spot: a scanner that quarantines lets the
@@ -4187,8 +3960,8 @@ function whenPainted(ready, run, waited = 0) {
 }
 
 whenPainted(() => perfChecked && sidePanelChecked && storageChecked && updaterRan &&
-                  settleChecked && refusalChecked && currentChecked &&
-                  rememberChecked &&
+                  settleChecked &&
+                 
                   window.document.querySelector('#__debug-overlay-root .debug-overlay-flag') &&
                   w3.document.querySelector('#__debug-overlay-root .debug-overlay-badge'), () => {
   console.log('\nREVIEW FIXES (after a frame)');

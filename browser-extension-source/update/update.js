@@ -47,7 +47,16 @@ const RETIRED = ['cockpit.html', 'cockpit.js', 'options.html', 'options.js',
                     loads it, nothing checks it, and its one action is
                     destructive. Named, never deleted, like everything on this
                     list. */
-                 'install.html'];
+                 'install.html',
+                 /* THE ONE-TIME MIGRATION. Every install before v3.8.151 has
+                    a plain update.js, and the versioned scheme orphans it:
+                    update.html now points at update-<version>.js, files.json
+                    no longer lists update.js, and SELF is derived from the
+                    version so it names update-<previous>.js, which such a
+                    folder does not have. Nothing else would ever mention it
+                    again — the single most confusing file to leave behind,
+                    given it is the one this whole change is about. */
+                 'update.js'];
 
 const $ = (id) => document.getElementById(id);
 /* The page ships this warning VISIBLE. Reaching this line means the script
@@ -466,14 +475,29 @@ async function run(repairing) {
        and nothing else — every other file is already updated and the version
        is already committed — and the page SAYS so, with the one-line manual
        fix. update.html ships its warning visible for exactly this case. */
-    const SELF = 'update.js';
-    const selfStale = texts[SELF] !== undefined &&
-                      texts[SELF] !== await readOwn(dir, SELF);
+    /* NOTHING IS SPECIAL ANY MORE. What stood here was four hundred lines
+       of apparatus: skip this file, write it last, rehearse it under another
+       name, rename it into place, remember the refusal, re-stage what the
+       refusal ate. Every line of it existed because updating the updater
+       meant REPLACING the file this page is running, and Chrome refuses that
+       on some machines — destructively, by every route the API offers.
+
+       The updater is version-named now, so there is no replacement to
+       refuse. This build's script is a file that did not exist a moment ago,
+       and writing a new file has never once been refused: update-rehearsal.js
+       landed on every run that update.js failed, same page, same folder,
+       same bytes. So it goes through the ordinary loop with everything else,
+       and update.html arrives in the same run already pointing at it.
+
+       One line of housekeeping is left. The script this page is RUNNING came
+       from last version's file, which after this run is nothing to anybody —
+       named below as safe to delete, never removed. */
+    const SELF = `update-${MINE}.js`;   // the one running now, stale after this
+
     let put = 0;
     for (const f of order) {
-      if (f === SELF) continue;
       put++;
-      status('busy', `Writing ${put} of ${order.length - 1} — ${f}`);
+      status('busy', `Writing ${put} of ${order.length} — ${f}`);
       progress(((files.length + put) / steps) * 100);
       ticking('writing ' + f);
       const fh = await dir.getFileHandle(f, { create: true });
@@ -481,189 +505,6 @@ async function run(repairing) {
       await w.write(texts[f]);
       await w.close();
       log('✓ wrote ' + f, 'good');
-    }
-    /* …and now this file — REHEARSED FIRST, because writing it directly is
-       what destroys it. A refused write leaves nothing, and the file it
-       takes is the updater itself: the page then 404s its own script and
-       cannot repair anything, which is exactly what happened here, twice.
-
-       The refusal is about the CONTENT, not the name — measured: content.js
-       and side-panel.js are also .js and write fine, while these particular
-       bytes are refused. So write the same bytes under a different name
-       first. If that lands, the content is acceptable on this machine and
-       the real write is safe. If it does not, the real file is never
-       touched and this page keeps working — which is the whole point of
-       the file being special. */
-    let selfLost = null;
-    /* Beside selfLost, not beside `staged`. Declared inside the attempt
-       block it was out of scope by the time the failure message read it, and
-       the ReferenceError took the whole run down AFTER every file had landed
-       — a crash at the end of a successful update, which is precisely the
-       bug the execution rig was built for. It caught it. */
-    let restaged = true;   // the escape hatch is intact unless a move ate it
-    /* ALREADY CURRENT IS AN ANSWER, AND IT HAS TO BE GIVEN. When the bytes on
-       disk already match, every branch below is skipped and nothing was
-       logged — so a run fetched twelve files, reported writing eleven, and
-       said not one word about the twelfth. The reader is left to notice the
-       arithmetic and guess, about the single file in this package with a
-       history of silently not being there. Skipped-because-identical and
-       skipped-because-something-ate-it look the same in a log that mentions
-       neither. */
-    if (!selfStale && texts[SELF] !== undefined) {
-      log('· ' + SELF + ' is already current — nothing to replace', 'good');
-    }
-    if (selfStale && texts[SELF] !== undefined) {
-      /* STAGE, THEN RENAME — and never open a writable on SELF.
-
-         What this replaces was a REHEARSAL: write the same bytes under
-         another name, and if that lands, conclude the content is acceptable
-         and let the real write proceed. The affected machine disproved the
-         reasoning in a single run. The staging write succeeded. The write to
-         update.js was still "Aborted due to security policy" — same bytes,
-         same folder, same extension, same session, seconds apart.
-
-         So the content was never what got refused, and a rehearsal that
-         tests the content tests the wrong variable. Worse than useless: it
-         passed, waved the real write through, and the real write destroyed
-         the file. createWritable() replaces the target as it opens, so an
-         abort leaves nothing behind. The safety mechanism reliably produced
-         the exact outcome it existed to prevent, and it did it twice.
-
-         Nothing writes to SELF any more. The bytes land under a name this
-         machine accepts and the file is RENAMED — the same move a person
-         would make in the file manager, and the only operation on SELF ever
-         observed to work here. If the rename is refused too, SELF was never
-         opened, so it is exactly as it was; the staged file stays on disk
-         and the message below is a one-step fix rather than a download.
-
-         The staging NAME is deliberately unchanged. It is proven to write on
-         the machine that refuses update.js, and swapping in an untested name
-         would re-run a variable already settled, on the one path that must
-         not fail. It reads as a misnomer now; that is the cheaper cost. */
-      const STAGE = 'update-rehearsal.js';
-      /* ONE REFUSAL IS ENOUGH. A refused move does NOT leave the destination
-         alone. Measured: update.js was in the folder before the attempt and
-         gone after, on a run whose own log said it was untouched because
-         nothing had opened it. Nothing had — and it went anyway.
-
-         So attempting this again on a machine that has already said no is
-         not persistence. It is destroying the working updater once per
-         release for an answer already known. Remembered, and the staged file
-         becomes the delivery instead: the bytes land under a name this
-         machine accepts and the reader renames them. A successful move
-         clears the flag, so a machine that stops refusing goes straight back
-         to updating itself with no ceremony. */
-      /* …and REPAIR IS THE WAY BACK. Shipped without this, the flag was a
-         one-way door: it suppressed the attempt, and the only thing that
-         cleared it was a successful attempt, which could no longer happen.
-         A machine that refused once was refused forever, including after
-         the user fixed whatever was refusing.
-
-         Verify & repair is exactly the right escape — it is the explicit
-         "fix my install" gesture, pressed on purpose, so choosing to risk
-         the file is the user's decision rather than the page's. Update stays
-         safe by default; repair always tries. */
-      const refusedBefore = !repairing && await kvGet('selfWriteRefused');
-      /* STAGE ALWAYS — skipping the ATTEMPT must not mean skipping the
-         DELIVERY. Shipped the other way round, the refused-before branch
-         reported "the new one is on disk as update-rehearsal.js — rename it"
-         and then returned without ever writing it: the staging write lived
-         inside the branch that had just been skipped, so the sentence
-         describing the recovery was all that stood between the reader and a
-         folder which did not contain it.
-
-         Second time a message named a file that was not there, immediately
-         after the fix for the first time, and both had one shape — a claim
-         about the disk written next to the code meant to put it there,
-         rather than after the write that proves it. Staging is
-         unconditional now; only the rename is decided by the flag. */
-      status('busy', `Writing ${SELF} under a temporary name…`);
-      ticking('staging ' + SELF);
-      let staged = null;
-      try {
-        const fh = await dir.getFileHandle(STAGE, { create: true });
-        const w = await fh.createWritable();
-        await w.write(texts[SELF]);
-        await w.close();
-        if ((await readOwn(dir, STAGE)) !== texts[SELF])
-          throw new Error('the staged copy wrote but did not read back');
-        staged = fh;
-      } catch (e) { selfLost = e.message; }
-
-      if (staged && refusedBefore) {
-        selfLost = 'this machine refused it before — not risking ' + SELF + ' again';
-        log('· ' + SELF + ' was left alone on purpose', 'warn');
-        log('  This machine refused to let the page replace it once already,', 'warn');
-        log('  and a refusal takes the file with it. The new one IS now on disk', 'warn');
-        log('  as ' + STAGE + ' — rename it to ' + SELF + ' to finish.', 'warn');
-        log('  (Or press Verify & repair, which always tries again.)', 'warn');
-      } else if (staged) {
-        /* CHROME MAY ASK, SO SAY SO FIRST. Writing a .js under a name it
-           has not already granted sends the operation through Chrome's own
-           dangerous-file-type check, which puts up "Save update.js? This
-           file of type (.js) can be dangerous." — a modal with Save and
-           Don't save. Answer no and the API throws "Aborted due to security
-           policy", which reads exactly like antivirus and is not.
-
-           Announcing it beforehand is the whole fix for that confusion: an
-           unexplained modal during an update is something a careful person
-           declines, and declining is the failure. */
-        status('busy', `Renaming it to ${SELF}…`,
-          'Chrome may ask "Save update.js?" — choose Save. It is this page ' +
-          'replacing its own script.');
-        log('· Chrome may now ask to confirm ' + SELF + ' — choose Save', 'warn');
-        try {
-          if (typeof staged.move !== 'function')
-            throw new Error('this browser cannot rename a file in place');
-          await staged.move(SELF);
-          if ((await readOwn(dir, SELF)) !== texts[SELF])
-            throw new Error('renamed, but it did not read back');
-          selfLost = null;
-          await kvSet('selfWriteRefused', 0);   // it works here after all
-          log('✓ wrote ' + SELF + ' (this page — reload it to run the new one)', 'good');
-        } catch (e) {
-          selfLost = e.message;
-          /* A REFUSED move() TAKES THE SOURCE TOO. Measured: after a refusal
-             the folder held neither update.js NOR update-rehearsal.js — the
-             destination was destroyed, as already known, and the staged copy
-             went with it. So the message telling the reader to rename the
-             staged file was pointing at nothing, on the one screen shown
-             when the page is about to be dead. The promised escape hatch had
-             been consumed by the operation that made it necessary.
-             Staging writes have never once failed here, so write it again. */
-          try {
-            const fh = await dir.getFileHandle(STAGE, { create: true });
-            const w = await fh.createWritable();
-            await w.write(texts[SELF]);
-            await w.close();
-            restaged = (await readOwn(dir, STAGE)) === texts[SELF];
-          } catch { restaged = false; }
-        }
-      }
-      if (selfLost && !refusedBefore) {
-        await kvSet('selfWriteRefused', 1);
-        log('· ' + SELF + ' was NOT replaced (' + selfLost + ')', 'warn');
-        if (/security policy|Abort/i.test(selfLost)) {
-          /* Both answers to Chrome's modal arrive here as the same string, so
-             name both rather than picking one. Saying "a security check
-             blocked it" when the truth may be "you clicked Don't save" is a
-             wrong diagnosis, and a wrong diagnosis sends someone to fight
-             their antivirus over a dialog they dismissed. */
-          log('  That is Chrome refusing the write. Either the "Save ' + SELF +
-              '?" prompt', 'warn');
-          log('  was declined, or security software answered it. Pressing Update', 'warn');
-          log('  again and choosing Save will tell you which.', 'warn');
-        }
-        log('  A refused move takes BOTH files — the destination and the staged', 'warn');
-        log('  copy. ' + SELF + ' is most likely gone from the folder now.', 'warn');
-        if (restaged) {
-          log('  ' + STAGE + ' has been written again, with the right contents.', 'warn');
-          log('  To finish: rename ' + STAGE + ' to ' + SELF + ' in the folder.', 'warn');
-        } else {
-          log('  ' + STAGE + ' could not be written back either. To finish: copy', 'err');
-          log('  ' + SELF + ' out of debug-overlay-extension.zip into the folder.', 'err');
-        }
-      }
     }
     /* Written, and NOT reloaded. This used to count down and then call
        reload the extension itself. Fetch, write, and then restart the
@@ -676,19 +517,9 @@ async function run(repairing) {
        lead with "every file is on disk" and then take it back in the next
        sentence — while a write had in fact been refused. A summary that
        needs its own footnote to stop being wrong is a wrong summary. */
-    $('doneHead').textContent = selfLost
-      ? (repairing
-          ? `Repaired — every v${remote.version} file is on disk except this page.`
-          : `v${remote.version} is on disk, except this page.`)
-      : (repairing
-          ? `Repaired — every v${remote.version} file is on disk.`
-          : `v${remote.version} is on disk.`);
-    if (selfLost) {
-      $('doneHead').textContent +=
-        ' This page could not be replaced (' + selfLost + '), and is untouched.' +
-        ' The new one is already in your install folder as update-rehearsal.js —' +
-        ' rename that to update.js to finish. No download needed.';
-    }
+    $('doneHead').textContent = repairing
+      ? `Repaired — every v${remote.version} file is on disk.`
+      : `v${remote.version} is on disk.`;
     $('doneCount').textContent =
       'One step left: reload the extension so Chrome reads the new files. ' +
       'Then refresh any tabs you had open.';
@@ -701,34 +532,28 @@ async function run(repairing) {
        project spent two releases stepping away from, and the reader deleting
        one file by hand costs them a second. Saying nothing cost more. */
     const stale = [];
-    for (const f of RETIRED) if (await stillThere(dir, f)) stale.push(f);
+    /* SELF first: the script this page is running came from last version's
+       file, and the run just wrote its replacement under a new name. It is
+       inert from the next reload on — nothing references it, and update.html
+       now points elsewhere. Named, never removed, like everything here. */
+    for (const f of [SELF, ...RETIRED])
+      if (f !== `update-${remote.version}.js` && await stillThere(dir, f)) stale.push(f);
     if (stale.length) {
       log('· in the folder but not used by the extension — safe to delete:', 'warn');
       for (const f of stale) log('    ' + f, 'warn');
     }
-    /* ONLY WATCH WHAT WAS ACTUALLY PUT THERE. Handed every fetched name,
-       this reported "update.js was written, and is no longer on disk" about
-       a run whose log said, four lines above, that update.js was NOT
-       replaced and is untouched. It was never written; it was simply absent,
-       as it had been before the run started.
-
-       A check that cannot tell "we put it there and it vanished" from "it
-       was never there" produces the one output worse than silence: it sent
-       the reader to hunt a quarantine history for a removal that did not
-       happen. That is the same failure as the classifier that reported a
-       typo as a security block, and it is mine, one release old. */
-    const landed = order.filter((f) => f !== SELF);
-    if (!selfLost && texts[SELF] !== undefined) landed.push(SELF);
-    settle(dir, landed).catch(() => {});
+    /* Every fetched file was written this run — there is no member of the
+       list handled apart any more, and so none that might not be there. The
+       exclusion that lived here existed because one file could be skipped,
+       and getting it wrong meant reporting a file never written as one that
+       had vanished. */
+    settle(dir, order).catch(() => {});
     /* …and the card comes to rest. Nothing set it after the last step, so it
        froze mid-verb beside a done card announcing the run had finished —
        one moment, two widgets, two different answers. The card above says
        what IS, the card below says what to do next. */
-    status(selfLost ? 'warn' : 'good',
-      selfLost ? `v${remote.version} is on disk, except this page.`
-               : `v${remote.version} is on disk.`,
-      selfLost ? `${SELF} was not replaced — see below.`
-               : 'Reload the extension to run it.');
+    status('good', `v${remote.version} is on disk.`,
+      'Reload the extension to run it.');
   } catch (e) {
     log('failed: ' + e.message, 'err');
     /* A write blocked partway is the case worth naming: the files already
@@ -821,78 +646,6 @@ $('copyExt').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText('chrome://extensions'); } catch {}
   $('copyExt').textContent = 'Copied ✓ — paste it in the address bar';
 });
-/* ---- THE PROBE ------------------------------------------------------
-   Two axes, four writes, one answer.
-
-   Everything measured so far was confounded. update.js is refused; the
-   same 38 KB written as update-rehearsal.js is allowed — which looked like
-   proof that the NAME decides. But Chrome also puts up "Save update.js?"
-   and that was assumed to be the gate, until Save was chosen and the write
-   was refused anyway. So the prompt is not the gate, and neither variable
-   has ever been moved on its own.
-
-   This moves them one at a time. A four-byte file under the refused name
-   answers it outright: refused means the name alone is enough and nothing
-   inside the file matters; allowed means the contents are being read and
-   bisecting them is the next step.
-
-   Into a SCRATCH folder, never the install folder — writing a stub named
-   update.js into a working install is the one way this diagnostic could
-   cost more than it explains. */
-async function probe() {
-  const out = $('probeOut');
-  out.hidden = false;
-  out.textContent = 'Choosing a folder…';
-  let dir;
-  try {
-    dir = await showDirectoryPicker({ mode: 'readwrite' });
-  } catch { out.textContent = 'Cancelled — nothing was written.'; return; }
-
-  out.textContent = 'Fetching the real bytes to test with…\n';
-  let real;
-  try {
-    real = await (await fetchSoon(BASE + '/' + SELF)).text();
-  } catch (e) { out.textContent = 'Could not fetch ' + SELF + ': ' + e.message; return; }
-
-  const TINY = '// four bytes of nothing\n';
-  const cases = [
-    ['update.js', TINY, 'refused name + trivial content'],
-    ['update.js', real, 'refused name + the real updater'],
-    ['update-rehearsal.js', TINY, 'accepted name + trivial content'],
-    ['update-rehearsal.js', real, 'accepted name + the real updater'],
-  ];
-  const rows = [];
-  for (const [name, body, label] of cases) {
-    let verdict;
-    try {
-      const fh = await dir.getFileHandle(name, { create: true });
-      const w = await fh.createWritable();
-      await w.write(body);
-      await w.close();
-      verdict = (await readOwn(dir, name)) === body ? 'WROTE' : 'wrote, did not read back';
-    } catch (e) { verdict = 'REFUSED — ' + e.message; }
-    rows.push(`${verdict.startsWith('WROTE') ? '✓' : '✗'} ${label}\n    ${name} (${body.length} bytes) → ${verdict}`);
-    out.textContent = rows.join('\n');
-  }
-  /* The reading is stated here rather than left to be inferred, because the
-     two interesting outcomes look similar in a list and mean opposite
-     things about what to do next. */
-  const tinyRefused = rows[0].startsWith('✗');
-  const realAllowedElsewhere = rows[3].startsWith('✓');
-  out.textContent = rows.join('\n') + '\n\n' + (
-    tinyRefused && realAllowedElsewhere
-      ? 'READING: the NAME alone decides. A file of 24 bytes was refused under\n'
-        + 'that name while the whole 38 KB updater was accepted under another.\n'
-        + 'Nothing inside the file is being read, so splitting it would find\n'
-        + 'nothing — every piece would be refused exactly as the whole is.'
-      : !tinyRefused && rows[1].startsWith('✗')
-        ? 'READING: the CONTENTS are being read. The same name took a trivial\n'
-          + 'file and refused the real one, so something in those bytes is what\n'
-          + 'is objected to, and bisecting them will find it.'
-        : 'READING: not clean either way — send this table over and I will read it\n'
-          + 'rather than guess. Both controls need to behave for the run to count.');
-}
-$('probeRun').addEventListener('click', probe);
 $('check').addEventListener('click', check);
 $('apply').addEventListener('click', () => run(false));
 $('repair').addEventListener('click', () => run(true));

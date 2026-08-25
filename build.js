@@ -248,8 +248,12 @@ function build(kind) {
      any file explorer, when one is what you edit and the other is what the
      build emits — the same relationship src/ has to dist/. */
   const extBase = cfg.rawBase.replace(/\/script$/, '/browser-extension');
+  // one name, derived once — the page's <script>, the file on disk, the
+  // installer's embed list and files.json must all agree or the page 404s
+  const UPDATER = `update-${version}.js`;
   fs.writeFileSync(path.join(EXT, 'update.html'), withShared(
-    fs.readFileSync(path.join(ROOT, 'browser-extension-source', 'update', 'update.html'), 'utf8')));
+    fs.readFileSync(path.join(ROOT, 'browser-extension-source', 'update', 'update.html'), 'utf8')
+      .split('__UPDATER__').join(UPDATER)));
   /* NO install.bat. It ran `robocopy /MIR` into %LOCALAPPDATA% and then
      launched a browser — an archive off the internet copying a payload into
      the canonical user-writable staging directory and starting a process.
@@ -268,7 +272,26 @@ function build(kind) {
      Removing files to look less like a downloader is exactly what update.js
      stopped doing, for the same reason. This is the other half of that
      decision, finally applied to the installer. */
-  fs.writeFileSync(path.join(EXT, 'update.js'),
+  /* THE UPDATER IS VERSION-NAMED, and that is the whole reason it can be
+     delivered at all on some machines.
+
+     Replacing a file called update.js is refused outright by Chrome's File
+     System Access layer on at least one real install — and every route the
+     API offers is destructive when refused: createWritable() truncates the
+     target as it opens, move() takes the destination AND the source. So the
+     attempt cost that user a working updater three times, and the fallback
+     was renaming a file by hand.
+
+     Writing a NEW file was never refused. update-rehearsal.js landed on
+     every single run, same page, same folder, same bytes. What is refused is
+     REPLACING the updater, not writing JavaScript. So nothing replaces it:
+     each version's script is its own file, update.html is rewritten to point
+     at it, and the previous one stays behind to be named as deletable.
+
+     This is what web builds have always done with hashed filenames, and it
+     makes the update atomic besides — the page and its script arrive
+     together, with no window where one refers to the other's old version. */
+  fs.writeFileSync(path.join(EXT, UPDATER),
     fs.readFileSync(path.join(ROOT, 'browser-extension-source', 'update', 'update.js'), 'utf8')
       .replace('__EXT_BASE__', extBase));
   /* the side panel: its page is copied, its program is BUNDLED — side-panel.js
@@ -301,7 +324,7 @@ function build(kind) {
   try {
     cp.execSync(`node --check "${path.join(EXT, 'content.js')}"`, { stdio: 'pipe' });
     cp.execSync(`node --check "${path.join(EXT, 'sw.js')}"`, { stdio: 'pipe' });
-    cp.execSync(`node --check "${path.join(EXT, 'update.js')}"`, { stdio: 'pipe' });
+    cp.execSync(`node --check "${path.join(EXT, UPDATER)}"`, { stdio: 'pipe' });
     cp.execSync(`node --check "${path.join(EXT, 'side-panel.js')}"`, { stdio: 'pipe' });
     JSON.parse(fs.readFileSync(path.join(EXT, 'manifest.json'), 'utf8'));
   } catch (e) {
@@ -369,7 +392,7 @@ function build(kind) {
      administrators disable the command prompt; a browser page they cannot
      disable. It is now the only installer. The
      JSON's '</' is escaped so no embedded file can close the script tag. */
-  const RUNTIME = ['manifest.json', 'content.js', 'sw.js', 'update.html', 'update.js',
+  const RUNTIME = ['manifest.json', 'content.js', 'sw.js', 'update.html', UPDATER,
                    'side-panel.html', 'side-panel.js',
                    'icon16.png', 'icon32.png', 'icon48.png', 'icon128.png'];
   const BIN = (f) => /\.png$/i.test(f);
