@@ -457,30 +457,45 @@ console.log('\nTWO GATES, ONE CORE');
      the manifest commit, and it is read back to confirm — a write that
      "succeeds" and is then quarantined is indistinguishable from one that
      worked, until tomorrow. */
-  ok('the updater writes its own file LAST, after the manifest commits',
+  ok('the updater delivers its own file LAST, after the manifest commits',
     updJs.includes("const SELF = 'update.js'") &&
     /if \(f === SELF\) continue;/.test(updJs) &&
-    updJs.indexOf("getFileHandle(SELF") > updJs.indexOf("wrote ' + f, 'good'"),
+    updJs.indexOf("const STAGE =") > updJs.indexOf("wrote ' + f, 'good'"),
     'a bug in the updater can only be fixed by an updater that updates itself');
-  ok('and reads it back, because a quarantine looks like a success',
-    /if \(back !== texts\[SELF\]\) throw new Error/.test(updJs),
-    'a file written then removed reports as written');
-  /* THE REHEARSAL. Writing this file directly is what destroys it — a
-     refused write leaves nothing, and the file it takes is the updater, so
-     the page then 404s its own script and can repair nothing. Measured
-     twice on a real machine. The refusal is about the CONTENT, not the name
-     (content.js and side-panel.js are also .js and land fine), so the same
-     bytes go down under a different name first: if that lands the real
-     write is safe, and if it does not the real file is never touched. */
-  ok('the self-write is rehearsed under another name before the real file',
-    /const REHEARSAL = 'update-rehearsal\.js'/.test(updJs) &&
-    updJs.indexOf('REHEARSAL, { create: true }') < updJs.indexOf('getFileHandle(SELF, { create: true })'),
-    'writing the updater directly is what destroyed it, twice');
-  ok('and a refused rehearsal leaves the working updater alone, and says so',
-    /left as it was — this machine refuses to write it/.test(updJs) &&
-    /this page still works/.test(updJs) &&
-    /copy update\.js out of the ZIP/i.test(updJs),
-    'losing only the updater is recoverable, but not losing it is better');
+  /* STAGE, THEN RENAME — and the belief this replaces was wrong, so the
+     guard that encoded it had to go with it.
+
+     The rehearsal wrote the same bytes under another name to prove the
+     CONTENT was acceptable, then let the real write proceed. The affected
+     machine ran exactly that and reported: staged copy written, update.js
+     "Aborted due to security policy". Same bytes, same folder, same
+     extension, seconds apart. The content was never what was refused, so
+     the rehearsal tested a variable that was never in question — and by
+     passing, it authorised the write that destroyed the file.
+
+     A test can encode a wrong theory as faithfully as a right one. This one
+     did, and it stayed green through both losses. What replaces it asserts
+     a PROPERTY instead of a procedure: SELF is never opened for writing.
+     That holds whatever the scanner turns out to object to. */
+  ok('nothing ever opens the updater for writing — it is renamed into place',
+    !/getFileHandle\(SELF, \{ create: true \}\)/.test(updJs) &&
+    /const STAGE = 'update-rehearsal\.js'/.test(updJs) &&
+    /await staged\.move\(SELF\)/.test(updJs),
+    'createWritable() replaces the target as it opens, so an abort leaves nothing');
+  ok('and the renamed file is read back before it is called done',
+    /if \(\(await readOwn\(dir, SELF\)\) !== texts\[SELF\]\)/.test(updJs),
+    'a rename that reports success and lands nothing is the failure being fixed');
+  /* …and when it cannot, the instruction is one rename, not a download. The
+     staged file is already on disk with the right contents — telling someone
+     to go and fetch a ZIP for bytes sitting in the folder they are looking
+     at is work invented by the page. */
+  ok('a refused rename leaves the updater untouched and names the one-step fix',
+    /was NOT replaced/.test(updJs) &&
+    /nothing here opened it/.test(updJs) &&
+    /rename ' \+ STAGE \+ ' to ' \+ SELF/.test(updJs) &&
+    !/out of the ZIP/i.test(updJs),
+    'the fix must not be bigger than the failure');
+
   /* the page must be able to report its own script being gone — the state it
      was in when this was found, where every button rendered and none worked */
   /* NOTHING MAY HANG WITHOUT SAYING SO. "Checking for updates…" with no
@@ -1368,6 +1383,7 @@ console.log('\nTHE UPDATER, ACTUALLY RUN');
  */
 let updaterRan = false;
 let settleChecked = false;
+let refusalChecked = false;
 {
   const extDir = path.join(__dirname, 'dist', 'browser-extension');
   const html = fs.readFileSync(path.join(extDir, 'update.html'), 'utf8');
@@ -1390,13 +1406,25 @@ let settleChecked = false;
       requestPermission: async () => 'granted',
       getFileHandle: async (name, opts) => {
         if (!disk.has(name) && !opts?.create) throw new Error('NotFoundError');
+        let at = name;   // move() retargets the handle, as a real one does
         return {
-          getFile: async () => ({ text: async () => disk.get(name),
-                                   size: String(disk.get(name) ?? '').length }),
-          createWritable: async () => ({
-            write: async (d) => disk.set(name, typeof d === 'string' ? d : '<binary>'),
-            close: async () => {},
-          }),
+          getFile: async () => ({ text: async () => disk.get(at),
+                                   size: String(disk.get(at) ?? '').length }),
+          /* TRUNCATES ON OPEN, because the real one does — default
+             keepExistingData:false replaces the target the moment the
+             writable exists, which is why an aborted write leaves nothing.
+             The mock used to preserve the old bytes until a write arrived,
+             so a rig running the destructive design showed the file intact
+             and every assertion agreed. The disk lied the same way the page
+             did. */
+          createWritable: async () => {
+            disk.set(at, '');
+            return {
+              write: async (d) => disk.set(at, typeof d === 'string' ? d : '<binary>'),
+              close: async () => {},
+            };
+          },
+          move: async (to) => { disk.set(to, disk.get(at)); disk.delete(at); at = to; },
         };
       },
     };
@@ -1455,12 +1483,15 @@ let settleChecked = false;
       ok('a repair writes every shipped file',
         shippedList.filter((f) => f !== 'update.js').every((f) => log.includes('wrote ' + f)),
         log.slice(-300));
-      /* it DOES rewrite its own file, last, and the log says so in a way that
+      /* it DOES deliver its own file, last, and the log says so in a way that
          tells you the running page is now stale — the one thing a
          self-replacing script must admit */
-      ok('and it rewrites its own file last, telling you to reload the page',
+      ok('and it delivers its own file last, telling you to reload the page',
         /wrote update\.js \(this page — reload it to run the new one\)/.test(log),
         'a page that replaced itself and said nothing is a page running old code');
+      ok('and the staging file is consumed by the rename, not left as litter',
+        !r.disk.has('update-rehearsal.js') && r.disk.has('update.js'),
+        [...r.disk.keys()].join(', '));
       ok('and it finishes without throwing — no "failed:" at the end',
         !/failed:/.test(log),
         log.slice(-300));
@@ -1474,6 +1505,43 @@ let settleChecked = false;
       updaterRan = true;
     });
   });
+
+  /* 4) THE REFUSAL, SURVIVED — the assertion both lost copies of update.js
+        were owed. The old design opened SELF for writing and let the abort
+        arrive afterwards; createWritable() had already replaced the target,
+        so "refused" and "destroyed" were the same event. Nothing detected
+        it, because every test asked what the page SAID.
+
+        This one asks the disk. Rename refused, exactly as the machine
+        refuses it — and the original bytes must still be sitting there. */
+  {
+    const s = rig('9.9.9');
+    s.disk.set('update.js', 'THE WORKING UPDATER');
+    const realGet = s.dirHandle.getFileHandle;
+    s.dirHandle.getFileHandle = async (n2, o2) => {
+      const h = await realGet(n2, o2);
+      h.move = async () => { throw new Error('Aborted due to security policy.'); };
+      return h;
+    };
+    whenPainted(() => !s.w.document.getElementById('apply').disabled, () => {
+      s.w.document.getElementById('apply')
+        .dispatchEvent(new s.w.MouseEvent('click', { bubbles: true }));
+      whenPainted(() => s.w.document.getElementById('doneHead').textContent.length > 0 ||
+                        /failed:/.test(s.logText()), () => {
+        ok('a REFUSED rename leaves the working updater exactly as it was',
+          s.disk.get('update.js') === 'THE WORKING UPDATER',
+          'this is the failure that killed update.js twice: refused == destroyed');
+        ok('and the new bytes wait on disk under the staging name',
+          s.disk.get('update-rehearsal.js') === '/* update.js @ 9.9.9 */',
+          'the one-step fix is only real if the file is actually there');
+        ok('and the page says so rather than claiming a clean update',
+          /except this page/.test(s.w.document.getElementById('doneHead').textContent),
+          s.w.document.getElementById('doneHead').textContent || '(empty)');
+        s.dom.window.close();
+        refusalChecked = true;
+      });
+    });
+  }
 
   /* 3) THE SETTLE CHECK. Every other assertion about writing is synchronous,
         which is precisely the blind spot: a scanner that quarantines lets the
@@ -3918,7 +3986,7 @@ function whenPainted(ready, run, waited = 0) {
 }
 
 whenPainted(() => perfChecked && sidePanelChecked && storageChecked && updaterRan &&
-                  settleChecked &&
+                  settleChecked && refusalChecked &&
                   window.document.querySelector('#__debug-overlay-root .debug-overlay-flag') &&
                   w3.document.querySelector('#__debug-overlay-root .debug-overlay-badge'), () => {
   console.log('\nREVIEW FIXES (after a frame)');

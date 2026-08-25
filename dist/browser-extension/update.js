@@ -92,6 +92,13 @@ function log(line, cls) {
 }
 
 function status(cls, text, hint) {
+  /* A NEW HEADLINE RETIRES THE OLD COUNTER. ticking() paints into the same
+     hint line on a 1s interval, so a step that changed the headline without
+     starting its own counter had the previous step's counter paint over its
+     hint a second later. Observed as "Replacing update.js…" above
+     "rehearsing update.js — 10s": two steps, one card, both claiming to be
+     the current one. Whoever wants a counter starts it right after this. */
+  clearInterval(tick);
   $('status').className = 'card ' + cls;
   $('statusText').textContent = text;
   $('statusHint').textContent = hint || '';
@@ -462,39 +469,67 @@ async function run(repairing) {
        the file being special. */
     let selfLost = null;
     if (selfStale && texts[SELF] !== undefined) {
-      const REHEARSAL = 'update-rehearsal.js';   // .js on purpose: same shape to a scanner
-      status('busy', `Checking whether ${SELF} can be replaced…`);
-      ticking('rehearsing ' + SELF);
-      let allowed = false;
+      /* STAGE, THEN RENAME — and never open a writable on SELF.
+
+         What this replaces was a REHEARSAL: write the same bytes under
+         another name, and if that lands, conclude the content is acceptable
+         and let the real write proceed. The affected machine disproved the
+         reasoning in a single run. The staging write succeeded. The write to
+         update.js was still "Aborted due to security policy" — same bytes,
+         same folder, same extension, same session, seconds apart.
+
+         So the content was never what got refused, and a rehearsal that
+         tests the content tests the wrong variable. Worse than useless: it
+         passed, waved the real write through, and the real write destroyed
+         the file. createWritable() replaces the target as it opens, so an
+         abort leaves nothing behind. The safety mechanism reliably produced
+         the exact outcome it existed to prevent, and it did it twice.
+
+         Nothing writes to SELF any more. The bytes land under a name this
+         machine accepts and the file is RENAMED — the same move a person
+         would make in the file manager, and the only operation on SELF ever
+         observed to work here. If the rename is refused too, SELF was never
+         opened, so it is exactly as it was; the staged file stays on disk
+         and the message below is a one-step fix rather than a download.
+
+         The staging NAME is deliberately unchanged. It is proven to write on
+         the machine that refuses update.js, and swapping in an untested name
+         would re-run a variable already settled, on the one path that must
+         not fail. It reads as a misnomer now; that is the cheaper cost. */
+      const STAGE = 'update-rehearsal.js';
+      status('busy', `Writing ${SELF} under a temporary name…`);
+      ticking('staging ' + SELF);
+      let staged = null;
       try {
-        const fh = await dir.getFileHandle(REHEARSAL, { create: true });
+        const fh = await dir.getFileHandle(STAGE, { create: true });
         const w = await fh.createWritable();
         await w.write(texts[SELF]);
         await w.close();
-        allowed = (await readOwn(dir, REHEARSAL)) === texts[SELF];
-        if (!allowed) selfLost = 'the rehearsal wrote but did not read back';
+        if ((await readOwn(dir, STAGE)) !== texts[SELF])
+          throw new Error('the staged copy wrote but did not read back');
+        staged = fh;
       } catch (e) { selfLost = e.message; }
 
-      if (allowed) {
-        status('busy', `Replacing ${SELF}…`);
+      if (staged) {
+        status('busy', `Renaming it to ${SELF}…`);
+        ticking('renaming ' + STAGE);
         try {
-          const fh = await dir.getFileHandle(SELF, { create: true });
-          const w = await fh.createWritable();
-          await w.write(texts[SELF]);
-          await w.close();
-          const back = await readOwn(dir, SELF);
-          if (back !== texts[SELF]) throw new Error('written, but it did not read back');
+          if (typeof staged.move !== 'function')
+            throw new Error('this browser cannot rename a file in place');
+          await staged.move(SELF);
+          if ((await readOwn(dir, SELF)) !== texts[SELF])
+            throw new Error('renamed, but it did not read back');
           selfLost = null;
           log('✓ wrote ' + SELF + ' (this page — reload it to run the new one)', 'good');
         } catch (e) {
-          selfLost = e.message;   // rehearsal passed and the real one still failed
+          selfLost = e.message;
         }
       }
       if (selfLost) {
-        log('· ' + SELF + ' left as it was — this machine refuses to write it', 'warn');
-        log('  (' + selfLost + '). Nothing is broken: everything else is updated and', 'warn');
-        log('  committed, and this page still works. To get the newest updater,', 'warn');
-        log('  copy update.js out of the ZIP.', 'warn');
+        log('· ' + SELF + ' was NOT replaced (' + selfLost + ')', 'warn');
+        log('  It is untouched — nothing here opened it. The new one is already', 'warn');
+        log('  on disk as ' + STAGE + ', with the right contents.', 'warn');
+        log('  To finish: rename ' + STAGE + ' to ' + SELF + ' in your install folder.', 'warn');
       }
     }
     /* Written, and NOT reloaded. This used to count down and then call
@@ -517,9 +552,9 @@ async function run(repairing) {
           : `v${remote.version} is on disk.`);
     if (selfLost) {
       $('doneHead').textContent +=
-        ' This page could not be replaced (' + selfLost + '). Everything else is' +
-        ' updated and committed — copy update.js out of the ZIP into your install' +
-        ' folder to finish the job.';
+        ' This page could not be replaced (' + selfLost + '), and is untouched.' +
+        ' The new one is already in your install folder as update-rehearsal.js —' +
+        ' rename that to update.js to finish. No download needed.';
     }
     $('doneCount').textContent =
       'One step left: reload the extension so Chrome reads the new files. ' +
@@ -530,6 +565,15 @@ async function run(repairing) {
     // not awaited: the run IS finished, and its report stands. This only ever
     // adds "…and then this happened", which is a fact about the minute after.
     settle(dir, Object.keys(texts)).catch(() => {});
+    /* …and the card comes to rest. Nothing set it after the last step, so it
+       froze mid-verb beside a done card announcing the run had finished —
+       one moment, two widgets, two different answers. The card above says
+       what IS, the card below says what to do next. */
+    status(selfLost ? 'warn' : 'good',
+      selfLost ? `v${remote.version} is on disk, except this page.`
+               : `v${remote.version} is on disk.`,
+      selfLost ? `${SELF} was not replaced — see below.`
+               : 'Reload the extension to run it.');
   } catch (e) {
     log('failed: ' + e.message, 'err');
     /* A write blocked partway is the case worth naming: the files already
