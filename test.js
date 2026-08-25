@@ -1610,10 +1610,23 @@ let rememberChecked = false;
         'twelve fetched and eleven written, with no word about the twelfth');
       ok('a run NAMES retired files still in the folder, and deletes nothing',
         /install\.bat/.test(js) &&
-        /no longer part of the extension and can be deleted/.test(r.logText()) &&
+        /not used by the extension — safe to delete/.test(r.logText()) &&
         /install\.bat/.test(r.logText()) &&
         r.disk.has('install.bat'),
         'a list nothing reads is a comment wearing a constant');
+  /* …and the INSTALLER belongs on that list, for a different reason than the
+     rest. It still ships, so it is not retired — but it is not part of a
+     running install either, and it carries an inline snapshot of every
+     runtime file that the updater never refreshes (it is not in files.json).
+     The copy in a folder is frozen at whatever version was installed first,
+     so opening it there writes that snapshot back over everything: a silent
+     downgrade of the whole extension, from a page whose only button says
+     Install. Seen on a real folder — every file at v3.8.149, install.html
+     still at the version from a dozen releases earlier. */
+  ok('the stale installer is named too — its one action is a downgrade',
+    /'install\.html'\]/.test(js) &&
+    !shippedList.includes('install.html'),
+    'a page that rewrites every file from a frozen snapshot, and is never refreshed');
       ok('and the staging file is consumed by the rename, not left as litter',
         !r.disk.has('update-rehearsal.js') && r.disk.has('update.js'),
         [...r.disk.keys()].join(', '));

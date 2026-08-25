@@ -31,7 +31,23 @@ const FILES = ['manifest.json', 'content.js', 'sw.js', 'update.html', 'update.js
    flagged file in the package. A constant that documents an intention is not
    the same as code that acts on one. */
 const RETIRED = ['cockpit.html', 'cockpit.js', 'options.html', 'options.js',
-                 'install.bat'];
+                 'install.bat',
+                 /* THE INSTALLER, which is not a retired file — it still ships
+                    — but is not part of a running install either, and holding
+                    on to a stale one is worse than useless. install.html
+                    carries a SNAPSHOT of every runtime file inline, and the
+                    updater never refreshes it because it is not in
+                    files.json. So the copy in a folder is frozen at whatever
+                    version was first installed, and opening it there writes
+                    that snapshot back over everything — a silent downgrade of
+                    the whole extension, offered by a page whose only button
+                    says Install. Measured on a real folder: every file at
+                    v3.8.149 and install.html still sitting at the version
+                    from four hours and a dozen releases earlier. Nothing
+                    loads it, nothing checks it, and its one action is
+                    destructive. Named, never deleted, like everything on this
+                    list. */
+                 'install.html'];
 
 const $ = (id) => document.getElementById(id);
 /* The page ships this warning VISIBLE. Reaching this line means the script
@@ -687,7 +703,7 @@ async function run(repairing) {
     const stale = [];
     for (const f of RETIRED) if (await stillThere(dir, f)) stale.push(f);
     if (stale.length) {
-      log('· these are no longer part of the extension and can be deleted:', 'warn');
+      log('· in the folder but not used by the extension — safe to delete:', 'warn');
       for (const f of stale) log('    ' + f, 'warn');
     }
     /* ONLY WATCH WHAT WAS ACTUALLY PUT THERE. Handed every fetched name,
