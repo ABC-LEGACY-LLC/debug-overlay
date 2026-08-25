@@ -1,2 +1,9 @@
 node_modules/
 src/manifest.js
+
+# The AV probe deliberately contains the bytes a scanner quarantines
+# (probe-06 is update.js verbatim). Committing it would make every clone
+# write those bytes to disk on a machine that never asked to run the
+# experiment — and on the affected machine, mid-checkout. The probe is
+# opt-in by design, so it is generated on demand: node av-probe.js
+dist/av-probe/
