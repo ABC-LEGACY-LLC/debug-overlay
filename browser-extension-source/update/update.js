@@ -548,15 +548,19 @@ async function run(repairing) {
          the file is the user's decision rather than the page's. Update stays
          safe by default; repair always tries. */
       const refusedBefore = !repairing && await kvGet('selfWriteRefused');
-      if (refusedBefore) {
-        selfLost = 'this machine refused it before — not risking ' + SELF + ' again';
-        log('· ' + SELF + ' was left alone on purpose', 'warn');
-        log('  This machine refused to let the page replace it once already,', 'warn');
-        log('  and a refusal takes the file with it. The new one is on disk as', 'warn');
-        log('  ' + STAGE + ' — rename it to ' + SELF + ' to finish.', 'warn');
-        log('  (Or press Verify & repair, which always tries again.)', 'warn');
-      }
-      if (!refusedBefore) {
+      /* STAGE ALWAYS — skipping the ATTEMPT must not mean skipping the
+         DELIVERY. Shipped the other way round, the refused-before branch
+         reported "the new one is on disk as update-rehearsal.js — rename it"
+         and then returned without ever writing it: the staging write lived
+         inside the branch that had just been skipped, so the sentence
+         describing the recovery was all that stood between the reader and a
+         folder which did not contain it.
+
+         Second time a message named a file that was not there, immediately
+         after the fix for the first time, and both had one shape — a claim
+         about the disk written next to the code meant to put it there,
+         rather than after the write that proves it. Staging is
+         unconditional now; only the rename is decided by the flag. */
       status('busy', `Writing ${SELF} under a temporary name…`);
       ticking('staging ' + SELF);
       let staged = null;
@@ -570,7 +574,14 @@ async function run(repairing) {
         staged = fh;
       } catch (e) { selfLost = e.message; }
 
-      if (staged) {
+      if (staged && refusedBefore) {
+        selfLost = 'this machine refused it before — not risking ' + SELF + ' again';
+        log('· ' + SELF + ' was left alone on purpose', 'warn');
+        log('  This machine refused to let the page replace it once already,', 'warn');
+        log('  and a refusal takes the file with it. The new one IS now on disk', 'warn');
+        log('  as ' + STAGE + ' — rename it to ' + SELF + ' to finish.', 'warn');
+        log('  (Or press Verify & repair, which always tries again.)', 'warn');
+      } else if (staged) {
         /* CHROME MAY ASK, SO SAY SO FIRST. Writing a .js under a name it
            has not already granted sends the operation through Chrome's own
            dangerous-file-type check, which puts up "Save update.js? This
@@ -613,7 +624,6 @@ async function run(repairing) {
           } catch { restaged = false; }
         }
       }
-      }   // end: not refused before
       if (selfLost && !refusedBefore) {
         await kvSet('selfWriteRefused', 1);
         log('· ' + SELF + ' was NOT replaced (' + selfLost + ')', 'warn');

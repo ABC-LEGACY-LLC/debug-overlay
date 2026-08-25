@@ -1488,6 +1488,7 @@ let updaterRan = false;
 let settleChecked = false;
 let refusalChecked = false;
 let currentChecked = false;
+let rememberChecked = false;
 {
   const extDir = path.join(__dirname, 'dist', 'browser-extension');
   const html = fs.readFileSync(path.join(extDir, 'update.html'), 'utf8');
@@ -1568,7 +1569,7 @@ let currentChecked = false;
        either alternative: a production export nothing uses, or a test that
        waits out the real 60s schedule to observe it. */
     w.eval(js + '\n;window.__drive = { settle };');
-    return { w, dom, disk, dirHandle,
+    return { w, dom, disk, dirHandle, store,
              logText: () => w.document.getElementById('log').textContent };
   };
 
@@ -1629,6 +1630,41 @@ let currentChecked = false;
       updaterRan = true;
     });
   });
+
+  /* 6) A REMEMBERED REFUSAL STILL DELIVERS. Skipping the ATTEMPT must not
+        skip the DELIVERY, and shipped once it did: the branch reported "the
+        new one is on disk as update-rehearsal.js — rename it" and returned
+        without writing it, because the staging write lived inside the branch
+        that had just been skipped. The reader was sent to rename a file that
+        was never created — the second time a message named a file that was
+        not there, immediately after the fix for the first time.
+
+        Both had one shape: a claim about the disk placed next to the code
+        meant to put it there, rather than after the write that proves it. So
+        this asks the DISK, on the exact path that lied. */
+  {
+    const s = rig('9.9.9');
+    s.store.set('selfWriteRefused', 1);
+    s.disk.set('update.js', 'THE WORKING UPDATER');
+    whenPainted(() => !s.w.document.getElementById('apply').disabled, () => {
+      s.w.document.getElementById('apply')
+        .dispatchEvent(new s.w.MouseEvent('click', { bubbles: true }));
+      whenPainted(() => s.w.document.getElementById('doneHead').textContent.length > 0 ||
+                        /failed:/.test(s.logText()), () => {
+        ok('a remembered refusal still writes the new updater under the safe name',
+          s.disk.get('update-rehearsal.js') === '/* update.js @ 9.9.9 */',
+          'the message said "rename it" about a file the run never created');
+        ok('and does not touch the working one it declined to replace',
+          s.disk.get('update.js') === 'THE WORKING UPDATER',
+          'the whole point of remembering was to stop destroying it');
+        ok('and the log tells the reader to rename it',
+          /rename it to update\.js to finish/.test(s.logText()),
+          s.logText().slice(-200));
+        s.dom.window.close();
+        rememberChecked = true;
+      });
+    });
+  }
 
   /* 5) ALREADY CURRENT. The repair rig starts with update.js absent, so it
         always takes the stale path — an assertion written as an alternation
@@ -4139,6 +4175,7 @@ function whenPainted(ready, run, waited = 0) {
 
 whenPainted(() => perfChecked && sidePanelChecked && storageChecked && updaterRan &&
                   settleChecked && refusalChecked && currentChecked &&
+                  rememberChecked &&
                   window.document.querySelector('#__debug-overlay-root .debug-overlay-flag') &&
                   w3.document.querySelector('#__debug-overlay-root .debug-overlay-badge'), () => {
   console.log('\nREVIEW FIXES (after a frame)');
