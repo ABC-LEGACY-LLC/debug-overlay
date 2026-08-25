@@ -175,7 +175,14 @@ async function doWrite(dir, updating) {
     for (const [name, data] of Object.entries(FILES)) {
       i++;
       st('busy', `Writing ${i} of ${names.length} — ${name}…`);
-      const fh = await dir.getFileHandle(name, { create: true });
+      // a name may contain a folder now (updater/<hash>.js); getFileHandle
+      // takes one segment, so walk it or the file lands in the root wearing
+      // a slash in its name — which no filesystem call treats as an error
+      const parts = name.split('/');
+      let into = dir;
+      for (const seg of parts.slice(0, -1))
+        into = await into.getDirectoryHandle(seg, { create: true });
+      const fh = await into.getFileHandle(parts[parts.length - 1], { create: true });
       const w = await fh.createWritable();
       await w.write(payload(data));
       await w.close();

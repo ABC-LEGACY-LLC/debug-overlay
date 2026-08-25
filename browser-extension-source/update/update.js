@@ -59,6 +59,28 @@ const RETIRED = ['cockpit.html', 'cockpit.js', 'options.html', 'options.js',
                  'update.js'];
 
 const $ = (id) => document.getElementById(id);
+
+/* THIS PAGE'S OWN SCRIPT, asked of the DOM rather than worked out. The name
+   is a content hash inside a folder now, so there is nothing left to derive
+   it from — and derivation was always a guess dressed as a fact: it read the
+   installed version and assumed the file was named after it. currentScript is
+   the browser telling us which file it actually loaded, and it is only
+   readable here, during evaluation. */
+const SELF = (() => {
+  try { return new URL(document.currentScript.src).pathname.replace(/^\//, ''); }
+  catch { return null; }
+})();
+
+/* A name may now contain a folder. getFileHandle() takes one segment, so a
+   path has to be walked — every read and every write goes through here, or
+   the ones that did not would quietly operate on a file called
+   "updater/abc.js" in the root, which is not an error anywhere. */
+async function into(dir, name, create) {
+  const parts = name.split('/');
+  let d = dir;
+  for (const seg of parts.slice(0, -1)) d = await d.getDirectoryHandle(seg, { create });
+  return d.getFileHandle(parts[parts.length - 1], { create });
+}
 /* The page ships this warning VISIBLE. Reaching this line means the script
    loaded, so it is not true, so it goes away. Anything that stops the script
    loading leaves it on screen — which is the one case the page could not
@@ -283,7 +305,7 @@ const SETTLE_AT = [5000, 20000, 60000];
 
 /** Is the file still there and non-empty? Read-only; false on any error. */
 async function stillThere(dir, name) {
-  try { return (await (await dir.getFileHandle(name)).getFile()).size > 0; }
+  try { return (await (await into(dir, name, false)).getFile()).size > 0; }
   catch { return false; }
 }
 
@@ -314,7 +336,7 @@ async function settle(dir, names) {
 
 /** What the folder currently holds for one file, or null. Read-only. */
 async function readOwn(dir, name) {
-  try { return await (await (await dir.getFileHandle(name)).getFile()).text(); }
+  try { return await (await (await into(dir, name, false)).getFile()).text(); }
   catch { return null; }
 }
 
@@ -409,15 +431,26 @@ async function run(repairing) {
     }
     log(repairing ? `repairing — rewriting every v${remote.version} file…`
                   : `v${MINE} → v${remote.version} — fetching…`);
-    // the NEW version's own file list, so a version that adds files updates
-    // whole; the baked-in list only answers if the repo predates files.json.
-    // Plain names only — a list is data, never a path.
+    /* the NEW version's own file list, so a version that adds files updates
+       whole; the baked-in list only answers if the repo predates files.json.
+
+       ONE FOLDER DEEP, AND NOTHING ELSE. This used to demand plain names —
+       "a list is data, never a path" — which was right until the updater
+       moved into updater/, at which point it rejected the extension's own
+       file list and the update stopped before it started. The property that
+       mattered was never "no slashes", it was "cannot escape the folder the
+       user picked": no leading slash, no traversal, and a filename that must
+       begin with a word character so `..` and dotfiles cannot match. A
+       second slash is refused too — there is no reason for one, and every
+       character this accepts is a character an attacker's files.json may
+       contain. */
     let files = FILES;
     const fl = await fetchSoon(BASE + '/files.json');
     if (fl.ok) {
       files = JSON.parse(await fl.text());
+      const SAFE = /^(?:[a-z0-9_-]+\/)?[a-z0-9_-][a-z0-9_.-]*$/i;
       if (!Array.isArray(files) || !files.includes('manifest.json') ||
-          !files.every((f) => typeof f === 'string' && /^[a-z0-9_.-]+$/i.test(f))) {
+          !files.every((f) => typeof f === 'string' && SAFE.test(f))) {
         throw new Error('files.json is not a sane file list');
       }
     }
@@ -500,7 +533,7 @@ async function run(repairing) {
       status('busy', `Writing ${put} of ${order.length} — ${f}`);
       progress(((files.length + put) / steps) * 100);
       ticking('writing ' + f);
-      const fh = await dir.getFileHandle(f, { create: true });
+      const fh = await into(dir, f, true);
       const w = await fh.createWritable();
       await w.write(texts[f]);
       await w.close();
@@ -531,13 +564,27 @@ async function run(repairing) {
     /* NAMED, NOT REMOVED. Deleting other files is precisely the shape this
        project spent two releases stepping away from, and the reader deleting
        one file by hand costs them a second. Saying nothing cost more. */
+    /* WHAT IS LEFT OVER, asked of the folder rather than listed. Three
+       schemes have now shipped: update.js, update-<version>.js in the root,
+       and updater/<hash>.js. A fixed list cannot name the second — those
+       filenames were not known when this was written — so the folder is read
+       instead, in both places a superseded updater can be sitting. Named,
+       never removed, like everything on RETIRED. */
+    const current = files.find((f) => f.startsWith('updater/')) || null;
     const stale = [];
-    /* SELF first: the script this page is running came from last version's
-       file, and the run just wrote its replacement under a new name. It is
-       inert from the next reload on — nothing references it, and update.html
-       now points elsewhere. Named, never removed, like everything here. */
-    for (const f of [SELF, ...RETIRED])
-      if (f !== `update-${remote.version}.js` && await stillThere(dir, f)) stale.push(f);
+    for (const f of RETIRED) if (await stillThere(dir, f)) stale.push(f);
+    for (const [where, keep] of [[null, null], ['updater', current]]) {
+      try {
+        const d = where ? await dir.getDirectoryHandle(where) : dir;
+        for await (const name of d.keys()) {
+          const full = where ? `${where}/${name}` : name;
+          if (full === keep || full === current) continue;
+          if (where ? /\.js$/.test(name) : /^update-.*\.js$/.test(name)) stale.push(full);
+        }
+      } catch { /* no such folder, or no enumeration here */ }
+    }
+    if (SELF && SELF !== current && !stale.includes(SELF) && await stillThere(dir, SELF))
+      stale.push(SELF);
     if (stale.length) {
       log('· in the folder but not used by the extension — safe to delete:', 'warn');
       for (const f of stale) log('    ' + f, 'warn');

@@ -407,8 +407,10 @@ console.log('\nTWO GATES, ONE CORE');
      opens 'update.js' is asserting the design that was removed. It also
      catches the failure this rename could most easily cause: exactly one
      such file must exist, and update.html must point at that one. */
-  const updName = fs.readdirSync(extDir).filter((f) => /^update-.*\.js$/.test(f));
-  const updJs = fs.readFileSync(path.join(extDir, updName[0]), 'utf8');
+  const updName = (fs.existsSync(path.join(extDir, 'updater'))
+    ? fs.readdirSync(path.join(extDir, 'updater')).map((f) => 'updater/' + f)
+    : []).filter((f) => /\.js$/.test(f));
+  const updJs = fs.readFileSync(path.join(extDir, ...updName[0].split('/')), 'utf8');
   const updHtml = fs.readFileSync(path.join(extDir, 'update.html'), 'utf8');
   // the shared token/primitive sheet — build.js INLINES it into each page, so
   // the source is what to assert against; there is no shipped file to read
@@ -433,6 +435,36 @@ console.log('\nTWO GATES, ONE CORE');
      files.json must list it. Get any of the three wrong and the page 404s
      its own script — the identical dead-page symptom the whole apparatus
      was built to survive, arriving instead through a typo. */
+  /* THE FILE LIST IS UNTRUSTED DATA. files.json comes off the network and
+     decides every path this page writes to, so it was checked against
+     /^[a-z0-9_.-]+$/ — plain names, no slash, nothing that could climb out
+     of the folder the user picked.
+
+     Moving the updater into updater/ made that guard reject the extension's
+     own list, and the update stopped before it started. The property that
+     mattered was never "no slashes"; it was "cannot escape". So: at most one
+     folder, no leading slash, and a filename that must begin with a word
+     character, which is what keeps `..` and dotfiles out.
+
+     Run, not read. A regex asserted by matching the source proves it was
+     typed, not that it holds — and every character this accepts is a
+     character an attacker's files.json may contain. */
+  {
+    const m = updJs.match(/const SAFE = (\/.*\/i);/);
+    ok('the file-list guard is still there', !!m, 'no SAFE pattern in the updater');
+    if (m) {
+      const SAFE = eval(m[1]);
+      const allow = ['manifest.json', 'content.js', 'files.json', 'updater/abc123def.js'];
+      const deny = ['../../etc/passwd', '/etc/passwd', 'a/b/c.js', '..', '.hidden',
+                    'updater/../../x.js', 'C:\\windows\\x.js', 'updater/', './x.js', ''];
+      ok('and it passes every path the extension actually ships',
+        allow.every((s) => SAFE.test(s)),
+        'wrongly refused: ' + allow.filter((s) => !SAFE.test(s)).join(', '));
+      ok('and cannot be talked out of the folder the user chose',
+        deny.every((s) => !SAFE.test(s)),
+        'wrongly allowed: ' + deny.filter((s) => SAFE.test(s)).join(', '));
+    }
+  }
   ok('exactly one versioned updater is emitted',
     updName.length === 1, updName.join(', ') || 'none');
   ok('and the page loads that exact file',
@@ -540,7 +572,7 @@ console.log('\nTWO GATES, ONE CORE');
   }
   ok('the page warns FAIL-VISIBLE when its script never loads',
     /id="noScript"/.test(updHtml) &&
-    /update-[^<]*\.js<\/code> is missing/.test(updHtml) &&
+    /updater\/[^<]*\.js<\/code> is missing/.test(updHtml) &&
     /\$\('noScript'\)\.hidden = true;/.test(updJs),
     'a dead page that looks alive is the worst version of broken');
   /* THE OTHER HALF OF FAIL-VISIBLE, and the half that was missing: warning
@@ -686,7 +718,7 @@ console.log('\nTWO GATES, ONE CORE');
     'a second press mid-flight races the first');
   ok('and its page carries no inline script',
     (updHtml.match(/<script\b/g) || []).length === 1 &&
-    /src="update-[^"]*\.js"/.test(updHtml),
+    /src="updater\/[^"]*\.js"/.test(updHtml),
     'MV3 CSP would silently refuse it');
   const inst = fs.readFileSync(path.join(extDir, 'install.html'), 'utf8');
   /* what a real install walked into, one guard each:
@@ -1381,8 +1413,8 @@ let settleChecked = false;
 {
   const extDir = path.join(__dirname, 'dist', 'browser-extension');
   const html = fs.readFileSync(path.join(extDir, 'update.html'), 'utf8');
-  const js = fs.readFileSync(path.join(extDir,
-    fs.readdirSync(extDir).find((f) => /^update-.*\.js$/.test(f))), 'utf8');
+  const js = fs.readFileSync(path.join(extDir, 'updater',
+    fs.readdirSync(path.join(extDir, 'updater'))[0]), 'utf8');
   const localManifest = fs.readFileSync(path.join(extDir, 'manifest.json'), 'utf8');
   const shippedList = JSON.parse(fs.readFileSync(path.join(extDir, 'files.json'), 'utf8'));
   const MINE = JSON.parse(localManifest).version;
@@ -1396,33 +1428,46 @@ let settleChecked = false;
     const disk = new Map([['manifest.json', localManifest]]);
     const remoteManifest = localManifest.replace(`"version": "${MINE}"`,
                                                  `"version": "${remoteVersion}"`);
-    const dirHandle = {
-      name: 'debug-overlay',
+    /* A DIRECTORY TREE, because the updater writes into one now. The mock
+       was flat, so a path like "updater/abc.js" resolved to a root file whose
+       NAME contained a slash — which no filesystem call treats as an error,
+       and which nothing here would have noticed. The disk stays one Map
+       keyed by full path; a handle is a prefix over it. */
+    const mkDir = (prefix) => ({
+      name: prefix ? prefix.slice(0, -1) : 'debug-overlay',
       requestPermission: async () => 'granted',
+      getDirectoryHandle: async (n, opts) => {
+        const p = prefix + n + '/';
+        if (!opts?.create && ![...disk.keys()].some((k) => k.startsWith(p)))
+          throw new Error('NotFoundError');
+        return mkDir(p);
+      },
+      keys: async function* () {
+        const seen = new Set();
+        for (const k of disk.keys()) {
+          if (!k.startsWith(prefix)) continue;
+          const seg = k.slice(prefix.length).split('/')[0];
+          if (!seen.has(seg)) { seen.add(seg); yield seg; }
+        }
+      },
       getFileHandle: async (name, opts) => {
-        if (!disk.has(name) && !opts?.create) throw new Error('NotFoundError');
-        let at = name;   // move() retargets the handle, as a real one does
+        let at = prefix + name;
+        if (!disk.has(at) && !opts?.create) throw new Error('NotFoundError');
         return {
           getFile: async () => ({ text: async () => disk.get(at),
                                    size: String(disk.get(at) ?? '').length }),
-          /* TRUNCATES ON OPEN, because the real one does — default
-             keepExistingData:false replaces the target the moment the
-             writable exists, which is why an aborted write leaves nothing.
-             The mock used to preserve the old bytes until a write arrived,
-             so a rig running the destructive design showed the file intact
-             and every assertion agreed. The disk lied the same way the page
-             did. */
           createWritable: async () => {
-            disk.set(at, '');
+            disk.set(at, '');   // truncates at open, as the real one does
             return {
               write: async (d) => disk.set(at, typeof d === 'string' ? d : '<binary>'),
               close: async () => {},
             };
           },
-          move: async (to) => { disk.set(to, disk.get(at)); disk.delete(at); at = to; },
+          move: async (to) => { disk.set(prefix + to, disk.get(at)); disk.delete(at); at = prefix + to; },
         };
       },
-    };
+    });
+    const dirHandle = mkDir('');
     // IndexedDB, only enough of it: this page stores exactly one handle
     const store = new Map([['dir', dirHandle]]);
     w.indexedDB = { open: () => {

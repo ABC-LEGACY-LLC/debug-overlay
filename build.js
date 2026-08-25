@@ -248,9 +248,25 @@ function build(kind) {
      any file explorer, when one is what you edit and the other is what the
      build emits — the same relationship src/ has to dist/. */
   const extBase = cfg.rawBase.replace(/\/script$/, '/browser-extension');
-  // one name, derived once — the page's <script>, the file on disk, the
-  // installer's embed list and files.json must all agree or the page 404s
-  const UPDATER = `update-${version}.js`;
+  /* ONE NAME, DERIVED ONCE — the page's <script>, the file on disk, the
+     installer's embed and files.json must all agree or the page 404s its own
+     script.
+
+     Named by CONTENT, and kept in a folder. Version-naming worked but was
+     the wrong axis: the name changed every release, so every release left
+     another dead updater in the install folder — one per update, in the
+     root, forever. A hash changes only when the file changes, which is about
+     one release in twelve, and `updater/` keeps even those out of the way of
+     everything a person actually looks at.
+
+     Hashing the FINAL text, after substitution, because that is the file
+     that ships; hashing the template would give one name to two different
+     files the day the repo base changes. */
+  const updText = fs.readFileSync(
+    path.join(ROOT, 'browser-extension-source', 'update', 'update.js'), 'utf8')
+    .replace('__EXT_BASE__', extBase);
+  const UPDATER = `updater/${require('crypto').createHash('sha256')
+    .update(updText).digest('hex').slice(0, 12)}.js`;
   fs.writeFileSync(path.join(EXT, 'update.html'), withShared(
     fs.readFileSync(path.join(ROOT, 'browser-extension-source', 'update', 'update.html'), 'utf8')
       .split('__UPDATER__').join(UPDATER)));
@@ -291,9 +307,8 @@ function build(kind) {
      This is what web builds have always done with hashed filenames, and it
      makes the update atomic besides — the page and its script arrive
      together, with no window where one refers to the other's old version. */
-  fs.writeFileSync(path.join(EXT, UPDATER),
-    fs.readFileSync(path.join(ROOT, 'browser-extension-source', 'update', 'update.js'), 'utf8')
-      .replace('__EXT_BASE__', extBase));
+  fs.mkdirSync(path.join(EXT, path.dirname(UPDATER)), { recursive: true });
+  fs.writeFileSync(path.join(EXT, UPDATER), updText);
   /* the side panel: its page is copied, its program is BUNDLED — side-panel.js
      imports the shared src/core/protocol.js, which is the whole reason the
      two faces cannot drift: one vocabulary file, two importers. */
@@ -324,7 +339,7 @@ function build(kind) {
   try {
     cp.execSync(`node --check "${path.join(EXT, 'content.js')}"`, { stdio: 'pipe' });
     cp.execSync(`node --check "${path.join(EXT, 'sw.js')}"`, { stdio: 'pipe' });
-    cp.execSync(`node --check "${path.join(EXT, UPDATER)}"`, { stdio: 'pipe' });
+    cp.execSync(`node --check "${path.join(EXT, ...UPDATER.split('/'))}"`, { stdio: 'pipe' });
     cp.execSync(`node --check "${path.join(EXT, 'side-panel.js')}"`, { stdio: 'pipe' });
     JSON.parse(fs.readFileSync(path.join(EXT, 'manifest.json'), 'utf8'));
   } catch (e) {
@@ -392,7 +407,13 @@ function build(kind) {
      administrators disable the command prompt; a browser page they cannot
      disable. It is now the only installer. The
      JSON's '</' is escaped so no embedded file can close the script tag. */
-  const RUNTIME = ['manifest.json', 'content.js', 'sw.js', 'update.html', UPDATER,
+  /* UPDATER BEFORE update.html, and that ordering is load-bearing. The page
+     is written with a <script> pointing at this build's updater; if the page
+     lands and the script it names does not, the install has a dead update
+     screen and no way to fix itself. Writing the script first means the
+     worst interruption leaves a page still referring to the OLD script,
+     which is still there. */
+  const RUNTIME = ['manifest.json', 'content.js', 'sw.js', UPDATER, 'update.html',
                    'side-panel.html', 'side-panel.js',
                    'icon16.png', 'icon32.png', 'icon48.png', 'icon128.png'];
   const BIN = (f) => /\.png$/i.test(f);
@@ -417,7 +438,12 @@ function build(kind) {
     withShared(fs.readFileSync(path.join(ROOT, 'browser-extension-source', 'installer', 'install.html'), 'utf8'))
       .replace('const FILES = __FILES_JSON__;', () => `const FILES = ${filesJson};`));
 
-  const extFiles = fs.readdirSync(EXT).sort()
+  // recursive: the updater lives in a subfolder now, and readdirSync would
+  // have handed readFileSync a directory and thrown
+  const walk = (base, rel = '') => fs.readdirSync(path.join(base, rel), { withFileTypes: true })
+    .flatMap((e) => (e.isDirectory() ? walk(base, path.join(rel, e.name))
+                                     : [path.join(rel, e.name).split(path.sep).join('/')]));
+  const extFiles = walk(EXT).sort()
     .filter((f) => !f.endsWith('.zip'))   // or the second build zips the zip
     .map((f) => [f, fs.readFileSync(path.join(EXT, f))]);
   fs.writeFileSync(path.join(EXT, 'debug-overlay-extension.zip'), zipStore(extFiles));
