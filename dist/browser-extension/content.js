@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.160 — extension gate; same bundle as the userscript */
+/* Debug Overlay v3.8.161 — extension gate; same bundle as the userscript */
 (function () {
   'use strict';
 /* NOT a module and NOT bundled: build.js injects this text at the very top
@@ -41,7 +41,7 @@
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.160",
+    VERSION: "3.8.161",
     // Substituted like VERSION: where the update checker asks, and what the
     // userscript's one-click update opens. One source (userscript.json), no
     // second copy to drift.
@@ -119,12 +119,20 @@
     // CHURN is mutations/second on a WATCHED subtree before it counts as a
     // re-render storm (a React loop reads in the hundreds); RATE_WINDOW is
     // how far back the rolling rate looks.
+    // How long one slice of a page sweep may run before it yields. Under half
+    // a frame, so a sweep never owns the frame it lands in — the pass is
+    // allowed to take longer in total, and is not allowed to block input.
+    SWEEP_SLICE: 8,
+    // RESYNC is how often the perf tool re-derives what it watches even when
+    // the list looks unchanged — an element can leave the page without the
+    // list changing, and re-deriving is what disconnects its observer.
     PERF: {
       FREEZE_MS: 250,
       LOG_MAX: 30,
       FPS_WINDOW: 1e3,
       CHURN: 60,
-      RATE_WINDOW: 2e3
+      RATE_WINDOW: 2e3,
+      RESYNC: 1e3
     },
     // The badge service's VIEW axis, in order. 'compact' leads because it is
     // the shipped default — a full badge is a lot of ink over a page you came
@@ -1663,6 +1671,9 @@
     _onVis: null,
     _redraw: null,
     _drewT: 0,
+    _watch: [],
+    _watchT: 0,
+    // what is targeted, and when it was last re-derived
     load: null,
     // this navigation's timings — static per page
     pre: [],
@@ -1777,7 +1788,15 @@
           Monitor._fpsT = t;
         }
         Monitor._last = t;
-        Targets.sync([...State.pins.map((p) => p.el), State.current]);
+        const pins = State.pins;
+        let same = Monitor._watch.length === pins.length + 1 && Monitor._watch[pins.length] === State.current;
+        for (let i = 0; same && i < pins.length; i++)
+          same = Monitor._watch[i] === pins[i].el;
+        if (!same || t - Monitor._watchT >= CONFIG.PERF.RESYNC) {
+          Monitor._watchT = t;
+          Monitor._watch = [...pins.map((p) => p.el), State.current];
+          Targets.sync(Monitor._watch);
+        }
         if (Monitor._redraw && t - (Monitor._drewT || 0) >= 500 && (Targets.map.size || Monitor.log.length || State.hoverEl)) {
           Monitor._drewT = t;
           Monitor._redraw();
@@ -3288,20 +3307,49 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       el2.addEventListener("pointerdown", (e) => {
         if (e.target.closest("button")) return;
         const r = el2.getBoundingClientRect();
-        drag = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+        drag = {
+          dx: e.clientX - r.left,
+          dy: e.clientY - r.top,
+          w: r.width,
+          h: r.height,
+          // fixed for the whole gesture
+          ox: r.left,
+          oy: r.top,
+          // where it started, to translate from
+          x: r.left,
+          y: r.top,
+          // latest wanted position
+          raf: 0
+        };
         untuck();
         el2.setPointerCapture(e.pointerId);
         e.preventDefault();
       });
+      const wanted = (d) => ({
+        x: Math.max(4, Math.min(d.x, innerWidth - d.w - 4)),
+        y: Math.max(4, Math.min(d.y, innerHeight - d.h - 4))
+      });
       el2.addEventListener("pointermove", (e) => {
         if (!drag) return;
-        el2.classList.add("debug-overlay-dragging");
-        applyPos(e.clientX - drag.dx, e.clientY - drag.dy);
-        if (List.isOpen()) List.place();
+        drag.x = e.clientX - drag.dx;
+        drag.y = e.clientY - drag.dy;
+        if (drag.raf) return;
+        drag.raf = requestAnimationFrame(() => {
+          if (!drag) return;
+          drag.raf = 0;
+          el2.classList.add("debug-overlay-dragging");
+          const p = wanted(drag);
+          el2.style.translate = `${p.x - drag.ox}px ${p.y - drag.oy}px`;
+          if (List.isOpen()) List.place();
+        });
       });
       const endDrag = () => {
         if (!drag) return;
+        cancelAnimationFrame(drag.raf);
+        const p = wanted(drag);
         drag = null;
+        el2.style.translate = "";
+        applyPos(p.x, p.y);
         el2.classList.remove("debug-overlay-dragging");
         snap();
         scheduleTuck();
@@ -3459,7 +3507,8 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       taken.push(U.rectOf(x - 2, y - 2, w + 4, h + 4));
     }
     function smart(node, anchor, opts = {}) {
-      const w = node.offsetWidth, h = node.offsetHeight;
+      const w = opts.size ? opts.size.w : node.offsetWidth;
+      const h = opts.size ? opts.size.h : node.offsetHeight;
       const M = CONFIG.BADGE_MARGIN, PAD = 4;
       const cands = [
         { x: anchor.left, y: anchor.bottom + M, cost: 0 },
@@ -3596,35 +3645,39 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       const marks = (found) => {
         for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
           if (!document.contains(f.el)) continue;
+          const cls = f.verdict === "review" ? "review" : f.severity;
           const at = marked.get(f.el);
           if (at) {
             at.n++;
             at.rules.add(f.rule);
-            const cls2 = f.verdict === "review" ? "review" : f.severity;
-            if ((CONFIG.SEVERITY[cls2] || 0) > (CONFIG.SEVERITY[at.cls] || 0)) {
-              at.box.className = "debug-overlay-box debug-overlay-flag debug-overlay-" + cls2;
-              if (at.tip) at.tip.className = "debug-overlay-tip debug-overlay-" + cls2;
-              at.cls = cls2;
-            }
-            if (at.tip) at.tip.textContent = label(at);
+            if ((CONFIG.SEVERITY[cls] || 0) > (CONFIG.SEVERITY[at.cls] || 0)) at.cls = cls;
             continue;
           }
-          const r = f.el.getBoundingClientRect();
-          const cls = f.verdict === "review" ? "review" : f.severity;
+          marked.set(f.el, {
+            r: f.el.getBoundingClientRect(),
+            cls,
+            n: 1,
+            rules: /* @__PURE__ */ new Set([f.rule])
+          });
+        }
+      };
+      const paintMarks = () => {
+        const tips = [];
+        for (const m of marked.values()) {
           const box = document.createElement("div");
-          box.className = "debug-overlay-box debug-overlay-flag debug-overlay-" + cls;
-          Place.put(box, r.left, r.top, r.width, r.height);
+          box.className = "debug-overlay-box debug-overlay-flag debug-overlay-" + m.cls;
+          Place.put(box, m.r.left, m.r.top, m.r.width, m.r.height);
           layer.append(box);
-          const m = { r, cls, n: 1, rules: /* @__PURE__ */ new Set([f.rule]), tip: null, box };
-          marked.set(f.el, m);
+          const r = m.r;
           if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue;
           const tip = document.createElement("div");
-          tip.className = "debug-overlay-tip debug-overlay-" + cls;
+          tip.className = "debug-overlay-tip debug-overlay-" + m.cls;
           tip.textContent = label(m);
-          m.tip = tip;
           layer.append(tip);
-          Place.smart(tip, r, { avoid: r });
+          tips.push({ tip, r });
         }
+        for (const t of tips) t.size = { w: t.tip.offsetWidth, h: t.tip.offsetHeight };
+        for (const t of tips) Place.smart(t.tip, t.r, { avoid: t.r, size: t.size });
       };
       const label = (m) => [...m.rules].join(" ") + (m.n > 1 ? ` ×${m.n}` : "");
       const ctx = { layer, Place, State, U, marks, found: [] };
@@ -3632,6 +3685,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         ctx.found = State.sweep && State.sweep.byTool[t.id] || [];
         t.draw?.call(t, ctx);
       }
+      paintMarks();
       pinInfo.forEach(({ p, i }) => {
         if (i.r.bottom < 0 || i.r.top > innerHeight || i.r.right < 0 || i.r.left > innerWidth) return;
         const full = Badges.view() === "full" || State.hoverEl === p.el;
@@ -3720,22 +3774,38 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       if (!all.length || !document.body) return result;
       for (const t of all) result.byTool[t.id] = [];
       const seen = perPage.length ? [] : null;
-      for (const el2 of document.body.querySelectorAll("*")) {
-        const cs = getComputedStyle(el2);
-        if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") continue;
-        result.elements++;
-        const i = U.info(el2, cs);
-        if (seen) seen.push(i);
-        for (const f of Sweep.collect(perEl, "audit", i)) {
+      const els = document.body.querySelectorAll("*");
+      let since = performance.now();
+      const step = (idx) => {
+        for (; idx < els.length; idx++) {
+          if ((idx & 255) === 255 && performance.now() - since > CONFIG.SWEEP_SLICE) {
+            const at = idx;
+            return new Promise((res) => setTimeout(() => {
+              since = performance.now();
+              res(step(at));
+            }, 0));
+          }
+          const el2 = els[idx];
+          const cs = getComputedStyle(el2);
+          if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") continue;
+          result.elements++;
+          const i = U.info(el2, cs);
+          if (seen) seen.push(i);
+          for (const f of Sweep.collect(perEl, "audit", i)) {
+            result.findings.push(f);
+            result.byTool[f.tool].push(f);
+          }
+        }
+        return finish();
+      };
+      const finish = () => {
+        for (const f of Sweep.collect(perPage, "auditPage", seen || [])) {
           result.findings.push(f);
           result.byTool[f.tool].push(f);
         }
-      }
-      for (const f of Sweep.collect(perPage, "auditPage", seen || [])) {
-        result.findings.push(f);
-        result.byTool[f.tool].push(f);
-      }
-      return result;
+        return result;
+      };
+      return step(0);
     },
     /**
      * Collapse repeats, then rank worst-first. `key` says which findings are
@@ -4739,8 +4809,17 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
      * page that moved in between.
      */
     sweep() {
-      if (!State.enabled) return;
-      State.sweep = Sweep.run();
+      if (!State.enabled || Controller._sweeping) return;
+      Controller._sweeping = true;
+      const r = Sweep.run();
+      if (r && typeof r.then === "function") r.then(Controller._swept, Controller._swept);
+      else Controller._swept(r);
+    },
+    /** The half that runs once the pass has actually finished. */
+    _swept(result) {
+      Controller._sweeping = false;
+      if (!State.enabled || !result || !result.findings) return;
+      State.sweep = result;
       WebPanel.setSwept(true, Sweep.group(State.sweep.findings).length);
       WebPanel.toggleList(true, "findings");
       Render.schedule();

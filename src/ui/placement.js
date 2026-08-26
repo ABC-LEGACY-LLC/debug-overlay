@@ -16,7 +16,13 @@ import { WebPanel } from './web-panel.js';
     function claim(x, y, w, h) { taken.push(U.rectOf(x - 2, y - 2, w + 4, h + 4)); }
 
     function smart(node, anchor, opts = {}) {
-      const w = node.offsetWidth, h = node.offsetHeight;
+      /* opts.size — measured by the caller. offsetWidth/offsetHeight are
+         LAYOUT READS, and this is called in a loop that writes styles between
+         calls, so each read forced a synchronous layout of the whole
+         document. A caller placing many nodes can measure them all in one
+         pass (one layout, then free) and hand the numbers in. */
+      const w = opts.size ? opts.size.w : node.offsetWidth;
+      const h = opts.size ? opts.size.h : node.offsetHeight;
       const M = CONFIG.BADGE_MARGIN, PAD = 4;
       const cands = [
         { x: anchor.left, y: anchor.bottom + M, cost: 0 },

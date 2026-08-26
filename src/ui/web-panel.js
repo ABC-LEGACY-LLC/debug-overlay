@@ -493,25 +493,68 @@ import { List } from './list.js';
     el.addEventListener('pointerenter', () => { clearTimeout(tuckTimer); untuck(); });
     el.addEventListener('pointerleave', scheduleTuck);
 
-    // --- drag (buttons keep working)
+    /* --- drag (buttons keep working)
+
+       MEASURE ONCE, WRITE ONCE A FRAME, MOVE ON THE COMPOSITOR. All three
+       were wrong together, and each cost the host page rather than us.
+
+       applyPos() reads getBoundingClientRect() and then writes left/top. Run
+       from pointermove that is a forced synchronous layout PER EVENT — and a
+       forced layout costs what the PAGE costs, not what the panel costs, so
+       dragging the bar across a heavy page paid for that page's layout at
+       pointer frequency. Pointer events also outrun frames on a 120Hz
+       display or a high-polling mouse, so some of those layouts were thrown
+       away before anything was painted.
+
+       Nothing being read can change during a drag: the panel's own width and
+       height are fixed the moment it starts. So they are measured at
+       pointerdown, positions are coalesced into one rAF, and the movement
+       itself is a compositor translate — no layout, no paint.
+
+       It uses `translate`, NOT `transform`, because tuck() already owns
+       transform. Two mechanisms writing one property is how a tucked panel
+       would have fought a dragged one; the standalone property composes with
+       it instead. left/top are committed once, at the end, which is also the
+       only moment anything needs to be read again. */
     let drag = null;
     el.addEventListener('pointerdown', (e) => {
       if (e.target.closest('button')) return;
       const r = el.getBoundingClientRect();
-      drag = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+      drag = { dx: e.clientX - r.left, dy: e.clientY - r.top,
+               w: r.width, h: r.height,      // fixed for the whole gesture
+               ox: r.left, oy: r.top,        // where it started, to translate from
+               x: r.left, y: r.top,          // latest wanted position
+               raf: 0 };
       untuck();
       el.setPointerCapture(e.pointerId);
       e.preventDefault();
     });
+    /** Clamp with the size measured at pointerdown — no read, no reflow. */
+    const wanted = (d) => ({
+      x: Math.max(4, Math.min(d.x, innerWidth - d.w - 4)),
+      y: Math.max(4, Math.min(d.y, innerHeight - d.h - 4)),
+    });
     el.addEventListener('pointermove', (e) => {
       if (!drag) return;
-      el.classList.add('debug-overlay-dragging');
-      applyPos(e.clientX - drag.dx, e.clientY - drag.dy);
-      if (List.isOpen()) List.place();
+      drag.x = e.clientX - drag.dx;
+      drag.y = e.clientY - drag.dy;
+      if (drag.raf) return;            // this frame already has a write queued
+      drag.raf = requestAnimationFrame(() => {
+        if (!drag) return;
+        drag.raf = 0;
+        el.classList.add('debug-overlay-dragging');
+        const p = wanted(drag);
+        el.style.translate = `${p.x - drag.ox}px ${p.y - drag.oy}px`;
+        if (List.isOpen()) List.place();
+      });
     });
     const endDrag = () => {
       if (!drag) return;
+      cancelAnimationFrame(drag.raf);
+      const p = wanted(drag);
       drag = null;
+      el.style.translate = '';         // hand the position back to left/top
+      applyPos(p.x, p.y);
       el.classList.remove('debug-overlay-dragging');
       snap();
       scheduleTuck();

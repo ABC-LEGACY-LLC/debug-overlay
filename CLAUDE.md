@@ -583,6 +583,48 @@ message comes from code already on its disk.
 `update.html` is written AFTER the updater it names. A page naming a script
 that is not there is a dead update screen with no way to repair itself.
 
+## Performance budgets (test.js guards the mechanisms, not the numbers)
+
+There were none, and an interaction-performance audit found four mechanisms
+living behind that absence. The budgets are the method layer's, written down
+here so a later change can be judged rather than argued about:
+
+- **No Long Task > 50ms** during a sweep or any continuous gesture.
+- **INP < 200ms** for arming, pinning and the grip drag, at 4× CPU throttle.
+- **Zero forced reflows per mark per frame** — a layout read placed after a
+  style write is the defect, whatever it costs on the machine you have.
+- **The mark layer is not rebuilt per frame**, and nothing is re-derived per
+  frame that changes per session.
+
+The four that were there, each now guarded:
+
+- **A layout read inside `pointermove`.** `applyPos()` read
+  `getBoundingClientRect()` then wrote `left`/`top`, per event. A forced
+  layout costs what the PAGE costs, not what the panel costs, so dragging the
+  bar over a heavy page paid for that page's layout at pointer frequency.
+  Measured once at `pointerdown`, coalesced into one rAF, moved with the
+  standalone `translate` property — `transform` is already `tuck()`'s.
+- **The findings layer rebuilt every frame**, each mark doing read rect →
+  append box → append tip → read `offsetWidth`. That is a forced layout per
+  mark, up to `MARK_LIMIT` per armed drawing tool, on every `mousemove` and
+  `scroll`. `marks()` only reads and merges now; `paintMarks()` only writes,
+  then measures every tip in one batch. `Place.smart` takes an `opts.size` so
+  a batched caller never makes it read again.
+- **The sweep never yielded.** One pass, one `getComputedStyle` per element,
+  no chunking — seconds of fully blocked input on the large pages this tool
+  exists for. It slices on `CONFIG.SWEEP_SLICE`, yielding through
+  `setTimeout` and not rAF, because the point is to let INPUT through and a
+  frame callback runs before the click you are trying to land.
+  `Sweep.run()` therefore returns the result **or a promise of it** — pages
+  that fit one slice stay synchronous, and there is exactly one caller, which
+  branches on `.then`. A second caller must await unconditionally.
+  Yielding also removed the mutex that blocking provided, so
+  `Controller._sweeping` exists now.
+- **The perf tool re-derived its watch set 60×/second** to discover that a
+  set which changes on pin/unpin had not changed. Compared in place, with
+  `CONFIG.PERF.RESYNC` as the backstop — an element can leave the page
+  without the list changing, and re-deriving is what disconnects its observer.
+
 ## Versioning
 `build.js` bumps `@version` automatically. Tampermonkey only updates when the
 version increases, so never hand-edit the version in `userscript.json` down,

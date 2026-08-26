@@ -1465,6 +1465,7 @@ console.log('\nTHE UPDATER, ACTUALLY RUN');
  * crash anywhere in the path now fails here instead of on someone's machine.
  */
 let updaterRan = false;
+let capChecked = false;   // the sliced-sweep page finishes a turn later
 let settleChecked = false;
 {
   const extDir = path.join(__dirname, 'dist', 'browser-extension');
@@ -2949,20 +2950,42 @@ console.log('\nPANEL AUDIT FIXES');
   // 3. a cap nobody is told about reads as "this is everything"
   const many = Array.from({ length: 420 }, () => '<p style="color:#bbb;padding:7px">x</p>').join('');
   const wc = boot(many, { __debug_overlay_tools: '["contrast"]' });
+  // a Promise created during the sweep is the yield; nothing else in the pass
+  // makes one, so its existence IS the evidence that slicing engaged
+  let sliced = false;
+  const RealPromise = wc.Promise;
+  wc.Promise = new Proxy(RealPromise, {
+    construct(T, args) { sliced = true; return new T(...args); },
+  });
   const barC = wc.document.getElementById('__debug-overlay-bar');
   const listC = wc.document.getElementById('__debug-overlay-list');
   let copiedC = null;
   Object.defineProperty(wc.navigator, 'clipboard',
     { value: { writeText: async (t) => { copiedC = t; } }, configurable: true });
+  /* THE ONLY PAGE IN THIS SUITE BIG ENOUGH TO BE SLICED, which is why it is
+     the only one that has to wait. 420 elements crosses the sweep's yield
+     threshold, so run() hands back a promise and the result lands a turn
+     later — exactly the behaviour that keeps a 15 000-element page from
+     freezing, observed here because the fixture is finally large enough to
+     trigger it. Everything smaller finishes inside one slice and stays
+     synchronous, which is why no other sweep site in this file changed. */
   barC.querySelector('[data-sweep]').dispatchEvent(new wc.MouseEvent('click', { bubbles: true }));
-  barC.querySelector('[data-copy]').dispatchEvent(new wc.MouseEvent('click', { bubbles: true }));
-  ok('the findings list says the page could not show them all',
-    /marks the first 200 findings/.test((listC.querySelector('.debug-overlay-head') || {}).textContent || ''),
-    (listC.querySelector('.debug-overlay-head') || {}).textContent || '(no heading)');
-  ok('and so does the copied report',
-    /marks from the first 200 findings per rule/.test(copiedC || ''),
-    (/## findings[^\n]*/.exec(copiedC || '') || ['none'])[0]);
-  wc.close();
+  whenPainted(() => barC.querySelector('[data-sweep]').classList.contains('debug-overlay-swept'), () => {
+    barC.querySelector('[data-copy]').dispatchEvent(new wc.MouseEvent('click', { bubbles: true }));
+    ok('the findings list says the page could not show them all',
+      /marks the first 200 findings/.test((listC.querySelector('.debug-overlay-head') || {}).textContent || ''),
+      (listC.querySelector('.debug-overlay-head') || {}).textContent || '(no heading)');
+    ok('and so does the copied report',
+      /marks from the first 200 findings per rule/.test(copiedC || ''),
+      (/## findings[^\n]*/.exec(copiedC || '') || ['none'])[0]);
+    /* …and the slice actually happened. Without this the two assertions above
+       would still pass on a build that never yields — they would simply have
+       run synchronously and nobody would know the difference. */
+    ok('and a page that large was swept in slices, not one blocking task',
+      sliced === true, 'run() returned a result directly — the pass never yielded');
+    wc.close();
+    capChecked = true;
+  });
 
   // 4. Escape closes the top layer, never the session
   const we = boot('<p style="color:#bbb">faint</p>');
@@ -4060,8 +4083,81 @@ function whenPainted(ready, run, waited = 0) {
   setTimeout(() => whenPainted(ready, run, waited + 25), 25);
 }
 
+/* ======================================================================
+   INTERACTION PERFORMANCE
+   The four mechanisms an interaction-performance audit found, each read
+   from SOURCE because each is a shape rather than a value: a read placed
+   after a write, a loop that never yields, work repeated per frame that
+   changes per session. None of them is visible in output — a fast machine
+   absorbs all four and the page looks fine, which is exactly why they
+   survived this long.
+   ====================================================================== */
+console.log('\nINTERACTION PERFORMANCE');
+{
+  const S = (f) => fs.readFileSync(path.join(ROOT, 'src', f), 'utf8');
+  const panel = S('ui/web-panel.js'), rend = S('ui/renderer.js');
+  const perf = S('tools/perf/service.js'), find = S('services/findings/index.js');
+
+  /* F3 — the grip drag. applyPos() reads getBoundingClientRect() and then
+     writes left/top; called from pointermove that is a forced synchronous
+     layout per event, and a forced layout costs what the PAGE costs, not
+     what the panel costs. Pointer events also outrun frames, so some of
+     those layouts were discarded unpainted. */
+  const move = panel.slice(panel.indexOf("addEventListener('pointermove'"),
+                           panel.indexOf('const endDrag'));
+  ok('the grip drag measures once and writes once a frame',
+    !/getBoundingClientRect/.test(move) && !/applyPos\(/.test(move) &&
+    /requestAnimationFrame/.test(move),
+    'a layout read inside pointermove forces a full-document reflow per event');
+  ok('and it moves on the compositor, without touching transform',
+    /style\.translate =/.test(move) && !/style\.(left|top) =/.test(move) &&
+    /style\.transform = t;/.test(panel),
+    'left/top relayout every frame; transform is already owned by tuck()');
+
+  /* F2 — the findings layer. It was rebuilt every frame, and each mark did
+     read rect → append box → append tip → read offsetWidth: a forced layout
+     per mark, up to MARK_LIMIT per armed drawing tool, driven by mousemove
+     and scroll. Split so that marks() only reads and paintMarks() only
+     writes, then measures the whole batch at once. */
+  const collect = rend.slice(rend.indexOf('const marks = (found)'),
+                             rend.indexOf('const paintMarks'));
+  ok('collecting marks paints nothing — it only reads and merges',
+    !/layer\.append|createElement|Place\.(put|smart)/.test(collect) &&
+    /getBoundingClientRect/.test(collect),
+    'a write between two reads is a forced layout, once per mark');
+  ok('and the tips are measured as one batch, not one at a time',
+    /for \(const t of tips\) t\.size = \{ w: t\.tip\.offsetWidth/.test(rend) &&
+    /Place\.smart\(t\.tip, t\.r, \{ avoid: t\.r, size: t\.size \}\)/.test(rend) &&
+    /opts\.size \? opts\.size\.w : node\.offsetWidth/.test(S('ui/placement.js')),
+    'offsetWidth after a style write is a layout; per tip that is N layouts');
+
+  /* F1 — the sweep. One synchronous pass with a getComputedStyle per element
+     and no yield: on the large pages this tool exists for, seconds of fully
+     blocked input. The behavioural proof is above (the 420-element fixture
+     genuinely yields); this is the structural half. */
+  ok('the sweep yields instead of owning the thread to the end',
+    /performance\.now\(\) - since > CONFIG\.SWEEP_SLICE/.test(find) &&
+    /setTimeout\(\(\) => \{/.test(find) &&
+    !/requestAnimationFrame/.test(find),
+    'rAF would run before the click the user is trying to land');
+  ok('and a second press cannot start a second pass',
+    /Controller\._sweeping/.test(S('app/controller.js')),
+    'blocking the thread used to be the mutex; yielding removed it');
+
+  /* F4 — the perf tool re-derived its watch set 60×/second: a new array, a
+     new Set and a document.contains() per member, to learn that a set which
+     changes on pin/unpin had not changed. */
+  ok('the perf tool re-derives what it watches only when it moved',
+    /let same = Monitor\._watch\.length/.test(perf) &&
+    /if \(!same \|\| t - Monitor\._watchT >= CONFIG\.PERF\.RESYNC\)/.test(perf),
+    'per-frame allocation to discover nothing happened');
+  ok('and still re-syncs periodically, so a detached node is dropped',
+    /RESYNC: \d+/.test(S('core/config.js')),
+    'an element can leave the page without the list changing; sync() is what disconnects it');
+}
+
 whenPainted(() => perfChecked && sidePanelChecked && storageChecked && updaterRan &&
-                  settleChecked &&
+                  settleChecked && capChecked &&
                  
                   window.document.querySelector('#__debug-overlay-root .debug-overlay-flag') &&
                   w3.document.querySelector('#__debug-overlay-root .debug-overlay-badge'), () => {

@@ -68,8 +68,28 @@ import { Render } from '../ui/renderer.js';
      * page that moved in between.
      */
     sweep() {
-      if (!State.enabled) return;
-      State.sweep = Sweep.run();
+      /* RE-ENTRY GUARD, and it only became necessary when the pass learned to
+         yield: a second press used to be impossible mid-sweep, because
+         blocking the thread WAS the mutex. Now two passes can overlap, both
+         write State.sweep, and whichever finishes last wins — including a
+         stale one started against an older page. */
+      if (!State.enabled || Controller._sweeping) return;
+      Controller._sweeping = true;
+      /* Sweep.run() hands back the result, or a promise of it when the page
+         was big enough to need slicing. Both are handled here because this is
+         the only caller; anything else must await unconditionally. */
+      const r = Sweep.run();
+      if (r && typeof r.then === 'function') r.then(Controller._swept, Controller._swept);
+      else Controller._swept(r);
+    },
+
+    /** The half that runs once the pass has actually finished. */
+    _swept(result) {
+      Controller._sweeping = false;
+      // powered off, or the page torn down, while the pass was still running:
+      // the answer describes something that is no longer on screen
+      if (!State.enabled || !result || !result.findings) return;
+      State.sweep = result;
       // the grouped count, not the raw one: "3" is a page with three problems,
       // "5000" is the same page with one of them on every row. It RESTS on the
       // button rather than flashing, so the bar keeps answering the question.

@@ -130,46 +130,63 @@ import { Place } from './placement.js';
          map lives out here so a second tool ADDS its rule to the label the
          first one made. */
       const marked = new Map();
+      /* COLLECT — reads and merges, paints nothing.
+
+         This used to build the DOM as it went: read a rect, append a box,
+         append a tip, then read the tip's offsetWidth to place it. Every one
+         of those reads came after a write, so every mark forced a synchronous
+         layout of the whole document — up to MARK_LIMIT of them per armed
+         drawing tool, on a layer rebuilt from scratch on EVERY frame, driven
+         by mousemove and scroll. Moving the pointer over a swept page paid
+         for hundreds of full-document layouts per second.
+
+         Split in two instead: this pass only reads (one rect per element,
+         merged across tools), and paintMarks() below only writes — then
+         measures the whole batch of tips at once, which costs one layout
+         rather than one per tip. The tool-facing surface is unchanged: a tool
+         still calls marks(found) and knows nothing about when paint happens. */
       const marks = (found) => {
         for (const f of found.slice(0, CONFIG.MARK_LIMIT)) {
           if (!document.contains(f.el)) continue;
+          /* One element, two rules: it must read as the WORSE of them. The
+             outlines used to stack and whichever painted last decided the
+             colour by accident; now the severity decides it. */
+          const cls = f.verdict === 'review' ? 'review' : f.severity;
           const at = marked.get(f.el);
           if (at) {
             at.n++; at.rules.add(f.rule);
-            /* One element, two rules: it must read as the WORSE of them. The
-               outlines used to stack and whichever painted last decided the
-               colour by accident; now the severity decides it. */
-            const cls = f.verdict === 'review' ? 'review' : f.severity;
-            if ((CONFIG.SEVERITY[cls] || 0) > (CONFIG.SEVERITY[at.cls] || 0)) {
-              at.box.className = 'debug-overlay-box debug-overlay-flag debug-overlay-' + cls;
-              if (at.tip) at.tip.className = 'debug-overlay-tip debug-overlay-' + cls;
-              at.cls = cls;
-            }
-            if (at.tip) at.tip.textContent = label(at);
+            if ((CONFIG.SEVERITY[cls] || 0) > (CONFIG.SEVERITY[at.cls] || 0)) at.cls = cls;
             continue;
           }
-          const r = f.el.getBoundingClientRect();
-          const cls = f.verdict === 'review' ? 'review' : f.severity;
+          marked.set(f.el, { r: f.el.getBoundingClientRect(), cls, n: 1,
+                             rules: new Set([f.rule]) });
+        }
+      };
+      /** WRITE, then measure the batch, then place. Three passes, one layout. */
+      const paintMarks = () => {
+        const tips = [];
+        for (const m of marked.values()) {
           const box = document.createElement('div');
-          box.className = 'debug-overlay-box debug-overlay-flag debug-overlay-' + cls;
-          Place.put(box, r.left, r.top, r.width, r.height);
+          box.className = 'debug-overlay-box debug-overlay-flag debug-overlay-' + m.cls;
+          Place.put(box, m.r.left, m.r.top, m.r.width, m.r.height);
           layer.append(box);
-          const m = { r, cls, n: 1, rules: new Set([f.rule]), tip: null, box };
-          marked.set(f.el, m);
+          const r = m.r;
           if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue;
           const tip = document.createElement('div');
-          tip.className = 'debug-overlay-tip debug-overlay-' + cls;
+          tip.className = 'debug-overlay-tip debug-overlay-' + m.cls;
           // textContent: a rule id is ours, but a message is not — dupid's
           // carries a page-authored id straight from the document
           tip.textContent = label(m);
-          m.tip = tip;
           layer.append(tip);
-          /* smart, not put: labels used to sit at a fixed offset from every
-             element, so nested findings — the shape of every real page —
-             stacked their labels on one another and on the pin numbers that
-             were claimed before them. */
-          Place.smart(tip, r, { avoid: r });
+          tips.push({ tip, r });
         }
+        // the one forced layout of the frame, paid once for every tip
+        for (const t of tips) t.size = { w: t.tip.offsetWidth, h: t.tip.offsetHeight };
+        /* smart, not put: labels used to sit at a fixed offset from every
+           element, so nested findings — the shape of every real page —
+           stacked their labels on one another and on the pin numbers that
+           were claimed before them. */
+        for (const t of tips) Place.smart(t.tip, t.r, { avoid: t.r, size: t.size });
       };
       const label = (m) => [...m.rules].join(' ') + (m.n > 1 ? ` ×${m.n}` : '');
 
@@ -178,6 +195,9 @@ import { Place } from './placement.js';
         ctx.found = (State.sweep && State.sweep.byTool[t.id]) || [];
         t.draw?.call(t, ctx);
       }
+      // every tool has now had its say about every element, so the merged
+      // severity and the merged label are both final — paint once
+      paintMarks();
 
       // 3) pin badges — compact unless detail mode or that pin is hovered
       pinInfo.forEach(({ p, i }) => {

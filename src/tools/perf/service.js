@@ -35,6 +35,7 @@ export const Monitor = {
         _owner: null,        // the tool, for Tools.setting — set by watch()
         _obs: null, _obs2: [], _raf: 0, _last: 0, _frames: 0, _fpsT: 0,
         _onVis: null, _redraw: null, _drewT: 0,
+        _watch: [], _watchT: 0,   // what is targeted, and when it was last re-derived
         load: null,          // this navigation's timings — static per page
         pre: [],             // long tasks from BEFORE arming (buffered entries)
 
@@ -170,7 +171,28 @@ export const Monitor = {
             }
             Monitor._last = t;
             // what is targeted follows the session: pins + the selection
-            Targets.sync([...State.pins.map((p) => p.el), State.current]);
+            /* WHAT IS TARGETED FOLLOWS THE SESSION — and changes on a pin,
+               an unpin or a new selection: a handful of times a session, not
+               sixty times a second. Rebuilding the list every frame allocated
+               an array and a Set and ran document.contains() over every
+               member, forever, to discover that nothing had moved.
+
+               Compared in place instead, with no allocation in the common
+               case. The periodic re-sync is not belt-and-braces: an element
+               can leave the PAGE without the list changing, and sync() is
+               what disconnects its observer — the pin list is pruned by the
+               renderer, but a selection is not, so without this a detached
+               node would stay observed for the rest of the session. */
+            const pins = State.pins;
+            let same = Monitor._watch.length === pins.length + 1 &&
+                       Monitor._watch[pins.length] === State.current;
+            for (let i = 0; same && i < pins.length; i++)
+              same = Monitor._watch[i] === pins[i].el;
+            if (!same || t - Monitor._watchT >= CONFIG.PERF.RESYNC) {
+              Monitor._watchT = t;
+              Monitor._watch = [...pins.map((p) => p.el), State.current];
+              Targets.sync(Monitor._watch);
+            }
             /* A LIVE gauge repaints on its own clock. Renders are otherwise
                driven by the mouse, so a motionless user watched a stale
                number wearing a live label. Every ~500ms, and only when the

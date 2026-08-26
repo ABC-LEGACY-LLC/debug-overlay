@@ -85,8 +85,15 @@
     // CHURN is mutations/second on a WATCHED subtree before it counts as a
     // re-render storm (a React loop reads in the hundreds); RATE_WINDOW is
     // how far back the rolling rate looks.
+    // How long one slice of a page sweep may run before it yields. Under half
+    // a frame, so a sweep never owns the frame it lands in — the pass is
+    // allowed to take longer in total, and is not allowed to block input.
+    SWEEP_SLICE: 8,
+    // RESYNC is how often the perf tool re-derives what it watches even when
+    // the list looks unchanged — an element can leave the page without the
+    // list changing, and re-deriving is what disconnects its observer.
     PERF: { FREEZE_MS: 250, LOG_MAX: 30, FPS_WINDOW: 1000,
-            CHURN: 60, RATE_WINDOW: 2000 },
+            CHURN: 60, RATE_WINDOW: 2000, RESYNC: 1000 },
     // The badge service's VIEW axis, in order. 'compact' leads because it is
     // the shipped default — a full badge is a lot of ink over a page you came
     // to read one number off. A third view is one new entry here plus its
