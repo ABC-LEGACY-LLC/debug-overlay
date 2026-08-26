@@ -465,6 +465,24 @@ console.log('\nTWO GATES, ONE CORE');
         'wrongly allowed: ' + deny.filter((s) => SAFE.test(s)).join(', '));
     }
   }
+  /* EVERY CONTROL MUST BE WIRED. The probe's card outlived its function by
+     eight releases: the diagnostic was removed when the design it was meant
+     to choose between got settled, and its <button> stayed on the page —
+     visible in every screenshot since, inviting a press that did nothing.
+
+     This project already refuses to ship a tool whose button does nothing,
+     because a control that is correct, present and inert is
+     indistinguishable from a broken one. The same rule was never applied to
+     the extension's own pages, and that is exactly where it broke. Asked of
+     the built page against the built script, so deleting either half fails
+     it. */
+  {
+    const ids = [...updHtml.matchAll(/<button id="([^"]+)"/g)].map((m) => m[1]);
+    const dead = ids.filter((i) => !updJs.includes(`$('${i}').addEventListener`));
+    ok('every button on the update page has something listening',
+      ids.length > 0 && dead.length === 0,
+      dead.length ? 'nothing listens to: ' + dead.join(', ') : 'no buttons found at all');
+  }
   ok('exactly one versioned updater is emitted',
     updName.length === 1, updName.join(', ') || 'none');
   ok('and the page loads that exact file',

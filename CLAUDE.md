@@ -546,6 +546,43 @@ sheet separately — braces and parens balance, and the parsed rule count
 matching what was written — and names the tool that broke. Keep those checks,
 and keep the sheets separate.
 
+## The updater is never replaced, and the reader ships before the data
+
+Two rules, each bought with a real outage.
+
+**Nothing replaces the update page's own script.** `build.js` emits
+`updater/<content-hash>.js` and substitutes that name into `update.html`, so
+every release writes a NEW file and rewrites the page to point at it. This
+is not tidiness: replacing a file called `update.js` is refused outright by
+Chrome's File System Access layer on real machines, and every route the API
+offers is destructive while refusing — `createWritable()` truncates the
+target as it opens, `move()` takes the destination AND the source. Three
+copies of the updater were destroyed proving that, and the apparatus built to
+survive it (rehearse, stage, rename, remember the refusal, re-stage what the
+refusal ate) came to four hundred lines that all evaporated once the file
+stopped being replaced. Writing a NEW file was never once refused.
+
+The hash, not the version: a version-named updater changes every release and
+leaves the old one behind every release. A content hash changes when the FILE
+changes, so a stray appears about one release in twelve, and `updater/` is
+where those wait to be deleted. Nothing is ever deleted for the user — a run
+NAMES what is no longer used and stops there.
+
+**`files.json` is read by the updater ALREADY INSTALLED**, never by the one
+shipping beside it. So a format change and its first use must be two
+releases apart: ship the reader, use it next time. Doing both at once
+deadlocked every install — the list was refused, the run stopped before its
+first fetch, and the relaxed validator sat inside the file that had just been
+refused. `test.js` enforces this: every name in `files.json` must satisfy the
+validator of the OLDEST install still supported, and that expression may only
+be loosened one release after the loosening ships unused. The floor is a
+cliff, and it is deliberate — an install below it can only be reinstalled from
+the ZIP, and no new release can soften the message it prints, because that
+message comes from code already on its disk.
+
+`update.html` is written AFTER the updater it names. A page naming a script
+that is not there is a dead update screen with no way to repair itself.
+
 ## Versioning
 `build.js` bumps `@version` automatically. Tampermonkey only updates when the
 version increases, so never hand-edit the version in `userscript.json` down,
