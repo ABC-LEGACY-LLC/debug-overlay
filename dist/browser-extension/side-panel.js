@@ -128,7 +128,7 @@
   };
 
   // browser-extension-source/side-panel/side-panel.js
-  var VERSION = "3.8.162";
+  var VERSION = "3.8.163";
   var $ = (s) => document.querySelector(s);
   var body = document.body;
   var IC = {
@@ -166,13 +166,29 @@
     $("[data-upd]").hidden = !(mf.host_permissions && mf.host_permissions.length);
   } catch {
   }
-  var SUBJECT = {
-    dupid: "ids",
-    grid: "spacing",
-    perf: "time",
-    pin: "input",
-    select: "input"
-  };
+  function renderTool(box, t) {
+    toolIcons[t.id] = t.icon;
+    const b = document.createElement("button");
+    b.dataset.tool = t.id;
+    b.setAttribute("aria-pressed", "false");
+    b.title = t.title + "\n" + (t.roles || []).join(" · ") + "\nright-click for its options";
+    const ic = document.createElement("span");
+    putIcon(ic, t.icon);
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = t.title.split(/[—–]/)[0].trim();
+    b.append(ic, name);
+    const f = document.createElement("span");
+    f.className = "fam";
+    f.textContent = t.fam || "";
+    b.append(f);
+    b.addEventListener("click", () => post(Protocol.cmd("tool", t.id)));
+    b.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      setView("tool:" + t.id);
+    });
+    box.append(b);
+  }
   var flashing = /* @__PURE__ */ new Map();
   function flash(msg, sel) {
     const b = $(sel);
@@ -412,32 +428,18 @@
       $("#power").setAttribute("aria-pressed", String(!!v));
       $("#power .st").textContent = v ? "ON" : "OFF";
     },
-    tools([roster, coreV]) {
+    tools([bands, coreV]) {
       if (coreV && coreV !== VERSION) return mode("stale");
       const box = $("#tools");
       box.textContent = "";
-      for (const t of roster) {
-        toolIcons[t.id] = t.icon;
-        const b = document.createElement("button");
-        b.dataset.tool = t.id;
-        b.setAttribute("aria-pressed", "false");
-        b.title = t.title + "\n" + (t.roles || []).join(" · ") + "\nright-click for its options";
-        const ic = document.createElement("span");
-        putIcon(ic, t.icon);
-        const name = document.createElement("span");
-        name.className = "name";
-        name.textContent = t.title.split(/[—–]/)[0].trim();
-        b.append(ic, name);
-        const f = document.createElement("span");
-        f.className = "fam";
-        f.textContent = t.fam || SUBJECT[t.id] || "";
-        b.append(f);
-        b.addEventListener("click", () => post(Protocol.cmd("tool", t.id)));
-        b.addEventListener("contextmenu", (e) => {
-          e.preventDefault();
-          setView("tool:" + t.id);
-        });
-        box.append(b);
+      for (const band of bands) {
+        if (band.name) {
+          const h = document.createElement("p");
+          h.className = "band";
+          h.textContent = band.name;
+          box.append(h);
+        }
+        for (const t of band.tools) renderTool(box, t);
       }
     },
     tool([id, v]) {

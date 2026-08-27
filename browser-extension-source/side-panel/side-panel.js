@@ -82,10 +82,34 @@ try {
   $('[data-upd]').hidden = !(mf.host_permissions && mf.host_permissions.length);
 } catch {}
 
-/* What each tool examines, for the tools that belong to no family. Keyed by
-   id and used for display only — the roster still arrives from the page. */
-const SUBJECT = { dupid: 'ids', grid: 'spacing', perf: 'time',
-                  pin: 'input', select: 'input' };
+/** One tool row. Lifted out of the band loop so the loop reads as what it
+ *  is — an ordering the page decided — and this reads as what a row is. */
+function renderTool(box, t) {
+  toolIcons[t.id] = t.icon;
+  const b = document.createElement('button');
+  b.dataset.tool = t.id;
+  b.setAttribute('aria-pressed', 'false');
+  b.title = t.title + '\n' + (t.roles || []).join(' · ') + '\nright-click for its options';
+  const ic = document.createElement('span');
+  putIcon(ic, t.icon);
+  const name = document.createElement('span');
+  name.className = 'name';
+  name.textContent = t.title.split(/[—–]/)[0].trim();
+  b.append(ic, name);
+  /* A per-row attribute is present on EVERY row or it is not a column
+     (audit C2). It arrives from the tool now — family, or the subject it
+     owns alone — where it used to be filled from a map of tool ids kept in
+     THIS file, which meant a tool shipped after that map was written showed
+     a blank cell and nothing failed. The audit requires the declaration. */
+  const f = document.createElement('span');
+  f.className = 'fam';
+  f.textContent = t.fam || '';
+  b.append(f);
+  b.addEventListener('click', () => post(Protocol.cmd('tool', t.id)));
+  // the bar's right-click gesture, kept: a tool's own options as a view
+  b.addEventListener('contextmenu', (e) => { e.preventDefault(); setView('tool:' + t.id); });
+  box.append(b);
+}
 
 const flashing = new Map();
 function flash(msg, sel) {
@@ -335,35 +359,27 @@ const render = {
     $('#power').setAttribute('aria-pressed', String(!!v));
     $('#power .st').textContent = v ? 'ON' : 'OFF';
   },
-  tools([roster, coreV]) {
+  tools([bands, coreV]) {
     if (coreV && coreV !== VERSION) return mode('stale');
     const box = $('#tools');
     box.textContent = '';
-    for (const t of roster) {
-      toolIcons[t.id] = t.icon;
-      const b = document.createElement('button');
-      b.dataset.tool = t.id;
-      b.setAttribute('aria-pressed', 'false');
-      b.title = t.title + '\n' + (t.roles || []).join(' · ') + '\nright-click for its options';
-      const ic = document.createElement('span');
-      putIcon(ic, t.icon);
-      const name = document.createElement('span');
-      name.className = 'name';
-      name.textContent = t.title.split(/[—–]/)[0].trim();
-      b.append(ic, name);
-      /* A per-row attribute is present on EVERY row or it is not a column
-         (audit C2). Two of seven tools carry a family, so the tag read as a
-         status only some tools have. Every row now shows what the tool
-         EXAMINES — the family where there is one, the tool's own subject
-         where there is not — which is the same fact for every row. */
-      const f = document.createElement('span');
-      f.className = 'fam';
-      f.textContent = t.fam || SUBJECT[t.id] || '';
-      b.append(f);
-      b.addEventListener('click', () => post(Protocol.cmd('tool', t.id)));
-      // the bar's right-click gesture, kept: a tool's own options as a view
-      b.addEventListener('contextmenu', (e) => { e.preventDefault(); setView('tool:' + t.id); });
-      box.append(b);
+    /* BANDS, in the order the PAGE derived them. This used to receive the
+       registry array and render it as one undifferentiated list, which was
+       alphabetical by folder path — so the two tools that choose WHAT you
+       are looking at sat at the bottom, among the five that describe it,
+       with nothing saying they were a different kind of thing.
+
+       Nothing here sorts or groups. If this file had its own idea of the
+       order, that idea would be free to drift from the bar's, which is the
+       whole defect being fixed. */
+    for (const band of bands) {
+      if (band.name) {
+        const h = document.createElement('p');
+        h.className = 'band';
+        h.textContent = band.name;
+        box.append(h);
+      }
+      for (const t of band.tools) renderTool(box, t);
     }
   },
   tool([id, v]) {

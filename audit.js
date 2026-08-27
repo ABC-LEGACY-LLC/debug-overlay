@@ -170,6 +170,16 @@ for (const t of tools) {
   // the panel is the one surface where every tool has to be legible.
   if (!t.icon) bad.push('no icon — the panel button would read "undefined"');
   if (!t.title) bad.push('no title — the button tooltip would read "undefined"');
+  /* WHAT IT EXAMINES, one way or the other. The side panel prints this as a
+     column beside every tool, and a column with blank rows is not a column —
+     it reads as a status only some tools have. It used to be filled from a
+     hardcoded map of tool ids inside the side panel itself, so a tool shipped
+     after that map was written arrived blank and nothing failed. Declared by
+     the tool now, and required, which is the only version of this that a new
+     tool cannot silently miss. */
+  if (!/\bfamily: '[a-z]+'/.test(t.s) && !/\bsubject: '[a-z]+'/.test(t.s))
+    bad.push('no family and no subject — nothing says what it examines, and ' +
+             'the side panel prints that beside every tool');
   /* An option says what it CHANGES. A role is derived from hooks and cannot go
      stale; this cannot be derived from anything — no hook distinguishes a
      detection threshold from a display preference — so it is declared, and an

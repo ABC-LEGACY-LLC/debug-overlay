@@ -177,11 +177,21 @@ import { State } from './state.js';
       const input = (t) => role('select').has(t) || role('act').has(t);
       const inOrder = ordered();
       const comps = inOrder.filter((t) => !input(t));
+      /* The bands carry a NAME as well as an order. The bar has never needed
+         one — a separator says "different kind of thing" in a strip of
+         icons — but the side panel lists the same tools as full rows, where
+         a separator alone reads as decoration. Without it seven rows look
+         like seven of one kind, and the two that CHOOSE what you are
+         looking at sit among the five that describe it.
+
+         Named here rather than in the side panel, because the day a third
+         band exists both faces must learn about it from the same place. */
       return [
-        { tools: inOrder.filter(input) },
+        { name: 'Choose what to inspect', tools: inOrder.filter(input) },
         // plain read-outs first, then the dotted ones — inside the band the
         // dot still deserves the eye-track it always had
-        { tools: [...comps.filter((t) => !role('detect').has(t)),
+        { name: 'Describe what you chose',
+          tools: [...comps.filter((t) => !role('detect').has(t)),
                   ...comps.filter((t) => role('detect').has(t))] },
       ].filter((r) => r.tools.length);
     },

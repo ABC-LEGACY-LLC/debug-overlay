@@ -24,7 +24,7 @@
    ====================================================================== */
 import { Protocol } from '../core/protocol.js';
 import { CONFIG } from '../core/config.js';
-import { Tools, TOOLS } from '../core/registry.js';
+import { Tools } from '../core/registry.js';
 import { Store } from '../core/state.js';
 import { WebPanel } from '../ui/web-panel.js';
 import { Updates } from './updates.js';
@@ -42,12 +42,29 @@ function send(name, ...args) {
 }
 
 /** The roster the bar itself is built from: enough for the side panel to
- *  draw real buttons, none of it decision-bearing. */
+ *  draw real buttons, none of it decision-bearing.
+ *
+ *  BANDED, in the bar's own order, because it used to send TOOLS raw — the
+ *  auto-discovery array, which is alphabetical by folder path. So the side
+ *  panel listed Contrast, Duplicate ids, Measure, Grid, Perf, Pin, Select:
+ *  a filesystem accident, with the two INPUT tools last instead of first,
+ *  while the bar showed the pipeline. Two faces of one state, two orders,
+ *  and this project has a rule about that written for the settings doors —
+ *  "the menu is ⚙ filtered, so grouping, headings and ORDER cannot differ
+ *  between them". It was never applied here.
+ *
+ *  Sending the bands rather than sorting at the far end is what makes it
+ *  hold: the side panel renders whatever the bar derived and knows nothing
+ *  about ordering, so there is no second copy of the rule to drift. */
 function roster() {
-  return TOOLS.map((t) => ({
+  const one = (t) => ({
     id: t.id, icon: t.icon, title: t.title,
-    fam: t.family || null, roles: Tools.rolesOf(t),
-  }));
+    // what it EXAMINES — its family, or the subject it owns alone. Declared
+    // by the tool and required by the audit, so a new tool cannot arrive
+    // with this blank the way it could when the side panel kept the list.
+    fam: t.family || t.subject || null, roles: Tools.rolesOf(t),
+  });
+  return Tools.runs().map((run) => ({ name: run.name, tools: run.tools.map(one) }));
 }
 
 /** Every armed runtime's story so far, one backlog push per tool. A backlog

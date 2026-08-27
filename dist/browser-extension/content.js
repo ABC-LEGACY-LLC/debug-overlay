@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.162 — extension gate; same bundle as the userscript */
+/* Debug Overlay v3.8.163 — extension gate; same bundle as the userscript */
 (function () {
   'use strict';
 /* NOT a module and NOT bundled: build.js injects this text at the very top
@@ -41,7 +41,7 @@
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.162",
+    VERSION: "3.8.163",
     // Substituted like VERSION: where the update checker asks, and what the
     // userscript's one-click update opens. One source (userscript.json), no
     // second copy to drift.
@@ -558,13 +558,16 @@
       const inOrder = ordered();
       const comps = inOrder.filter((t) => !input(t));
       return [
-        { tools: inOrder.filter(input) },
+        { name: "Choose what to inspect", tools: inOrder.filter(input) },
         // plain read-outs first, then the dotted ones — inside the band the
         // dot still deserves the eye-track it always had
-        { tools: [
-          ...comps.filter((t) => !role("detect").has(t)),
-          ...comps.filter((t) => role("detect").has(t))
-        ] }
+        {
+          name: "Describe what you chose",
+          tools: [
+            ...comps.filter((t) => !role("detect").has(t)),
+            ...comps.filter((t) => role("detect").has(t))
+          ]
+        }
       ].filter((r) => r.tools.length);
     },
     /** Does this tool's rule run in the page audit? The green dot, and the
@@ -1213,6 +1216,11 @@
     // icons in one bar is a bar you have to read twice
     icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><line x1="4" x2="20" y1="9" y2="9" /><line x1="4" x2="20" y1="15" y2="15" /><line x1="10" x2="8" y1="3" y2="21" /><line x1="16" x2="14" y1="3" y2="21" /></svg>',
     // lucide 'hash' (ISC)
+    // what this tool EXAMINES. A tool in a domain folder says it with
+    // family:; one that owns its subject alone says it here, and every
+    // tool must say it one way or the other — the side panel prints it
+    // as a column, and a column is not a column if some rows are blank.
+    subject: "ids",
     title: "Duplicate ids — the same id used more than once",
     badge: badge2,
     legend: legend2,
@@ -1564,6 +1572,11 @@
     // lucide 'grid-3x3' (ISC)
     // No number in the title: the step is the user's now, and a title baked
     // at boot would still be claiming 2px long after they picked 8.
+    // what this tool EXAMINES. A tool in a domain folder says it with
+    // family:; one that owns its subject alone says it here, and every
+    // tool must say it one way or the other — the side panel prints it
+    // as a column, and a column is not a column if some rows are blank.
+    subject: "spacing",
     title: "Grid — flag values off the spacing grid",
     startsOn: true,
     // the ⚠ on a badge is what makes the read-out useful
@@ -2000,6 +2013,11 @@
     id: "perf",
     icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" /></svg>',
     // lucide 'activity' (ISC)
+    // what this tool EXAMINES. A tool in a domain folder says it with
+    // family:; one that owns its subject alone says it here, and every
+    // tool must say it one way or the other — the side panel prints it
+    // as a column, and a column is not a column if some rows are blank.
+    subject: "time",
     title: "Perf — freezes and jank while armed; the badge shows the page's pulse",
     startsOn: false,
     watch,
@@ -2051,6 +2069,11 @@
     id: "pin",
     icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 17v5" /><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" /></svg>',
     // lucide 'pin' (ISC)
+    // what this tool EXAMINES. A tool in a domain folder says it with
+    // family:; one that owns its subject alone says it here, and every
+    // tool must say it one way or the other — the side panel prints it
+    // as a column, and a column is not a column if some rows are blank.
+    subject: "input",
     title: "Pin — keep what you select; off, selections replace each other",
     startsOn: true,
     keeps
@@ -2122,6 +2145,11 @@
     id: "select",
     icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M5 3a2 2 0 0 0-2 2" /><path d="M19 3a2 2 0 0 1 2 2" /><path d="M21 19a2 2 0 0 1-2 2" /><path d="M5 21a2 2 0 0 1-2-2" /><path d="M9 3h1" /><path d="M9 21h1" /><path d="M14 3h1" /><path d="M14 21h1" /><path d="M3 9v1" /><path d="M21 9v1" /><path d="M3 14v1" /><path d="M21 14v1" /></svg>',
     // lucide 'box-select' (ISC)
+    // what this tool EXAMINES. A tool in a domain folder says it with
+    // family:; one that owns its subject alone says it here, and every
+    // tool must say it one way or the other — the side panel prints it
+    // as a column, and a column is not a column if some rows are blank.
+    subject: "input",
     title: "Select — how pinned elements group up",
     startsOn: true,
     /** The single place grouping is decided — see form.js. */
@@ -4390,13 +4418,17 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     }
   }
   function roster() {
-    return TOOLS.map((t) => ({
+    const one = (t) => ({
       id: t.id,
       icon: t.icon,
       title: t.title,
-      fam: t.family || null,
+      // what it EXAMINES — its family, or the subject it owns alone. Declared
+      // by the tool and required by the audit, so a new tool cannot arrive
+      // with this blank the way it could when the side panel kept the list.
+      fam: t.family || t.subject || null,
       roles: Tools.rolesOf(t)
-    }));
+    });
+    return Tools.runs().map((run) => ({ name: run.name, tools: run.tools.map(one) }));
   }
   function backlogs() {
     for (const t of Tools.withHook("timeline", false)) {

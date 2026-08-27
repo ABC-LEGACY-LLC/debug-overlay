@@ -193,6 +193,20 @@
       <h2>Tools</h2>
       <div id="tools"></div>
     </section>
+    <!-- PAGE ABOVE BADGE CONTENTS, which is the bar's own order: ⌕ Audit
+         comes before the badge control there. Here a configuration block
+         sat between the tools and the primary action, so the first thing
+         under the toolset was a preference rather than the thing the
+         panel is for. -->
+    <section class="whenOn">
+      <h2>Page</h2>
+      <div id="actions">
+        <button data-sweep><span class="ic"></span><span>Audit the whole page</span><span class="n"></span></button>
+        <button data-copy><span class="ic"></span><span>Copy report</span></button>
+        <button data-clear><span class="ic"></span><span>Clear pins</span><span class="n" data-c></span></button>
+        <button data-upd><span class="ic"></span><span>Check for updates</span></button>
+      </div>
+    </section>
     <section class="whenOn">
       <!-- "Badge" was the name of a rendering mode, not of anything the user
            can point at (audit C1). The heading now says what it controls, and
@@ -202,15 +216,6 @@
       <p class="secnote">What each armed tool prints on the element you hover
         or pin.</p>
       <div id="badge"></div>
-    </section>
-    <section class="whenOn">
-      <h2>Page</h2>
-      <div id="actions">
-        <button data-sweep><span class="ic"></span><span>Audit the whole page</span><span class="n"></span></button>
-        <button data-copy><span class="ic"></span><span>Copy report</span></button>
-        <button data-clear><span class="ic"></span><span>Clear pins</span><span class="n" data-c></span></button>
-        <button data-upd><span class="ic"></span><span>Check for updates</span></button>
-      </div>
     </section>
     <section class="whenOn">
       <h2>Lists</h2>

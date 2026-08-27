@@ -14,6 +14,11 @@ import { Scale } from './service.js';
       icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M3 9h18" /><path d="M3 15h18" /><path d="M9 3v18" /><path d="M15 3v18" /></svg>',   // lucide 'grid-3x3' (ISC)
       // No number in the title: the step is the user's now, and a title baked
       // at boot would still be claiming 2px long after they picked 8.
+      // what this tool EXAMINES. A tool in a domain folder says it with
+      // family:; one that owns its subject alone says it here, and every
+      // tool must say it one way or the other — the side panel prints it
+      // as a column, and a column is not a column if some rows are blank.
+      subject: 'spacing',
       title: 'Grid — flag values off the spacing grid',
       startsOn: true,      // the ⚠ on a badge is what makes the read-out useful
       uses: [Scale],   // its settings are Scale's, and belong on its own menu

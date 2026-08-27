@@ -1018,6 +1018,39 @@ let sidePanelChecked = false;
     const kTools = k.querySelectorAll('#tools [data-tool]').length;
     ok('the roster mirrors the bar, tool for tool',
       kTools === barTools && kTools > 0, `bar ${barTools} vs side panel ${kTools}`);
+    /* …AND IN THE SAME ORDER, which counting never checked.
+
+       The bridge used to send the raw registry array — auto-discovery order,
+       which is alphabetical by folder path — so the side panel listed
+       Contrast, Duplicate ids, Measure, Grid, Perf, Pin, Select while the bar
+       showed the pipeline: pin, select, then the components. Same seven
+       tools, same count, opposite ends for the two that CHOOSE what you are
+       looking at. The count assertion above was green throughout.
+
+       This project already has the rule, written for the settings doors:
+       "the menu is ⚙ filtered, so grouping, headings and ORDER cannot differ
+       between them." Nobody had applied it to the two panels. */
+    const barOrder = [...c1.bar.querySelectorAll('[data-tool]')].map((b) => b.dataset.tool);
+    const panelOrder = [...k.querySelectorAll('#tools [data-tool]')].map((b) => b.dataset.tool);
+    ok('and in the same order — the pipeline, not the filesystem',
+      barOrder.join() === panelOrder.join(),
+      `bar: ${barOrder.join(' ')}\n         panel: ${panelOrder.join(' ')}`);
+    /* The bands are the reason the order is legible at all: on the bar a
+       separator is enough between icons, but seven full rows need a label or
+       the boundary reads as spacing. Named in the registry so both faces
+       learn about a third band from one place. */
+    ok('the side panel shows the bands, not one undifferentiated list',
+      k.querySelectorAll('#tools .band').length >= 2,
+      `${k.querySelectorAll('#tools .band').length} band labels rendered`);
+    /* Every row carries what the tool EXAMINES, and it comes from the tool.
+       It used to come from a map of tool ids kept inside side-panel.js, so a
+       tool shipped after that map was written rendered a blank cell — a
+       column that is not a column — and no test or audit could see it. */
+    ok('every tool row says what it examines, and none is blank',
+      [...k.querySelectorAll('#tools [data-tool]')]
+        .every((b) => (b.querySelector('.fam')?.textContent || '').trim().length > 0),
+      [...k.querySelectorAll('#tools [data-tool]')]
+        .map((b) => `${b.dataset.tool}:${b.querySelector('.fam')?.textContent || '∅'}`).join(' '));
     ok('tool buttons carry the real icons, not placeholders',
       [...k.querySelectorAll('#tools [data-tool]')].every((b) => b.querySelector('svg')),
       'the roster arrived without its faces');
