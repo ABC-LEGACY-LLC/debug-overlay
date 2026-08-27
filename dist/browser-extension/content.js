@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.163 — extension gate; same bundle as the userscript */
+/* Debug Overlay v3.8.169 — extension gate; same bundle as the userscript */
 (function () {
   'use strict';
 /* NOT a module and NOT bundled: build.js injects this text at the very top
@@ -41,7 +41,7 @@
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.163",
+    VERSION: "3.8.169",
     // Substituted like VERSION: where the update checker asks, and what the
     // userscript's one-click update opens. One source (userscript.json), no
     // second copy to drift.
@@ -862,6 +862,364 @@
     }
   });
 
+  // src/tools/a11y/service.js
+  function textOf(el2, depth = 0) {
+    if (!el2 || depth > 6) return "";
+    if (el2.getAttribute && el2.getAttribute("aria-hidden") === "true") return "";
+    const own = el2.getAttribute && el2.getAttribute("aria-label");
+    if (own && own.trim()) return own.trim();
+    let out = "";
+    for (const n of el2.childNodes) {
+      if (n.nodeType === 3) out += n.nodeValue;
+      else if (n.nodeType === 1) {
+        if (n.tagName === "IMG") {
+          out += " " + (n.getAttribute("alt") || "");
+          continue;
+        }
+        if (n.tagName === "svg" || n.tagName === "SVG") {
+          const ti = n.querySelector && n.querySelector("title");
+          out += " " + (ti ? ti.textContent : "");
+          continue;
+        }
+        out += " " + textOf(n, depth + 1);
+      }
+    }
+    return out.replace(/\s+/g, " ").trim();
+  }
+  function labelFor(el2) {
+    if (el2.id) {
+      const l = document.querySelector(`label[for="${CSS.escape(el2.id)}"]`);
+      if (l) return textOf(l);
+    }
+    const wrap = el2.closest && el2.closest("label");
+    return wrap ? textOf(wrap) : "";
+  }
+  var FIELD = /^(INPUT|SELECT|TEXTAREA|METER|PROGRESS|OUTPUT)$/;
+  var FROM_CONTENT = /* @__PURE__ */ new Set([
+    "button",
+    "link",
+    "heading",
+    "option",
+    "menuitem",
+    "menuitemcheckbox",
+    "menuitemradio",
+    "tab",
+    "treeitem",
+    "cell",
+    "columnheader",
+    "rowheader",
+    "gridcell",
+    "switch",
+    "checkbox",
+    "radio",
+    "tooltip",
+    "legend"
+  ]);
+  var BY_TAG = {
+    A: (el2) => el2.hasAttribute("href") ? "link" : "generic",
+    AREA: (el2) => el2.hasAttribute("href") ? "link" : "generic",
+    BUTTON: () => "button",
+    IMG: (el2) => el2.getAttribute("alt") === "" ? "presentation" : "img",
+    SELECT: (el2) => el2.multiple || el2.size > 1 ? "listbox" : "combobox",
+    TEXTAREA: () => "textbox",
+    NAV: () => "navigation",
+    MAIN: () => "main",
+    ASIDE: () => "complementary",
+    FORM: () => "form",
+    SEARCH: () => "search",
+    DIALOG: () => "dialog",
+    UL: () => "list",
+    OL: () => "list",
+    LI: () => "listitem",
+    TABLE: () => "table",
+    TR: () => "row",
+    TD: () => "cell",
+    TH: () => "columnheader",
+    P: () => "paragraph",
+    HR: () => "separator",
+    PROGRESS: () => "progressbar",
+    H1: () => "heading",
+    H2: () => "heading",
+    H3: () => "heading",
+    H4: () => "heading",
+    H5: () => "heading",
+    H6: () => "heading",
+    HEADER: (el2) => el2.closest("article, aside, main, nav, section") ? "generic" : "banner",
+    FOOTER: (el2) => el2.closest("article, aside, main, nav, section") ? "generic" : "contentinfo",
+    DIV: () => "generic",
+    SPAN: () => "generic",
+    INPUT: (el2) => ({
+      button: "button",
+      submit: "button",
+      reset: "button",
+      image: "button",
+      checkbox: "checkbox",
+      radio: "radio",
+      range: "slider",
+      number: "spinbutton",
+      search: "searchbox",
+      email: "textbox",
+      tel: "textbox",
+      text: "textbox",
+      url: "textbox",
+      password: null,
+      hidden: null
+    })[(el2.getAttribute("type") || "text").toLowerCase()] ?? "textbox"
+  };
+  var A11y = {
+    /** The role the browser exposes: what was declared, or what the tag means. */
+    role(el2) {
+      const explicit = (el2.getAttribute("role") || "").trim().split(/\s+/)[0];
+      if (explicit) return explicit.toLowerCase();
+      const fn = BY_TAG[el2.tagName];
+      return fn ? fn(el2) : null;
+    },
+    /**
+     * Is it in the TAB ORDER — reachable by keyboard, not merely focusable by
+     * script. `tabindex="-1"` is a deliberate "focus me from code only", which
+     * is not a defect and must not be reported as one.
+     */
+    focusable(el2, cs) {
+      if (el2.disabled || el2.hasAttribute("inert") || el2.closest("[inert]")) return false;
+      if (cs && (cs.display === "none" || cs.visibility === "hidden")) return false;
+      return typeof el2.tabIndex === "number" && el2.tabIndex >= 0;
+    },
+    /** True when an ancestor (or the element) is hidden from the tree. */
+    hidden(el2) {
+      return !!(el2.closest && el2.closest('[aria-hidden="true"]'));
+    },
+    /**
+     * The accessible name, in the spec's order, stopping at the first source
+     * that yields text. Returns `{ name, from, unsure }` — `unsure` is set
+     * only when a source was ATTEMPTED and could not be read from here.
+     */
+    name(el2) {
+      const lb = (el2.getAttribute("aria-labelledby") || "").trim();
+      let tried = null;
+      if (lb) {
+        const ids = lb.split(/\s+/).filter(Boolean);
+        const seen = ids.map((id) => document.getElementById(id)).filter(Boolean);
+        const s = seen.map((n) => textOf(n)).join(" ").replace(/\s+/g, " ").trim();
+        if (s) return { name: s, from: "aria-labelledby", unsure: null };
+        if (!seen.length) tried = "labelledby";
+      }
+      const al = (el2.getAttribute("aria-label") || "").trim();
+      if (al) return { name: al, from: "aria-label", unsure: null };
+      if (el2.tagName === "IMG" || el2.tagName === "AREA" || el2.tagName === "INPUT" && (el2.getAttribute("type") || "").toLowerCase() === "image") {
+        const alt = el2.getAttribute("alt");
+        if (alt !== null) return { name: alt.trim(), from: "alt", unsure: null };
+        return { name: "", from: null, unsure: null };
+      }
+      if (FIELD.test(el2.tagName)) {
+        const l = labelFor(el2);
+        if (l) return { name: l, from: "label", unsure: null };
+        const ph = (el2.getAttribute("placeholder") || "").trim();
+        if (ph) return { name: ph, from: "placeholder", unsure: null };
+      }
+      if (el2.tagName === "FIELDSET") {
+        const lg = el2.querySelector("legend");
+        if (lg) return { name: textOf(lg), from: "legend", unsure: null };
+      }
+      if (el2.tagName === "TABLE") {
+        const cap = el2.querySelector("caption");
+        if (cap) return { name: textOf(cap), from: "caption", unsure: null };
+      }
+      const role2 = A11y.role(el2);
+      if (role2 && FROM_CONTENT.has(role2)) {
+        const s = textOf(el2);
+        if (s) return { name: s, from: "content", unsure: null };
+      }
+      const ti = (el2.getAttribute("title") || "").trim();
+      if (ti) return { name: ti, from: "title", unsure: null };
+      return { name: "", from: null, unsure: tried };
+    },
+    /** Everything the badge and the rules need, computed once per element. */
+    of(el2, cs) {
+      const n = A11y.name(el2);
+      return {
+        name: n.name,
+        from: n.from,
+        unsure: n.unsure,
+        role: A11y.role(el2),
+        focusable: A11y.focusable(el2, cs)
+      };
+    },
+    why: {
+      labelledby: "aria-labelledby names ids that are not in this document — either they are wrong, or they sit inside a shadow root this pass cannot read"
+    }
+  };
+
+  // src/tools/a11y/badge.js
+  function badge({ el: el2, cs }) {
+    const a = A11y.of(el2, cs);
+    const rows = [];
+    if (Tools.setting(this, "name")) {
+      rows.push(a.name ? `<span class="debug-overlay-a11y-k">name</span> ${esc(a.name)}<span class="debug-overlay-a11y-src">${a.from || ""}</span>` : `<span class="debug-overlay-a11y-k">name</span><span class="debug-overlay-a11y-none">${a.unsure ? "not determined" : "none"}</span>`);
+    }
+    if (Tools.setting(this, "role")) {
+      rows.push(`<span class="debug-overlay-a11y-k">role</span> ${esc(a.role || "—")}`);
+    }
+    if (Tools.setting(this, "focus")) {
+      rows.push(`<span class="debug-overlay-a11y-k">tab</span><span class="${a.focusable ? "debug-overlay-a11y-yes" : "debug-overlay-a11y-no"}">${a.focusable ? "reachable" : "not in tab order"}</span>`);
+    }
+    return rows.length ? rows.join("<br>") : null;
+  }
+  function compact({ el: el2, cs }) {
+    const a = A11y.of(el2, cs);
+    if (!a.focusable || a.name || a.unsure) return null;
+    return `<span class="debug-overlay-a11y-no">⌨ no name</span>`;
+  }
+  function legend() {
+    return [{
+      mark: "⌨ no name",
+      means: "red: reachable by Tab, and a screen reader has nothing to announce"
+    }];
+  }
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  }
+
+  // src/tools/a11y/report.js
+  function report({ el: el2, cs }) {
+    const a = A11y.of(el2, cs);
+    const name = a.name ? `"${a.name}"` : a.unsure ? "(not determined)" : "(none)";
+    return [`a11y: name ${name}${a.from ? ` via ${a.from}` : ""} · role ${a.role || "—"} · ${a.focusable ? "in the tab order" : "not in the tab order"}`];
+  }
+
+  // src/tools/a11y/rule.js
+  var rules = {
+    "a11y-name": {
+      help: "Anything reachable by Tab must have an accessible name — from its own text, an aria-label, a <label>, or alt text.",
+      why: 'A screen reader announces the name and nothing else. Without one it says "button", and the only way to find out which button is to press it and see what happens.',
+      docs: "https://www.w3.org/WAI/WCAG22/Understanding/name-role-value"
+    },
+    "a11y-hidden-focus": {
+      help: 'A focusable element must not sit inside aria-hidden="true".',
+      why: "It stays in the tab order while being absent from the accessibility tree, so keyboard focus lands on something the screen reader cannot describe — the cursor vanishes and nothing says where it went.",
+      docs: "https://www.w3.org/WAI/WCAG22/Understanding/name-role-value"
+    },
+    "a11y-img-alt": {
+      help: 'Every <img> needs an alt attribute. Decorative images take alt="".',
+      why: 'With no attribute at all a screen reader falls back to the file name, so the page reads out "IMG_20240817_final_2.png". alt="" is the way to say an image carries nothing.',
+      docs: "https://www.w3.org/WAI/tutorials/images/decision-tree/"
+    }
+  };
+  function audit(i) {
+    const el2 = i.el;
+    const out = [];
+    const a = A11y.of(el2, i.cs);
+    if (el2.tagName === "IMG" && el2.getAttribute("alt") === null) {
+      out.push({
+        el: el2,
+        verdict: "fail",
+        severity: "warn",
+        rule: "a11y-img-alt",
+        message: 'no alt attribute — decorative images need alt=""',
+        // one line for the whole page: a gallery of 200 images missing alt is
+        // one thing the author has to decide, not 200
+        key: "a11y-img-alt"
+      });
+    }
+    if (!a.focusable) return out;
+    if (A11y.hidden(el2)) {
+      out.push({
+        el: el2,
+        verdict: "fail",
+        severity: "error",
+        rule: "a11y-hidden-focus",
+        message: `${el2.tagName.toLowerCase()} is in the tab order inside aria-hidden="true"`,
+        key: "a11y-hidden-focus"
+      });
+    }
+    if (a.unsure) {
+      out.push({
+        el: el2,
+        verdict: "review",
+        severity: "info",
+        rule: "a11y-name",
+        message: `name not determined — ${A11y.why[a.unsure]}`,
+        // grouped by REASON, page-wide — the same discipline contrast uses for
+        // its unmeasurable colours
+        key: `a11y-name|review|${a.unsure}`
+      });
+    } else if (!a.name) {
+      out.push({
+        el: el2,
+        verdict: "fail",
+        severity: "error",
+        rule: "a11y-name",
+        message: `${a.role || el2.tagName.toLowerCase()} with no accessible name`,
+        // by ROLE, not by element: a toolbar of 40 unnamed icon buttons is one
+        // problem with one fix
+        key: `a11y-name|${a.role || el2.tagName.toLowerCase()}`
+      });
+    }
+    return out;
+  }
+
+  // src/tools/a11y/draw.js
+  function draw({ marks, found }) {
+    marks(found);
+  }
+
+  // src/tools/a11y/index.js
+  defineTool({
+    css: `
+  .debug-overlay-badge .debug-overlay-a11y-k {
+    color: var(--debug-overlay-muted); margin-right: 6px;
+  }
+  .debug-overlay-badge .debug-overlay-a11y-src {
+    color: var(--debug-overlay-muted); margin-left: 6px; font-size: 10px;
+  }
+  .debug-overlay-badge .debug-overlay-a11y-none,
+  .debug-overlay-badge .debug-overlay-a11y-no { color: #ff8a65; font-weight: 700; }
+  .debug-overlay-badge .debug-overlay-a11y-yes { color: var(--debug-overlay-accent); }
+  `,
+    id: "a11y",
+    // lucide 'accessibility' (ISC)
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="4" r="1"/><path d="m18 19 1-7-6 1"/><path d="m5 8 3-3 5.5 3-2.36 3.5"/><path d="M4.24 14.5a5 5 0 0 0 6.88 6"/><path d="M13.76 17.5a5 5 0 0 0-6.88-6"/></svg>',
+    // what this tool EXAMINES — it owns its subject alone, so it says so here
+    subject: "a11y",
+    title: "Accessibility — the name, role and keyboard reach of what you point at",
+    /* NOT startsOn. The other read-outs describe what a page LOOKS like, which
+       is what someone reaches for the overlay to see. This answers a question
+       you have to think to ask, and its badge rows would otherwise crowd every
+       hover for people who never asked it. The RULES still run in every sweep
+       regardless — arming decides what is drawn, never what is checked. */
+    badge,
+    legend,
+    compact,
+    report,
+    rules,
+    audit,
+    draw,
+    options() {
+      return [
+        {
+          key: "name",
+          label: "Accessible name",
+          def: true,
+          type: "toggle",
+          affects: "inspect"
+        },
+        {
+          key: "role",
+          label: "Role",
+          def: true,
+          type: "toggle",
+          affects: "inspect"
+        },
+        {
+          key: "focus",
+          label: "Keyboard reach",
+          def: true,
+          type: "toggle",
+          affects: "inspect"
+        }
+      ];
+    }
+  });
+
   // src/tools/colour/contrast/service.js
   var Colour = defineSubject({
     id: "colour",
@@ -1046,19 +1404,19 @@
   });
 
   // src/tools/colour/contrast/badge.js
-  function badge(i) {
+  function badge2(i) {
     const c = Colour.measure(i);
     if (!c) return null;
     if (c.unknown) return `<span class="debug-overlay-unk">contrast ?</span>`;
     const cls = c.pass ? "debug-overlay-ok" : "debug-overlay-bad";
     return `<span class="${cls}">${c.ratio.toFixed(2)}:1 ${c.level}${c.pass ? "✓" : "✗"}</span>`;
   }
-  function compact(i) {
+  function compact2(i) {
     const c = Colour.measure(i);
     if (!c || c.unknown || c.pass) return null;
     return `<span class="debug-overlay-bad">${c.ratio.toFixed(1)}:1 ✗</span>`;
   }
-  function legend() {
+  function legend2() {
     return [
       { mark: "ratio ✓", means: "green: meets the WCAG level set above" },
       { mark: "ratio ✗", means: "red: below it" },
@@ -1067,7 +1425,7 @@
   }
 
   // src/tools/colour/contrast/report.js
-  function report(i) {
+  function report2(i) {
     const c = Colour.measure(i);
     if (!c) return [];
     if (c.unknown) return [`  contrast: not measured — ${Colour.why[c.unknown]}`];
@@ -1075,14 +1433,14 @@
   }
 
   // src/tools/colour/contrast/rule.js
-  var rules = {
+  var rules2 = {
     "contrast-aa": {
       help: "Body text needs 4.5:1 against its background, or 7:1 at AAA; 3:1 once it is 24px or 18.66px bold, or 4.5:1 at AAA. Which level this checks is in the panel under ⚙.",
       why: "Below that, text stops being readable in bright light, on a bad screen, or to anyone with reduced contrast sensitivity — which is most people eventually.",
       docs: "https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum"
     }
   };
-  function audit(i) {
+  function audit2(i) {
     const c = Colour.measure(i);
     if (!c) return [];
     if (c.unknown) return [{
@@ -1115,7 +1473,7 @@
   }
 
   // src/tools/colour/contrast/draw.js
-  function draw({ marks, found }) {
+  function draw2({ marks, found }) {
     marks(found);
   }
 
@@ -1136,39 +1494,39 @@
     title: "Contrast — WCAG text contrast ratio",
     uses: [Colour],
     // its settings are Colour's, and belong on its own menu
-    badge,
-    legend,
-    compact,
-    report,
-    rules,
-    audit,
-    draw
+    badge: badge2,
+    legend: legend2,
+    compact: compact2,
+    report: report2,
+    rules: rules2,
+    audit: audit2,
+    draw: draw2
   });
 
   // src/tools/dupid/badge.js
-  function badge2({ el: el2 }) {
+  function badge3({ el: el2 }) {
     if (!el2.id) return null;
     const n = document.querySelectorAll(
       `[id="${CSS.escape ? CSS.escape(el2.id) : el2.id}"]`
     ).length;
     return n > 1 ? `<span class="debug-overlay-dup">⌗ id ×${n}</span>` : null;
   }
-  function compact2(i) {
+  function compact3(i) {
     return this.badge(i);
   }
-  function legend2() {
+  function legend3() {
     return [{ mark: "⌗ id ×2", means: "orange: this id is used more than once in the document" }];
   }
 
   // src/tools/dupid/report.js
-  function report2({ el: el2 }) {
+  function report3({ el: el2 }) {
     if (!el2.id) return [];
     const n = document.querySelectorAll(`[id="${CSS.escape ? CSS.escape(el2.id) : el2.id}"]`).length;
     return n > 1 ? [`  ⧉ id "${el2.id}" is used ${n} times on this page`] : [];
   }
 
   // src/tools/dupid/rule.js
-  var rules2 = {
+  var rules3 = {
     "dup-id": {
       help: "An id must be unique in a document.",
       why: "getElementById, label[for], aria-labelledby and every #anchor resolve to the first match and silently ignore the rest, so the bug shows up as a control that does nothing rather than an error.",
@@ -1201,7 +1559,7 @@
   }
 
   // src/tools/dupid/draw.js
-  function draw2({ marks, found }) {
+  function draw3({ marks, found }) {
     marks(found);
   }
 
@@ -1222,17 +1580,17 @@
     // as a column, and a column is not a column if some rows are blank.
     subject: "ids",
     title: "Duplicate ids — the same id used more than once",
-    badge: badge2,
-    legend: legend2,
-    compact: compact2,
-    report: report2,
-    rules: rules2,
+    badge: badge3,
+    legend: legend3,
+    compact: compact3,
+    report: report3,
+    rules: rules3,
     auditPage,
-    draw: draw2
+    draw: draw3
   });
 
   // src/tools/geometry/measure/badge.js
-  function badge3(i) {
+  function badge4(i) {
     const { el: el2, r, cs } = i;
     const dec = Tools.annotator(i);
     const on = (k) => Tools.setting(this, k);
@@ -1258,7 +1616,7 @@
     if (on("tag")) bits.push(`<span class="debug-overlay-tag">${el2.tagName.toLowerCase()}${el2.id ? "#" + U.esc(el2.id) : ""}</span>`);
     return bits.join(" · ");
   }
-  function compact3(i) {
+  function compact4(i) {
     const { r, cs } = i;
     const dec = Tools.annotator(i);
     const on = (k) => Tools.setting(this, k);
@@ -1285,7 +1643,7 @@
       { key: "tag", label: "Tag & id", def: true, type: "toggle", affects: "inspect" }
     ];
   }
-  function legend3() {
+  function legend4() {
     return [
       { mark: "92×24", means: "width × height, rounded" },
       { mark: "r 13", means: "border-radius" },
@@ -1296,7 +1654,7 @@
   }
 
   // src/tools/geometry/measure/report.js
-  function report3({ r, cs }) {
+  function report4({ r, cs }) {
     const pad = U.fourPlain(cs, "padding"), mar = U.fourPlain(cs, "margin");
     return [
       `  box: ${Math.round(r.width)}×${Math.round(r.height)} @ (${Math.round(r.left)}, ${Math.round(r.top)})`,
@@ -1316,7 +1674,7 @@
   }
 
   // src/tools/geometry/measure/draw.js
-  function draw3({ layer: layer2, Place: Place2 }) {
+  function draw4({ layer: layer2, Place: Place2 }) {
     Measure.resetLanes();
     for (const [A, B] of this._pairs()) {
       Measure.dimension(
@@ -1373,13 +1731,13 @@
      * which two of them were meant.
      */
     _pairs: () => Tools.groups().filter((g) => g.length === 2),
-    badge: badge3,
-    legend: legend3,
-    compact: compact3,
+    badge: badge4,
+    legend: legend4,
+    compact: compact4,
     options,
-    report: report3,
+    report: report4,
     reportTail,
-    draw: draw3
+    draw: draw4
   });
 
   // src/tools/grid/service.js
@@ -1506,17 +1864,17 @@
   });
 
   // src/tools/grid/badge.js
-  function badge4(i) {
+  function badge5(i) {
     const bad = Scale.scan(i, true);
     if (!bad.length) return null;
     const vals = [...new Set(bad.map(([, v]) => v))];
     return `<span class="debug-overlay-warn">⚠ ${vals.join(" ")} off ${Scale.step()}px</span>`;
   }
-  function compact4(i) {
+  function compact5(i) {
     const bad = Scale.scan(i, true);
     return bad.length ? `<span class="debug-overlay-warn">⚠${bad.length}</span>` : null;
   }
-  function legend4() {
+  function legend5() {
     return [
       { mark: "7⚠", means: "amber: this number is off the spacing step" },
       { mark: "7⚠→8", means: "the nearest on-step value - the Recommendation facet" }
@@ -1531,19 +1889,19 @@
   }
 
   // src/tools/grid/report.js
-  function report4(i) {
+  function report5(i) {
     const bad = Scale.scan(i, true);
     return bad.length ? [`  ⚠ off ${Scale.step()}px grid: ${bad.map(([n, v]) => `${n}:${v}`).join(", ")}`] : [];
   }
 
   // src/tools/grid/rule.js
-  var rules3 = {
+  var rules4 = {
     "grid-off": {
       help: "Spacing should be a multiple of the grid step — change which step this checks in the panel under ⚙.",
       why: "One-off values are how a spacing scale erodes: each looks harmless alone, and together they are why nothing lines up."
     }
   };
-  function audit2(i) {
+  function audit3(i) {
     if (!(i.el instanceof HTMLElement)) return [];
     return Scale.scan(i, Scale.boxes()).map(([n, v]) => ({
       el: i.el,
@@ -1561,7 +1919,7 @@
   }
 
   // src/tools/grid/draw.js
-  function draw4({ marks, found }) {
+  function draw5({ marks, found }) {
     marks(found);
   }
 
@@ -1582,14 +1940,14 @@
     // the ⚠ on a badge is what makes the read-out useful
     uses: [Scale],
     // its settings are Scale's, and belong on its own menu
-    badge: badge4,
-    legend: legend4,
-    compact: compact4,
+    badge: badge5,
+    legend: legend5,
+    compact: compact5,
     annotate,
-    report: report4,
-    rules: rules3,
-    audit: audit2,
-    draw: draw4
+    report: report5,
+    rules: rules4,
+    audit: audit3,
+    draw: draw5
     // no options of its own any more: 'Suggest nearest step' was the
     // RECOMMENDATION facet wearing this tool's name, and it moved to the
     // badge face (was: 'grid' there adopts what anyone saved). The step
@@ -1875,7 +2233,7 @@
   }
 
   // src/tools/perf/badge.js
-  function badge5(i) {
+  function badge6(i) {
     if (!Monitor.running) return null;
     const s = Targets.stats(i.el);
     if (s) {
@@ -1890,7 +2248,7 @@
     const n = Monitor.log.length;
     return `<span class="debug-overlay-sp">⚡ ${fps}fps</span>` + (n ? ` <span class="debug-overlay-warn">${n}× worst ${fmt(Monitor.worst())}</span>` : "");
   }
-  function compact5(i) {
+  function compact6(i) {
     if (!Monitor.running) return null;
     const s = Targets.stats(i.el);
     const churn = Number(Tools.setting(this, "churn")) || CONFIG.PERF.CHURN;
@@ -1898,7 +2256,7 @@
     if (!s && Monitor.log.length) return `<span class="debug-overlay-warn">⚡${fmt(Monitor.worst())}</span>`;
     return null;
   }
-  function legend5() {
+  function legend6() {
     return [
       { mark: "⚡ 58fps", means: "the PAGE, not this element: frames per second while monitoring" },
       { mark: "⚡1.2s", means: "amber: the longest main-thread freeze since arming" },
@@ -1964,7 +2322,7 @@
   }
 
   // src/tools/perf/rule.js
-  function audit3(i) {
+  function audit4(i) {
     if (!Monitor.running) return [];
     const s = Targets.stats(i.el);
     if (!s) return [];
@@ -1992,7 +2350,7 @@
     }
     return out;
   }
-  var rules4 = {
+  var rules5 = {
     "perf-churn": {
       help: "DOM mutations per second under a watched element, against the churn threshold in ⚙. Only elements you pinned or selected are watched, and only while ⚡ is armed.",
       why: "A component mutating the DOM hundreds of times a second is re-rendering in a loop — work the user cannot see, spent heating the main thread. It is the most common way one component eats a page."
@@ -2004,7 +2362,7 @@
   };
 
   // src/tools/perf/draw.js
-  function draw5({ marks, found }) {
+  function draw6({ marks, found }) {
     marks(found);
   }
 
@@ -2023,14 +2381,14 @@
     watch,
     unwatch,
     timeline,
-    badge: badge5,
-    compact: compact5,
-    legend: legend5,
+    badge: badge6,
+    compact: compact6,
+    legend: legend6,
     listRows,
     reportTail: reportTail2,
-    audit: audit3,
-    rules: rules4,
-    draw: draw5,
+    audit: audit4,
+    rules: rules5,
+    draw: draw6,
     options() {
       return [
         {
@@ -3509,11 +3867,11 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       issues: !!Tools.setting(BadgeFace, "issues"),
       suggest: !!Tools.setting(BadgeFace, "suggest")
     }),
-    build(info, compact6) {
+    build(info, compact7) {
       info.facets = Badges.facets();
       const parts = [];
       for (const t of Tools.active()) {
-        const fn = compact6 ? t.compact || null : t.badge || null;
+        const fn = compact7 ? t.compact || null : t.badge || null;
         if (!fn) continue;
         const html = fn.call(t, info);
         if (html) parts.push(html);
@@ -4139,7 +4497,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
 
   // src/core/protocol.js
   var PROTOCOL_VERSION = 1;
-  var FIELD = "debugOverlay";
+  var FIELD2 = "debugOverlay";
   var LEGACY_FIELD = "dbgov";
   var STATE = {
     on: null,
@@ -4237,7 +4595,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     if (!(name in table)) throw new Error(`unknown ${kind}: ${name}`);
     const pack = table[name];
     return {
-      [FIELD]: PROTOCOL_VERSION,
+      [FIELD2]: PROTOCOL_VERSION,
       kind,
       name,
       args: pack ? pack(...args) : args
@@ -4255,14 +4613,14 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
      * and any other extension's noise pass through untouched.
      */
     read(msg) {
-      if (!msg || msg[FIELD] !== PROTOCOL_VERSION) return null;
+      if (!msg || msg[FIELD2] !== PROTOCOL_VERSION) return null;
       const table = msg.kind === "state" ? STATE : msg.kind === "cmd" ? CMD : null;
       if (!table || !(msg.name in table) || !Array.isArray(msg.args)) return null;
       return { kind: msg.kind, name: msg.name, args: msg.args };
     },
     /** A different-version message of ours — worth telling the user
      *  "refresh this page" instead of silently ignoring. */
-    stale: (msg) => !!msg && (LEGACY_FIELD in msg || typeof msg[FIELD] === "number" && msg[FIELD] !== PROTOCOL_VERSION)
+    stale: (msg) => !!msg && (LEGACY_FIELD in msg || typeof msg[FIELD2] === "number" && msg[FIELD2] !== PROTOCOL_VERSION)
   };
 
   // src/app/updates.js
@@ -4641,10 +4999,10 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         out.push({ heading: "Keys", detail: "the parts of this that are not buttons" });
         out.push(...keys);
       }
-      const legend6 = only ? [] : Settings.legendRows();
-      if (legend6.length) {
+      const legend7 = only ? [] : Settings.legendRows();
+      if (legend7.length) {
         out.push({ heading: "Legend", detail: "what the marks and short names mean" });
-        out.push(...legend6);
+        out.push(...legend7);
       }
       return out;
     },

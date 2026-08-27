@@ -1959,7 +1959,7 @@ ok('reviews sort below anything measured',
 // A zero that means "nothing was checked" and a zero that means "nothing is
 // wrong" must not print the same line, so the scope travels with the count.
 ok('the report says what was checked',
-  /· whole page · 4 rules · \d+ elements/.test(swept),
+  /· whole page · \d+ rules · \d+ elements/.test(swept),
   swept.slice(swept.indexOf('## findings')).split('\n')[0]);
 // Arming decides what is DRAWN. With the only rule disarmed the page still
 // has the same problems, and the audit still has to find them.
@@ -2088,7 +2088,10 @@ console.log('\nHONEST ZERO');
   wc.dispatchEvent(new wc.KeyboardEvent('keydown', { ...hot, bubbles: true }));
   barc.querySelector('[data-sweep]').dispatchEvent(new wc.MouseEvent('click', { bubbles: true }));
   const msg = (wc.document.querySelector('#__debug-overlay-list .debug-overlay-empty') || {}).textContent || '';
-  ok('a clean page reports its scope, not a mood', /4 rules over \d+ elements/.test(msg), msg);
+  // \d+, not a fixed number: what is asserted is that the SCOPE travels with
+  // the verdict. Pinning the count made every new tool a test failure, which
+  // trains people to edit the number rather than read the assertion.
+  ok('a clean page reports its scope, not a mood', /\d+ rules over \d+ elements/.test(msg), msg);
   ok('and never claims every rule is happy', !/happy/.test(msg), msg);
   clean.window.close();
 }
@@ -2734,6 +2737,91 @@ console.log('\nREVIEW FIXES');
     b.querySelector('[data-copy]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
     return out || '';
   };
+
+  /* ======================================================================
+     ACCESSIBILITY — verified against Chrome's own tree, then frozen here.
+
+     Every expectation below was checked in real headless Chrome by asking
+     page.accessibility.snapshot() what IT computes for the same element, so
+     these are not what the implementation happens to do — they are what the
+     browser does, recorded. Two of them were FALSE POSITIVES the first time
+     and were only found that way, which is the case for owning an oracle:
+     a false positive in an audit instrument sends someone to fix something
+     that was already right, and nothing on the page looks wrong afterwards
+     to tell them otherwise.
+     ====================================================================== */
+  const a11yPage = `
+    <button id="b-empty"><svg width="14" height="14"><circle cx="7" cy="7" r="6"/></svg></button>
+    <button id="b-label" aria-label="Close the dialog">×</button>
+    <a id="a-home" href="/">Home</a>
+    <img id="img-none" src="x.gif" width="10" height="10">
+    <img id="img-deco" alt="" src="x.gif" width="10" height="10">
+    <div aria-hidden="true"><button id="hid-btn">Hidden but tabbable</button></div>
+    <label for="in-mail">Email address</label><input id="in-mail" type="email">
+    <button id="b-broken" aria-labelledby="does-not-exist">×</button>
+    <button id="b-icontext"><svg width="14" height="14"><title>Save</title></svg></button>`;
+  const ra = swept(boot(a11yPage));
+  const findings = (rule) => (ra.match(new RegExp(`${rule}: [^\n]*`, 'g')) || []);
+
+  ok('an element reachable by Tab with nothing to announce is a failure',
+    /\[error\] a11y-name: button with no accessible name/.test(ra),
+    findings('a11y-name').join(' | ') || 'no a11y-name finding at all');
+  ok('a focusable element inside aria-hidden is named as one',
+    /\[error\] a11y-hidden-focus/.test(ra),
+    'WCAG 4.1.2 — in the tab order, absent from the tree; this overlay shipped it once');
+  ok('an img with no alt attribute is flagged, and alt="" is not',
+    /\[warn\] a11y-img-alt/.test(ra) && findings('a11y-img-alt').length === 1,
+    'alt="" is the correct way to mark decoration and must not be punished');
+
+  /* THE TWO THAT WERE WRONG. Both produced a finding on an element Chrome
+     names perfectly well, and both are the shape that costs an auditor most:
+     a defect that is not there. */
+  ok('a dead aria-labelledby falls through to content, as Chrome does',
+    !new RegExp('a11y-name[^\n]*not determined').test(ra),
+    'aria-labelledby="typo" on a button reading × is named "×" — the ' +
+    'algorithm continues past an unresolved reference, it does not stop');
+  /* THE NAME ITSELF, not whether a finding appeared. Two earlier versions of
+     this assertion were blind and both looked fine.
+
+     The first counted a11y-name findings on the page above — but findings
+     collapse by key, so the unnamed button and the svg-titled one shared one
+     line whether or not the svg was ever read. The second used a fixture
+     where the svg held only a title, which the generic text recursion picks
+     up anyway; deleting the branch under test changed nothing. Chrome
+     settled it: `<svg><title>Save</title><text>XYZ</text></svg>` is named
+     "Save", not "Save XYZ" — the title WINS, and that is the only case where
+     the branch does anything at all. So the fixture holds both, and the
+     assertion reads the name out of the report. */
+  const named = (html, id) => {
+    // ARMED, because report() is collected from ACTIVE tools only — and this
+    // tool deliberately does not start on. Its RULES still run in every
+    // sweep regardless, which is why the findings above needed no arming.
+    const w = boot(html, { __debug_overlay_tools: '["a11y"]' });
+    const b = w.document.getElementById('__debug-overlay-bar');
+    let out = null;
+    Object.defineProperty(w.navigator, 'clipboard',
+      { value: { writeText: async (x) => { out = x; } }, configurable: true });
+    w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+    w.document.elementFromPoint = () => w.document.getElementById(id);
+    w.document.getElementById(id).dispatchEvent(
+      new w.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
+    b.querySelector('[data-copy]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    return out || '';
+  };
+  const rsvg = named(
+    '<button id="only"><svg width="40" height="14"><title>Save</title>' +
+    '<text x="0" y="10">XYZ</text></svg></button>', 'only');
+  ok('an svg <title> names its button, and outranks the svg\'s other content',
+    /a11y: name "Save"/.test(rsvg) && !/XYZ/.test(rsvg),
+    (/a11y: [^\n]*/.exec(rsvg) || ['no a11y report line'])[0]);
+
+  /* …and the review verdict still EXISTS for the case that earns it: nothing
+     else named the element, so we genuinely cannot tell whether the label is
+     missing or merely somewhere this pass cannot look. */
+  const rs = swept(boot('<button id="lone" aria-labelledby="elsewhere"></button>'));
+  ok('but an element named by nothing at all is a review, not a verdict',
+    /\[review\] a11y-name: name not determined/.test(rs),
+    rs.slice(rs.indexOf('## findings')) || 'no review row');
 
   // opacity: two visually identical renderings must not get opposite verdicts
   const wo = boot(`<div style="background:rgb(255,255,255)">

@@ -150,7 +150,19 @@ if (!CATS.length) {
 /** Every option declares what it CHANGES; nothing else can tell you. */
 function optionProblems(src) {
   const out = [];
-  const keys = (src.match(/\bkey: '/g) || []).length;
+  /* An OPTION is `key:` immediately followed by `label:` — that is the shape
+     of the thing, and it is what separates it from a FINDING's key, which
+     names what counts as the same problem and has no label at all. Counting
+     every `key: '` in the tool's source counted those too, so a rule whose
+     finding keys happened to be written with quotes instead of backticks was
+     reported as having options it does not have. The existing tools escaped
+     it only because their keys are template literals — an accident, not a
+     rule, and the next tool walked straight into it.
+
+     Still a quoted literal, still adjacent: the point of this check is that
+     options are written out one by one rather than built by a factory, and a
+     helper would satisfy it once for seven. */
+  const keys = (src.match(/\bkey: '[^']*',\s*label:/g) || []).length;
   const affects = [...src.matchAll(/\baffects: '([a-z]+)'/g)].map((m) => m[1]);
   if (keys !== affects.length)
     out.push(`${keys} option(s) but ${affects.length} affects: — each option declares one`);
@@ -177,7 +189,7 @@ for (const t of tools) {
      after that map was written arrived blank and nothing failed. Declared by
      the tool now, and required, which is the only version of this that a new
      tool cannot silently miss. */
-  if (!/\bfamily: '[a-z]+'/.test(t.s) && !/\bsubject: '[a-z]+'/.test(t.s))
+  if (!/\bfamily: '[a-z0-9-]+'/.test(t.s) && !/\bsubject: '[a-z0-9-]+'/.test(t.s))
     bad.push('no family and no subject — nothing says what it examines, and ' +
              'the side panel prints that beside every tool');
   /* An option says what it CHANGES. A role is derived from hooks and cannot go
