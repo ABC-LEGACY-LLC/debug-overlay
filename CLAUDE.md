@@ -530,8 +530,27 @@ them. And `Sweep.group` collapses findings by `key` before anyone sees them:
 15 000 elements can yield 5 000 raw findings that are *one* problem repeated,
 and a list nobody can read is a list nobody uses. Measured: 5 000 → 1 line.
 
-`getComputedStyle` is ~77% of the pass, so before optimising anything else,
-check whether you are adding calls to it.
+**The expensive thing is reading PROPERTIES, not calling
+`getComputedStyle`.** This file used to say the call was ~77% of the pass;
+a CPU profile of a real 5 000-element sweep in Chrome at 4× throttle put
+`getComputedStyle` at **4.9%** of self time. The call hands back a live
+object cheaply — every property read off it is what forces a style
+resolution, and roughly half the pass is rule code doing exactly that:
+
+    14.1%  fourPlain   (8 reads per element: padding + margin, ×4 sides)
+     8.5%  measure     (contrast)
+     7.0%  bg          (contrast)
+     5.1%  opacityOf
+     5.1%  ownText
+     4.9%  getComputedStyle
+
+The old note sent people to the wrong place — avoid adding calls (cheap),
+while freely adding reads (not). Count the reads. And note `fourPlain` runs
+for every element on every sweep because grid's rule does, armed or not.
+
+There is no single hot spot: at 14% of the pass, deleting `fourPlain`
+outright would cap the whole sweep's speedup at 1.16×. Optimise the shape,
+not one function.
 
 ## The stylesheet (test.js enforces this)
 A CSS parser raises nothing when it gives up. It drops the broken rule and
