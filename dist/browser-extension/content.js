@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.169 — extension gate; same bundle as the userscript */
+/* Debug Overlay v3.8.172 — extension gate; same bundle as the userscript */
 (function () {
   'use strict';
 /* NOT a module and NOT bundled: build.js injects this text at the very top
@@ -41,7 +41,7 @@
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.169",
+    VERSION: "3.8.172",
     // Substituted like VERSION: where the update checker asks, and what the
     // userscript's one-click update opens. One source (userscript.json), no
     // second copy to drift.
@@ -4156,12 +4156,21 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       const perEl = Tools.withHook("audit");
       const perPage = Tools.withHook("auditPage");
       const all = [.../* @__PURE__ */ new Set([...perEl, ...perPage])];
-      const result = { findings: [], rules: all.length, elements: 0, byTool: {} };
+      const result = {
+        findings: [],
+        rules: all.length,
+        elements: 0,
+        byTool: {},
+        skipped: { display: 0, visibility: 0, opacity: 0 },
+        shadow: 0,
+        frames: 0
+      };
       if (!all.length || !document.body) return result;
       for (const t of all) result.byTool[t.id] = [];
       const seen = perPage.length ? [] : null;
       const els = document.body.querySelectorAll("*");
       let since = performance.now();
+      let hiddenRoot = null, hiddenWhy = "display";
       const step = (idx) => {
         for (; idx < els.length; idx++) {
           if ((idx & 255) === 255 && performance.now() - since > CONFIG.SWEEP_SLICE) {
@@ -4172,9 +4181,30 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
             }, 0));
           }
           const el2 = els[idx];
+          if (hiddenRoot && !hiddenRoot.contains(el2)) hiddenRoot = null;
+          if (hiddenRoot) {
+            result.skipped[hiddenWhy]++;
+            continue;
+          }
           const cs = getComputedStyle(el2);
-          if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") continue;
+          if (cs.display === "none") {
+            result.skipped.display++;
+            hiddenRoot = el2;
+            hiddenWhy = "display";
+            continue;
+          }
+          if (cs.visibility === "hidden") {
+            result.skipped.visibility++;
+            continue;
+          }
+          if (cs.opacity === "0") {
+            result.skipped.opacity++;
+            hiddenRoot = el2;
+            hiddenWhy = "opacity";
+            continue;
+          }
           result.elements++;
+          if (el2.shadowRoot) result.shadow++;
           const i = U.info(el2, cs);
           if (seen) seen.push(i);
           for (const f of Sweep.collect(perEl, "audit", i)) {
@@ -4185,6 +4215,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         return finish();
       };
       const finish = () => {
+        result.frames = document.querySelectorAll("iframe, frame").length;
         for (const f of Sweep.collect(perPage, "auditPage", seen || [])) {
           result.findings.push(f);
           result.byTool[f.tool].push(f);
@@ -4192,6 +4223,36 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         return result;
       };
       return step(0);
+    },
+    /**
+     * …AND WHAT IT DID NOT COVER, which is the half that was missing.
+     *
+     * A count of what was checked reads as the whole page. It is the whole
+     * page minus everything gated out before a rule saw it, minus every
+     * subtree behind a boundary this pass cannot cross. Those are different
+     * kinds of absence and both change what a clean result means: hidden
+     * elements may simply be a closed menu, while an iframe is a whole
+     * document nobody looked at.
+     *
+     * Silent when there is nothing to say — a page with no frames, no shadow
+     * roots and nothing hidden gets no clause, because a scope note that
+     * always prints is furniture and stops being read.
+     */
+    unchecked(s) {
+      const parts = [];
+      const k = s.skipped || {};
+      const hidden = (k.display || 0) + (k.visibility || 0) + (k.opacity || 0);
+      if (hidden) {
+        const why = [];
+        if (k.display) why.push(`${k.display} display:none`);
+        if (k.visibility) why.push(`${k.visibility} hidden`);
+        if (k.opacity) why.push(`${k.opacity} opacity:0`);
+        parts.push(`${hidden} not rendered (${why.join(", ")})`);
+      }
+      if (s.frames) parts.push(`${s.frames} frame${s.frames === 1 ? "" : "s"} not entered`);
+      if (s.shadow) parts.push(`at least ${s.shadow} shadow root${s.shadow === 1 ? "" : "s"} not entered`);
+      return parts.length ? `
+   not checked: ${parts.join(" · ")}` : "";
     },
     /**
      * Collapse repeats, then rank worst-first. `key` says which findings are
@@ -4284,7 +4345,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       const s = State.sweep;
       if (!s) return " · pinned elements only";
       return ` · whole page · ${s.rules} rule${s.rules === 1 ? "" : "s"} · ${s.elements} elements` + // the page could not show them all; this text can
-      (Object.values(s.byTool).some((f) => f.length > CONFIG.MARK_LIMIT) ? ` · marks from the first ${CONFIG.MARK_LIMIT} findings per rule` : "");
+      (Object.values(s.byTool).some((f) => f.length > CONFIG.MARK_LIMIT) ? ` · marks from the first ${CONFIG.MARK_LIMIT} findings per rule` : "") + Sweep.unchecked(s);
     },
     /**
      * Put text on the clipboard. Separate from copy() because it is not only
@@ -5325,7 +5386,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       const s = State.sweep;
       if (!s) return "Press ⌕ to audit the page.";
       if (!s.rules) return "No rules are installed, so nothing was checked.";
-      return `No findings — ${s.rules} rule${s.rules === 1 ? "" : "s"} over ${s.elements} elements.`;
+      return `No findings — ${s.rules} rule${s.rules === 1 ? "" : "s"} over ${s.elements} elements.` + Sweep.unchecked(s).replace("\n   ", " ");
     },
     toggleTool(id) {
       if (!Tools.byId(id)) return;

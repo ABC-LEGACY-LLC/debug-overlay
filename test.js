@@ -2739,6 +2739,68 @@ console.log('\nREVIEW FIXES');
   };
 
   /* ======================================================================
+     WHAT WAS NOT CHECKED
+
+     The strongest claim this tool makes is the negative one, and it used to
+     be made without saying over what. "5 rules · 4 000 elements" reads as
+     the whole page; it is the whole page MINUS everything gated out before a
+     rule saw it, minus every subtree behind a boundary this pass cannot
+     cross. A reader could not tell a clean page from a page most of which
+     was never looked at.
+     ====================================================================== */
+  /* Writing that count is what exposed the gate's hole. getComputedStyle on
+     a DESCENDANT of display:none returns the descendant's own display —
+     `inline` for a span — not `none`. So a closed menu skipped one div and
+     then audited everything inside it: contrast measured text nobody can
+     see, and produced findings that were real-looking and unreachable. The
+     count is the assertion, because it is 2 only if the subtree was gated
+     and 1 if just its root was. */
+  const rhid = swept(boot(
+    '<p style="color:#bbb">faint</p>' +
+    '<div style="display:none"><p style="color:#ddd">cannot be seen</p></div>'));
+  ok('a hidden SUBTREE is skipped, not just the element that hid it',
+    /not checked: 2 not rendered \(2 display:none\)/.test(rhid),
+    (/not checked:[^\n]*/.exec(rhid) || ['no scope line at all'])[0]);
+  ok('and nothing inside it is reported — invisible text is not a contrast bug',
+    (rhid.match(/\[error\] contrast-aa/g) || []).length === 1,
+    (rhid.match(/\[error\] contrast-aa[^\n]*/g) || []).join(' | '));
+
+  /* opacity:0 is not inherited either, and hides its subtree just as
+     completely — usually a transition mid-flight, which is why it is counted
+     under its own name: a large number there means "sweep again once it
+     settles", and folding it in with display:none would lose that. */
+  const ropa = swept(boot(
+    '<p style="color:#bbb">faint</p><div style="opacity:0"><em>y</em></div>'));
+  ok('opacity:0 hides a subtree too, and is named separately',
+    /2 opacity:0/.test(ropa),
+    (/not checked:[^\n]*/.exec(ropa) || ['none'])[0]);
+
+  /* A frame is a whole document nobody entered. Naming it is the difference
+     between "this page is clean" and "this page is clean apart from the part
+     I could not open". */
+  const rfr = swept(boot('<p style="color:#bbb">faint</p><iframe srcdoc="<p>x</p>"></iframe>'));
+  ok('an iframe is named as not entered',
+    /1 frame not entered/.test(rfr),
+    (/not checked:[^\n]*/.exec(rfr) || ['none'])[0]);
+
+  /* …and "at least", because a CLOSED shadow root cannot be counted at all.
+     Stating a floor rather than a total is what keeps this a scope and not a
+     claim. */
+  const wsh = boot('<p style="color:#bbb">faint</p><div id="host"></div>');
+  wsh.document.getElementById('host').attachShadow({ mode: 'open' })
+    .appendChild(wsh.document.createElement('button'));
+  ok('an open shadow root is named, and only as a floor',
+    /at least 1 shadow root not entered/.test(swept(wsh)),
+    'a closed root cannot be counted, so a total would be a lie');
+
+  /* Silent when there is nothing to say. A scope note that always prints is
+     furniture, and furniture stops being read — which would cost exactly the
+     pages where it matters. */
+  ok('and a page with nothing unchecked says nothing about it',
+    !/not checked/.test(swept(boot('<p style="color:#bbb">faint</p>'))),
+    'a clause that always appears is one nobody reads');
+
+  /* ======================================================================
      ACCESSIBILITY — verified against Chrome's own tree, then frozen here.
 
      Every expectation below was checked in real headless Chrome by asking

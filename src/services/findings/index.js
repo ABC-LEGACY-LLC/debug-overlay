@@ -43,7 +43,17 @@ import { U } from '../../core/utils.js';
       // byTool is built here, once, rather than filtered per frame by the
       // renderer: a page can return thousands of findings and draw() runs at
       // 60fps.
-      const result = { findings: [], rules: all.length, elements: 0, byTool: {} };
+      /* WHAT WAS NOT CHECKED, counted as we go.
+         The strongest claim this tool makes is the negative one — "nothing is
+         wrong here" — and until now it was made without saying over what.
+         "5 rules · 4 000 elements" reads as the whole page; it is the whole
+         page MINUS everything gated out before a rule saw it, minus anything
+         behind a boundary this pass cannot cross. A reader cannot tell the
+         difference between a clean page and a page most of which was never
+         looked at, and the second one is the more common. */
+      const result = { findings: [], rules: all.length, elements: 0, byTool: {},
+                       skipped: { display: 0, visibility: 0, opacity: 0 },
+                       shadow: 0, frames: 0 };
       if (!all.length || !document.body) return result;
       for (const t of all) result.byTool[t.id] = [];
 
@@ -104,6 +114,7 @@ import { U } from '../../core/utils.js';
          sweep is discarded when the page changes. */
       const els = document.body.querySelectorAll('*');
       let since = performance.now();
+      let hiddenRoot = null, hiddenWhy = 'display';   // the subtree being skipped
       const step = (idx) => {
         for (; idx < els.length; idx++) {
           if ((idx & 0xff) === 0xff && performance.now() - since > CONFIG.SWEEP_SLICE) {
@@ -120,9 +131,42 @@ import { U } from '../../core/utils.js';
           // One getComputedStyle per element, reused as the gate AND handed to
           // the rules, so nobody reads it twice. It is the dominant cost of the
           // pass — a rule that needs geometry pays for it lazily, on request.
+          /* THE GATE COVERS SUBTREES, which it did not before and which
+             counting the skips is what revealed.
+
+             getComputedStyle on a DESCENDANT of display:none returns that
+             descendant's own display — `inline` for a span — not `none`. So
+             a closed menu reported one skipped div and then audited every
+             element inside it: contrast measured text nobody can see, and
+             the findings were real-looking and unreachable. Same for
+             opacity:0, which is not inherited either but hides its subtree
+             all the same. (visibility:hidden IS inherited, so it was always
+             caught.)
+
+             The list is in document order, so one marker is enough: while
+             inside a hidden root, skip; the first element not contained by
+             it ends the run. One contains() per element, and only while a
+             subtree is actually being skipped. */
+          if (hiddenRoot && !hiddenRoot.contains(el)) hiddenRoot = null;
+          if (hiddenRoot) { result.skipped[hiddenWhy]++; continue; }
           const cs = getComputedStyle(el);
-          if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') continue;
+          /* counted by REASON. display:none is a page that chose not to
+             render this; opacity:0 is usually a transition mid-flight, and a
+             reader who sees a large number there knows to sweep again once
+             it settles. */
+          if (cs.display === 'none') {
+            result.skipped.display++; hiddenRoot = el; hiddenWhy = 'display'; continue;
+          }
+          if (cs.visibility === 'hidden') { result.skipped.visibility++; continue; }
+          if (cs.opacity === '0') {
+            result.skipped.opacity++; hiddenRoot = el; hiddenWhy = 'opacity'; continue;
+          }
           result.elements++;
+          /* An OPEN shadow root is a subtree querySelectorAll('*') does not
+             enter, so everything inside it is unchecked and nothing above
+             said so. A closed one cannot even be counted — which is worth
+             knowing, and is why this is a floor rather than a total. */
+          if (el.shadowRoot) result.shadow++;
           const i = U.info(el, cs);
           if (seen) seen.push(i);
           for (const f of Sweep.collect(perEl, 'audit', i)) {
@@ -133,6 +177,10 @@ import { U } from '../../core/utils.js';
         return finish();
       };
       const finish = () => {
+        // one query, not one per element: a frame is a whole document this
+        // pass cannot reach into, and the reader has to be told there is one
+        result.frames = document.querySelectorAll('iframe, frame').length;
+
         // Then the questions no single element can answer: a duplicate id, a
         // spacing scale nobody kept to, two things that only conflict with
         // each other. audit(info) is blind to all of them by construction.
@@ -143,6 +191,40 @@ import { U } from '../../core/utils.js';
         return result;
       };
       return step(0);
+    },
+
+    /**
+     * …AND WHAT IT DID NOT COVER, which is the half that was missing.
+     *
+     * A count of what was checked reads as the whole page. It is the whole
+     * page minus everything gated out before a rule saw it, minus every
+     * subtree behind a boundary this pass cannot cross. Those are different
+     * kinds of absence and both change what a clean result means: hidden
+     * elements may simply be a closed menu, while an iframe is a whole
+     * document nobody looked at.
+     *
+     * Silent when there is nothing to say — a page with no frames, no shadow
+     * roots and nothing hidden gets no clause, because a scope note that
+     * always prints is furniture and stops being read.
+     */
+    unchecked(s) {
+      const parts = [];
+      const k = s.skipped || {};
+      const hidden = (k.display || 0) + (k.visibility || 0) + (k.opacity || 0);
+      if (hidden) {
+        const why = [];
+        if (k.display) why.push(`${k.display} display:none`);
+        if (k.visibility) why.push(`${k.visibility} hidden`);
+        // called out separately because it is usually a transition mid-flight,
+        // and a big number here means "sweep again once it settles"
+        if (k.opacity) why.push(`${k.opacity} opacity:0`);
+        parts.push(`${hidden} not rendered (${why.join(', ')})`);
+      }
+      if (s.frames) parts.push(`${s.frames} frame${s.frames === 1 ? '' : 's'} not entered`);
+      // "at least": a CLOSED shadow root cannot be counted at all, so this is
+      // a floor. Saying so is the difference between a scope and a claim.
+      if (s.shadow) parts.push(`at least ${s.shadow} shadow root${s.shadow === 1 ? '' : 's'} not entered`);
+      return parts.length ? `\n   not checked: ${parts.join(' · ')}` : '';
     },
 
     /**

@@ -99,8 +99,10 @@ import { WebPanel } from '../../ui/web-panel.js';
              ` · ${s.elements} elements` +
              // the page could not show them all; this text can
              (Object.values(s.byTool).some((f) => f.length > CONFIG.MARK_LIMIT)
-               ? ` · marks from the first ${CONFIG.MARK_LIMIT} findings per rule` : '');
+               ? ` · marks from the first ${CONFIG.MARK_LIMIT} findings per rule` : '') +
+             Sweep.unchecked(s);
     },
+
     /**
      * Put text on the clipboard. Separate from copy() because it is not only
      * the report that ever wants this — a tool that picks something off the

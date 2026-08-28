@@ -518,6 +518,38 @@ That is also why the colour helpers live in the tool and not in `core/utils.js`
 — reading a colour honestly needs the DOM, and utils may not have it. Each of
 them only ever had one caller.
 
+## A sweep must say what it did NOT check
+
+The strongest claim this tool makes is the negative one. "5 rules · 4 000
+elements" reads as the whole page; it is the whole page MINUS everything
+gated out before a rule saw it, MINUS every subtree behind a boundary the
+pass cannot cross. Without the second half a reader cannot tell a clean page
+from a page most of which was never looked at, and the second is commoner.
+
+So the result carries `skipped` (by reason), `shadow` and `frames`, and
+`Sweep.unchecked()` turns them into one clause that both the copied report
+and the panel's empty state print. Three rules it must keep:
+
+- **Silent when there is nothing to say.** A scope note that always prints is
+  furniture, and furniture stops being read — on exactly the pages where it
+  matters.
+- **`opacity:0` is counted under its own name**, not folded in with
+  `display:none`. It is usually a transition mid-flight, and a large number
+  there means "sweep again once it settles".
+- **"at least N shadow roots"**, never a total. A CLOSED root cannot be
+  counted at all, and stating a floor is what keeps this a scope rather than
+  a claim.
+
+Writing the count is what exposed the gate's hole. `getComputedStyle` on a
+DESCENDANT of `display:none` returns that descendant's own display —
+`inline` for a span — not `none`, so a closed menu skipped one div and then
+audited everything inside it: contrast measuring text nobody can see, and
+producing findings that were real-looking and unreachable. `opacity:0` is not
+inherited either. The list is in document order, so one marker gates the
+whole subtree — one `contains()` per element, and only while a subtree is
+actually being skipped. `visibility:hidden` IS inherited and was always
+caught.
+
 ## The sweep
 `app/sweep.js` runs every active `rule` over every visible element in one
 read-only pass. It stays tool-agnostic: it gates on `display`/`visibility`/

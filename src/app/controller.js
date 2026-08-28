@@ -236,8 +236,13 @@ import { Render } from '../ui/renderer.js';
       const s = State.sweep;
       if (!s) return 'Press ⌕ to audit the page.';
       if (!s.rules) return 'No rules are installed, so nothing was checked.';
+      /* The clean result is the one that most needs its scope, and this is
+         where it is read — the panel, not the copied report. "No findings
+         over 4 000 elements" and "no findings over 4 000 of 5 200, and two
+         iframes nobody entered" are different answers to the same question. */
       return `No findings — ${s.rules} rule${s.rules === 1 ? '' : 's'} ` +
-             `over ${s.elements} elements.`;
+             `over ${s.elements} elements.` +
+             Sweep.unchecked(s).replace('\n   ', ' ');
     },
 
     toggleTool(id) {
