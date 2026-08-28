@@ -73,9 +73,10 @@ const registered = () => {
  *   core  — what is drawn whether or not any tool is armed
  *   fills — the hooks through which a tool adds to it
  *
- * Getting this wrong is easy and invisible: `select` looked like the owner of
- * the pin chip because it is the only tool touching that surface, when in fact
- * the renderer draws the chip and select only appends the "…".
+ * Getting this wrong is easy and invisible: `group` (then called select)
+ * looked like the owner of the pin chip because it is the only tool touching
+ * that surface, when in fact the renderer draws the chip and group only
+ * appends the "…".
  */
 const SURFACES = [
   { key: '① badge', core: 'renderer — the box, and the #N prefix',

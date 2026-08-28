@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.172 — extension gate; same bundle as the userscript */
+/* Debug Overlay v3.8.173 — extension gate; same bundle as the userscript */
 (function () {
   'use strict';
 /* NOT a module and NOT bundled: build.js injects this text at the very top
@@ -41,7 +41,7 @@
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.172",
+    VERSION: "3.8.173",
     // Substituted like VERSION: where the update checker asks, and what the
     // userscript's one-click update opens. One source (userscript.json), no
     // second copy to drift.
@@ -1955,6 +1955,90 @@
     // through uses: above.
   });
 
+  // src/tools/group/service.js
+  function groups() {
+    return this._form().groups;
+  }
+  function pendingIndex() {
+    const { pending } = this._form();
+    return pending ? State.pins.indexOf(pending) : -1;
+  }
+  function gestures() {
+    return [{
+      keys: "Ctrl/⌘+Shift+click",
+      does: "chain to the previous pin — repeat for ①─②─③"
+    }];
+  }
+
+  // src/tools/group/form.js
+  function form(pins) {
+    const K = CONFIG.PIN_KIND;
+    const sel = pins.filter((p) => p.kind === K.SHIFT || p.kind === K.CHAIN);
+    const runs = [];
+    for (const p of sel) {
+      const last2 = runs[runs.length - 1];
+      if (last2 && (p.kind === K.CHAIN || last2.length === 1)) last2.push(p);
+      else runs.push([p]);
+    }
+    const groups2 = [];
+    for (const run of runs)
+      for (let k = 0; k + 1 < run.length; k++) groups2.push([run[k], run[k + 1]]);
+    const lastRun = runs[runs.length - 1];
+    const pending = lastRun && lastRun.length === 1 ? lastRun[0] : null;
+    return { groups: groups2, pending };
+  }
+
+  // src/tools/group/rows.js
+  function listRows() {
+    const { groups: groups2, pending } = this._form();
+    const rows = groups2.map(([A, B]) => {
+      const ra = A.el.getBoundingClientRect(), rb = B.el.getBoundingClientRect();
+      const g = U.gap(ra, rb);
+      const axis = Measure.axisOf(ra, rb);
+      const detail = axis.kind === "overlap" ? "overlapping" : axis.kind === "diagonal" ? `→ ${g.dx} · ↓ ${g.dy} px` : axis.kind === "vertical" ? `↕ ${g.dy} px` : `↔ ${g.dx} px`;
+      return {
+        tag: `#${A.id}→#${B.id}`,
+        label: `${U.labelOf(A.el)} ↔ ${U.labelOf(B.el)}`,
+        detail,
+        pins: [A, B]
+      };
+    });
+    if (pending) rows.push({
+      tag: `#${pending.id}…`,
+      label: U.labelOf(pending.el),
+      detail: "pick its pair, or chain to it",
+      pins: [pending]
+    });
+    return rows;
+  }
+  function reportTail2() {
+    const { pending } = this._form();
+    return pending ? [`[#${pending.id}] waiting for its pair`] : [];
+  }
+
+  // src/tools/group/index.js
+  defineTool({
+    id: "group",
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M5 3a2 2 0 0 0-2 2" /><path d="M19 3a2 2 0 0 1 2 2" /><path d="M21 19a2 2 0 0 1-2 2" /><path d="M5 21a2 2 0 0 1-2-2" /><path d="M9 3h1" /><path d="M9 21h1" /><path d="M14 3h1" /><path d="M14 21h1" /><path d="M3 9v1" /><path d="M21 9v1" /><path d="M3 14v1" /><path d="M21 14v1" /></svg>',
+    // lucide 'box-select' (ISC)
+    // what this tool EXAMINES. A tool in a domain folder says it with
+    // family:; one that owns its subject alone says it here, and every
+    // tool must say it one way or the other — the side panel prints it
+    // as a column, and a column is not a column if some rows are blank.
+    subject: "input",
+    title: "Group — how pinned elements pair and chain",
+    startsOn: true,
+    /** The single place grouping is decided — see form.js. */
+    _form() {
+      return form(State.pins);
+    },
+    groups,
+    pendingIndex,
+    gestures,
+    listRows,
+    reportTail: reportTail2
+  });
+
   // src/tools/perf/target.js
   var Targets = {
     map: /* @__PURE__ */ new Map(),
@@ -2267,7 +2351,7 @@
   }
 
   // src/tools/perf/rows.js
-  function listRows() {
+  function listRows2() {
     const now = Date.now();
     const ago = (t) => {
       const s = Math.round((now - t) / 1e3);
@@ -2279,7 +2363,7 @@
       detail: `${ago(e.t)}${e.src ? " · " + e.src : ""}${e.blame ? " · during: " + e.blame : ""}`
     }));
   }
-  function reportTail2() {
+  function reportTail3() {
     if (!Monitor.running && !Monitor.log.length) return [];
     const secs = Math.round((Date.now() - Monitor.startedAt) / 1e3);
     const L = [`## performance — monitored ${secs}s · tier: ${Monitor.tier}`];
@@ -2384,8 +2468,8 @@
     badge: badge6,
     compact: compact6,
     legend: legend6,
-    listRows,
-    reportTail: reportTail2,
+    listRows: listRows2,
+    reportTail: reportTail3,
     audit: audit4,
     rules: rules5,
     draw: draw6,
@@ -2435,90 +2519,6 @@
     title: "Pin — keep what you select; off, selections replace each other",
     startsOn: true,
     keeps
-  });
-
-  // src/tools/select/service.js
-  function groups() {
-    return this._form().groups;
-  }
-  function pendingIndex() {
-    const { pending } = this._form();
-    return pending ? State.pins.indexOf(pending) : -1;
-  }
-  function gestures() {
-    return [{
-      keys: "Ctrl/⌘+Shift+click",
-      does: "chain to the previous pin — repeat for ①─②─③"
-    }];
-  }
-
-  // src/tools/select/form.js
-  function form(pins) {
-    const K = CONFIG.PIN_KIND;
-    const sel = pins.filter((p) => p.kind === K.SHIFT || p.kind === K.CHAIN);
-    const runs = [];
-    for (const p of sel) {
-      const last2 = runs[runs.length - 1];
-      if (last2 && (p.kind === K.CHAIN || last2.length === 1)) last2.push(p);
-      else runs.push([p]);
-    }
-    const groups2 = [];
-    for (const run of runs)
-      for (let k = 0; k + 1 < run.length; k++) groups2.push([run[k], run[k + 1]]);
-    const lastRun = runs[runs.length - 1];
-    const pending = lastRun && lastRun.length === 1 ? lastRun[0] : null;
-    return { groups: groups2, pending };
-  }
-
-  // src/tools/select/rows.js
-  function listRows2() {
-    const { groups: groups2, pending } = this._form();
-    const rows = groups2.map(([A, B]) => {
-      const ra = A.el.getBoundingClientRect(), rb = B.el.getBoundingClientRect();
-      const g = U.gap(ra, rb);
-      const axis = Measure.axisOf(ra, rb);
-      const detail = axis.kind === "overlap" ? "overlapping" : axis.kind === "diagonal" ? `→ ${g.dx} · ↓ ${g.dy} px` : axis.kind === "vertical" ? `↕ ${g.dy} px` : `↔ ${g.dx} px`;
-      return {
-        tag: `#${A.id}→#${B.id}`,
-        label: `${U.labelOf(A.el)} ↔ ${U.labelOf(B.el)}`,
-        detail,
-        pins: [A, B]
-      };
-    });
-    if (pending) rows.push({
-      tag: `#${pending.id}…`,
-      label: U.labelOf(pending.el),
-      detail: "pick its pair, or chain to it",
-      pins: [pending]
-    });
-    return rows;
-  }
-  function reportTail3() {
-    const { pending } = this._form();
-    return pending ? [`[#${pending.id}] waiting for its pair`] : [];
-  }
-
-  // src/tools/select/index.js
-  defineTool({
-    id: "select",
-    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M5 3a2 2 0 0 0-2 2" /><path d="M19 3a2 2 0 0 1 2 2" /><path d="M21 19a2 2 0 0 1-2 2" /><path d="M5 21a2 2 0 0 1-2-2" /><path d="M9 3h1" /><path d="M9 21h1" /><path d="M14 3h1" /><path d="M14 21h1" /><path d="M3 9v1" /><path d="M21 9v1" /><path d="M3 14v1" /><path d="M21 14v1" /></svg>',
-    // lucide 'box-select' (ISC)
-    // what this tool EXAMINES. A tool in a domain folder says it with
-    // family:; one that owns its subject alone says it here, and every
-    // tool must say it one way or the other — the side panel prints it
-    // as a column, and a column is not a column if some rows are blank.
-    subject: "input",
-    title: "Select — how pinned elements group up",
-    startsOn: true,
-    /** The single place grouping is decided — see form.js. */
-    _form() {
-      return form(State.pins);
-    },
-    groups,
-    pendingIndex,
-    gestures,
-    listRows: listRows2,
-    reportTail: reportTail3
   });
 
   // src/ui/styles.js

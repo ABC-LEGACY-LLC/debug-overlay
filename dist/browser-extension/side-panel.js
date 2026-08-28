@@ -128,7 +128,7 @@
   };
 
   // browser-extension-source/side-panel/side-panel.js
-  var VERSION = "3.8.172";
+  var VERSION = "3.8.173";
   var $ = (s) => document.querySelector(s);
   var body = document.body;
   var IC = {

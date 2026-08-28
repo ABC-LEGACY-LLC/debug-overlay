@@ -111,7 +111,7 @@ HOW TO USE
                  badge at a time with nothing to clean up afterwards — and
                  pins you already made stay until ✕, because a toggle must
                  not destroy a prepared screenshot.
-    ⬚ select    how pinned elements group up. The technique rides on the
+    ⬚ group     how pinned elements group up. The technique rides on the
                  gesture — Shift+click pairs, Ctrl+Shift+click chains — and
                  grouping lives here and not in measure, so a new way of
                  selecting is one new file and everything that measures
@@ -178,7 +178,7 @@ HOW TO USE
   appears, with nothing installed or wired up.
 
   The rules between the buttons mark the PIPELINE, top to bottom: the input
-  side (📌 pin, ⬚ select — what your clicks become), then the components
+  side (📌 pin, ⬚ group — what your clicks become), then the components
   (what describes the page), then ⌕ and ⚙, then the copy/clear band — the pin
   count sits up with 📌, whose home it is. A
   green dot on a tool means its rule feeds ⌕. Arming decides what you SEE;

@@ -1,12 +1,13 @@
 import { State } from '../../core/state.js';
 
 /**
- * SELECT, and only SELECT. This came out of measure, which had been the
- * read-out AND the thing deciding what was selected — so a second way of
- * selecting could not be added without editing the tool that draws
- * badges. Nothing here describes an element; it decides which elements
- * belong together, and hands that to whoever wants to say something
- * about the pair.
+ * GROUPING, and only grouping. This came out of measure, which had been
+ * the read-out AND the thing deciding what belonged together — so a
+ * second way of grouping could not be added without editing the tool
+ * that draws badges. Nothing here describes an element; it decides which
+ * elements belong together, and hands that to whoever wants to say
+ * something about the pair. (SELECTION itself — click chooses one
+ * element — is core's: app/interactions.js and State.current.)
  */
 
 /** Hook: what is grouped, for anything that draws or reports BETWEEN

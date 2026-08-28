@@ -16,7 +16,7 @@ wrong twice; run `npm run map` for the living version.
                  ▼
         ╔══════ INPUT SIDE ══════╗
         ║ pin    — SOURCE        ║──▶ keeps() — selections persist as pins
-        ║ select — SOURCE        ║──▶ State.pins + groups()   (feeds components)
+        ║ group  — SOURCE        ║──▶ State.pins + groups()   (feeds components)
         ╚═══════════╤════════════╝
         (right-click and Ctrl+C go straight to Report's copy actions —
          a take-away like ⧉, owned by a service, so no tool and no arming)
@@ -44,7 +44,7 @@ Every folder under `src/tools/` is a TOOL — something you can arm. "Tool" is
 the umbrella, and it is the registry's own word (`defineTool`, `Tools`); the
 SPECIES below says which kind each one is. The folder was briefly named
 `components/`, and that collided with COMPONENT the species — one spelling,
-two meanings — which made "select is in components/ but is not a component"
+two meanings — which made "group is in components/ but is not a component"
 simultaneously true and absurd. A tool is one of three species:
 The bands are DERIVED from the hooks a file implements — nothing declares its
 species, so the label cannot drift from the behaviour:
@@ -55,12 +55,12 @@ species, so the label cannot drift from the behaviour:
 | **SOURCE** | `groups` / `pendingIndex` / `keeps` | input side: turns clicks into what components work ON (`listRows` is a service contribution — perf's freeze log proved it, when it filed a monitor under Select) |
 | **ACTION** | `intercept` | input side: a click becomes a direct effect |
 
-Today: measure, grid, contrast and dupid are components; select and pin are
+Today: measure, grid, contrast and dupid are components; group and pin are
 the sources. The ACTION band is empty: pick, its one resident, turned out to
 be Report's copy capability wearing a button — an on/off switch for "copy"
 guards nothing — and retired into the target menu. `intercept` stays in the
 vocabulary, consumed by the door, ready for the next real actor. A flat "components" list put all six in one
-rowset, and every matrix drawn over it felt wrong — select's row looked broken
+rowset, and every matrix drawn over it felt wrong — group's row looked broken
 next to measure's because they are different species, not because the code was.
 
 Bands are plural on purpose. grid is Inspect *and* Detect — both describer
@@ -135,16 +135,16 @@ advance: Shift+click pairs (①② then a fresh ③④), Ctrl/⌘+Shift+click li
 the previous pin (repeat for ①─②─③), and the two mix in one session. The
 retired 'Pin grouping' mode is the cautionary tale — the same finger did
 different things on different days, and two clicks looked identical until the
-third betrayed which mode was on. `tools/select/form.js` is the one walk that
+third betrayed which mode was on. `tools/group/form.js` is the one walk that
 turns kinds into runs; consumers still see two-pin groups and never learn any
 of this happened. A mode switch is what you reach for only when gestures run
 out.
 
 ## The source's output is consumed, not shown
 
-select publishes `groups()`; measure asks `Tools.groups()` and draws dimension
+group publishes `groups()`; measure asks `Tools.groups()` and draws dimension
 lines between whatever comes back. Neither knows the other's name. That is why
-select's visible output is so thin — the `…` on a waiting pin, pair rows in
+group's visible output is so thin — the `…` on a waiting pin, pair rows in
 the pin list — its real product feeds another component. A lasso or a
 select-by-query is one new file in this band, and every consumer picks it up
 unchanged.
@@ -154,7 +154,7 @@ Three capability flows exist today, and all are name-free:
 | producer | capability | consumer |
 |---|---|---|
 | pin | `keeps()` | interactions — does a click's choice persist? |
-| select | `groups()` | whoever measures between elements |
+| group | `groups()` | whoever measures between elements |
 | grid | `annotate` (the ⚠ lens) | every number any badge prints |
 
 ## The action door stays open; the copy actions are Report's
@@ -179,9 +179,9 @@ implement it, and nothing here is created for a consumer that is not there.
 ## Every surface has three layers
 
 Core draws each surface even with every tool off; a tool only ADDS to it.
-Missing this is how the map came out wrong twice — `select` looked like it
+Missing this is how the map came out wrong twice — `group` looked like it
 owned the pin chip, when the renderer draws the outline and the `#N` for every
-pin and select appends only the `…`.
+pin and group appends only the `…`.
 
 | surface | core draws (always) | tools add |
 |---|---|---|
@@ -398,8 +398,8 @@ the open side of the screen, read off the bar's snap side — with the ordinary
 tool buttons inside: same arming, same right-click menu. One button per
 family, so a family that grows shrinks the bar. Geometry's head is the promoted
 subject `subjects/geometry.js` (📏) — promoted by this project's own rule,
-since measure and select both consult it — so measure lives in its flyout
-too. select stays a direct button: consulting a subject is not membership;
+since measure and group both consult it — so measure lives in its flyout
+too. group stays a direct button: consulting a subject is not membership;
 the domain folder is.
 
 Nobody has to remember this: reaching for another tool's `service.js`
@@ -411,7 +411,7 @@ trigger enforces itself.
 | folder | what it is |
 |---|---|
 | `tools/<name>/` | one component per folder — `index.js` registers; `badge` / `rule` / `draw` / `report` / `options` beside it; `service.js` is its backend when it has one of its own. A DOMAIN folder (`colour/`, `geometry/`) has no `index.js` — it only groups a family; a component is the nearest folder that has one |
-| `subjects/` | a backend SHARED by two tools — `geometry.js` (measure draws with it, select words its rows with it); a sole-consumer backend lives inside its tool until a second consumer appears |
+| `subjects/` | a backend SHARED by two tools — `geometry.js` (measure draws with it, group words its rows with it); a sole-consumer backend lives inside its tool until a second consumer appears |
 | `services/` | the four collectors — `badge/`, `findings/`, `report/`, `settings/` — never edited when a component is added |
 | `ui/` | the panel machinery: bar, popover, controls, renderer, placement, styles, dom |
 | `core/`, `app/` | glue — state, config, utils, geometry, the registry; interactions, controller, boot |

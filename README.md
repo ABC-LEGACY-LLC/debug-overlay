@@ -359,11 +359,11 @@ src/                        the overlay — everything here becomes the bundle
     grid/                   index · service (Scale) · badge · lens · rule · draw · report
     perf/                   index · service (Monitor) · target · badge · rows · rule · draw
     pin/                    index · keep — SELECTION chooses, this KEEPS the choice
-    select/                 index · service · form · rows
+    group/                  index · service · form · rows
   services/                 the four collectors — never edited for a new tool
     badge/ (index · options — the 🏷 face) · findings/ · report/ · settings/
   subjects/
-    geometry.js             shared rectangle maths — measure and select consult it
+    geometry.js             shared rectangle maths — measure and group consult it
   core/                     config · state+Store · utils · registry · protocol
                             (protocol = the panel's contract on a wire — shared
                             with the side panel, the one vocabulary both speak)

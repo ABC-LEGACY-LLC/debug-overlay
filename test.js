@@ -1836,7 +1836,7 @@ ok('⌕ and ⚙ are their own band, not filed among the tools',
 ok('and the input side leads the bar, before the components',
   bar.querySelector('button.debug-overlay-tool')?.dataset.tool ===
     [...bar.querySelectorAll('button.debug-overlay-tool')].find((b) => !b.classList.contains('debug-overlay-checks'))?.dataset.tool &&
-  ['pin', 'select', 'pick'].includes(bar.querySelector('button.debug-overlay-tool')?.dataset.tool),
+  ['pin', 'group'].includes(bar.querySelector('button.debug-overlay-tool')?.dataset.tool),
   `first tool: ${bar.querySelector('button.debug-overlay-tool')?.dataset.tool}`);
 
 console.log('\nWIRING');
@@ -2605,14 +2605,14 @@ console.log('\nCATEGORIES');
 
   // ---- roles, derived from hooks, plural only where that is true ----------
   const roleOf = (id) => bar.querySelector(`[data-tool="${id}"]`).title.split('\n')[1];
-  ok('select fills one role', roleOf('select') === 'Select', roleOf('select'));
+  ok('group fills one role', roleOf('group') === 'Select', roleOf('group'));
   ok('and measure fills one role', roleOf('measure') === 'Inspect', roleOf('measure'));
   ok('a tool that really does two things still says both',
     roleOf('grid').startsWith('Inspect · Detect'), roleOf('grid'));
 
   // ---- and the split holds at runtime -------------------------------------
-  // Pairing moved to SELECT; measuring stayed with INSPECT. Disarming the
-  // selection tool must take the grouping with it and leave the read-out.
+  // Pairing moved to GROUP; measuring stayed with INSPECT. Disarming the
+  // grouping tool must take the grouping with it and leave the read-out.
   const shiftPin = (id) => {
     const el = w.document.getElementById(id);
     w.document.elementFromPoint = () => el;
@@ -2623,9 +2623,9 @@ console.log('\nCATEGORIES');
   hit('[data-c]');
   const pairRow = () => [...list.querySelectorAll('.debug-overlay-row')]
     .find((r) => /→/.test(r.querySelector('.debug-overlay-tag').textContent));
-  ok('the selection tool groups the pins it owns', !!pairRow(),
+  ok('the grouping tool groups the pins it owns', !!pairRow(),
     [...list.querySelectorAll('.debug-overlay-row .debug-overlay-tag')].map((t) => t.textContent).join(', '));
-  hit('[data-tool="select"]');
+  hit('[data-tool="group"]');
   ok('and disarming it takes the grouping with it', !pairRow(),
     'the pairing outlived the tool that forms it');
   ok('while the pins themselves stay', list.querySelectorAll('.debug-overlay-row').length === 2,
@@ -2961,6 +2961,11 @@ console.log('\nREVIEW FIXES');
     armedN.includes('grid'), armedN.join(', ') || '(none)');
   ok('and one it has met keeps what the user decided',
     !armedN.includes('dupid'), armedN.join(', '));
+  // 'select' on disk names a tool this build does not register; its successor
+  // 'group' is one this install has never met, so startsOn gives it its say —
+  // the rename must not cost anyone the grouping they had
+  ok('the renamed grouping tool arrives armed after the upgrade',
+    armedN.includes('group'), armedN.join(', ') || '(none)');
   wn2.close();
 
   // settings this build cannot name must survive somebody changing another one
@@ -3059,7 +3064,7 @@ console.log('\nSTANDS ALONE');
   wn.close();
 
   // and with a grouping armed it means what it always meant
-  const wy = only(['measure', 'select', 'pin'], '<div id="a">a</div><div id="b">b</div>');
+  const wy = only(['measure', 'group', 'pin'], '<div id="a">a</div><div id="b">b</div>');
   pinIt(wy, 'a', { shiftKey: true });
   pinIt(wy, 'b', { shiftKey: true });
   let copiedY = null;
@@ -3574,7 +3579,7 @@ console.log('\nSELECTION CHOOSES, PIN KEEPS');
   });
 
   // 2) a modifier must not smuggle persistence past a disarmed keeper
-  const w2 = boot(['measure', 'select'], idsOnDisk, '<div id="a">a</div>');
+  const w2 = boot(['measure', 'group'], idsOnDisk, '<div id="a">a</div>');
   clickOn(w2, 'a', { shiftKey: true });
   const rep2 = copyText(w2) || '';
   ok('shift+click with no keeper falls back to a bare selection',
@@ -3583,7 +3588,7 @@ console.log('\nSELECTION CHOOSES, PIN KEEPS');
   w2.close();
 
   // 3) switching the keeper OFF must not take kept pins away
-  const w3 = boot(['measure', 'select', 'pin'], idsOnDisk,
+  const w3 = boot(['measure', 'group', 'pin'], idsOnDisk,
     '<div id="a">a</div><div id="b">b</div><div id="c">c</div>');
   clickOn(w3, 'a', { shiftKey: true });
   clickOn(w3, 'b', { shiftKey: true });
@@ -3642,7 +3647,7 @@ console.log('\nSELECTION CHOOSES, PIN KEEPS');
   // session. Shift+click pairs ①②, a fresh Shift+click opens ③, and two
   // Ctrl+Shift+clicks chain ③─④─⑤. The retired 'Pin grouping' mode could
   // only ever do one of these per session.
-  const w6 = boot(['measure', 'select', 'pin'], idsOnDisk,
+  const w6 = boot(['measure', 'group', 'pin'], idsOnDisk,
     '<div id="a">a</div><div id="b">b</div><div id="c">c</div>' +
     '<div id="d">d</div><div id="e">e</div>');
   clickOn(w6, 'a', { shiftKey: true });
@@ -4209,8 +4214,8 @@ console.log('\nFAMILY FLYOUT');
   ok('and so is geometry — its head is the promoted subject',
     !!famOf('geometry') && famOf('geometry').querySelector('[data-tool]')?.dataset.tool === 'measure',
     'geometry serves two tools, so it was always a subject by this project\'s own rule');
-  ok('while select stays a direct button — it consults geometry, it is not OF it',
-    !bar.querySelector('[data-tool="select"]')?.closest('.debug-overlay-fam'),
+  ok('while group stays a direct button — it consults geometry, it is not OF it',
+    !bar.querySelector('[data-tool="group"]')?.closest('.debug-overlay-fam'),
     'a domain folder is identity; consulting a subject is not membership');
   w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
   btn.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));

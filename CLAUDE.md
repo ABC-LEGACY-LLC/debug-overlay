@@ -82,12 +82,12 @@ tab: the bundle skips frames, so an embedded editor preview shows nothing.
 
 ## The architecture reference
 `ARCHITECTURE.md` is the prose map, opening with the pipeline: input side
-(SOURCE select, ACTION pick) → COMPONENTS (measure, grid, contrast, dupid) →
+(SOURCE group, ACTION pick) → COMPONENTS (measure, grid, contrast, dupid) →
 SERVICES (badge, findings, report, settings) → your eyes. Species are derived
 in `hooks.js` `bandsOf`; surfaces have three layers; the audit is a flow, not
 a place. Keep it and `npm run map` agreeing by editing `hooks.js`, not either
 output. A flat component list is what made every earlier matrix wrong —
-select and measure are different species, not different-shaped rows.
+group and measure are different species, not different-shaped rows.
 
 ## Two structures, on purpose — and how to see both
 The **folder** says what kind of file a thing is. The **role** says what a tool
@@ -128,9 +128,9 @@ files so the decision gets made rather than forgotten.
 
 ### Three layers, not two
 Every surface EXISTS with no tool armed — core draws it, and a tool ADDS to it.
-Miss that and the map comes out wrong: `select` looks like it owns the pin chip
+Miss that and the map comes out wrong: `group` looks like it owns the pin chip
 because it is the only tool touching that surface, when `ui/renderer.js` draws
-the outline AND the `#N` for every pin and select only appends the `…` through
+the outline AND the `#N` for every pin and group only appends the `…` through
 `pendingIndex`. The same `#N` appears on the badge, also from the renderer.
 
 `hooks.js` holds the hook vocabulary and the surface map, and BOTH `audit.js`
@@ -147,7 +147,7 @@ exactly what the `kind` field died of.
 ## Boundaries (audit.js enforces these)
 - `core/utils.js` — pure. No `State.`, no DOM creation, no markup. Callers hand
   in a decorator; the tool that styles a class is the tool that emits it.
-- `subjects/geometry.js` — rectangles only; a subject (two consumers: measure, select), and the geometry family's mark 📏.
+- `subjects/geometry.js` — rectangles only; a subject (two consumers: measure, group), and the geometry family's mark 📏.
 - `ui/web-panel.js` — no `State.`, and it must not know what a "pair" is. It
   fires callbacks; the controller handles them.
 - `ui/renderer.js` / `app/interactions.js` / `app/controller.js` — never
@@ -301,7 +301,7 @@ flat run ordered by filename.
 **One tool, one role, unless it genuinely does two things.** Pairing used to
 live in measure, which made it a read-out *and* the thing deciding what was
 selected — and no second way of selecting could be added without editing the
-tool that draws badges. `tools/select.js` owns grouping and publishes it
+tool that draws badges. `tools/group/` owns grouping and publishes it
 through `groups()`; measure asks `Tools.groups()` and measures between whatever
 comes back. A lasso or a select-by-query is now one new file that every
 consumer picks up, and neither side learns the other's id.
