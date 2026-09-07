@@ -164,6 +164,19 @@ function build(kind) {
   if (kind !== 'same') {
     cfg.version = version;
     fs.writeFileSync(path.join(ROOT, 'userscript.json'), JSON.stringify(cfg, null, 2) + '\n');
+    /* The Labs card shows the version too, and a number kept by hand drifts
+       from the one that shipped — the same failure __VERSION__ exists for, one
+       shelf further out. Written by the BUMP, so `--same` never touches it and
+       `npm run check` stays read-only. A missing file is not an error: abc-labs/
+       is metadata the product never reads, and a build must not die over it. */
+    const labsFile = path.join(ROOT, 'abc-labs', 'labs.json');
+    if (fs.existsSync(labsFile)) {
+      const labs = JSON.parse(fs.readFileSync(labsFile, 'utf8'));
+      if (labs.export) {
+        labs.export.version = version;
+        fs.writeFileSync(labsFile, JSON.stringify(labs, null, 2) + '\n');
+      }
+    }
   }
   /* THE SECOND GATE — an unpacked browser extension, from the SAME bundle.
      One core, two wrappers: the userscript above and this content script are

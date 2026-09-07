@@ -1,11 +1,9 @@
 {
   "labs": 1,
-
   "export": {
     "id": "debug-overlay",
     "name": "Debug Overlay",
     "tagline": "Inspect any web page in place — read exact sizes, spacing, contrast and accessibility off the rendered result, then copy the findings as a report.",
-
     "kind": "service",
     "category": "tool",
     "surfaces": {
@@ -17,11 +15,22 @@
         "host": "chrome"
       }
     },
-    "tags": ["ux", "accessibility", "design-system", "performance", "debugging"],
-
+    "tags": [
+      "ux",
+      "accessibility",
+      "design-system",
+      "performance",
+      "debugging"
+    ],
+    "version": "3.8.173",
+    "requires": [
+      "Tampermonkey, for the userscript",
+      "Chrome or Edge, for the extension",
+      "Chrome/Edge: Developer mode switched on",
+      "Firefox: the userscript only"
+    ],
     "status": "beta",
     "started": "2026-08-09",
-
     "links": {
       "docs": "https://github.com/ABC-LEGACY-LLC/debug-overlay#readme",
       "feedback": "https://github.com/ABC-LEGACY-LLC/debug-overlay/issues"
