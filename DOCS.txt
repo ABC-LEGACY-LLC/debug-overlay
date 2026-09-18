@@ -187,7 +187,7 @@ HOW TO USE
 
   Active tools, panel position and everything under ⚙ are remembered for the
   SCRIPT, not for the site — set them once and every other site already agrees,
-  and Tampermonkey's own sync carries them to a new machine.
+  and they follow the extension rather than the site you are on.
 
   ICONS — one set, Lucide (lucide.dev, ISC licence), inlined as SVG so the
   single-file build stays self-contained. Every tool declares its own icon

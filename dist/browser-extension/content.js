@@ -1,4 +1,307 @@
-/* Debug Overlay v3.8.174 — extension gate; same bundle as the userscript */
+/* Debug Overlay v3.8.175 — the extension gate */
+
+/*
+HOW TO USE
+  ----------
+  Alt+Shift+D ......... power on/off (or click ⏻ on the panel)
+  Hover ............... live badge for the element under the cursor
+  Click ............... SELECT one element (orange, dashed). Its badge freezes
+                        in place. No measuring, no green line. With 📌 pin
+                        armed (the default) the selection is KEPT — numbered,
+                        listed, reported; with 📌 off, the next click simply
+                        replaces it and the page never accumulates anything.
+  Shift+Click ......... PAIR (lime, solid): a selection pin. These group in
+                        PAIRS: the 1st is "from" (cyan, marked 1…), the 2nd is
+                        "to" — and whatever measures (📐) draws the dimension
+                        between them. The 3rd starts a brand new pair — nothing
+                        is ever chained off your previous selection unless you
+                        say so, which is the next gesture:
+  Ctrl+Shift+Click .... LINK (violet, solid): chain THIS to the previous pin.
+                        Repeat it and a chain emerges — ①─②─③ — for reading a
+                        rhythm (row gaps, list spacing) off one screenshot.
+                        A technique is a GESTURE, not a mode: pairs and chains
+                        mix freely in one session, so there is nothing to set
+                        in advance and nothing to forget to set back.
+  Click again ......... unpin (or click with another modifier to switch the
+                        pin between note, pair and link)
+  Hold X .............. REMOVE mode: a red ✕ appears on every pin and only pins
+                        are clickable — click one to delete it. Works even for
+                        pins whose element is hard to hit again. Release to exit.
+  Right-click ......... the TARGET's menu: Copy selector / Copy text. Copy is
+                        a take-away action like ⧉, so there is nothing to arm
+                        and no button — it always works. (There used to be a
+                        ⌖ pick tool guarding this behind Ctrl+click; an on/off
+                        switch for "copy" guards nothing.)
+                        Alt+right-click keeps the page's own context menu.
+  Ctrl+C (⌘+C) ........ copy the hovered target's selector — the universal
+                        copy key doing the obvious thing. Free to take while
+                        the overlay is on (it already owns the mouse, so no
+                        page text can be selected); inside a ⚙ field copy
+                        stays the field's.
+  Hold Alt ............ pass clicks through to the page (links keep working)
+  Esc ................. closes the top layer: an open panel first, then remove
+                        mode, then pins and the selection. It never powers the
+                        tool off — that is
+                        the ⏻ button and Alt+Shift+D, both of which say so.
+  🏷 ................... the badge's own controls, two levels: press it and
+                        the two AXES slide out — ◫ VIEW and ◈ FACETS — and
+                        pressing an axis reveals its members. View: ▬ compact
+                        / ▤ full (remembered, where ≡ used to forget on
+                        reload). Facets: ＝ current (always on — it IS the
+                        badge), ⚠ issue marks on/off, → recommendations
+                        on/off. Facets gate badge ink ONLY: the copied report
+                        always carries everything, and ⌕ findings are
+                        untouched.
+  ⌕ ................... audit the WHOLE page — every active rule runs over every
+                        visible element, and the button shows how many distinct
+                        problems came back. Each mark on the page is LABELLED
+                        with the rule that made it (grid-off ×4), because a
+                        dashed box that never says what is wrong is half a
+                        finding — and no tooltip can say it, the overlay's
+                        drawing layer takes no pointer events at all. Repeats collapse: a nav of 40
+                        identical links is one finding, not forty. The result
+                        rides along in the next report you copy, and every
+                        finding is outlined on the page by the tool that found
+                        it — dashed for a failure, dotted for a review. Turn a
+                        tool off and its outlines go; its findings stay.
+  ⚙ ................... tool settings — every option any tool declares, in one
+                        list. Changing one takes effect immediately and is
+                        remembered per site; it also drops the last ⌕ result,
+                        because those findings were judged under the old
+                        setting and nothing on screen would say so. Press ⌕
+                        again to re-audit.
+  ⧉ ................... copy structured report → paste into Claude with a screenshot
+  Count chip .......... sits right under 📌 — the keeper and its count are one
+                        home, and the number rests in the bar where a flyout
+                        would have hidden it.
+                        Its header carries pin's own ✕ — clear ALL pins while
+                        the audit's marks stay (the bar's ✕ takes both).
+                        Click the pin count to open the pin list: every pin and
+                        measured pair in one place, even ones scrolled off
+                        screen. Click a row to scroll to it and flash it; click
+                        its ✕ to remove (a pair row removes both). Click the
+                        chip again to close it before taking a screenshot.
+  ✕ ................... clear pins AND the audit's outlines. Those outlines used
+                        to have no exit at all: the ⌕ flash expires after a
+                        second, so the bar looked idle while the page stayed
+                        covered. ⌕ now keeps a green ring while an audit is
+                        showing.
+  Panel ............... drag by ⋮⋮; snaps to nearest edge; while OFF it tucks
+                        away after ~2s leaving a 10px peek. Position remembered.
+  Refresh ............. THE SESSION SURVIVES IT. Power is remembered per
+                        SITE (this one stays on; other sites stay off), and
+                        pins come back by their selector, same numbers, same
+                        kinds — resolved against the page that exists now. A
+                        pin whose element is gone is dropped and the Pins
+                        header says how many. Honest limit: a selector is an
+                        address, and on a changed page it can name a
+                        different element. With ⚡ armed the report also
+                        gains "## load — this navigation": server, DOM
+                        ready, first paint, and the long tasks that ran
+                        before the overlay was even awake (buffered
+                        observers reach back).
+
+  POWER vs TOOLS
+  --------------
+  ⏻ is the master switch: it only decides whether the overlay is listening
+  at all. WHAT gets measured is decided by the tools below it, each an
+  independent toggle you can mix freely:
+
+    📌 pin       keep what you select. SELECTION chooses — one element at a
+                 time, replaced by the next click; PIN is what makes a choice
+                 persist as a numbered pin. On by default, so clicks pin the
+                 way they always did. Switch it off to browse a page one
+                 badge at a time with nothing to clean up afterwards — and
+                 pins you already made stay until ✕, because a toggle must
+                 not destroy a prepared screenshot.
+    ⬚ group     how pinned elements group up. The technique rides on the
+                 gesture — Shift+click pairs, Ctrl+Shift+click chains — and
+                 grouping lives here and not in measure, so a new way of
+                 selecting is one new file and everything that measures
+                 picks it up.
+    📏 geometry  the geometry family — one button; click it and its members
+                 slide out sideways:
+       📐 measure  sizes, radius, padding/margin, gap, font, and the distance
+                 between whatever the selection tools have grouped. Right-click
+                 it to choose which of those the badge shows — a full badge is
+                 a lot of ink over a page you came to read one number off. The
+                 copied report always carries everything, because there the
+                 line you did not want costs nothing and the one you did costs
+                 a round trip.
+    ▦ grid       marks any number another tool prints that is off the
+                 spacing step (⚠ — 2px by default, change it under ⚙). The
+                 🏷 recommendations facet adds the fix after each mark:
+                 p 7⚠ becomes p 7⚠→8. Off by default — a suggestion doubles
+                 every marked number. In ⌕ it
+                 judges AUTHORED spacing only — padding, margin, gap — never
+                 width or height, which layout produces rather than anyone
+                 choosing, and nothing above CONFIG.GRID_MAX, where
+                 margin:auto lands.
+    🎨 colour    the colour family — one button; click it and its members
+                 slide out sideways:
+       ◐ contrast  WCAG text contrast ratio, against AA or AAA (⚙)
+    ⌗ dupid      the same id used more than once — a page-wide question
+    ⚡ perf       freezes and jank, WHILE ARMED — the first tool with a
+                 runtime. Arm it and a monitor starts: every badge gains the
+                 page's pulse (⚡ 58fps · 2× worst 1.2s), the pin list logs
+                 each main-thread freeze, and the report grows a
+                 ## performance section that names its measuring tier —
+                 frame attribution (Chrome names the script that ate the
+                 frame), long tasks, or the everywhere-fallback heartbeat.
+                 And the TARGETED half: PIN a component (or just select
+                 it) and perf watches that subtree — its badge stops showing
+                 the page and starts showing ITS cost: mut 140/s (DOM
+                 mutations under it — a re-render loop reads in the
+                 hundreds), resp 380ms (its slowest answered input), shift
+                 0.02 (layout shift it caused). Past the churn threshold it
+                 is a ⌕ finding on that element, and a freeze that happens
+                 while a watched subtree churns is blamed in the log:
+                 "during the 1.2s block: #cards ×412 mutations" — the
+                 honest attribution, since per-element CPU%% does not exist
+                 in the platform and this tool does not pretend otherwise.
+                 OFF by default for cost, not caution: observers run only
+                 on watched subtrees, only while armed, and a meter you did
+                 not ask for is overhead pretending to be help. Freeze and
+                 churn thresholds under ⚙.
+
+  Every tool fills one or more of four ROLES, derived from the hooks it
+  implements and shown in its tooltip: Select (what you are looking at),
+  Inspect (what is shown about it), Detect (what counts as a problem), Act
+  (what the overlay does to the page or the clipboard). A tool declares none
+  of this — grid says "Inspect · Detect" because it annotates AND audits. The
+  ⚙ list is grouped the same way: by what a setting CHANGES, not by which tool
+  happens to own it.
+
+  A tool's settings have two doors into the same room. ⚙ lists every one of
+  them grouped by what it CHANGES; RIGHT-CLICK a tool's button for just that
+  tool's, without everyone else's. The second is a filter of the first — the
+  same options() call, the same control, the same value — so nothing can be set
+  in one place and stale in the other. Neither is a menu a tool built for
+  itself: a tool added tomorrow is configurable through both the moment it
+  appears, with nothing installed or wired up.
+
+  The rules between the buttons mark the PIPELINE, top to bottom: the input
+  side (📌 pin, ⬚ group — what your clicks become), then the components
+  (what describes the page), then ⌕ and ⚙, then the copy/clear band — the pin
+  count sits up with 📌, whose home it is. A
+  green dot on a tool means its rule feeds ⌕. Arming decides what you SEE;
+  ⌕ checks every rule either way, so a toggle you forgot can never quietly
+  shorten an audit.
+
+  Active tools, panel position and everything under ⚙ are remembered for the
+  SCRIPT, not for the site — set them once and every other site already agrees,
+  and they follow the extension rather than the site you are on.
+
+  ICONS — one set, Lucide (lucide.dev, ISC licence), inlined as SVG so the
+  single-file build stays self-contained. Every tool declares its own icon
+  as a literal beside its id, which is what the audit counts; the glyphs in
+  this text (📌 ⬚ ▦ 🎨 ⌕ ⚙ …) are shorthand names for those buttons.
+
+  ARCHITECTURE — real ES modules, one folder per component, bundled by
+  esbuild into this single file. Execution order is the import graph, and a
+  new capability is one new folder that nothing else has to name.
+
+    banner.js          the guard, injected by the build around the bundle
+    boot.js            entry: init order and wiring
+    tools/<n>/         ⭐ one folder per armable tool — index registers, the
+                       hook files sit beside it, service.js is its backend
+    services/          badge, findings, report, settings — the collectors
+    subjects/          a backend shared by two tools — geometry.js
+    core/              config, state+Store, utils, geometry, registry
+    ui/                styles, dom, controls, list, panel, placement, renderer
+    app/               interactions, controller
+
+  RULES that keep it from turning to mush:
+    · UTILS is pure. It never reads State and never asks "is tool X on?" —
+      callers hand in a decorator (see U.mark(n, dec)).
+    · No tool names another tool. A "lens" (grid) decorates the numbers other
+      tools print, reached through Tools.annotator() — never by id.
+    · Tool-specific behaviour lives in that tool, never in RENDERER. If the
+      renderer needs to know something, the tool exposes a hook and the
+      renderer asks every active tool (see pendingIndex).
+    · PANEL never touches State. It fires callbacks; CONTROLLER handles them.
+    · MEASURE knows nothing about tools, panels or reports — only rectangles.
+    · CONTROLLER is the one place modules are wired together.
+
+  ADDING A NEW DEBUG TOOL — one object in section 5, nothing else:
+
+    {
+      id: 'zindex',
+      icon: '⧉', title: 'Stacking — z-index & position',
+      startsOn: false,             // optional, armed on a fresh install?
+      badge:   (i) => `<span class="debug-overlay-sp">z ${i.cs.zIndex}</span>`,  // optional
+      compact: (i) => null,                                       // optional
+      report:  (i) => [`  z-index: ${i.cs.zIndex}`],              // optional
+      draw:    (ctx) => {},                                       // optional
+      reportTail: () => [],        // optional, summary lines after all pins
+      pendingIndex: () => -1,      // optional, pin still being chosen
+      annotate: (html, n, i) => html,   // optional, decorate other tools' numbers
+      audit: (i) => [{ el, verdict, severity, rule, message, key }],  // optional
+      auditPage: (all) => [],  // optional, once per sweep with every element
+      options: () => [{ key: 'depth', label: 'Stack depth',   // optional
+                        def: CONFIG.DEPTH, values: [1, 2, 3],
+                        affects: 'inspect' }],
+      intercept: ({ type, ev, el }) => false,   // optional, act on a click
+      rules: { 'my-rule': { help, why, docs } },   // optional, what a rule IS
+    }
+
+    Every option declares `affects` — 'select', 'inspect', 'detect' or 'act' —
+    and the ⚙ view files the row under that heading. It is the ONE category in
+    this codebase that is declared rather than derived: a tool's roles come
+    from its hooks and cannot go stale, but no hook can tell you whether a knob
+    is a detection threshold or a display preference. audit.js fails an option
+    without one.
+
+    options() is how a tool becomes adjustable without a rebuild. Each entry
+    gets a row under ⚙; `def` is the shipped default and belongs in CONFIG, so
+    that file still answers "what does a fresh install do" while the panel
+    answers "what is this one doing now". Read the live value back with
+    Tools.setting(this, 'depth') — `this`, never an id, like every other
+    question the registry answers. Do not cache it: the user can change it
+    between two frames. Three kinds of option:
+
+      values: [1, 2, 3]                     a picker
+      type: 'number', min, max, step        a threshold you type
+      type: 'toggle'                        on or off
+
+    intercept() is the only hook that ACTS on the page rather than describing
+    it. Armed tools are offered each click before it becomes a pin; return true
+    to say it was yours, and no pin lands underneath. Return false and nothing
+    changed. Claim narrowly — a modifier, a shape of element — because a tool
+    that swallows every click has taken the overlay away from everything else.
+
+    Whatever a tool puts in `title`, `icon` or an option `label` is the only
+    thing a user ever sees of it, and audit.js now fails a tool that omits the
+    first two — a panel button reading "undefined" is not a control surface.
+
+    A tool declares no type. Its hooks are what it is, and it may have any
+    combination of them — grid decorates other tools' numbers AND audits.
+
+    audit() has three answers, not two: the element passed (say nothing), it
+    failed, or it could not be measured. The last one has to be said out loud,
+    with a reason, or a page nobody could read reports clean.
+      verdict  ∈ fail | review
+      severity ∈ error | warn | info   (CONFIG.SEVERITY — the sort order)
+      rule      a rule id, not a tool id; one tool may own several
+      key       which findings collapse into one line. Without one they
+                collapse by rule + message.
+
+    audit(info) sees one element. auditPage(all) runs once at the end of a
+    sweep with every visible element's info, for the questions a single
+    element cannot answer — a duplicated id, a spacing scale nobody kept to,
+    two things that only conflict with each other. It is only gathered when
+    some tool implements the hook, so a page with no relational rule pays
+    nothing for one.
+
+    `rules` documents a rule as opposed to one instance of it. The message
+    says "2.76:1"; help/why/docs say what the rule is and where to read more.
+    The report gathers them into a "## rules" section at the end — once per
+    rule, not once per finding, which made a real report unreadable.
+
+  The panel button, persistence, badge composition and report inclusion are
+  all derived from the registry automatically.
+*/
+
 (function () {
   'use strict';
 /* NOT a module and NOT bundled: build.js injects this text at the very top
@@ -6,12 +309,15 @@
    single module evaluates. It cannot be an import — imports hoist, so a guard
    inside a module would run after everything it was guarding. */
   /**
-   * NOT `window.top !== window.self`. With @grant the manager runs this in a
-   * sandbox where `window` is a wrapper, and that comparison can be true in
-   * the TOP frame — which would disable the overlay everywhere, silently, on
-   * every site. frameElement is null at top level in every context, so this
-   * cannot misfire in the one direction that matters. @noframes is what keeps
-   * us out of cross-origin frames, where frameElement reads null anyway.
+   * NOT `window.top !== window.self`. That comparison can be true in the TOP
+   * frame wherever `window` is a wrapper rather than the page's own — which
+   * would disable the overlay everywhere, silently, on every site. It was the
+   * userscript manager's sandbox that made it true here; the rule outlived
+   * that gate because the failure it prevents is silent and total, and
+   * frameElement is simply the correct question: null at top level in every
+   * context, so it cannot misfire in the one direction that matters. The
+   * manifest keeps us out of sub-frames to begin with (content_scripts
+   * defaults to the top frame), the way @noframes used to.
    */
   let framed = false;
   try { framed = !!window.frameElement; } catch { framed = true; }
@@ -37,19 +343,19 @@
 (() => {
   // src/core/config.js
   var CONFIG = {
-    // Substituted by build.js at bundle time. A userscript with @grant none
-    // cannot read GM_info, and an overlay that cannot say which version it is
-    // makes a stale install look exactly like a current one — which is the
+    // Substituted by build.js at bundle time. A bundle cannot read the
+    // manifest that ships it, and an overlay that cannot say which version it
+    // is makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.174",
-    // Substituted like VERSION: where the update checker asks, and what the
-    // userscript's one-click update opens. One source (userscript.json), no
-    // second copy to drift.
-    META_URL: "https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/script/debug-overlay.meta.js",
-    INSTALL_URL: "https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/script/debug-overlay.user.js",
-    // Where a PERSON reads what to do, as opposed to where a manager fetches
-    // bytes. The withdrawal notice needs it: a retired gate has nowhere useful
-    // to send anyone except the install instructions.
+    VERSION: "3.8.175",
+    // Substituted like VERSION, from release.json: the MANIFEST the extension
+    // publishes, which is the one file that moves with every release. It was
+    // the userscript's meta header until that gate was withdrawn — and that
+    // file is frozen now, so asking it would have meant "newest = 3.8.174"
+    // for ever, with nothing reporting the mistake.
+    VERSION_URL: "https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/browser-extension/manifest.json",
+    // Where a PERSON reads what to do, as opposed to where the worker fetches
+    // bytes from. Not the same question, so not the same URL.
     REPO_URL: "https://github.com/ABC-LEGACY-LLC/debug-overlay",
     // daily automatic floor; the manual "check now" row ignores it
     UPDATE: { EVERY: 864e5, BOOT_DELAY: 4e3 },
@@ -277,27 +583,17 @@
 
   // src/core/state.js
   var Store = {
-    /**
-     * The manager only defines these when the header asks for them, and the
-     * dev page, the tests and any manager without them have to keep working —
-     * so every path falls back rather than losing what it was asked to keep.
-     * `typeof` on an undeclared name is the only safe way to ask.
-     */
-    _gm: typeof GM_getValue === "function" && typeof GM_setValue === "function",
     _ext: null,
     // Map cache over chrome.storage.local, or null
     _extApi: null,
     /**
      * chrome.storage is async-only and every reader here is sync, so the
      * extension gate loads EVERYTHING into a cache once, before boot, and
-     * writes through after. Returns a promise ONLY on that backend — the GM
-     * gate, the dev page and the suite all boot synchronously, and the suite
-     * asserts against the DOM in the same breath as eval, so the sync paths
-     * must stay sync. GM wins over chrome.storage if both ever exist:
-     * existing installs keep their data.
+     * writes through after. Returns a promise ONLY on that backend — the dev
+     * page and the suite boot synchronously, and the suite asserts against
+     * the DOM in the same breath as eval, so the sync paths must stay sync.
      */
     init() {
-      if (Store._gm) return null;
       const ext = typeof chrome !== "undefined" && chrome.storage && chrome.storage.local;
       if (!ext) return null;
       return new Promise((res) => {
@@ -364,9 +660,6 @@
         if (Store._ext) {
           const v = Store._ext.get(key);
           if (v !== void 0 && v !== null) return String(v);
-        } else if (Store._gm) {
-          const v = GM_getValue(key);
-          if (v !== void 0 && v !== null) return String(v);
         }
         return localStorage.getItem(key);
       } catch {
@@ -376,36 +669,24 @@
     _read(key) {
       try {
         if (Store._ext) {
-          const v2 = Store._ext.get(key);
-          if (v2 !== void 0 && v2 !== null) return String(v2);
-          const old2 = localStorage.getItem(key);
-          if (old2 !== null) {
-            Store._ext.set(key, old2);
+          const v = Store._ext.get(key);
+          if (v !== void 0 && v !== null) return String(v);
+          const old = localStorage.getItem(key);
+          if (old !== null) {
+            Store._ext.set(key, old);
             try {
-              Store._extApi.set({ [key]: old2 });
+              Store._extApi.set({ [key]: old });
             } catch {
             }
             try {
               localStorage.removeItem(key);
             } catch {
             }
-            return old2;
+            return old;
           }
           return null;
         }
-        if (!Store._gm) return localStorage.getItem(key);
-        const v = GM_getValue(key);
-        if (v !== void 0 && v !== null) return String(v);
-        const old = localStorage.getItem(key);
-        if (old !== null) {
-          GM_setValue(key, old);
-          try {
-            localStorage.removeItem(key);
-          } catch {
-          }
-          return old;
-        }
-        return null;
+        return localStorage.getItem(key);
       } catch {
         return null;
       }
@@ -421,8 +702,7 @@
           }
           return;
         }
-        if (Store._gm) GM_setValue(key, value);
-        else localStorage.setItem(key, value);
+        localStorage.setItem(key, value);
       } catch {
       }
     }
@@ -2816,10 +3096,6 @@
       font: 12px/1.4 system-ui, -apple-system, sans-serif;
       white-space: nowrap; max-width: 92vw; overflow: hidden;
       text-overflow: ellipsis; }
-    /* the same line, carrying a withdrawal rather than a lesson — amber
-       because it asks for a decision, which is exactly what the token means */
-    .debug-overlay-hint.debug-overlay-retired { color: var(--debug-overlay-warn);
-      border-color: var(--debug-overlay-warn); }
 
     /* things that only make sense once powered on */
     #__debug-overlay-bar .debug-overlay-whenOn { display: none; }
@@ -3320,7 +3596,6 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       });
       const flashing = /* @__PURE__ */ new Map();
       let hintEl = null;
-      let retiredMsg = null;
       let badgeGroups = [];
       function renderBadgeFly() {
         const fly = el2.querySelector("[data-badge-fly]");
@@ -3408,7 +3683,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
          * — so it costs a returning user nothing and nobody has to find an ✕.
          */
         hint(on) {
-          const msg = retiredMsg || (Store.get(CONFIG.TAUGHT_KEY) === "1" ? null : "Click any element to inspect it · Shift+click two to measure between them");
+          const msg = Store.get(CONFIG.TAUGHT_KEY) === "1" ? null : "Click any element to inspect it · Shift+click two to measure between them";
           if (!on || !msg) {
             hintEl?.remove();
             hintEl = null;
@@ -3418,28 +3693,13 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
             hintEl = document.createElement("div");
             root.append(hintEl);
           }
-          hintEl.className = "debug-overlay-hint" + (retiredMsg ? " debug-overlay-retired" : "");
+          hintEl.className = "debug-overlay-hint";
           hintEl.textContent = msg;
-        },
-        /**
-         * This wrapper is withdrawn — say so, on the surface, for as long as it
-         * runs. Nothing is announced to the side panel: that face exists only
-         * under the extension gate, and the two gates are mutually exclusive,
-         * so there is nobody on the other end of this to tell.
-         */
-        setRetired(msg) {
-          retiredMsg = msg;
-          const b = el2.querySelector(".debug-overlay-pwr");
-          b.classList.add("debug-overlay-upd");
-          b.title = `Power (Alt+Shift+D) · v${CONFIG.VERSION} — ${msg}`;
-          b.setAttribute("aria-label", `Power — this userscript is retired`);
-          api.hint?.(api.isOn());
         },
         /** The gesture was used, so the instruction has done its job. */
         taught() {
           if (Store.get(CONFIG.TAUGHT_KEY) === "1") return;
           Store.set(CONFIG.TAUGHT_KEY, "1");
-          if (retiredMsg) return;
           hintEl?.remove();
           hintEl = null;
         },
@@ -4730,24 +4990,11 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         });
       });
     }
-    if (typeof GM_xmlhttpRequest !== "undefined") {
-      return new Promise((resolve, reject) => {
-        GM_xmlhttpRequest({
-          method: "GET",
-          url,
-          nocache: true,
-          onload: (r) => r.status >= 200 && r.status < 300 ? resolve(r.responseText) : reject(new Error("http " + r.status)),
-          onerror: () => reject(new Error("network")),
-          ontimeout: () => reject(new Error("timeout"))
-        });
-      });
-    }
     return fetch(url, { cache: "no-store" }).then((r) => {
       if (!r.ok) throw new Error("http " + r.status);
       return r.text();
     });
   }
-  var RETIRED = "This userscript is retired — right-click ⏻ to move to the extension";
   var Updates = {
     latest: null,
     // a KNOWN newer version, or null
@@ -4755,10 +5002,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     // the user pressed Update THIS page-session
     capable: capable(),
     // can this build reach the update host AT ALL
-    retired: Store._gm,
-    // this wrapper is the one being withdrawn
     async check(force) {
-      if (Updates.retired) return null;
       if (!Updates.capable) return null;
       let saved = {};
       try {
@@ -4770,8 +5014,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         return Updates.latest;
       }
       try {
-        const meta = await fetchText(CONFIG.META_URL);
-        const v = (/@version\s+([\d.]+)/.exec(meta) || [])[1];
+        const v = JSON.parse(await fetchText(CONFIG.VERSION_URL)).version;
         Store.set("__debug_overlay_upd", JSON.stringify({ t: Date.now(), v: v || null }));
         if (v && newer(v, CONFIG.VERSION)) Updates.found(v);
         else Updates.latest = null;
@@ -4783,10 +5026,10 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       Updates.latest = v;
       WebPanel.setUpdate(v);
     },
-    /** What pressing Update DOES, per gate. The userscript's manager owns
-     *  installation, so its click opens the install URL and Tampermonkey's
-     *  own dialog finishes the job in one more click. The extension's
-     *  self-updater arrives with its options page; until then, honesty. */
+    /** What pressing Update DOES, per gate. The extension's self-updater
+     *  lives on its options page, and the worker opens it. Everywhere else
+     *  there is no installer to hand off to, so it opens the instructions
+     *  a person reads — never a bare download. */
     apply(x, y) {
       Updates.applied = true;
       if (typeof chrome !== "undefined" && chrome.runtime?.id) {
@@ -4795,7 +5038,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         } catch {
         }
       } else {
-        window.open(CONFIG.INSTALL_URL, "_blank");
+        window.open(`${CONFIG.REPO_URL}#install`, "_blank");
       }
       if (x != null) Updates.menu(x, y, true);
     },
@@ -4805,19 +5048,6 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
      *  where a sentence cannot fit, and painted as smear. */
     menu(x, y, answered) {
       const rows = [];
-      if (Updates.retired) {
-        rows.push({
-          label: `Retired — v${CONFIG.VERSION} is the last userscript build`,
-          run: () => {
-          }
-        });
-        rows.push({
-          label: "→ Install the browser extension (opens the instructions)",
-          run: () => window.open(`${CONFIG.REPO_URL}#install`, "_blank")
-        });
-        Menu.open(x, y, rows);
-        return;
-      }
       if (!Updates.capable) {
         rows.push({
           label: "This build cannot check for updates — see the ZIP page",
@@ -4852,10 +5082,6 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       Menu.open(x, y, rows);
     },
     schedule() {
-      if (Updates.retired) {
-        WebPanel.setRetired(RETIRED);
-        return;
-      }
       setTimeout(() => Updates.check(false), CONFIG.UPDATE.BOOT_DELAY);
     }
   };

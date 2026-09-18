@@ -21,8 +21,8 @@ const path = require('path');
 const { JSDOM, VirtualConsole } = require('jsdom');
 
 const ROOT = __dirname;
-const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'userscript.json'), 'utf8'));
-const bundle = path.join(ROOT, 'dist', cfg.distFile);
+const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'release.json'), 'utf8'));
+const bundle = path.join(ROOT, 'dist', 'browser-extension', 'content.js');
 if (!fs.existsSync(bundle)) {
   console.error('✗ no bundle — run node build.js first');
   process.exit(1);

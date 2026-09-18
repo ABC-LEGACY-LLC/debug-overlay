@@ -3,12 +3,15 @@
    single module evaluates. It cannot be an import — imports hoist, so a guard
    inside a module would run after everything it was guarding. */
   /**
-   * NOT `window.top !== window.self`. With @grant the manager runs this in a
-   * sandbox where `window` is a wrapper, and that comparison can be true in
-   * the TOP frame — which would disable the overlay everywhere, silently, on
-   * every site. frameElement is null at top level in every context, so this
-   * cannot misfire in the one direction that matters. @noframes is what keeps
-   * us out of cross-origin frames, where frameElement reads null anyway.
+   * NOT `window.top !== window.self`. That comparison can be true in the TOP
+   * frame wherever `window` is a wrapper rather than the page's own — which
+   * would disable the overlay everywhere, silently, on every site. It was the
+   * userscript manager's sandbox that made it true here; the rule outlived
+   * that gate because the failure it prevents is silent and total, and
+   * frameElement is simply the correct question: null at top level in every
+   * context, so it cannot misfire in the one direction that matters. The
+   * manifest keeps us out of sub-frames to begin with (content_scripts
+   * defaults to the top frame), the way @noframes used to.
    */
   let framed = false;
   try { framed = !!window.frameElement; } catch { framed = true; }

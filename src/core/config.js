@@ -8,19 +8,19 @@
    * now" — without a second copy of the number living anywhere.
    */
   export const CONFIG = {
-    // Substituted by build.js at bundle time. A userscript with @grant none
-    // cannot read GM_info, and an overlay that cannot say which version it is
-    // makes a stale install look exactly like a current one — which is the
+    // Substituted by build.js at bundle time. A bundle cannot read the
+    // manifest that ships it, and an overlay that cannot say which version it
+    // is makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
     VERSION: '__VERSION__',
-    // Substituted like VERSION: where the update checker asks, and what the
-    // userscript's one-click update opens. One source (userscript.json), no
-    // second copy to drift.
-    META_URL: '__META_URL__',
-    INSTALL_URL: '__INSTALL_URL__',
-    // Where a PERSON reads what to do, as opposed to where a manager fetches
-    // bytes. The withdrawal notice needs it: a retired gate has nowhere useful
-    // to send anyone except the install instructions.
+    // Substituted like VERSION, from release.json: the MANIFEST the extension
+    // publishes, which is the one file that moves with every release. It was
+    // the userscript's meta header until that gate was withdrawn — and that
+    // file is frozen now, so asking it would have meant "newest = 3.8.174"
+    // for ever, with nothing reporting the mistake.
+    VERSION_URL: '__VERSION_URL__',
+    // Where a PERSON reads what to do, as opposed to where the worker fetches
+    // bytes from. Not the same question, so not the same URL.
     REPO_URL: '__REPO_URL__',
     // daily automatic floor; the manual "check now" row ignores it
     UPDATE: { EVERY: 86400000, BOOT_DELAY: 4000 },

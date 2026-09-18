@@ -16,12 +16,12 @@ Edit `src/`. Never edit `dist/` — the next build overwrites it.
 ```bash
 npm run ship      # verify, bump, rebuild — refuses if the version did not move
 git add -A && git commit -m "…" && git push
-npm run shipped   # did it actually reach the URL Tampermonkey reads?
+npm run shipped   # did it actually reach the URL an install reads?
 ```
 
 `npm run check` builds with `--same`, so it does **not** bump. A green check
-does not mean a push will reach anybody: Tampermonkey only fetches on a HIGHER
-`@version`, so pushing an un-bumped build succeeds, changes nothing, and
+does not mean a push will reach anybody: an updater only fetches on a HIGHER
+version, so pushing an un-bumped build succeeds, changes nothing, and
 reports no error anywhere. That is why `ship` exists — it makes forgetting the
 bump impossible, and `shipped` asks the update URL what the world can actually
 see, which is the only answer that counts. `npm run shipped` names this exact
@@ -33,8 +33,8 @@ mean it.
 
 ## Looking at a change before shipping it
 `npm run dev` serves `development/index.html` with the built bundle and rebuilds on
-save. Tampermonkey is production — it only ever sees pushed, version-bumped
-builds — so use the dev page for anything visual.
+An installed extension is production — it only ever sees pushed,
+version-bumped builds — so use the dev page for anything visual.
 
 The page carries deliberate fodder for every tool: off-grid padding and gaps,
 a failing contrast ratio, boxes to measure between. Open it in a real browser
@@ -400,24 +400,24 @@ Claim narrowly. `pick.js` takes only Ctrl/⌘+clicks; a tool that swallows
 every click has taken the overlay away from everything else. Meta as well as
 Ctrl, because Ctrl+click is the context menu on macOS.
 
-## We run in a sandbox now, so never ask a window who it is
-The header grants `GM_getValue`/`GM_setValue`, because `localStorage` is scoped
-to one origin and `@match` is every site — so everything the user chose was
-chosen again on the next domain. `Store` (in `core/state.js`) is the only way to
-persist anything; it picks its backend in order — GM, then
-`chrome.storage.local` (the extension gate's per-install store; async-only, so
-boot defers on that ONE backend via `Store.init()`), then `localStorage` (dev
-page, tests) — and adopts existing per-origin values on first use of a better
-backend, so an upgrade never resets somebody. Do not call `localStorage`
-directly again, and keep the non-ext paths synchronous: the suite, map.js and
-compare.js all read the DOM in the same breath as eval.
+## Never ask a window who it is
+`localStorage` is per origin and this runs on every site, so everything the
+user chose was chosen again on the next domain. `Store` (in `core/state.js`) is
+the only way to persist anything; it picks its backend in order —
+`chrome.storage.local` (the extension's per-install store; async-only, so boot
+defers on that ONE backend via `Store.init()`), then `localStorage` (dev page,
+tests) — and adopts existing per-origin values on first use of the better one,
+so an upgrade never resets somebody. Do not call `localStorage` directly again,
+and keep the non-ext paths synchronous: the suite, map.js and compare.js all
+read the DOM in the same breath as eval. `GM_*` was the first backend of the
+three and went with the userscript gate.
 
-Asking for any GM API moves the script into the manager's sandbox, where
-`window` is a wrapper around the page's. Two consequences, both already handled
-in `banner.js` and both silent if reintroduced:
+That gate ran in the manager's sandbox, where `window` was a wrapper around the
+page's. Two consequences outlived it, both handled in `banner.js`, both silent
+if reintroduced — kept because what they prevent is total, and cheap to keep:
 
 - **Never compare window identities.** `window.top !== window.self` can be true
-  in the *top* frame under a sandbox — the overlay would vanish everywhere and
+  in the *top* frame wherever `window` is a wrapper — the overlay would vanish everywhere and
   report nothing. The frame check reads `window.frameElement`, which is null at
   top level in every context, and `@noframes` handles cross-origin frames.
 - **Ask the document, not a flag.** A soft-navigation re-injection can arrive
@@ -428,11 +428,11 @@ Anything else that assumed page context is now suspect. `unsafeWindow` reaches
 the real page window if something ever genuinely needs it — nothing does yet.
 
 ## The version has to be visible
-`@grant none` means no `GM_info`, so `src/core/config.js` carries a `__VERSION__`
-placeholder that `build.js` substitutes into the bundle, and the panel shows it
-in the ⏻ tooltip. The build **fails** if the placeholder is missing. Do not
-hand-write a version into `src/` — that is a second copy, and it will drift
-from `userscript.json`. This exists because a stale install and a current one
+A bundle cannot read the manifest that ships it, so `src/core/config.js` carries
+a `__VERSION__` placeholder that `build.js` substitutes into the bundle, and the
+panel shows it in the ⏻ tooltip. The build **fails** if the placeholder is
+missing. Do not hand-write a version into `src/` — that is a second copy, and it
+will drift from `release.json`. This exists because a stale install and a current one
 otherwise look identical, which is the same failure as a dead `@updateURL`
 seen from the other end.
 
@@ -677,9 +677,18 @@ The four that were there, each now guarded:
   without the list changing, and re-deriving is what disconnects its observer.
 
 ## Versioning
-`build.js` bumps `@version` automatically. Tampermonkey only updates when the
-version increases, so never hand-edit the version in `userscript.json` down,
-and never commit `dist/` without running the build.
+`build.js` bumps the version automatically, writing it to `release.json`, the
+extension manifest and `abc-labs/labs.json` in the same step — and that step
+runs LAST, so a build that fails its parse check never moves a version. An
+updater only moves on a HIGHER version, so never hand-edit it down, and never
+commit `dist/` without running the build.
+
+`dist/script/` and `dist/debug-overlay.*` are the WITHDRAWN userscript, frozen
+at v3.8.174 and never rebuilt. **Never delete them.** An install polls its own
+update URL and that poll is the only channel that reaches it; deleting the
+files strands every one of them silently, which is the dead-`@updateURL`
+failure committed on purpose. Frozen, they answer with the build that tells
+its user to move to the extension. `test.js` asserts all four still exist.
 
 ## The design system (audit.js and test.js enforce the guards)
 
@@ -742,8 +751,8 @@ what keeps them universal. **Copy this section verbatim into any project you
 audit with those skills.**
 
 **Instrument:** Debug Overlay — install from
-`github.com/ABC-LEGACY-LLC/debug-overlay` (userscript or extension; the
-README's Option A/B). It runs on any page, reads the RENDERED result, and is
+`github.com/ABC-LEGACY-LLC/debug-overlay` (the browser extension; the
+README's Install section). It runs on any page, reads the RENDERED result, and is
 the answer whenever an audit needs a number off a live surface rather than
 an inference from source.
 
@@ -775,6 +784,6 @@ own rule.
 
 ## Escalate to the human instead of guessing
 - A change that would require relaxing an audit rule.
-- Anything touching `@match`, `@grant`, or the update URLs.
+- Anything touching the manifest's matches or permissions, or the update URLs.
 - Moving a file between `core/`, `ui/` and `app/`, or anything that changes
   when a module's side effects run relative to boot's init sequence.

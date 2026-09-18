@@ -1,9 +1,9 @@
 /* ======================================================================
   BRIDGE — the web panel's contract, carried over a port.
 
-     THE TWO PANELS. The WEB PANEL lives on the page (src/ui/), and is the
-     only surface the userscript gate has. The SIDE PANEL is the browser's
-     own, extension-only, and outlives the page it describes. It is a
+     THE TWO PANELS. The WEB PANEL lives on the page (src/ui/), and goes
+     wherever the overlay goes. The SIDE PANEL is the browser's own, and
+     outlives the page it describes. It is a
      SECOND RENDERING of the web panel's state, never a second overlay —
      which is why this file is deliberately ignorant: it subscribes to
      what the web panel announces (WebPanel.onState, wired by boot),
@@ -18,9 +18,9 @@
      everything else is opaque names handed through, the standing rule.
 
      GATE-AWARE, CORE-BLIND: chrome.runtime.onConnect exists only for a
-     real content script — no page, and no userscript sandbox, is ever
-     given it — so under Tampermonkey this file goes quietly inert and
-     the bundle stays byte-identical across both gates.
+     real content script, and no page is ever given it — so anywhere the
+     bundle runs outside the extension (the dev page, the suite) this file
+     goes quietly inert rather than the core learning where it is.
    ====================================================================== */
 import { Protocol } from '../core/protocol.js';
 import { CONFIG } from '../core/config.js';

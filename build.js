@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * build.js — bundles src/ into one Tampermonkey userscript, via esbuild.
+ * build.js — bundles src/ into the browser extension, via esbuild.
  *
  *   node build.js            patch bump   3.8.0 → 3.8.1
  *   node build.js --minor    minor bump
@@ -8,9 +8,10 @@
  *   node build.js --same     no bump (local testing only)
  *   node build.js --watch    rebuild on save, no bump
  *
- * WHY THE BUMP MATTERS: Tampermonkey only pulls a new version when @version is
- * HIGHER than what it has installed. Push without bumping and nothing updates
- * anywhere — so the bump is automatic here.
+ * WHY THE BUMP MATTERS: an updater only pulls a new version when it is HIGHER
+ * than what it has installed. Push without bumping and nothing updates
+ * anywhere, with no error to show for it — so the bump is automatic here, and
+ * it runs LAST, after everything is built and parse-checked.
  *
  * HOW THE BUNDLE IS SHAPED. src/ is real ES modules now; execution order is
  * the import graph, with boot.js as the entry. Two things esbuild cannot do
@@ -32,11 +33,10 @@ const esbuild = require('esbuild');
 const ROOT = __dirname;
 const SRC = path.join(ROOT, 'src');
 const DIST = path.join(ROOT, 'dist');
-const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'userscript.json'), 'utf8'));
+const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'release.json'), 'utf8'));
 /** Placeholder in src/core/config.js, replaced with the real version at bundle time. */
 const VERSION_TOKEN = '__VERSION__';
-const META_TOKEN = '__META_URL__';
-const INSTALL_TOKEN = '__INSTALL_URL__';
+const VERSION_TOKEN_URL = '__VERSION_URL__';
 const REPO_TOKEN = '__REPO_URL__';
 
 function bump(v, kind) {
@@ -45,30 +45,6 @@ function bump(v, kind) {
   if (kind === 'minor') return `${a}.${b + 1}.0`;
   if (kind === 'same') return v;
   return `${a}.${b}.${c + 1}`;
-}
-
-function metaBlock(version) {
-  const raw = `${cfg.rawBase}/${cfg.distFile}`;
-  const rows = [
-    ['name', cfg.name],
-    ['namespace', cfg.namespace],
-    ['version', version],
-    ['description', cfg.description],
-    ['author', cfg.author],
-    ...cfg.match.map((m) => ['match', m]),
-    ...(cfg.grant?.length ? cfg.grant : ['none']).map((g) => ['grant', g]),
-    // @connect whitelists the update checker's host at install time, so the
-    // manager's network door opens with NO per-use prompt — and only to here
-    ...(cfg.connect || []).map((c) => ['connect', c]),
-    ...(cfg.noframes ? [['noframes', '']] : []),
-    ['run-at', 'document-idle'],
-    ['updateURL', `${cfg.rawBase}/${cfg.metaFile}`],
-    ['downloadURL', raw],
-  ];
-  const pad = Math.max(...rows.map(([k]) => k.length)) + 2;
-  return ['// ==UserScript==',
-    ...rows.map(([k, v]) => `// @${k.padEnd(pad)}${v}`.trimEnd()),
-    '// ==/UserScript=='].join('\n');
 }
 
 /** Every .js under a src subdir, recursive, sorted — the auto-discovery. */
@@ -126,60 +102,35 @@ function build(kind) {
                   'overlay its version, and a stale install would look current');
     process.exit(1);
   }
+  /* The update check asks the MANIFEST now, not a userscript header. It used
+     to read dist/script/…meta.js — which is frozen for ever as of the
+     withdrawal, so leaving it there would have pinned the extension's idea of
+     "newest" to v3.8.174 permanently, with no error anywhere. The manifest is
+     the file that actually moves with a release, and it is the same one the
+     extension's own updater already fetches. */
   bundled = bundled.replace(VERSION_TOKEN, version)
-    .replace(META_TOKEN, `${cfg.rawBase}/${cfg.metaFile}`)
-    .replace(INSTALL_TOKEN, `${cfg.rawBase}/${cfg.distFile}`)
+    .replace(VERSION_TOKEN_URL, `${cfg.rawBase}/manifest.json`)
     .replace(REPO_TOKEN, cfg.repoUrl);
 
   const banner = fs.readFileSync(path.join(SRC, 'banner.js'), 'utf8');
   const docs = fs.readFileSync(path.join(ROOT, 'DOCS.txt'), 'utf8').trim();
-  const out = `${metaBlock(version)}\n\n/*\n${docs}\n*/\n\n` +
-    `(function () {\n  'use strict';\n${banner}\n${bundled}})();\n`;
 
-  /* dist/ is organised by GATE:
-       dist/script/            the userscript — canonical home
-       dist/browser-extension/ the extension + its install ZIP
-       dist/debug-overlay.*    LEGACY BRIDGE, never remove: every install
-                               from before the restructure polls THIS path
-                               forever. The copies are byte-identical and
-                               their headers point at dist/script/, so an
-                               old install's next update quietly migrates
-                               it to the new home. Deleting them is the
-                               dead-@updateURL failure — silent, forever. */
+  /* dist/ holds ONE built gate now, and one that is FROZEN:
+
+       dist/browser-extension/ the extension + its install ZIP — built here
+       dist/script/            the userscript, LEFT AT v3.8.174 FOR EVER
+       dist/debug-overlay.*    its pre-restructure copies, the same
+
+     The userscript gate is withdrawn, and nothing above may be deleted. Every
+     install still out there polls those meta files on its own clock, and that
+     poll is the ONLY channel that reaches it: delete them and each install
+     freezes wherever it happens to be, silently, with no way left to say so —
+     the dead-@updateURL failure, committed deliberately instead of by
+     accident. Frozen, they answer with v3.8.174, which is the build that
+     tells its user to move to the extension and then stops asking. That is
+     the terminal state, and it is reached by NOT writing here, not by removing. */
   fs.mkdirSync(DIST, { recursive: true });
-  const SCRIPT = path.join(DIST, 'script');
-  fs.mkdirSync(SCRIPT, { recursive: true });
-  const distPath = path.join(SCRIPT, cfg.distFile);
-  fs.writeFileSync(distPath, out);
-  fs.writeFileSync(path.join(SCRIPT, cfg.metaFile), metaBlock(version) + '\n');
-  fs.writeFileSync(path.join(DIST, cfg.distFile), out);
-  fs.writeFileSync(path.join(DIST, cfg.metaFile), metaBlock(version) + '\n');
 
-  // never ship something that does not parse
-  try {
-    cp.execSync(`node --check "${distPath}"`, { stdio: 'pipe' });
-  } catch (e) {
-    console.error('✗ syntax error in bundle:\n' + e.stderr.toString());
-    process.exit(1);
-  }
-
-  if (kind !== 'same') {
-    cfg.version = version;
-    fs.writeFileSync(path.join(ROOT, 'userscript.json'), JSON.stringify(cfg, null, 2) + '\n');
-    /* The Labs card shows the version too, and a number kept by hand drifts
-       from the one that shipped — the same failure __VERSION__ exists for, one
-       shelf further out. Written by the BUMP, so `--same` never touches it and
-       `npm run check` stays read-only. A missing file is not an error: abc-labs/
-       is metadata the product never reads, and a build must not die over it. */
-    const labsFile = path.join(ROOT, 'abc-labs', 'labs.json');
-    if (fs.existsSync(labsFile)) {
-      const labs = JSON.parse(fs.readFileSync(labsFile, 'utf8'));
-      if (labs.export) {
-        labs.export.version = version;
-        fs.writeFileSync(labsFile, JSON.stringify(labs, null, 2) + '\n');
-      }
-    }
-  }
   /* THE SECOND GATE — an unpacked browser extension, from the SAME bundle.
      One core, two wrappers: the userscript above and this content script are
      byte-identical inside, which is what makes drift impossible — there is
@@ -211,9 +162,13 @@ function build(kind) {
      owns outright, that one it does not.) */
   fs.rmSync(EXT, { recursive: true, force: true });
   fs.mkdirSync(EXT, { recursive: true });
-  fs.writeFileSync(path.join(EXT, 'content.js'),
-    `/* Debug Overlay v${version} — extension gate; same bundle as the userscript */\n` +
-    `(function () {\n  'use strict';\n${banner}\n${bundled}})();\n`);
+  /* DOCS.txt rides here now. It used to be the userscript header's comment
+     block — the manual you got by opening the file you installed — and losing
+     it with the wrapper would have cost the one copy a reader meets without
+     going to the repo. */
+  const content = `/* Debug Overlay v${version} — the extension gate */\n\n/*\n${docs}\n*/\n\n` +
+    `(function () {\n  'use strict';\n${banner}\n${bundled}})();\n`;
+  fs.writeFileSync(path.join(EXT, 'content.js'), content);
   fs.writeFileSync(path.join(EXT, 'manifest.json'), JSON.stringify({
     manifest_version: 3,
     name: cfg.name,
@@ -262,7 +217,7 @@ function build(kind) {
      name: two folders both called browser-extension read as a duplicate in
      any file explorer, when one is what you edit and the other is what the
      build emits — the same relationship src/ has to dist/. */
-  const extBase = cfg.rawBase.replace(/\/script$/, '/browser-extension');
+  const extBase = cfg.rawBase;   // rawBase points at the one gate that ships
   /* ONE NAME, DERIVED ONCE — the page's <script>, the file on disk, the
      installer's embed and files.json must all agree or the page 404s its own
      script.
@@ -481,10 +436,33 @@ function build(kind) {
     .map((f) => [f, fs.readFileSync(path.join(EXT, f))]);
   fs.writeFileSync(path.join(EXT, 'debug-overlay-extension.zip'), zipStore(extFiles));
 
-  const kb = (Buffer.byteLength(out) / 1024).toFixed(1);
-  console.log(`✓ v${version}  ${discovered} discovered + core → dist/script/${cfg.distFile}  (${kb} KB)` +
-    ` + dist/browser-extension/ (+ legacy bridge at dist/)`);
-  return distPath;
+  /* THE BUMP IS LAST, and that is a change: it used to sit between the two
+     gates, so a build that failed its parse check further down had already
+     moved the version in release.json and abc-labs/labs.json. Everything
+     above is written and checked before anything here is, so a failed build
+     now leaves the repo exactly as it found it. */
+  if (kind !== 'same') {
+    cfg.version = version;
+    fs.writeFileSync(path.join(ROOT, 'release.json'), JSON.stringify(cfg, null, 2) + '\n');
+    /* The Labs card shows the version too, and a number kept by hand drifts
+       from the one that shipped — the same failure __VERSION__ exists for, one
+       shelf further out. Written by the BUMP, so `--same` never touches it and
+       `npm run check` stays read-only. A missing file is not an error: abc-labs/
+       is metadata the product never reads, and a build must not die over it. */
+    const labsFile = path.join(ROOT, 'abc-labs', 'labs.json');
+    if (fs.existsSync(labsFile)) {
+      const labs = JSON.parse(fs.readFileSync(labsFile, 'utf8'));
+      if (labs.export) {
+        labs.export.version = version;
+        fs.writeFileSync(labsFile, JSON.stringify(labs, null, 2) + '\n');
+      }
+    }
+  }
+
+  const kb = (Buffer.byteLength(content) / 1024).toFixed(1);
+  console.log(`✓ v${version}  ${discovered} discovered + core → dist/browser-extension/  (${kb} KB)` +
+    `  ·  dist/script/ frozen at the withdrawn userscript`);
+  return path.join(EXT, 'content.js');
 }
 
 const arg = process.argv[2] || '';

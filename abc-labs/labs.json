@@ -7,9 +7,6 @@
     "kind": "service",
     "category": "tool",
     "surfaces": {
-      "userscript": {
-        "url": "https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/script/debug-overlay.user.js"
-      },
       "extension": {
         "url": "https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/browser-extension/debug-overlay-extension.zip",
         "host": "chrome"
@@ -22,12 +19,11 @@
       "performance",
       "debugging"
     ],
-    "version": "3.8.174",
+    "version": "3.8.175",
     "requires": [
-      "Tampermonkey, for the userscript",
-      "Chrome or Edge, for the extension",
-      "Chrome/Edge: Developer mode switched on",
-      "Firefox: the userscript only"
+      "Chrome or Edge",
+      "Developer mode switched on",
+      "A folder to install into (not Downloads)"
     ],
     "status": "beta",
     "started": "2026-08-09",

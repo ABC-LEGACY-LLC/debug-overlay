@@ -5,11 +5,11 @@ click to pin, Shift+click two elements to measure between them, run a
 whole-page audit, then copy a structured report to paste into an AI chat
 alongside the screenshot.
 
-One codebase, two ways to install: a **Tampermonkey userscript** that updates
-itself after every `git push`, and a **browser extension** built from the
-byte-identical bundle, which adds a browser side panel that outlives page
+It installs as a **browser extension** — a one-time ZIP-and-folder setup, then
+every update is one button. It brings a browser side panel that outlives page
 reloads. Sessions survive a page refresh; a performance monitor (⚡) can watch
-a pinned component's cost live.
+a pinned component's cost live. (A Tampermonkey userscript was the other way
+in; it is [withdrawn](#the-userscript-withdrawn).)
 
 **Jump to:** [Install](#install) ·
 [First 60 seconds](#first-60-seconds-after-installing) ·
@@ -20,67 +20,13 @@ a pinned component's cost live.
 
 ---
 
+
 ## Install
 
-Two ways to run it. **Pick ONE per browser** — they are the same overlay, and
-two copies would fight over the page.
-
-| | A · Userscript | B · Browser extension |
-|---|---|---|
-| needs | Tampermonkey | nothing extra (Chrome/Edge) |
-| install | open 1 link | download ZIP, load a folder once |
-| updates | automatic after every push | one button in the update screen |
-| side panel | no | **yes** |
-
----
-
-### Option A — Userscript with Tampermonkey *(recommended)*
-
-**Step 1.** Install the Tampermonkey extension from your browser's store
-(Chrome Web Store / Edge Add-ons / Firefox Add-ons — search "Tampermonkey").
-
-**Step 2 (Chrome/Edge only).** Open `chrome://extensions` and switch
-**Developer mode** ON (top-right). Chrome requires it for userscripts to run
-at all — without this, Tampermonkey installs but stays silent.
-
-**Step 3.** Open this link in the browser:
-
-```
-https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/script/debug-overlay.user.js
-```
-
-**Step 4.** Tampermonkey opens its install page → press **Install**.
-
-**Step 5.** Open any website and press **Alt+Shift+D** — the panel appears.
-Done: this machine now updates itself after every `git push`.
-
-*Getting updates:* automatic (checked daily). To force one: right-click the
-⏻ button → **Check for updates now** → **Update to vX** → Tampermonkey's
-dialog → then press **↻ Refresh page** in the same menu, because an open tab
-keeps running the old version until it reloads.
-
----
-
-### Option B — Browser extension *(recommended)*
-
-Same overlay, plus a side panel that survives page reloads and an update
-screen that fetches new files and writes them into your install folder — so
-updating is a button, not a download-and-extract round trip. This is what the
-project develops against.
-
-It **deletes nothing, and never restarts itself.** It used to do both, and
-that was the mistake: fetch, write, delete, then restart the program you just
-wrote is the complete shape of a downloader, and security software read it
-that way — quarantining the files, which removed them from disk and made
-Chrome drop the extension. Sweeping stale filenames was cosmetic; Chrome
-loads only what the manifest names.
-
-The restart came back as a **button** on the finished banner, because
-removing it left four steps (copy an address, paste it, find the row, press
-an icon) in place of one. The difference that matters is consent, not the
-API: a downloader restarts what it installed silently, and nothing here
-happens unless you press it. If a scanner ever objects again, that button is
-the first thing to remove — it is the only piece of that shape left.
+One way, and it is two clicks of the browser's own security law plus a
+download. There used to be a Tampermonkey userscript beside it; it is
+withdrawn — see [The userscript, withdrawn](#the-userscript-withdrawn) below if
+you are still running it.
 
 **Step 1.** Download the ZIP:
 
@@ -123,12 +69,49 @@ then refresh your open tabs. (Its safety rules: only this repo's URL, only a
 version that increases, fetch everything before writing anything, never
 silently.)
 
+The extension **deletes nothing, and never restarts itself.** It used to do
+both, and that was the mistake: fetch, write, delete, then restart the program
+you just wrote is the complete shape of a downloader, and security software
+read it that way — quarantining the files, which removed them from disk and
+made Chrome drop the extension. Sweeping stale filenames was cosmetic; Chrome
+loads only what the manifest names.
+
+The restart came back as a **button** on the finished banner, because
+removing it left four steps (copy an address, paste it, find the row, press
+an icon) in place of one. The difference that matters is consent, not the
+API: a downloader restarts what it installed silently, and nothing here
+happens unless you press it. If a scanner ever objects again, that button is
+the first thing to remove — it is the only piece of that shape left.
+
 *Why the ZIP-and-folder dance:* Chrome refuses URL-installs outside its Web
 Store — the browser's law, not ours. This is the floor it allows, and it is
 one-time.
 
-*Firefox:* has no File System Access API and no persistent unpacked installs —
-use Option A there.
+*Firefox:* no File System Access API and no persistent unpacked installs, so
+the extension cannot live there. Firefox has no supported path today.
+
+---
+
+### The userscript, withdrawn
+
+There was a second way in: a Tampermonkey userscript, one link to install and
+automatic updates after every push. It is gone. The extension has the side
+panel, survives the page refresh, and is what the project develops against;
+maintaining a second wrapper to be worse at both was the whole of the case
+against it.
+
+**v3.8.174 is the last userscript build**, and it says so itself: it stops
+checking for updates, rests an amber mark on ⏻, and carries one line telling
+you to move here. If you have it installed, that is the version you now have.
+
+Its files are **left on disk for ever** at `dist/script/` and `dist/` —
+deliberately. An install polls its own update URL and that poll is the only
+channel that ever reaches it, so deleting those files would strand every
+existing install silently, with nothing left that could say why. Frozen, they
+answer with the build that says goodbye. Nothing rebuilds them.
+
+To move: uninstall the script in Tampermonkey, then follow **Install** above.
+Your settings do not carry across — they lived in the manager's own store.
 
 ---
 
@@ -170,10 +153,6 @@ Every mark and abbreviation the overlay prints is explained under
 ⚙ → **Legend**. Refreshing the page keeps your session: power stays on (per
 site) and pins come back by selector, with losses counted.
 
-**Optional but recommended — Tampermonkey Sync** (Option A): Dashboard →
-Settings → Sync to Google Drive / Dropbox / OneDrive. A brand-new machine
-then only needs you to sign in; the script arrives on its own.
-
 ### If something looks wrong
 
 - **Panel does not appear:** is Developer mode on (`chrome://extensions`)?
@@ -209,10 +188,10 @@ then only needs you to sign in; the script arrives on its own.
 
 ### For a different account / fork
 
-The repo must be **public** (Tampermonkey fetches raw URLs without
-credentials). Change `rawBase` in `userscript.json`, run `npm run ship`,
-push — every URL (header, checker, installer, updater) derives from that one
-field. The repo was once `AlonurKomilov/debug-overlay-abc`; do not use the
+The repo must be **public** (the updater fetches raw URLs without
+credentials). Change `rawBase` in `release.json`, run `npm run ship`,
+push — every URL (checker, worker guard, installer, updater) derives from that
+one field. The repo was once `AlonurKomilov/debug-overlay-abc`; do not use the
 old name — the redirect dies the day anyone claims it, silently.
 
 ### The permanent fix for install and update friction
@@ -221,55 +200,52 @@ old name — the redirect dies the day anyone claims it, silently.
 
 ```
 dist/
-  script/                the userscript — canonical home
-    debug-overlay.user.js
-    debug-overlay.meta.js
-  browser-extension/     the extension gate
+  browser-extension/     the extension — the only gate that is built
     manifest.json  content.js  sw.js       the extension itself
     side-panel.html  side-panel.js           the side panel
     update.html  update.js                  the update & repair screen
     icon16/32/48/128.png  files.json       the face, and the updater's file list
     install.html                            the installer (no cmd involved)
     debug-overlay-extension.zip     ← the one-link install
-  debug-overlay.user.js  LEGACY BRIDGE — never delete: installs from before
-  debug-overlay.meta.js  the restructure poll this path forever; these
-                         byte-identical copies point at script/, so an old
-                         install's next update migrates it automatically
+  script/                FROZEN at v3.8.174, the withdrawn userscript —
+    debug-overlay.user.js  never delete, never rebuilt. An install polls its
+    debug-overlay.meta.js  own update URL and that poll is the only channel
+  debug-overlay.user.js  that reaches it; deleting these strands every one of
+  debug-overlay.meta.js  them silently. Frozen, they answer with the build
+                         that says "retired, move to the extension".
 ```
 
 ### How the auto-update actually works
 
-`build.js` writes the userscript twice — `dist/script/` (canonical) and the
-legacy-bridge copies at `dist/` — each as two files:
+The extension publishes its `manifest.json` beside the files it ships, and
+that is the file everything asks:
 
-| file | purpose |
+| asks it | what for |
 |---|---|
-| `debug-overlay.user.js` | the script itself (`@downloadURL`) |
-| `debug-overlay.meta.js` | header only (`@updateURL`) — a few hundred bytes, so update checks are cheap |
+| the overlay, daily and on demand (right-click ⏻) | is a newer version out? → the amber dot |
+| the update screen's **Check & apply** | the version, then `files.json`, then every file |
+| `npm run shipped` | did the push actually reach the URL an install reads? |
 
-Tampermonkey periodically fetches the meta file and **only installs the new
-version if `@version` is higher**. That is why the build bumps the version
-automatically — forgetting to bump is the classic reason "I pushed but nothing
-updated". The overlay also checks that same meta file itself, daily and on
-demand (right-click ⏻), so a stale install announces itself instead of
-looking current.
+One file, one answer — the overlay and the updater cannot disagree about what
+"newest" means. The build bumps the version automatically, because forgetting
+to bump is the classic reason "I pushed but nothing updated": an updater only
+moves on a HIGHER version, so an un-bumped push succeeds and changes nothing,
+with no error anywhere.
 
-Two things to expect:
+The update check never runs from the page itself. The extension's service
+worker fetches, because a page's CSP cannot reach into it, and its guard
+allows exactly one URL prefix — this repo's `dist/browser-extension/`.
 
-- GitHub's raw CDN caches for a few minutes, so updates are not instant.
-- Chrome requires **Developer mode** (`chrome://extensions`) for Tampermonkey
-  to run userscripts at all under Manifest V3.
+GitHub's raw CDN caches for a few minutes, so updates are not instant.
 
 ### What syncs, what stays per site
 
-Which tools are armed, the panel position, and everything under ⚙ are kept
-in a store that follows the **install**, not the site — under Tampermonkey
-that is `GM_setValue` (scoped to the script, carried to new machines by the
-manager's own sync); under the browser extension it is
-`chrome.storage.local` (scoped to the extension). Choose an 8px grid on one
-site and every other site already knows. Before the extension gate had this,
-it fell back to per-origin `localStorage` and choices silently split across
-sites — arm ⚡ on one origin and it arrived disarmed on the next.
+Which tools are armed, the panel position, and everything under ⚙ are kept in
+a store that follows the **install**, not the site: `chrome.storage.local`,
+scoped to the extension. Choose an 8px grid on one site and every other site
+already knows. Before the extension gate had this it fell back to per-origin
+`localStorage` and choices silently split across sites — arm ⚡ on one origin
+and it arrived disarmed on the next.
 
 Two things are deliberately **not** global: power (per site — debugging one
 site must not switch the overlay on across the whole browser) and pins (per
@@ -277,20 +253,15 @@ page, saved as selectors and re-resolved on reload). They stay per-site by
 carrying the origin in their storage **key**, so the global backend does not
 globalise them.
 
-The grants are not free. `GM_getValue`/`GM_setValue` exist because
-`localStorage` is per-origin and `@match *://*/*` would reset settings on
-every new domain; `GM_xmlhttpRequest` + `@connect raw.githubusercontent.com`
-exist so the update check works even on pages whose CSP blocks outbound
-fetches — and can call that one host, nowhere else. Any GM grant moves the
-script into the manager's **sandbox**, where `window` is a wrapper; two
-things in `src/banner.js` exist because of it (the `frameElement` frame check
-and the ask-the-document single-instance guard). `Store` in
-`src/core/state.js` picks its backend in order — GM, then
-`chrome.storage.local`, then `localStorage` (the dev page and the tests) —
-and adopts existing per-origin values on first use of a better backend, so
-an upgrade never resets anybody. `chrome.storage` is async-only, so on that
-one backend boot waits for a single storage snapshot before initialising;
-everywhere else it stays synchronous.
+`Store` in `src/core/state.js` picks its backend in order — `chrome.storage`,
+then `localStorage` (the dev page and the tests) — and adopts existing
+per-origin values on first use of the better one, so an upgrade never resets
+anybody. `chrome.storage` is async-only, so on that backend boot waits for a
+single storage snapshot before initialising; everywhere else it stays
+synchronous. `GM_setValue` was the first backend of the three and went with
+the userscript gate; `src/banner.js` still carries the `frameElement` frame
+check and the ask-the-document single-instance guard, because what they
+prevent is silent and total whatever the wrapper is.
 
 ---
 
@@ -314,9 +285,9 @@ git add -A && git commit -m "…" && git push
 npm run shipped                                 # "vX is live" is the only proof
 ```
 
-`check` builds with `--same` so verifying never burns a version number;
-Tampermonkey only updates on a HIGHER `@version`, which is why `ship` refuses
-to finish if the version did not move.
+`check` builds with `--same` so verifying never burns a version number; an
+updater only moves on a HIGHER version, which is why `ship` refuses to finish
+if the version did not move.
 
 ### Seeing a change before shipping it
 
@@ -329,10 +300,6 @@ off-grid gaps, a failing-contrast line, boxes to measure between, and
 buttons that hurt the page in honest ways for ⚡ (a 400ms block, a mutation
 storm). Open it in a **real browser tab** — the bundle skips frames by
 design, so an embedded editor preview shows nothing.
-
-`development/perf-probe.user.js` is a standalone instrument: install it in
-Tampermonkey for a minute to see which performance-observer tiers actually
-fire under the manager's sandbox on a given browser.
 
 ---
 

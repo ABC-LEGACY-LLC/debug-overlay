@@ -6,10 +6,11 @@
  *   npm run shipped   is what I pushed actually reaching a browser?
  *
  * WHY THIS EXISTS: `check` builds with --same, so it does not bump. A green
- * check followed by a commit and a push ships a version Tampermonkey already
- * has, it decides there is nothing to fetch, and NOTHING REPORTS AN ERROR —
- * the push succeeds, the overlay never changes. That has happened here. The
- * warning about it lived in prose, and prose is not a guard.
+ * check followed by a commit and a push ships a version the installed
+ * updater already has, it decides there is nothing to fetch, and NOTHING
+ * REPORTS AN ERROR — the push succeeds, the overlay never changes. That has
+ * happened here. The warning about it lived in prose, and prose is not a
+ * guard.
  *
  * So: `ship` makes forgetting the bump impossible, and `shipped` asks the
  * update URL what the world can actually see, which is the only answer that
@@ -22,7 +23,7 @@ const cp = require('child_process');
 const https = require('https');
 
 const ROOT = __dirname;
-const cfg = () => JSON.parse(fs.readFileSync(path.join(ROOT, 'userscript.json'), 'utf8'));
+const cfg = () => JSON.parse(fs.readFileSync(path.join(ROOT, 'release.json'), 'utf8'));
 
 const run = (cmd) => cp.execSync(cmd, { cwd: ROOT, stdio: 'inherit' });
 const quiet = (cmd) => { try { return cp.execSync(cmd, { cwd: ROOT }).toString().trim(); } catch { return ''; } };
@@ -42,9 +43,12 @@ function get(url) {
   });
 }
 
-const versionOf = (txt) => (String(txt || '').match(/@version\s+(\S+)/) || [])[1] || null;
+/** The published manifest's version, or null. JSON now, not a userscript
+ *  header: the header's file is frozen at the withdrawn gate's last build,
+ *  so asking it would answer 3.8.174 for ever and call every release live. */
+const versionOf = (txt) => { try { return JSON.parse(txt).version || null; } catch { return null; } };
 
-/** Is a newer than b? Tampermonkey updates on strictly greater, so do we. */
+/** Is a newer than b? The updater moves on strictly greater, so do we. */
 function newer(a, b) {
   const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);
   for (let i = 0; i < 3; i++) {
@@ -56,7 +60,7 @@ function newer(a, b) {
 
 async function status() {
   const c = cfg();
-  const url = `${c.rawBase}/${c.metaFile}`;
+  const url = `${c.rawBase}/manifest.json`;
   const local = c.version;
   const unpushed = quiet('git log --oneline @{u}..HEAD').split('\n').filter(Boolean);
   const dirty = quiet('git status --porcelain').split('\n').filter(Boolean);
@@ -79,7 +83,7 @@ async function status() {
   }
   if (served === local) {
     if (!unpushed.length && !dirty.length) {
-      console.log(`\n  ✓ v${local} is live. Tampermonkey will pick it up on its next check —\n` +
+      console.log(`\n  ✓ v${local} is live. An install picks it up on its next check —\n` +
                   '    GitHub\'s raw CDN caches for a few minutes, so allow for that.\n');
       return 0;
     }
@@ -87,8 +91,8 @@ async function status() {
     // world already has. Push this and every installation decides there is
     // nothing to fetch — silently, with no error anywhere.
     console.log(`\n  ✗ v${local} is live AND is the version sitting on your changes.\n` +
-                '    Pushing now would reach nobody: Tampermonkey only fetches on a\n' +
-                '    HIGHER @version. Run `npm run ship` to bump before committing.\n');
+                '    Pushing now would reach nobody: an install only fetches on a\n' +
+                '    HIGHER version. Run `npm run ship` to bump before committing.\n');
     return 1;
   }
   if (newer(local, served)) {
@@ -117,8 +121,8 @@ async function ship() {
   // not happen and the push would have reached nobody.
   if (!newer(after, before)) {
     console.error(`\n  ✗ version did not increase (${before} → ${after}).\n` +
-                  '    Tampermonkey only fetches on a HIGHER @version, so this\n' +
-                  '    build would install nowhere. Not safe to push.\n');
+                  '    An install only fetches on a HIGHER version, so this\n' +
+                  '    build would land nowhere. Not safe to push.\n');
     process.exit(1);
   }
 
@@ -131,7 +135,7 @@ async function ship() {
   console.log(`\n  ✓ v${before} → v${after}, dist/ rebuilt. Now:\n\n` +
               '      git add -A && git commit -m "…" && git push\n\n' +
               '  then `npm run shipped` to confirm it actually reached the URL\n' +
-              '  Tampermonkey reads. A push is not a release until that says so.\n');
+              '  the updater reads. A push is not a release until that says so.\n');
 }
 
 (process.argv.includes('--status') ? status().then((c) => process.exit(c)) : ship())

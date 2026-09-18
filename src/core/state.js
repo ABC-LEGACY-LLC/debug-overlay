@@ -5,15 +5,13 @@
         same concern: State is what the overlay knows, Store is the part of
         that which outlives the page.
 
-        WHY IT EXISTS: localStorage is scoped to one origin, and this script
-        matches every site. So arming a tool or choosing a grid step on one
-        domain taught the overlay nothing about the next one — every new site
-        started from the defaults again, which is a setup step handed back to
-        the user on every domain they visit. GM_getValue is per SCRIPT, and it
-        rides Tampermonkey's own sync to a new machine.
+        WHY IT EXISTS: localStorage is scoped to one origin, and this runs on
+        every site. So arming a tool or choosing a grid step on one domain
+        taught the overlay nothing about the next one — every new site started
+        from the defaults again, which is a setup step handed back to the user
+        on every domain they visit.
 
-        THREE backends, one meaning, chosen in this order:
-          GM_*            the userscript gate — per script, manager-synced
+        TWO backends, one meaning, chosen in this order:
           chrome.storage  the extension gate — a content script's ONE store
                           that follows the extension rather than the origin.
                           Without it the extension fell back to localStorage
@@ -23,6 +21,8 @@
           localStorage    the dev page and the tests — per origin, and fine
                           there, where one origin is all there is.
 
+        GM_* was the first of them, and it went with the userscript gate.
+
         All three store the same JSON strings, so what is already in
         localStorage is readable as-is and gets adopted on first use, per
         key — an upgrade must never reset anybody. Anything per SITE stays
@@ -30,27 +30,17 @@
         global backend does not globalise it.
      ====================================================================== */
   export const Store = {
-    /**
-     * The manager only defines these when the header asks for them, and the
-     * dev page, the tests and any manager without them have to keep working —
-     * so every path falls back rather than losing what it was asked to keep.
-     * `typeof` on an undeclared name is the only safe way to ask.
-     */
-    _gm: typeof GM_getValue === 'function' && typeof GM_setValue === 'function',
     _ext: null,      // Map cache over chrome.storage.local, or null
     _extApi: null,
 
     /**
      * chrome.storage is async-only and every reader here is sync, so the
      * extension gate loads EVERYTHING into a cache once, before boot, and
-     * writes through after. Returns a promise ONLY on that backend — the GM
-     * gate, the dev page and the suite all boot synchronously, and the suite
-     * asserts against the DOM in the same breath as eval, so the sync paths
-     * must stay sync. GM wins over chrome.storage if both ever exist:
-     * existing installs keep their data.
+     * writes through after. Returns a promise ONLY on that backend — the dev
+     * page and the suite boot synchronously, and the suite asserts against
+     * the DOM in the same breath as eval, so the sync paths must stay sync.
      */
     init() {
-      if (Store._gm) return null;
       const ext = typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local;
       if (!ext) return null;
       return new Promise((res) => {
@@ -120,9 +110,6 @@
         if (Store._ext) {
           const v = Store._ext.get(key);
           if (v !== undefined && v !== null) return String(v);
-        } else if (Store._gm) {
-          const v = GM_getValue(key);
-          if (v !== undefined && v !== null) return String(v);
         }
         return localStorage.getItem(key);
       } catch { return null; }
@@ -145,23 +132,7 @@
           }
           return null;
         }
-        if (!Store._gm) return localStorage.getItem(key);
-        const v = GM_getValue(key);
-        if (v !== undefined && v !== null) return String(v);
-        // First run after the grant landed. Adopt whatever this origin already
-        // had, so nobody's tools and settings reset on the day it shipped —
-        // and write it through, so the next origin inherits it too.
-        const old = localStorage.getItem(key);
-        if (old !== null) {
-          GM_setValue(key, old);
-          // and remove the original. Adoption used to copy and leave, so every
-          // site the script had ever touched kept a stale duplicate that went
-          // wrong the moment the GM copy changed — two answers to one question,
-          // with only one of them read.
-          try { localStorage.removeItem(key); } catch {}
-          return old;
-        }
-        return null;
+        return localStorage.getItem(key);
       } catch { return null; }
     },
 
@@ -173,8 +144,7 @@
           try { Store._extApi.set({ [key]: value }); } catch {}
           return;
         }
-        if (Store._gm) GM_setValue(key, value);
-        else localStorage.setItem(key, value);
+        localStorage.setItem(key, value);
       } catch {}
     },
   };

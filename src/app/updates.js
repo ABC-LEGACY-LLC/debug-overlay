@@ -13,14 +13,13 @@ import { WebPanel } from '../ui/web-panel.js';
      and a manual check always answers, either way, because a button that
      does nothing visible is worse than no button.
 
-     ONE endpoint, THREE doors, picked at runtime — the Store pattern:
+     ONE endpoint, TWO doors, picked at runtime — the Store pattern:
        extension   → the service worker fetches (a page's CSP cannot
                      reach into it); pinned to the repo host by manifest
-       userscript  → the manager's GM_xmlhttpRequest (ignores page CSP;
-                     @connect whitelists the repo host, so no prompts)
        elsewhere   → plain fetch — the dev page, permissive sites
-     Every door fails SILENT on error: offline is not news, and a false
-     nag would teach the eye to ignore a true one.
+     The manager's GM_xmlhttpRequest was the third, and went with the
+     userscript gate. Every door fails SILENT on error: offline is not
+     news, and a false nag would teach the eye to ignore a true one.
    ====================================================================== */
 
 /** Numeric, segment-wise — '3.10.2' beats '3.9.9'. Shared with the
@@ -63,18 +62,6 @@ function fetchText(url) {
             });
           });
         }
-        // userscript: the manager's door
-        if (typeof GM_xmlhttpRequest !== 'undefined') {
-          return new Promise((resolve, reject) => {
-            GM_xmlhttpRequest({
-              method: 'GET', url, nocache: true,
-              onload: (r) => (r.status >= 200 && r.status < 300
-                ? resolve(r.responseText) : reject(new Error('http ' + r.status))),
-              onerror: () => reject(new Error('network')),
-              ontimeout: () => reject(new Error('timeout')),
-            });
-          });
-        }
         // dev page and friends
         return fetch(url, { cache: 'no-store' }).then((r) => {
           if (!r.ok) throw new Error('http ' + r.status);
@@ -82,36 +69,12 @@ function fetchText(url) {
         });
 }
 
-/**
- * THE USERSCRIPT GATE IS WITHDRAWN, and this is the only channel that can
- * say so.
- *
- * A wrapper being retired is staleness in its final form: there is no newer
- * version to fetch, and there never will be — so asking the network is not
- * just useless, it is a lie waiting to happen (a meta file frozen at this
- * version reads as "you are current", which is the one thing this module
- * exists to stop an install believing). It announces instead.
- *
- * Detected through Store._gm rather than a second `typeof` of its own: the
- * manager grants GM_* to nothing else, so that flag already IS "am I the
- * userscript?" and one definition cannot drift from the other.
- *
- * The extension gate never reaches any of this — the two are mutually
- * exclusive by construction — which is why nothing here is announced to the
- * side panel.
- */
-const RETIRED = 'This userscript is retired — right-click ⏻ to move to the extension';
-
 export const Updates = {
         latest: null,          // a KNOWN newer version, or null
         applied: false,        // the user pressed Update THIS page-session
         capable: capable(),    // can this build reach the update host AT ALL
-        retired: Store._gm,    // this wrapper is the one being withdrawn
 
         async check(force) {
-          // there is no newer version of a withdrawn wrapper, and a frozen
-          // meta file would answer "current" — which is worse than silence
-          if (Updates.retired) return null;
           if (!Updates.capable) return null;   // nothing to ask; see capable() above
           let saved = {};
           try { saved = JSON.parse(Store.get('__debug_overlay_upd') || '{}') || {}; } catch {}
@@ -121,8 +84,10 @@ export const Updates = {
             return Updates.latest;
           }
           try {
-            const meta = await fetchText(CONFIG.META_URL);
-            const v = (/@version\s+([\d.]+)/.exec(meta) || [])[1];
+            /* JSON, not a userscript header. The manifest is the file a
+               release actually moves, and the same one the extension's own
+               updater reads — one answer to "what is newest", not two. */
+            const v = JSON.parse(await fetchText(CONFIG.VERSION_URL)).version;
             Store.set('__debug_overlay_upd', JSON.stringify({ t: Date.now(), v: v || null }));
             if (v && newer(v, CONFIG.VERSION)) Updates.found(v);
             else Updates.latest = null;
@@ -137,10 +102,10 @@ export const Updates = {
           WebPanel.setUpdate(v);
         },
 
-        /** What pressing Update DOES, per gate. The userscript's manager owns
-         *  installation, so its click opens the install URL and Tampermonkey's
-         *  own dialog finishes the job in one more click. The extension's
-         *  self-updater arrives with its options page; until then, honesty. */
+        /** What pressing Update DOES, per gate. The extension's self-updater
+         *  lives on its options page, and the worker opens it. Everywhere else
+         *  there is no installer to hand off to, so it opens the instructions
+         *  a person reads — never a bare download. */
         apply(x, y) {
           /* THE PAGE CANNOT KNOW the install finished: the manager swaps the
              script on disk, but this page keeps RUNNING the old one until it
@@ -155,7 +120,7 @@ export const Updates = {
             // content script is neither. The worker opens it.
             try { chrome.runtime.sendMessage({ type: 'debug-overlay-open-options' }); } catch {}
           } else {
-            window.open(CONFIG.INSTALL_URL, '_blank');
+            window.open(`${CONFIG.REPO_URL}#install`, '_blank');
           }
           // the cursor menu only makes sense where a cursor asked — the
           // side panel calls this with no coordinates and shows its own next step
@@ -168,17 +133,6 @@ export const Updates = {
          *  where a sentence cannot fit, and painted as smear. */
         menu(x, y, answered) {
           const rows = [];
-          if (Updates.retired) {
-            /* No "check again" row: there is nothing to check, and a live
-               button that can only ever answer the same thing is the
-               do-nothing control this file already refuses elsewhere. */
-            rows.push({ label: `Retired — v${CONFIG.VERSION} is the last userscript build`,
-                        run: () => {} });
-            rows.push({ label: '→ Install the browser extension (opens the instructions)',
-                        run: () => window.open(`${CONFIG.REPO_URL}#install`, '_blank') });
-            Menu.open(x, y, rows);
-            return;
-          }
           if (!Updates.capable) {
             // one honest row, no live button pretending it could ever answer
             rows.push({ label: 'This build cannot check for updates — see the ZIP page',
@@ -209,10 +163,6 @@ export const Updates = {
         },
 
         schedule() {
-          /* A withdrawal is not news that ages, so it lands at boot rather
-             than after the check delay — the delay exists to keep a network
-             call out of the first paint, and this one makes none. */
-          if (Updates.retired) { WebPanel.setRetired(RETIRED); return; }
           setTimeout(() => Updates.check(false), CONFIG.UPDATE.BOOT_DELAY);
         },
 };

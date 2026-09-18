@@ -18,8 +18,13 @@ const cp = require('child_process');
 const { JSDOM, VirtualConsole } = require('jsdom');
 
 const ROOT = __dirname;
-const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'userscript.json'), 'utf8'));
-const bundlePath = path.join(ROOT, 'dist', cfg.distFile);
+const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'release.json'), 'utf8'));
+/* The extension's content script IS the bundle now. It used to be the
+ * userscript at dist/, which is frozen at the withdrawn gate's last build —
+ * so a suite left pointing there would have gone on passing against a
+ * snapshot while src/ moved underneath it, which is the one failure a test
+ * suite may never have. */
+const bundlePath = path.join(ROOT, 'dist', 'browser-extension', 'content.js');
 
 if (!fs.existsSync(bundlePath)) {
   console.error(`✗ ${path.relative(ROOT, bundlePath)} missing — run node build.js first`);
@@ -377,24 +382,40 @@ console.log('\nTHE PROTOCOL');
     r.legacyFieldDetected, out.trim());
 }
 
-console.log('\nTWO GATES, ONE CORE');
+console.log('\nONE GATE, AND ONE THAT IS FROZEN');
 /**
- * The userscript and the unpacked extension are two wrappers around ONE
- * bundle — byte-identical inside, which is what makes drift impossible.
- * These assertions are the lock on that claim.
+ * There were two wrappers around one bundle, and the byte-identical claim was
+ * the lock on that. The userscript gate is withdrawn now, so the claim has
+ * nothing left to compare against — what replaces it is the rule that made
+ * withdrawing safe: the frozen artefacts may never be deleted, because every
+ * install still out there polls them and that poll is the only channel that
+ * reaches it.
  */
 {
   const extDir = path.join(__dirname, 'dist', 'browser-extension');
   const manifest = JSON.parse(fs.readFileSync(path.join(extDir, 'manifest.json'), 'utf8'));
   const content = fs.readFileSync(path.join(extDir, 'content.js'), 'utf8');
-  const cfgNow = JSON.parse(fs.readFileSync(path.join(__dirname, 'userscript.json'), 'utf8'));
+  const cfgNow = JSON.parse(fs.readFileSync(path.join(__dirname, 'release.json'), 'utf8'));
   ok('the extension manifest carries the shipped version',
     manifest.version === cfgNow.version, `${manifest.version} vs ${cfgNow.version}`);
-  // strip each gate's wrapper commentary; the IIFE bodies must be identical
-  const body = (s) => s.slice(s.indexOf('(function () {'));
-  ok('the two gates carry the SAME bundle, byte for byte',
-    body(content) === body(source),
-    'the extension content script drifted from the userscript');
+  /* THE WITHDRAWN GATE IS STILL ON DISK, and must stay there. Its meta file
+     is what an install polls; delete it and that install freezes wherever it
+     is, silently, with nothing left that can tell it to move — the
+     dead-@updateURL failure, committed on purpose. Frozen, it answers with
+     the build that says "retired, move to the extension". */
+  for (const frozen of ['script/debug-overlay.user.js', 'script/debug-overlay.meta.js',
+                        'debug-overlay.user.js', 'debug-overlay.meta.js']) {
+    const f = path.join(__dirname, 'dist', frozen);
+    ok(`the withdrawn gate is still served: ${frozen}`, fs.existsSync(f),
+      'an install polling this now hears nothing, for ever');
+  }
+  const frozenMeta = fs.readFileSync(
+    path.join(__dirname, 'dist', 'script', 'debug-overlay.meta.js'), 'utf8');
+  ok('…and it is frozen at the build that says goodbye',
+    /@version\s+3\.8\.174\b/.test(frozenMeta),
+    'the farewell build is not what the withdrawn gate serves');
+  ok('the content script says which version it is',
+    content.includes(`Debug Overlay v${cfgNow.version}`), content.slice(0, 60));
   ok("the worker's fetch door is pinned to the repo host",
     (manifest.host_permissions || []).length === 1 &&
     /raw\.githubusercontent\.com/.test(manifest.host_permissions[0]),
@@ -1270,14 +1291,14 @@ let sidePanelChecked = false;
 
       /* updates, both answers. The content window has no network; the stub
          IS the wire format the checker parses. */
-      const CUR = JSON.parse(fs.readFileSync(path.join(__dirname, 'userscript.json'), 'utf8')).version;
-      c3.w.fetch = () => Promise.resolve({ ok: true, text: () => Promise.resolve('// @version ' + CUR) });
+      const CUR = JSON.parse(fs.readFileSync(path.join(__dirname, 'release.json'), 'utf8')).version;
+      c3.w.fetch = () => Promise.resolve({ ok: true, text: () => Promise.resolve(JSON.stringify({ version: CUR })) });
       k.querySelector('[data-upd]').dispatchEvent(click2());
       whenPainted(() => /✓ current/.test(k.querySelector('[data-upd]').textContent), () => {
         ok('a check that finds nothing still answers: ✓ current',
           /✓ current/.test(k.querySelector('[data-upd]').textContent),
           'a button that does nothing visible is worse than no button');
-        c3.w.fetch = () => Promise.resolve({ ok: true, text: () => Promise.resolve('// @version 99.9.9') });
+        c3.w.fetch = () => Promise.resolve({ ok: true, text: () => Promise.resolve(JSON.stringify({ version: '99.9.9' })) });
         k.querySelector('[data-upd]').dispatchEvent(click2());
         whenPainted(() => k.querySelector('#upd').classList.contains('show'), () => {
           ok('a found update raises the banner — and the page ⏻ dot agrees',
@@ -2173,7 +2194,7 @@ console.log('\nCANVAS');
 }
 
 console.log('\nGUARD');
-// running twice must not build a second panel — Tampermonkey can inject again
+// running twice must not build a second panel — a re-injection can happen
 // on soft navigations, and two overlays fighting over the same keys is worse
 // than none.
 window.eval(source);
@@ -2362,85 +2383,53 @@ console.log('\nSETTINGS');
 
 console.log('\nSTORAGE');
 /**
- * localStorage is scoped to one origin and this script matches every site, so
- * everything the user chose had to be chosen again on the next domain. The
- * grant buys storage that is per SCRIPT — at the price of running in the
- * manager's sandbox, which is what the guard assertions below are about.
+ * localStorage is scoped to one origin and this runs on every site, so
+ * everything the user chose had to be chosen again on the next domain.
+ * chrome.storage.local is per INSTALL and follows the extension rather than
+ * the origin; localStorage is the fallback the dev page and this suite live
+ * on, where one origin is all there is.
+ *
+ * GM_* was the first backend and went with the userscript gate; the windows
+ * below drive the two that remain.
  */
 {
-  const meta = fs.readFileSync(path.join(ROOT, 'dist', cfg.metaFile), 'utf8');
-  ok('the header asks for the storage API',
-    /@grant\s+GM_getValue/.test(meta) && /@grant\s+GM_setValue/.test(meta),
-    'without the grant the API is not defined and nothing syncs');
-  ok('and leaves frames to the manager', /@noframes/m.test(meta),
-    'a sandboxed script cannot reliably recognise a cross-origin frame itself');
-
   const page = `<!doctype html><html><body><div id="p">x</div></body></html>`;
   const opts = { url: 'https://example.test/', pretendToBeVisual: true,
                  runScripts: 'outside-only', virtualConsole: new VirtualConsole() };
-  const withGm = (dom) => {
-    const store = new Map();
-    dom.window.GM_getValue = (k) => (store.has(k) ? store.get(k) : undefined);
-    dom.window.GM_setValue = (k, v) => { store.set(k, v); };
-    return store;
-  };
   const armedIn = (w) => [...w.document.querySelectorAll('#__debug-overlay-bar button.debug-overlay-tool.debug-overlay-armed')]
     .map((b) => b.dataset.tool).sort().join(',');
 
-  // ---- writes go to the script store, not the origin ----------------------
+  // ---- a soft navigation may re-inject into a FRESH context ---------------
+  // Same document, new evaluation: a window flag alone would have missed this
+  // and built a second panel fighting the first for the hotkey. (Per-install
+  // storage and its adoption of a per-origin past are proven against
+  // chrome.storage in ONE STORAGE, TWO GATES — that is the backend that has
+  // them now.)
   const d7 = new JSDOM(page, opts);
-  const gm7 = withGm(d7);
   d7.window.eval(source);
-  const bar7 = d7.window.document.getElementById('__debug-overlay-bar');
-  d7.window.dispatchEvent(new d7.window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
-  bar7.querySelector('[data-tool="contrast"]')
-    .dispatchEvent(new d7.window.MouseEvent('click', { bubbles: true }));
-  // against the bar rather than a literal list: what matters is that the store
-  // and the buttons agree, and a spelled-out default breaks every time a tool
-  // ships without saying anything true having changed
-  ok('a choice is written where every site can read it',
-    JSON.parse(gm7.get('__debug_overlay_tools') || '[]').sort().join(',') === armedIn(d7.window),
-    `stored ${gm7.get('__debug_overlay_tools')} vs armed ${armedIn(d7.window)}`);
-  ok('and not into this one origin',
-    d7.window.localStorage.getItem('__debug_overlay_tools') === null,
-    'writing both leaves two answers to the same question');
-
-  // ---- a soft navigation may re-inject into a FRESH sandbox ---------------
-  // Same document, new window: the flag the old guard relied on is gone, and
-  // two overlays on one page fight over the same hotkey.
   delete d7.window.__DEBUG_OVERLAY__;
   d7.window.eval(source);
-  ok('a fresh sandbox on the same page builds no second panel',
+  ok('a re-injection on the same page builds no second panel',
     d7.window.document.querySelectorAll('#__debug-overlay-bar').length === 1,
     `${d7.window.document.querySelectorAll('#__debug-overlay-bar').length} panels`);
 
-  // ---- nobody loses what they already had ---------------------------------
-  const d8 = new JSDOM(page, opts);
-  const gm8 = withGm(d8);
-  d8.window.localStorage.setItem('__debug_overlay_tools', '["contrast"]');
-  d8.window.eval(source);
-  ok('what an origin already had is adopted, not discarded',
-    gm8.get('__debug_overlay_tools') === '["contrast"]',
-    'shipping the grant would have reset every existing user');
-  ok('and it is actually in force', armedIn(d8.window) === 'contrast',
-    armedIn(d8.window) || '(nothing armed)');
-
   // ---- and it still works where the API does not exist --------------------
-  // the dev page, the tests, and any manager without GM_* — falling back is
-  // what keeps those from silently forgetting everything
+  // the dev page and this suite: no chrome.storage, so the origin is all
+  // there is — falling back is what keeps those from forgetting everything
   const d9 = new JSDOM(page, opts);
   d9.window.eval(source);
   const bar9 = d9.window.document.getElementById('__debug-overlay-bar');
   d9.window.dispatchEvent(new d9.window.KeyboardEvent('keydown', { ...hot, bubbles: true }));
   bar9.querySelector('[data-tool="contrast"]')
     .dispatchEvent(new d9.window.MouseEvent('click', { bubbles: true }));
-  ok('with no GM API it falls back to the origin',
+  ok('with no extension storage it falls back to the origin',
     JSON.parse(d9.window.localStorage.getItem('__debug_overlay_tools') || '[]').sort().join(',')
       === armedIn(d9.window),
     `stored ${d9.window.localStorage.getItem('__debug_overlay_tools')} vs armed ${armedIn(d9.window)}`);
 
   // ---- the frame check, exercised directly --------------------------------
-  // frameElement is the identity-free half of this; @noframes is the other.
+  // frameElement is the identity-free half of this; the manifest's top-frame
+  // default is the other (it was @noframes under the withdrawn gate).
   const d10 = new JSDOM(page, opts);
   Object.defineProperty(d10.window, 'frameElement',
     { value: d10.window.document.createElement('iframe'), configurable: true });
@@ -2449,7 +2438,7 @@ console.log('\nSTORAGE');
     !d10.window.document.getElementById('__debug-overlay-bar'),
     'the overlay started inside a frame');
 
-  [d7, d8, d9, d10].forEach((d) => d.window.close());
+  [d7, d9, d10].forEach((d) => d.window.close());
 }
 
 console.log('\nTHE TARGET MENU');
@@ -3877,10 +3866,11 @@ console.log('\nWHAT A LIVE UX AUDIT FOUND');
 
 console.log('\nSTALENESS ANNOUNCES ITSELF');
 /**
- * The update checker: one endpoint, three doors (worker / GM_xmlhttpRequest /
- * fetch), daily automatic floor plus a manual "check now" that always answers.
- * jsdom has neither chrome nor GM, so these drive the fetch door with a stub —
- * which is exactly the door the dev page uses.
+ * The update checker: one endpoint, two doors (the extension's worker, or a
+ * plain fetch), daily automatic floor plus a manual "check now" that always
+ * answers. jsdom has no chrome, so these drive the fetch door with a stub —
+ * which is exactly the door the dev page uses. What it parses is the published
+ * MANIFEST: the file a release actually moves.
  */
 {
   const opts = { url: 'https://example.test/', pretendToBeVisual: true,
@@ -3890,8 +3880,8 @@ console.log('\nSTALENESS ANNOUNCES ITSELF');
     const w = d.window;
     w.fetch = () => (fail
       ? Promise.reject(new Error('offline'))
-      : Promise.resolve({ ok: true, text: () => Promise.resolve(
-          `// ==UserScript==\n// @version      ${metaVersion}\n// ==/UserScript==`) }));
+      : Promise.resolve({ ok: true,
+          text: () => Promise.resolve(JSON.stringify({ version: metaVersion })) }));
     let opened = null;
     w.open = (u) => { opened = u; return null; };
     w.eval(source);
@@ -3924,8 +3914,12 @@ console.log('\nSTALENESS ANNOUNCES ITSELF');
     [...hi.w.document.querySelectorAll('#__debug-overlay-menu button')]
       .find((b) => /Update to/.test(b.textContent))
       .dispatchEvent(new hi.w.MouseEvent('click', { bubbles: true }));
-    ok('pressing it opens the pinned install URL — the manager finishes the job',
-      /debug-overlay\.user\.js$/.test(hi.w.__opened || hi.opened() || ''),
+    /* Outside the extension there is no installer to hand off to any more —
+       the manager that used to finish the job went with the userscript gate.
+       So it opens the instructions a PERSON reads, which is the only useful
+       thing left to open: pinned to this repo, and never a bare download. */
+    ok('pressing it opens the install instructions',
+      /^https:\/\/github\.com\/.+#install$/.test(hi.w.__opened || hi.opened() || ''),
       String(hi.opened()));
     /* …and the menu reopens ITSELF with the missing step: the page keeps
        running the old code until it reloads, and a user who updated saw
@@ -3967,65 +3961,6 @@ console.log('\nSTALENESS ANNOUNCES ITSELF');
     off.w.close();
   });
 
-  /* ---- THE GATE ITSELF IS WITHDRAWN -----------------------------------
-     The userscript is retired in favour of the extension, and the ONLY
-     channel that reaches an install is the install. So this build has to
-     say so on its own surface, and keep saying it — a farewell that does
-     not announce is the dead-@updateURL failure with extra steps: silent,
-     permanent, and unreachable afterwards. The gate is GM_*, which the
-     manager grants to nothing else. */
-  {
-    const d = new JSDOM('<!doctype html><html><body><div id="a">a</div></body></html>', opts);
-    const w = d.window;
-    let asked = false;
-    w.fetch = () => { asked = true; return Promise.reject(new Error('should not be called')); };
-    let opened = null;
-    w.open = (u) => { opened = u; return null; };
-    const store = new Map();
-    w.GM_getValue = (k) => (store.has(k) ? store.get(k) : undefined);
-    w.GM_setValue = (k, v) => { store.set(k, v); };
-    w.eval(source);
-    w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
-
-    const line = () => w.document.querySelector('.debug-overlay-hint');
-    ok('the retired userscript says so on its own surface',
-      !!line() && /retired/i.test(line().textContent),
-      line() ? line().textContent : 'no line at all — the farewell is silent');
-    ok('and the withdrawal outranks the first-run lesson',
-      !!line() && line().classList.contains('debug-overlay-retired'),
-      line() ? line().className : '(none)');
-    ok('the power button carries the mark',
-      w.document.querySelector('.debug-overlay-pwr').classList.contains('debug-overlay-upd'),
-      'nothing on the bar admitted the gate was closing');
-
-    // pinning is what earns the teaching hint away; it must not earn THIS away
-    const el = w.document.getElementById('a');
-    w.document.elementFromPoint = () => el;
-    el.dispatchEvent(new w.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
-    ok('learning the gesture does not clear it — there is nothing here to learn',
-      !!line() && /retired/i.test(line().textContent),
-      line() ? line().textContent : 'the farewell was taught away');
-
-    rclickPwr(w);
-    ok('the menu offers the move, not a check that cannot answer',
-      menuRows(w).some((x) => /extension/i.test(x)) &&
-      !menuRows(w).some((x) => /Check/i.test(x)),
-      menuRows(w).join(' | ') || '(menu closed)');
-    [...w.document.querySelectorAll('#__debug-overlay-menu button')]
-      .find((b) => /extension/i.test(b.textContent))
-      .dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
-    ok('and it opens the install instructions a person can read',
-      /^https:\/\/github\.com\/.+#install$/.test(opened || ''),
-      opened || 'nothing opened');
-
-    pendingChecks.push(() => {
-      // a frozen meta file answers "you are current", so asking is worse than
-      // silence — the withdrawn gate must never reach the network at all
-      ok('a withdrawn gate asks the network nothing', !asked,
-        'it checked for an update that will never exist');
-      w.close();
-    });
-  }
 }
 
 console.log('\nTHE SESSION SURVIVES THE REFRESH');

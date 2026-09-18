@@ -1,5 +1,25 @@
 # Changelog
 
+## 3.8.175 — 2026-09-18
+
+- **The Tampermonkey userscript is withdrawn.** The extension is the only way
+  in now: it has the side panel, it survives a page refresh, and it is what
+  the project is developed against. If you run the userscript, v3.8.174 is
+  your last build — it tells you so on the bar and points you here. Its files
+  stay published for ever so that message keeps arriving; nothing rebuilds
+  them.
+- The update check now reads the extension's published manifest instead of the
+  userscript header — the file a release actually moves. Without that change
+  the extension would have believed 3.8.174 was the newest version for ever,
+  with nothing reporting the mistake.
+
+## 3.8.174 — 2026-09-18
+
+- The last Tampermonkey userscript build, and it says so itself: it stops
+  checking for updates, rests an amber mark on ⏻, and carries one line telling
+  you to move to the browser extension. Right-click ⏻ for the instructions.
+  Nothing else changed.
+
 ## 3.8.173 — 2026-08-28
 
 - The grouping tool is now called **Group**, not Select. Selecting is what a

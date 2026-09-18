@@ -221,7 +221,7 @@ survives every other change:
 | | **web panel** | **side panel** |
 |---|---|---|
 | lives | on the page, injected | in the browser's own side panel |
-| gates | both — the ONLY surface the userscript has | extension only |
+| gates | the page itself, everywhere | the extension's own window |
 | survives a refresh | no — the page reloads, it reloads | **yes** — the page dies, it does not |
 | home | `src/ui/` (`web-panel.js` and friends) | `browser-extension-source/side-panel/` |
 | code | `WebPanel`, `#__debug-overlay-bar` | `side-panel.html` / `side-panel.js` |
@@ -315,7 +315,7 @@ the bar's own one-layer ladder said again.
 While a side panel is connected the bar steps aside (`WebPanel.docked`) — the
 BAR, not the overlay: pins, marks and badges are the page's annotations and
 stay. The port dropping undocks it, so closing the side panel gives the
-page its bar back. Under the userscript gate none of this exists at
+page its bar back. Where no side panel exists none of this exists at
 runtime: `chrome.runtime.onConnect` is only ever granted to a real content
 script, so the bridge goes inert and the bundle stays byte-identical across
 gates. A version mismatch between the faces is detected and answered with
@@ -328,7 +328,7 @@ monitor is on duty for a SPAN, so the vocabulary gained its first tense —
 `watch()` when a tool becomes active (armed AND powered), `unwatch()` when it
 stops being either. The controller asks by hook (`Tools.withHook('watch')`),
 so the next monitor ships without touching core. Perf's tiers are the honest
-ladder the platform actually offers a userscript: Long Animation Frames
+ladder the platform actually offers a content script: Long Animation Frames
 (Chrome — the script that ate the frame), Long Tasks (no attribution), and a
 requestAnimationFrame heartbeat that works everywhere including jsdom — which
 is what lets the suite block the event loop for real and watch the monitor
