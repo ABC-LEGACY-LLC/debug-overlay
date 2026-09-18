@@ -190,8 +190,8 @@ import { Render } from '../ui/renderer.js';
       /* The last sweep was judged under the OLD setting — but only a setting
          that feeds a rule can have changed a verdict. Discarding the audit
          because somebody switched what Ctrl+click copies threw away the most
-         expensive thing the tool does (~77% getComputedStyle over every
-         element) for a preference no rule consults. `affects` already says
+         expensive thing the tool does (a styled read of every element on the
+         page) for a preference no rule consults. `affects` already says
          which is which. */
       if (row.opt.affects === 'detect') { State.sweep = null; WebPanel.setSwept(false, 0); }
       Render.schedule();

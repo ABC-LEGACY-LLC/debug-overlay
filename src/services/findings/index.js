@@ -62,30 +62,13 @@ import { U } from '../../core/utils.js';
       // relational rule should not pay for one.
       const seen = perPage.length ? [] : null;
 
-      /* SLICED, because the whole pass is one Long Task otherwise.
-
-         This loop is O(elements) with a getComputedStyle each — measured at
-         ~77% of the cost — and it ran to completion without ever yielding.
-         On the 15 000-element pages this tool exists for, that is seconds of
-         a fully blocked main thread: no scroll, no hover, no click, no way to
-         cancel, and no frame in which to say what is happening. The budget it
-         breaks is not subtle (50ms for a Long Task, 200ms before a human
-         calls it frozen).
-
-         So it yields whenever a slice has run long enough. The clock is read
-         once every 256 elements rather than every element — checking the time
-         is not free either, and at this granularity the overshoot is a
-         fraction of a slice.
-
-         The node list is a static snapshot taken before the first yield, so
-         iteration stays coherent even though the page can move underneath it
-         — the same page-moved-under-us case the renderer already prunes for,
-         and the same reason a sweep is thrown away when the page changes. */
       /* SLICED ONLY WHEN IT HAS TO BE — and that is the whole subtlety, so
          it is written down rather than discovered.
 
-         This loop is O(elements) with a getComputedStyle each (measured at
-         ~77% of the cost) and it used to run to completion without yielding.
+         This loop is O(elements) with a getComputedStyle each, and about
+         half the pass is rule code reading properties off the object it
+         returns — the CALL is 4.9% of self time; the READS are the cost. It
+         used to run to completion without yielding.
          On the 15 000-element pages this tool exists for, that is seconds of
          a fully blocked main thread: no scroll, no hover, no click, nothing
          on screen saying why. Long Task budget is 50ms; a human calls it

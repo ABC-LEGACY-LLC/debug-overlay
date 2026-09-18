@@ -320,6 +320,7 @@ src/                        the overlay — everything here becomes the bundle
   banner.js                 the guard — injected by build.js around the bundle
   boot.js                   the entry module: init order + wiring
   tools/                    ← one FOLDER per armable TOOL, auto-discovered
+    a11y/                   index · service (A11y) · badge · rule · draw · report
     colour/contrast/        index · service (Colour) · badge · rule · draw · report
     geometry/measure/       index · badge · report · draw
     dupid/                  index · badge · rule · draw · report
@@ -337,25 +338,27 @@ src/                        the overlay — everything here becomes the bundle
   ui/                       styles · dom · controls · list · menu · panel
                             · placement · renderer
   app/                      interactions · controller · updates · bridge
-                            (bridge = the side panel adapter; inert as a userscript)
+                            (bridge = the side panel adapter; inert wherever
+                            there is no side panel — the dev page, the suite)
 
 browser-extension-source/   the extension gate's own faces, one folder each —
   side-panel/               the side panel (bundled; imports core/protocol.js)
   update/                   the update & repair screen
-  installer/                the no-cmd install page, and the .bat variant
+  installer/                the no-cmd install page
   icons/                    the PNGs, and make-icons.js which draws them
                             build.js substitutes, bundles and flattens all of
                             it into dist/browser-extension/
-development/                the dev harness, its server, and the perf probe —
-                            instruments that never ship
+development/                the dev harness and its server — never shipped
 dist/                       build output only — never edit (see table above)
 
+release.json                the shipped version, and the rawBase every URL
+                            derives from — build.js owns both
 hooks.js                    ONE definition of hooks/surfaces/species — audit.js
                             enforces it, map.js prints it, test.js checks by it
 audit.js · test.js          the architecture rules and the jsdom suite
 compare.js                  boots two bundles through one scripted session and
                             diffs 24 observation groups — the migration gate
-build.js · ship.js          bundle both gates · bump-and-verify release step
+build.js · ship.js          bundle the extension · bump-and-verify release step
 ```
 
 Real ES modules, bundled by esbuild. Execution order is the import graph;

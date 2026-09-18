@@ -12,8 +12,13 @@
  * marks, list rows, settings rows, the copied report, storage. The baseline
  * for a phase is the bundle of the commit before it:
  *
- *     git show HEAD~1:dist/debug-overlay.user.js > /tmp/base.user.js
- *     node compare.js /tmp/base.user.js dist/debug-overlay.user.js
+ *     git show HEAD~1:dist/browser-extension/content.js > /tmp/base.js
+ *     node compare.js /tmp/base.js dist/browser-extension/content.js
+ *
+ * NOT dist/debug-overlay.user.js — that is the withdrawn userscript, frozen
+ * for ever at the build that says goodbye. Comparing it against itself is a
+ * harness that can only ever report success, which is the one thing a harness
+ * may not do.
  *
  * Version numbers are normalised out — two builds of the same behaviour may
  * legitimately differ only there.
@@ -147,7 +152,7 @@ function diff(a, b, path = '', out = []) {
 }
 
 (async () => {
-  const A = process.argv[2] || 'dist/debug-overlay.user.js';
+  const A = process.argv[2] || 'dist/browser-extension/content.js';
   const B = process.argv[3] || A;
   const [oa, ob] = [await observe(A), await observe(B)];
   const d = diff(oa, ob);

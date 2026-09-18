@@ -140,6 +140,16 @@ HOW TO USE
     🎨 colour    the colour family — one button; click it and its members
                  slide out sideways:
        ◐ contrast  WCAG text contrast ratio, against AA or AAA (⚙)
+    ⌨ a11y       the name, role and keyboard reach of what you point at —
+                 COMPUTED off the rendered page, not read out of the source.
+                 <button><svg/></button> looks finished on screen and has no
+                 accessible name at all. OFF by default: it answers a question
+                 you have to think to ask, and three more rows on every hover
+                 is a lot for people who never asked it. Its rules run in ⌕
+                 either way — focusable with no name, focusable inside
+                 aria-hidden="true", <img> with no alt. Where the real
+                 algorithm would look somewhere this cannot see, it says
+                 "not determined" rather than guessing.
     ⌗ dupid      the same id used more than once — a page-wide question
     ⚡ perf       freezes and jank, WHILE ARMED — the first tool with a
                  runtime. Arm it and a monitor starts: every badge gains the

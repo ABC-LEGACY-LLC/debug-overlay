@@ -358,33 +358,41 @@ the flow that fills specific cells of the surfaces above.
 ## Subjects — what two tools must agree about
 
 `tools/grid/service.js` (the Scale subject) owns the spacing step and the
-off-grid test; `tools/contrast/service.js` (Colour) owns the WCAG level,
-colour resolution and the memoised
-cache. They moved out of the tools because a badge saying a value passes over
-a finding saying it fails is the one contradiction this design exists to rule
-out. A subject has no button, no hooks, no surface: it is called and never
-calls back, under the same one-way rule as `core/`.
+off-grid test; `tools/colour/contrast/service.js` (Colour) owns the WCAG
+level, colour resolution and the memoised cache; `subjects/geometry.js`
+(Measure) owns rectangle maths. They moved out of the tools because a badge
+saying a value passes over a finding saying it fails is the one contradiction
+this design exists to rule out. A subject has no button, no hooks, no surface:
+it is called and never calls back, under the same one-way rule as `core/`.
 
-## The colour family — the promotion, scripted for the day it happens
+WHERE one lives says how many consumers it has: `subjects/` is for a subject
+two tools consult (geometry — measure draws with it, group words its rows with
+it), and a sole-consumer subject stays inside its tool's folder as
+`service.js` until a second consumer appears.
+
+## The colour family — half promoted, and the half that is left
 
 Colour is the fundamental thing; contrast is a relationship BETWEEN colours,
 derived from it. The code points the way reality does: the component consults
-the subject, never the reverse. Today Colour has ONE consumer, so it lives
-inside `tools/contrast/service.js` — a hierarchy is not built over one
-child.
+the subject, never the reverse.
+
+The DOMAIN FOLDER already exists — contrast lives at `tools/colour/contrast/`,
+declaring `family: 'colour'`, and the family's 🎨 mark is on the bar with
+contrast in its flyout. What has NOT happened is the subject's own move: Colour
+still has one consumer, so it stays inside `tools/colour/contrast/service.js`
+— a hierarchy is not built over one child.
 
 The day a second colour component ships (palette, colour-blindness, …):
 
-1. `tools/contrast/service.js` → `subjects/colour.js`. The settings id is
-   already `colour`, so nobody's WCAG level resets; both components declare
+1. `tools/colour/contrast/service.js` → `subjects/colour.js`. The settings id
+   is already `colour`, so nobody's WCAG level resets; both components declare
    `uses: [Colour]`.
-2. Optionally group the siblings under a DOMAIN folder:
-   `tools/colour/contrast/`, `tools/colour/palette/`. A domain
-   folder has no `index.js` — a component is the nearest folder that does, so
-   the tooling already understands this shape, proven with a probe.
-3. The panel stays flat: each sibling is its own armable button. "These belong
-   to colour" reaches the user through the shared ◐ ⚙ rows and menus, not
-   through bar hierarchy.
+2. The new sibling is one new folder, `tools/colour/<name>/`, declaring the
+   same `family`. Nothing else moves: a component is the nearest folder with
+   an `index.js`, so the tooling already understands this shape.
+3. The panel stays flat: each sibling is its own armable button inside the
+   family flyout. "These belong to colour" reaches the user through the shared
+   ◐ ⚙ rows and menus, not through deeper bar hierarchy.
 
 A tool inside a domain folder declares `family: '<domain>'` — the runtime
 bundle has no folders, so like `affects:` it is declared, and the audit fails
