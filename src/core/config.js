@@ -18,6 +18,10 @@
     // second copy to drift.
     META_URL: '__META_URL__',
     INSTALL_URL: '__INSTALL_URL__',
+    // Where a PERSON reads what to do, as opposed to where a manager fetches
+    // bytes. The withdrawal notice needs it: a retired gate has nowhere useful
+    // to send anyone except the install instructions.
+    REPO_URL: '__REPO_URL__',
     // daily automatic floor; the manual "check now" row ignores it
     UPDATE: { EVERY: 86400000, BOOT_DELAY: 4000 },
     Z: 2147483647,

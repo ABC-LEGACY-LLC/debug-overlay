@@ -301,7 +301,7 @@ flat run ordered by filename.
 **One tool, one role, unless it genuinely does two things.** Pairing used to
 live in measure, which made it a read-out *and* the thing deciding what was
 selected — and no second way of selecting could be added without editing the
-tool that draws badges. `tools/group/` owns grouping and publishes it
+tool that draws badges. `tools/input/group/` owns grouping and publishes it
 through `groups()`; measure asks `Tools.groups()` and measures between whatever
 comes back. A lasso or a select-by-query is now one new file that every
 consumer picks up, and neither side learns the other's id.

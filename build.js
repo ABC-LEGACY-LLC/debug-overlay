@@ -37,6 +37,7 @@ const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'userscript.json'), 'utf8
 const VERSION_TOKEN = '__VERSION__';
 const META_TOKEN = '__META_URL__';
 const INSTALL_TOKEN = '__INSTALL_URL__';
+const REPO_TOKEN = '__REPO_URL__';
 
 function bump(v, kind) {
   const [a, b, c] = v.split('.').map(Number);
@@ -127,7 +128,8 @@ function build(kind) {
   }
   bundled = bundled.replace(VERSION_TOKEN, version)
     .replace(META_TOKEN, `${cfg.rawBase}/${cfg.metaFile}`)
-    .replace(INSTALL_TOKEN, `${cfg.rawBase}/${cfg.distFile}`);
+    .replace(INSTALL_TOKEN, `${cfg.rawBase}/${cfg.distFile}`)
+    .replace(REPO_TOKEN, cfg.repoUrl);
 
   const banner = fs.readFileSync(path.join(SRC, 'banner.js'), 'utf8');
   const docs = fs.readFileSync(path.join(ROOT, 'DOCS.txt'), 'utf8').trim();

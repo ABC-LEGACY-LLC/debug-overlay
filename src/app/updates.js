@@ -82,12 +82,36 @@ function fetchText(url) {
         });
 }
 
+/**
+ * THE USERSCRIPT GATE IS WITHDRAWN, and this is the only channel that can
+ * say so.
+ *
+ * A wrapper being retired is staleness in its final form: there is no newer
+ * version to fetch, and there never will be — so asking the network is not
+ * just useless, it is a lie waiting to happen (a meta file frozen at this
+ * version reads as "you are current", which is the one thing this module
+ * exists to stop an install believing). It announces instead.
+ *
+ * Detected through Store._gm rather than a second `typeof` of its own: the
+ * manager grants GM_* to nothing else, so that flag already IS "am I the
+ * userscript?" and one definition cannot drift from the other.
+ *
+ * The extension gate never reaches any of this — the two are mutually
+ * exclusive by construction — which is why nothing here is announced to the
+ * side panel.
+ */
+const RETIRED = 'This userscript is retired — right-click ⏻ to move to the extension';
+
 export const Updates = {
         latest: null,          // a KNOWN newer version, or null
         applied: false,        // the user pressed Update THIS page-session
         capable: capable(),    // can this build reach the update host AT ALL
+        retired: Store._gm,    // this wrapper is the one being withdrawn
 
         async check(force) {
+          // there is no newer version of a withdrawn wrapper, and a frozen
+          // meta file would answer "current" — which is worse than silence
+          if (Updates.retired) return null;
           if (!Updates.capable) return null;   // nothing to ask; see capable() above
           let saved = {};
           try { saved = JSON.parse(Store.get('__debug_overlay_upd') || '{}') || {}; } catch {}
@@ -144,6 +168,17 @@ export const Updates = {
          *  where a sentence cannot fit, and painted as smear. */
         menu(x, y, answered) {
           const rows = [];
+          if (Updates.retired) {
+            /* No "check again" row: there is nothing to check, and a live
+               button that can only ever answer the same thing is the
+               do-nothing control this file already refuses elsewhere. */
+            rows.push({ label: `Retired — v${CONFIG.VERSION} is the last userscript build`,
+                        run: () => {} });
+            rows.push({ label: '→ Install the browser extension (opens the instructions)',
+                        run: () => window.open(`${CONFIG.REPO_URL}#install`, '_blank') });
+            Menu.open(x, y, rows);
+            return;
+          }
           if (!Updates.capable) {
             // one honest row, no live button pretending it could ever answer
             rows.push({ label: 'This build cannot check for updates — see the ZIP page',
@@ -174,6 +209,10 @@ export const Updates = {
         },
 
         schedule() {
+          /* A withdrawal is not news that ages, so it lands at boot rather
+             than after the check delay — the delay exists to keep a network
+             call out of the first paint, and this one makes none. */
+          if (Updates.retired) { WebPanel.setRetired(RETIRED); return; }
           setTimeout(() => Updates.check(false), CONFIG.UPDATE.BOOT_DELAY);
         },
 };

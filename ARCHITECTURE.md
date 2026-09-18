@@ -135,7 +135,7 @@ advance: Shift+click pairs (①② then a fresh ③④), Ctrl/⌘+Shift+click li
 the previous pin (repeat for ①─②─③), and the two mix in one session. The
 retired 'Pin grouping' mode is the cautionary tale — the same finger did
 different things on different days, and two clicks looked identical until the
-third betrayed which mode was on. `tools/group/form.js` is the one walk that
+third betrayed which mode was on. `tools/input/group/form.js` is the one walk that
 turns kinds into runs; consumers still see two-pin groups and never learn any
 of this happened. A mode switch is what you reach for only when gestures run
 out.
@@ -410,7 +410,7 @@ trigger enforces itself.
 
 | folder | what it is |
 |---|---|
-| `tools/<name>/` | one component per folder — `index.js` registers; `badge` / `rule` / `draw` / `report` / `options` beside it; `service.js` is its backend when it has one of its own. A DOMAIN folder (`colour/`, `geometry/`) has no `index.js` — it only groups a family; a component is the nearest folder that has one |
+| `tools/<name>/` | one component per folder — `index.js` registers; `badge` / `rule` / `draw` / `report` / `options` beside it; `service.js` is its backend when it has one of its own. A DOMAIN folder (`colour/`, `geometry/`, `input/`) has no `index.js` — it only groups a family; a component is the nearest folder that has one |
 | `subjects/` | a backend SHARED by two tools — `geometry.js` (measure draws with it, group words its rows with it); a sole-consumer backend lives inside its tool until a second consumer appears |
 | `services/` | the four collectors — `badge/`, `findings/`, `report/`, `settings/` — never edited when a component is added |
 | `ui/` | the panel machinery: bar, popover, controls, renderer, placement, styles, dom |

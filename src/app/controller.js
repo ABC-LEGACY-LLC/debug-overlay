@@ -232,7 +232,18 @@ import { Render } from '../ui/renderer.js';
     emptyFor(view) {
       if (Controller.toolOf(view)) return 'This one has nothing to configure.';
       if (view === 'settings') return 'No tool has anything to configure.';
-      if (view !== 'findings') return 'No pins yet — click to inspect, Shift+click to measure.';
+      if (view !== 'findings') {
+        /* The standing instruction assumes a keeper is armed. With every
+           keeper off, Shift+click cannot pin — a real user armed the grouping
+           tool, clicked, and read this promise over a page where nothing
+           could ever arrive. A capability question, and the keeper words the
+           answer itself — no id, so tomorrow's keeper needs no edit here. */
+        const keeper = Tools.withHook('keeps', false)[0];
+        if (keeper && !Tools.withHook('keeps', true).length)
+          return 'Nothing keeps selections — clicks choose one element at a time. ' +
+                 `Arm ${keeper.title.split(/[—·]/)[0].trim()} to keep them as pins.`;
+        return 'No pins yet — click to inspect, Shift+click to measure.';
+      }
       const s = State.sweep;
       if (!s) return 'Press ⌕ to audit the page.';
       if (!s.rules) return 'No rules are installed, so nothing was checked.';

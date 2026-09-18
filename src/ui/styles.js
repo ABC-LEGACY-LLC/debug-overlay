@@ -302,6 +302,10 @@ import { CONFIG } from '../core/config.js';
       font: 12px/1.4 system-ui, -apple-system, sans-serif;
       white-space: nowrap; max-width: 92vw; overflow: hidden;
       text-overflow: ellipsis; }
+    /* the same line, carrying a withdrawal rather than a lesson — amber
+       because it asks for a decision, which is exactly what the token means */
+    .debug-overlay-hint.debug-overlay-retired { color: var(--debug-overlay-warn);
+      border-color: var(--debug-overlay-warn); }
 
     /* things that only make sense once powered on */
     #__debug-overlay-bar .debug-overlay-whenOn { display: none; }

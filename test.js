@@ -3585,6 +3585,15 @@ console.log('\nSELECTION CHOOSES, PIN KEEPS');
   ok('shift+click with no keeper falls back to a bare selection',
     /\[selected\]/.test(rep2) && !/\((pair|note)\)/.test(rep2),
     rep2.split('\n').find((l) => l.startsWith('[')) || 'nothing reported');
+  // and the pin list's empty state says WHY, instead of promising a pin that
+  // cannot arrive — "Shift+click to measure" assumes a keeper is armed
+  w2.document.getElementById('__debug-overlay-bar').querySelector('[data-c]')
+    .dispatchEvent(new w2.MouseEvent('click', { bubbles: true }));
+  const empty2 = w2.document.querySelector('#__debug-overlay-list .debug-overlay-empty');
+  ok('with every keeper off, the empty pin list says so by name',
+    !!empty2 && /keeps selections/.test(empty2.textContent || '') &&
+    /Arm Pin/.test(empty2.textContent || ''),
+    empty2 ? empty2.textContent : 'no empty state rendered');
   w2.close();
 
   // 3) switching the keeper OFF must not take kept pins away
@@ -3957,6 +3966,66 @@ console.log('\nSTALENESS ANNOUNCES ITSELF');
       'offline produced a nag');
     off.w.close();
   });
+
+  /* ---- THE GATE ITSELF IS WITHDRAWN -----------------------------------
+     The userscript is retired in favour of the extension, and the ONLY
+     channel that reaches an install is the install. So this build has to
+     say so on its own surface, and keep saying it — a farewell that does
+     not announce is the dead-@updateURL failure with extra steps: silent,
+     permanent, and unreachable afterwards. The gate is GM_*, which the
+     manager grants to nothing else. */
+  {
+    const d = new JSDOM('<!doctype html><html><body><div id="a">a</div></body></html>', opts);
+    const w = d.window;
+    let asked = false;
+    w.fetch = () => { asked = true; return Promise.reject(new Error('should not be called')); };
+    let opened = null;
+    w.open = (u) => { opened = u; return null; };
+    const store = new Map();
+    w.GM_getValue = (k) => (store.has(k) ? store.get(k) : undefined);
+    w.GM_setValue = (k, v) => { store.set(k, v); };
+    w.eval(source);
+    w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+
+    const line = () => w.document.querySelector('.debug-overlay-hint');
+    ok('the retired userscript says so on its own surface',
+      !!line() && /retired/i.test(line().textContent),
+      line() ? line().textContent : 'no line at all — the farewell is silent');
+    ok('and the withdrawal outranks the first-run lesson',
+      !!line() && line().classList.contains('debug-overlay-retired'),
+      line() ? line().className : '(none)');
+    ok('the power button carries the mark',
+      w.document.querySelector('.debug-overlay-pwr').classList.contains('debug-overlay-upd'),
+      'nothing on the bar admitted the gate was closing');
+
+    // pinning is what earns the teaching hint away; it must not earn THIS away
+    const el = w.document.getElementById('a');
+    w.document.elementFromPoint = () => el;
+    el.dispatchEvent(new w.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
+    ok('learning the gesture does not clear it — there is nothing here to learn',
+      !!line() && /retired/i.test(line().textContent),
+      line() ? line().textContent : 'the farewell was taught away');
+
+    rclickPwr(w);
+    ok('the menu offers the move, not a check that cannot answer',
+      menuRows(w).some((x) => /extension/i.test(x)) &&
+      !menuRows(w).some((x) => /Check/i.test(x)),
+      menuRows(w).join(' | ') || '(menu closed)');
+    [...w.document.querySelectorAll('#__debug-overlay-menu button')]
+      .find((b) => /extension/i.test(b.textContent))
+      .dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    ok('and it opens the install instructions a person can read',
+      /^https:\/\/github\.com\/.+#install$/.test(opened || ''),
+      opened || 'nothing opened');
+
+    pendingChecks.push(() => {
+      // a frozen meta file answers "you are current", so asking is worse than
+      // silence — the withdrawn gate must never reach the network at all
+      ok('a withdrawn gate asks the network nothing', !asked,
+        'it checked for an update that will never exist');
+      w.close();
+    });
+  }
 }
 
 console.log('\nTHE SESSION SURVIVES THE REFRESH');

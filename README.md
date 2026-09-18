@@ -358,8 +358,8 @@ src/                        the overlay — everything here becomes the bundle
     dupid/                  index · badge · rule · draw · report
     grid/                   index · service (Scale) · badge · lens · rule · draw · report
     perf/                   index · service (Monitor) · target · badge · rows · rule · draw
-    pin/                    index · keep — SELECTION chooses, this KEEPS the choice
-    group/                  index · service · form · rows
+    input/pin/              index · keep — SELECTION chooses, this KEEPS the choice
+    input/group/            index · service · form · rows
   services/                 the four collectors — never edited for a new tool
     badge/ (index · options — the 🏷 face) · findings/ · report/ · settings/
   subjects/

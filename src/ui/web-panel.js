@@ -100,6 +100,7 @@ import { List } from './list.js';
     // button -> { original, timer } while a transient message is showing
     const flashing = new Map();
     let hintEl = null;   // the first-run instruction, removed once the gesture is used
+    let retiredMsg = null;   // set once when this wrapper is withdrawn; never cleared
 
     // the 🏷 flyout's groups, kept so a settings change can re-render with
     // the axis the user had open still open
@@ -201,19 +202,38 @@ import { List } from './list.js';
        * — so it costs a returning user nothing and nobody has to find an ✕.
        */
       hint(on) {
-        const key = CONFIG.TAUGHT_KEY;
-        if (!on || Store.get(key) === '1') { hintEl?.remove(); hintEl = null; return; }
-        if (hintEl) return;
-        hintEl = document.createElement('div');
-        hintEl.className = 'debug-overlay-hint';
-        hintEl.textContent = 'Click any element to inspect it · Shift+click two to measure between them';
-        root.append(hintEl);
-        api.place?.();
+        /* ONE line, and a withdrawal outranks a lesson: teaching gestures on
+           a wrapper that is being taken away is the overlay talking past the
+           only thing the reader needs to know. The retirement message is also
+           the one that cannot be earned away — there is nothing here to
+           learn, and it stays true until they leave. */
+        const msg = retiredMsg || (Store.get(CONFIG.TAUGHT_KEY) === '1' ? null
+          : 'Click any element to inspect it · Shift+click two to measure between them');
+        if (!on || !msg) { hintEl?.remove(); hintEl = null; return; }
+        if (!hintEl) { hintEl = document.createElement('div'); root.append(hintEl); }
+        hintEl.className = 'debug-overlay-hint' + (retiredMsg ? ' debug-overlay-retired' : '');
+        hintEl.textContent = msg;
+      },
+      /**
+       * This wrapper is withdrawn — say so, on the surface, for as long as it
+       * runs. Nothing is announced to the side panel: that face exists only
+       * under the extension gate, and the two gates are mutually exclusive,
+       * so there is nobody on the other end of this to tell.
+       */
+      setRetired(msg) {
+        retiredMsg = msg;
+        const b = el.querySelector('.debug-overlay-pwr');
+        b.classList.add('debug-overlay-upd');
+        b.title = `Power (Alt+Shift+D) · v${CONFIG.VERSION} — ${msg}`;
+        b.setAttribute('aria-label', `Power — this userscript is retired`);
+        api.hint?.(api.isOn());
       },
       /** The gesture was used, so the instruction has done its job. */
       taught() {
         if (Store.get(CONFIG.TAUGHT_KEY) === '1') return;
         Store.set(CONFIG.TAUGHT_KEY, '1');
+        // a withdrawal is not a lesson, so learning the gesture never clears it
+        if (retiredMsg) return;
         hintEl?.remove();
         hintEl = null;
       },

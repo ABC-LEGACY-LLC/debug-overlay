@@ -1,4 +1,4 @@
-import { CONFIG } from '../../core/config.js';
+import { CONFIG } from '../../../core/config.js';
 
 /**
  * The single place grouping is decided — now from the pins' own KINDS,

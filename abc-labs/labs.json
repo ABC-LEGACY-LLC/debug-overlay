@@ -22,7 +22,7 @@
       "performance",
       "debugging"
     ],
-    "version": "3.8.173",
+    "version": "3.8.174",
     "requires": [
       "Tampermonkey, for the userscript",
       "Chrome or Edge, for the extension",

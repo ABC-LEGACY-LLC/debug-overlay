@@ -1,5 +1,5 @@
-import { Measure } from '../../subjects/geometry.js';
-import { U } from '../../core/utils.js';
+import { Measure } from '../../../subjects/geometry.js';
+import { U } from '../../../core/utils.js';
 
 /**
  * Hook: rows for the panel's pin list. The distance in the detail column

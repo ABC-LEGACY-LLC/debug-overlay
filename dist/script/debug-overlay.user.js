@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Debug Overlay — AI-friendly UI inspector
 // @namespace    alonur.tools
-// @version      3.8.173
+// @version      3.8.174
 // @description  Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.
 // @author       Alonur
 // @match        *://*/*
@@ -359,12 +359,16 @@ HOW TO USE
     // cannot read GM_info, and an overlay that cannot say which version it is
     // makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.173",
+    VERSION: "3.8.174",
     // Substituted like VERSION: where the update checker asks, and what the
     // userscript's one-click update opens. One source (userscript.json), no
     // second copy to drift.
     META_URL: "https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/script/debug-overlay.meta.js",
     INSTALL_URL: "https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/script/debug-overlay.user.js",
+    // Where a PERSON reads what to do, as opposed to where a manager fetches
+    // bytes. The withdrawal notice needs it: a retired gate has nowhere useful
+    // to send anyone except the install instructions.
+    REPO_URL: "https://github.com/ABC-LEGACY-LLC/debug-overlay",
     // daily automatic floor; the manual "check now" row ignores it
     UPDATE: { EVERY: 864e5, BOOT_DELAY: 4e3 },
     Z: 2147483647,
@@ -2273,7 +2277,7 @@ HOW TO USE
     // through uses: above.
   });
 
-  // src/tools/group/service.js
+  // src/tools/input/group/service.js
   function groups() {
     return this._form().groups;
   }
@@ -2288,7 +2292,7 @@ HOW TO USE
     }];
   }
 
-  // src/tools/group/form.js
+  // src/tools/input/group/form.js
   function form(pins) {
     const K = CONFIG.PIN_KIND;
     const sel = pins.filter((p) => p.kind === K.SHIFT || p.kind === K.CHAIN);
@@ -2306,7 +2310,7 @@ HOW TO USE
     return { groups: groups2, pending };
   }
 
-  // src/tools/group/rows.js
+  // src/tools/input/group/rows.js
   function listRows() {
     const { groups: groups2, pending } = this._form();
     const rows = groups2.map(([A, B]) => {
@@ -2334,16 +2338,13 @@ HOW TO USE
     return pending ? [`[#${pending.id}] waiting for its pair`] : [];
   }
 
-  // src/tools/group/index.js
+  // src/tools/input/group/index.js
   defineTool({
     id: "group",
     icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M5 3a2 2 0 0 0-2 2" /><path d="M19 3a2 2 0 0 1 2 2" /><path d="M21 19a2 2 0 0 1-2 2" /><path d="M5 21a2 2 0 0 1-2-2" /><path d="M9 3h1" /><path d="M9 21h1" /><path d="M14 3h1" /><path d="M14 21h1" /><path d="M3 9v1" /><path d="M21 9v1" /><path d="M3 14v1" /><path d="M21 14v1" /></svg>',
     // lucide 'box-select' (ISC)
-    // what this tool EXAMINES. A tool in a domain folder says it with
-    // family:; one that owns its subject alone says it here, and every
-    // tool must say it one way or the other — the side panel prints it
-    // as a column, and a column is not a column if some rows are blank.
-    subject: "input",
+    family: "input",
+    // audited: must match the domain folder this sits in
     title: "Group — how pinned elements pair and chain",
     startsOn: true,
     /** The single place grouping is decided — see form.js. */
@@ -2355,6 +2356,23 @@ HOW TO USE
     gestures,
     listRows,
     reportTail: reportTail2
+  });
+
+  // src/tools/input/pin/keep.js
+  function keeps() {
+    return true;
+  }
+
+  // src/tools/input/pin/index.js
+  defineTool({
+    id: "pin",
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 17v5" /><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" /></svg>',
+    // lucide 'pin' (ISC)
+    family: "input",
+    // audited: must match the domain folder this sits in
+    title: "Pin — keep what you select; off, selections replace each other",
+    startsOn: true,
+    keeps
   });
 
   // src/tools/perf/target.js
@@ -2819,26 +2837,6 @@ HOW TO USE
     }
   });
 
-  // src/tools/pin/keep.js
-  function keeps() {
-    return true;
-  }
-
-  // src/tools/pin/index.js
-  defineTool({
-    id: "pin",
-    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 17v5" /><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" /></svg>',
-    // lucide 'pin' (ISC)
-    // what this tool EXAMINES. A tool in a domain folder says it with
-    // family:; one that owns its subject alone says it here, and every
-    // tool must say it one way or the other — the side panel prints it
-    // as a column, and a column is not a column if some rows are blank.
-    subject: "input",
-    title: "Pin — keep what you select; off, selections replace each other",
-    startsOn: true,
-    keeps
-  });
-
   // src/ui/styles.js
   var CSS2 = `
     /* ======================================================================
@@ -3136,6 +3134,10 @@ HOW TO USE
       font: 12px/1.4 system-ui, -apple-system, sans-serif;
       white-space: nowrap; max-width: 92vw; overflow: hidden;
       text-overflow: ellipsis; }
+    /* the same line, carrying a withdrawal rather than a lesson — amber
+       because it asks for a decision, which is exactly what the token means */
+    .debug-overlay-hint.debug-overlay-retired { color: var(--debug-overlay-warn);
+      border-color: var(--debug-overlay-warn); }
 
     /* things that only make sense once powered on */
     #__debug-overlay-bar .debug-overlay-whenOn { display: none; }
@@ -3636,6 +3638,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       });
       const flashing = /* @__PURE__ */ new Map();
       let hintEl = null;
+      let retiredMsg = null;
       let badgeGroups = [];
       function renderBadgeFly() {
         const fly = el2.querySelector("[data-badge-fly]");
@@ -3723,23 +3726,38 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
          * — so it costs a returning user nothing and nobody has to find an ✕.
          */
         hint(on) {
-          const key = CONFIG.TAUGHT_KEY;
-          if (!on || Store.get(key) === "1") {
+          const msg = retiredMsg || (Store.get(CONFIG.TAUGHT_KEY) === "1" ? null : "Click any element to inspect it · Shift+click two to measure between them");
+          if (!on || !msg) {
             hintEl?.remove();
             hintEl = null;
             return;
           }
-          if (hintEl) return;
-          hintEl = document.createElement("div");
-          hintEl.className = "debug-overlay-hint";
-          hintEl.textContent = "Click any element to inspect it · Shift+click two to measure between them";
-          root.append(hintEl);
-          api.place?.();
+          if (!hintEl) {
+            hintEl = document.createElement("div");
+            root.append(hintEl);
+          }
+          hintEl.className = "debug-overlay-hint" + (retiredMsg ? " debug-overlay-retired" : "");
+          hintEl.textContent = msg;
+        },
+        /**
+         * This wrapper is withdrawn — say so, on the surface, for as long as it
+         * runs. Nothing is announced to the side panel: that face exists only
+         * under the extension gate, and the two gates are mutually exclusive,
+         * so there is nobody on the other end of this to tell.
+         */
+        setRetired(msg) {
+          retiredMsg = msg;
+          const b = el2.querySelector(".debug-overlay-pwr");
+          b.classList.add("debug-overlay-upd");
+          b.title = `Power (Alt+Shift+D) · v${CONFIG.VERSION} — ${msg}`;
+          b.setAttribute("aria-label", `Power — this userscript is retired`);
+          api.hint?.(api.isOn());
         },
         /** The gesture was used, so the instruction has done its job. */
         taught() {
           if (Store.get(CONFIG.TAUGHT_KEY) === "1") return;
           Store.set(CONFIG.TAUGHT_KEY, "1");
+          if (retiredMsg) return;
           hintEl?.remove();
           hintEl = null;
         },
@@ -5047,6 +5065,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       return r.text();
     });
   }
+  var RETIRED = "This userscript is retired — right-click ⏻ to move to the extension";
   var Updates = {
     latest: null,
     // a KNOWN newer version, or null
@@ -5054,7 +5073,10 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     // the user pressed Update THIS page-session
     capable: capable(),
     // can this build reach the update host AT ALL
+    retired: Store._gm,
+    // this wrapper is the one being withdrawn
     async check(force) {
+      if (Updates.retired) return null;
       if (!Updates.capable) return null;
       let saved = {};
       try {
@@ -5101,6 +5123,19 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
      *  where a sentence cannot fit, and painted as smear. */
     menu(x, y, answered) {
       const rows = [];
+      if (Updates.retired) {
+        rows.push({
+          label: `Retired — v${CONFIG.VERSION} is the last userscript build`,
+          run: () => {
+          }
+        });
+        rows.push({
+          label: "→ Install the browser extension (opens the instructions)",
+          run: () => window.open(`${CONFIG.REPO_URL}#install`, "_blank")
+        });
+        Menu.open(x, y, rows);
+        return;
+      }
       if (!Updates.capable) {
         rows.push({
           label: "This build cannot check for updates — see the ZIP page",
@@ -5135,6 +5170,10 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       Menu.open(x, y, rows);
     },
     schedule() {
+      if (Updates.retired) {
+        WebPanel.setRetired(RETIRED);
+        return;
+      }
       setTimeout(() => Updates.check(false), CONFIG.UPDATE.BOOT_DELAY);
     }
   };
@@ -5700,7 +5739,12 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     emptyFor(view) {
       if (Controller.toolOf(view)) return "This one has nothing to configure.";
       if (view === "settings") return "No tool has anything to configure.";
-      if (view !== "findings") return "No pins yet — click to inspect, Shift+click to measure.";
+      if (view !== "findings") {
+        const keeper = Tools.withHook("keeps", false)[0];
+        if (keeper && !Tools.withHook("keeps", true).length)
+          return `Nothing keeps selections — clicks choose one element at a time. Arm ${keeper.title.split(/[—·]/)[0].trim()} to keep them as pins.`;
+        return "No pins yet — click to inspect, Shift+click to measure.";
+      }
       const s = State.sweep;
       if (!s) return "Press ⌕ to audit the page.";
       if (!s.rules) return "No rules are installed, so nothing was checked.";
