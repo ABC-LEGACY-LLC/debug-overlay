@@ -128,7 +128,7 @@
   };
 
   // browser-extension-source/side-panel/side-panel.js
-  var VERSION = "3.8.195";
+  var VERSION = "3.8.196";
   var $ = (s) => document.querySelector(s);
   var body = document.body;
   var IC = {
@@ -280,15 +280,15 @@
     });
   }
   function rmButton(view, i, title) {
-    const rm = document.createElement("button");
-    rm.className = "rm";
-    rm.textContent = "✕";
-    rm.title = title || "Remove";
-    rm.addEventListener("click", (e) => {
+    const rm2 = document.createElement("button");
+    rm2.className = "rm";
+    rm2.textContent = "✕";
+    rm2.title = title || "Remove";
+    rm2.addEventListener("click", (e) => {
       e.stopPropagation();
       post(Protocol.cmd("rowRemove", view, i));
     });
-    return rm;
+    return rm2;
   }
   function control(c, onChange, name) {
     if (c.kind === "choice") {
@@ -606,6 +606,7 @@
     }
     drop();
     connect();
+    rmBind();
   }
   chrome.tabs.onActivated.addListener(bind);
   chrome.tabs.onUpdated.addListener((id, info) => {
@@ -644,5 +645,82 @@
     if (tag === "INPUT" || tag === "SELECT") return;
     if (myView) setView(myView);
   });
+  var RM_KEY = "debug-overlay-remote";
+  var rm = { url: $("#rmUrl"), token: $("#rmToken"), go: $("#rmGo"), st: $("#rmSt") };
+  var rmWanted = false;
+  function rmSave() {
+    try {
+      localStorage.setItem(RM_KEY, JSON.stringify({ url: rm.url.value, token: rm.token.value, wanted: rmWanted }));
+    } catch {
+    }
+  }
+  function rmLoad() {
+    let s = {};
+    try {
+      s = JSON.parse(localStorage.getItem(RM_KEY) || "{}") || {};
+    } catch {
+    }
+    rm.url.value = s.url || "ws://localhost:8787";
+    rm.token.value = s.token || "";
+    rmWanted = !!s.wanted;
+  }
+  function rmShow(s) {
+    if (!s) s = { wanted: rmWanted, connected: false, why: "" };
+    rm.go.textContent = s.wanted ? "Disconnect" : "Connect";
+    rm.st.className = s.connected ? "ok" : s.why ? "bad" : "";
+    rm.st.textContent = s.connected ? "connected — the AI is driving this tab" : s.why || (s.wanted ? "connecting…" : "not connected");
+    rm.url.disabled = rm.token.disabled = !!s.wanted;
+  }
+  var rmAsk = (m) => {
+    try {
+      return chrome.runtime.sendMessage(m).catch(() => null);
+    } catch {
+      return Promise.resolve(null);
+    }
+  };
+  function rmBind() {
+    if (tabId != null) rmAsk({ type: "debug-overlay-remote-bind", tabId });
+  }
+  async function rmConnect() {
+    rmWanted = true;
+    rmSave();
+    rmShow(await rmAsk({
+      type: "debug-overlay-remote-connect",
+      url: rm.url.value.trim(),
+      token: rm.token.value.trim(),
+      tabId
+    }));
+  }
+  function rmSettle(s) {
+    if (s && !s.wanted && rmWanted && /^refused/.test(s.why || "")) {
+      rmWanted = false;
+      rmSave();
+    }
+    rmShow(s);
+  }
+  rm.go.addEventListener("click", async () => {
+    if (rmWanted) {
+      rmWanted = false;
+      rmSave();
+      rmShow(await rmAsk({ type: "debug-overlay-remote-disconnect" }));
+    } else rmConnect();
+  });
+  chrome.runtime.onMessage?.addListener((m) => {
+    if (m && m.type === "debug-overlay-remote-state") rmSettle(m);
+  });
+  rmLoad();
+  (async () => {
+    const s = await rmAsk({ type: "debug-overlay-remote-status" });
+    if (rmWanted && s && !s.wanted && !/^refused/.test(s.why || "")) rmConnect();
+    else rmSettle(s);
+  })();
+  setInterval(async () => {
+    if (!rmWanted) return;
+    const s = await rmAsk({ type: "debug-overlay-remote-status" });
+    if (s && !s.wanted) {
+      if (/^refused/.test(s.why || "")) rmSettle(s);
+      else rmConnect();
+    }
+  }, 5e3);
   bind();
 })();

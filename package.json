@@ -12,7 +12,8 @@
     "audit": "node audit.js",
     "test": "node test.js",
     "map": "node map.js",
-    "compare": "node compare.js"
+    "compare": "node compare.js",
+    "mcp": "node mcp/"
   },
   "devDependencies": {
     "esbuild": "^0.28.2",

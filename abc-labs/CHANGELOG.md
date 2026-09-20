@@ -1,6 +1,29 @@
 # Changelog
 
-## 3.8.195 — 2026-09-20
+## 3.8.196 — 2026-09-20
+
+- **New: an AI can drive the overlay itself.** A third door into the same
+  room: `mcp/` is an MCP server Claude Code starts over stdio, and the
+  extension dials in from the side panel's new **AI session** section with
+  the token the server prints. From then on the AI arms tools, changes
+  settings, pins by selector, clicks, drags and points as a hand would, runs
+  ⌕, and reads the report ⧉ would copy — as text, with nobody relaying.
+- **One session, one token, one browser.** The server binds to `127.0.0.1`,
+  holds one token and accepts one browser; a second AI runs a second server
+  on a second port. Nothing is shared, so nothing can leak across. The
+  extension connects OUT, only when a person presses Connect, only to the
+  address they typed. A wrong token is refused and told so; a second browser
+  is refused; a command with no browser answers with what to type where.
+- **Built for the browser and the AI being on different machines.** The
+  browser reaches the server, never the reverse — the SSH / VSCode-remote
+  arrangement, where the port is forwarded to the person's machine
+  automatically.
+- The AI gets the overlay's own answers and nothing else: no screenshots, no
+  DOM dumps, no other tabs. `report` is the deliverable, as it is for a
+  person.
+- Under the hood: `Report.build()` is `copy()` without the clipboard, and
+  `Controller.sweep()` now answers with a promise of the result so a caller
+  that cannot see the screen can wait for ⌕ to finish.
 
 - **Fixed: the paint report stated both halves of a contradiction.** A doubt
   is raised while the fold runs, before anything has verified it, so each one

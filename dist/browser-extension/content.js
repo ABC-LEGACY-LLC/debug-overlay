@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.195 — the extension gate */
+/* Debug Overlay v3.8.196 — the extension gate */
 
 /*
 HOW TO USE
@@ -281,6 +281,22 @@ HOW TO USE
   itself: a tool added tomorrow is configurable through both the moment it
   appears, with nothing installed or wired up.
 
+  AI SESSION — a third door into the same room. An AI (Claude Code, or any
+  MCP client) can drive the overlay itself instead of asking you to click
+  and paste: arm tools, change settings, pin by selector, click, drag and
+  point as a hand would, run ⌕, and read the report ⧉ would copy — as text,
+  over a socket, with nobody relaying. Start the server beside the AI
+  (`node mcp/` in the repo; mcp/README.md has the Claude Code line), then in
+  the SIDE PANEL, under "AI session", enter the address and token it prints
+  and press Connect. One server holds one token and accepts one browser, so
+  a session is one process, one token, one browser — a second AI gets a
+  second server on a second port, and nothing is shared for a session to
+  cross into. The extension connects OUT, only when you press Connect, and
+  only to the address you typed; nothing connects in. The AI sees this tab
+  through the overlay's own answers and nothing else — no screenshots, no
+  other tabs. Keep the side panel open while a session runs: the browser
+  may stop the extension's worker, and the panel is what remembers.
+
   The rules between the buttons mark the PIPELINE, top to bottom: the input
   side (⬚ group, ▭ lasso, 📌 pin — what your input becomes), then the components
   (what describes the page), then ⌕ and ⚙, then the copy/clear band — the pin
@@ -448,7 +464,7 @@ HOW TO USE
     // manifest that ships it, and an overlay that cannot say which version it
     // is makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.195",
+    VERSION: "3.8.196",
     // Substituted like VERSION, from release.json: the MANIFEST the extension
     // publishes, which is the one file that moves with every release. It was
     // the userscript's meta header until that gate was withdrawn — and that
@@ -5711,9 +5727,9 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
      * are one problem repeated — a nav of identical links, a table of
      * identical cells — and a list nobody can read is a list nobody uses.
      */
-    group(findings) {
+    group(findings2) {
       const by = /* @__PURE__ */ new Map();
-      findings.forEach((f, seq) => {
+      findings2.forEach((f, seq) => {
         const k = f.key || `${f.rule}|${f.message}`;
         const g = by.get(k);
         if (g) {
@@ -5813,16 +5829,46 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         t.remove();
       }
     },
-    async copy() {
+    /**
+     * PREPARE, then build — the report as a string. Report.text() is
+     * synchronous and every other line in this file depends on that — but a
+     * tool can need something fetched before it can answer, and the
+     * alternative was a report that said "ask again" the first time. Only
+     * ARMED tools, only on this path: a copy is a deliberate act, which is
+     * what makes it the right place to do work that a hover must never do.
+     * One failing tool does not cost the report — it simply has nothing to
+     * add.
+     *
+     * Split from copy() when a second reader arrived: the remote door hands
+     * this to an AI over the worker's socket, and the clipboard is the one
+     * thing that reader must never touch. copy() is build() plus the
+     * clipboard, so both readers get the same text by construction.
+     *
+     * Returns the TEXT, or a promise of it — A PROMISE ONLY WHEN THERE IS
+     * SOMETHING TO WAIT FOR, the same contract Sweep.run() keeps. An `async`
+     * here would cost a microtask on every copy, including the overwhelming
+     * majority that prepare nothing, and every reader of the clipboard would
+     * inherit a hop it never needed: the suite reads the clipboard in the
+     * same breath as the click, and the first version of this split made
+     * every report-reading assertion in it see null.
+     */
+    build() {
+      const waits = [];
       for (const t of Tools.withHook("prepare", true)) {
         try {
           const r = t.prepare.call(t);
-          if (r && typeof r.then === "function") await r;
+          if (r && typeof r.then === "function") waits.push(r.catch(() => {
+          }));
         } catch {
         }
       }
-      await Report.toClipboard(Report.text());
-      WebPanel.flash("✓");
+      if (!waits.length) return Report.text();
+      return Promise.all(waits).then(() => Report.text());
+    },
+    copy() {
+      const put = (txt) => Report.toClipboard(txt).then(() => WebPanel.flash("✓"));
+      const built = Report.build();
+      return built && typeof built.then === "function" ? built.then(put) : put(built);
     },
     /**
      * The take-away actions for ONE element — what the target menu offers.
@@ -6109,12 +6155,12 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
   }
   function envelope(kind, table, name, args) {
     if (!(name in table)) throw new Error(`unknown ${kind}: ${name}`);
-    const pack = table[name];
+    const pack2 = table[name];
     return {
       [FIELD2]: PROTOCOL_VERSION,
       kind,
       name,
-      args: pack ? pack(...args) : args
+      args: pack2 ? pack2(...args) : args
     };
   }
   var Protocol = {
@@ -6709,20 +6755,21 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
      * page that moved in between.
      */
     sweep() {
-      if (!State.enabled || Controller._sweeping) return;
+      if (!State.enabled || Controller._sweeping) return Promise.resolve(null);
       Controller._sweeping = true;
       const r = Sweep.run();
-      if (r && typeof r.then === "function") r.then(Controller._swept, Controller._swept);
-      else Controller._swept(r);
+      if (r && typeof r.then === "function") return r.then(Controller._swept, Controller._swept);
+      return Promise.resolve(Controller._swept(r));
     },
     /** The half that runs once the pass has actually finished. */
     _swept(result) {
       Controller._sweeping = false;
-      if (!State.enabled || !result || !result.findings) return;
+      if (!State.enabled || !result || !result.findings) return null;
       State.sweep = result;
       WebPanel.setSwept(true, Sweep.group(State.sweep.findings).length);
       WebPanel.toggleList(true, "findings");
       Render.schedule();
+      return result;
     },
     /** Rows for whichever view the panel is showing. */
     rows(view) {
@@ -7132,6 +7179,258 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     }
   };
 
+  // src/app/remote.js
+  function pack(p) {
+    return {
+      id: p.id,
+      kind: p.kind,
+      selector: U.selectorOf(p.el),
+      label: U.labelOf(p.el),
+      rect: rectOf(p.el)
+    };
+  }
+  function rectOf(el2) {
+    const r = el2.getBoundingClientRect();
+    return {
+      x: Math.round(r.left),
+      y: Math.round(r.top),
+      w: Math.round(r.width),
+      h: Math.round(r.height)
+    };
+  }
+  function under(x, y) {
+    const el2 = document.elementFromPoint(x, y);
+    if (!el2) throw new Error(`nothing at (${x}, ${y}) — outside the viewport?`);
+    return el2;
+  }
+  function pointer(type, x, y, mods = {}) {
+    const init = {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      clientX: x,
+      clientY: y,
+      button: 0,
+      buttons: type.endsWith("up") ? 0 : 1,
+      shiftKey: !!mods.shift,
+      ctrlKey: !!mods.ctrl,
+      metaKey: !!mods.meta,
+      altKey: !!mods.alt
+    };
+    const P = typeof PointerEvent === "function" ? PointerEvent : null;
+    return P && type.startsWith("pointer") ? new P(type, { ...init, pointerId: 1, pointerType: "mouse", isPrimary: true }) : new MouseEvent(type, init);
+  }
+  function select(sel) {
+    let el2 = null;
+    try {
+      el2 = document.querySelector(sel);
+    } catch {
+      throw new Error(`not a CSS selector: ${sel}`);
+    }
+    if (!el2) throw new Error(`nothing matches ${sel}`);
+    return el2;
+  }
+  function findings() {
+    const s = State.sweep;
+    const groups2 = Sweep.group(s ? s.findings : []);
+    return {
+      swept: !!s,
+      problems: groups2.length,
+      occurrences: s ? s.findings.length : 0,
+      elements: s ? s.elements : 0,
+      findings: groups2.map((g) => ({
+        rule: g.rule,
+        severity: g.severity,
+        verdict: g.verdict || "fail",
+        message: g.message,
+        count: g.n,
+        selector: U.selectorOf(g.el),
+        rect: rectOf(g.el)
+      }))
+    };
+  }
+  var commands = {
+    /** What a person sees on the bar and under ⚙, as data. Call it first:
+     *  the ids here are what `arm` and `set` take. */
+    state() {
+      return {
+        version: CONFIG.VERSION,
+        url: location.href,
+        title: document.title,
+        on: State.enabled,
+        viewport: {
+          w: innerWidth,
+          h: innerHeight,
+          dpr: devicePixelRatio,
+          scrollX: Math.round(scrollX),
+          scrollY: Math.round(scrollY)
+        },
+        tools: Tools.runs().flatMap((run) => run.tools.map((t) => ({
+          id: t.id,
+          title: t.title,
+          armed: State.tools.has(t.id),
+          roles: Tools.rolesOf(t),
+          family: t.family || t.subject || null,
+          band: run.name
+        }))),
+        settings: Settings.rows().filter((r) => r.opt).map((r) => ({
+          owner: r.tool.id,
+          key: r.opt.key,
+          label: r.opt.label,
+          affects: r.opt.affects,
+          value: Tools.setting(r.tool, r.opt.key),
+          ...r.opt.type === "number" ? { type: "number", min: r.opt.min, max: r.opt.max, step: r.opt.step } : r.opt.type === "toggle" ? { type: "toggle" } : { values: r.opt.values }
+        })),
+        pins: State.pins.length,
+        swept: !!State.sweep
+      };
+    },
+    power([on]) {
+      if (!!on !== State.enabled) WebPanel.onToggle?.();
+      return { on: State.enabled };
+    },
+    /** Arm or disarm by id — through the bar's own slot, so a runtime starts
+     *  and stops exactly as it does from a button. */
+    arm([id, on]) {
+      if (!Tools.byId(id)) {
+        throw new Error(`no tool '${id}' — the ids are: ${Tools.all.map((t) => t.id).join(", ")}`);
+      }
+      const want = on == null ? !State.tools.has(id) : !!on;
+      if (want !== State.tools.has(id)) WebPanel.onTool?.(id);
+      return { id, armed: State.tools.has(id) };
+    },
+    /** One setting, by owner and key, through the same row the ⚙ view edits —
+     *  so the affects-driven sweep invalidation and the redraw happen exactly
+     *  as they do for a person. The index resolves against rows('settings'),
+     *  the standing rule for every row callback. */
+    set([owner, key, value]) {
+      const rows = Controller.rows("settings");
+      const i = rows.findIndex((r) => r.opt && r.tool.id === owner && r.opt.key === key);
+      if (i < 0) throw new Error(`no setting ${owner}.${key} — state lists them`);
+      const row = rows[i];
+      let raw;
+      if (row.opt.type === "number") {
+        if (!Settings.valid(row.opt, value)) {
+          throw new Error(`${owner}.${key} takes a number` + (row.opt.min != null || row.opt.max != null ? ` from ${row.opt.min ?? "-∞"} to ${row.opt.max ?? "∞"}` : ""));
+        }
+        raw = value;
+      } else if (row.opt.type === "toggle") {
+        raw = !!value;
+      } else {
+        raw = row.control.values.indexOf(value);
+        if (raw < 0) throw new Error(`${owner}.${key} takes one of: ${row.opt.values.join(", ")}`);
+      }
+      Controller.changeRow(i, raw, "settings");
+      return { owner, key, value: Tools.setting(row.tool, key) };
+    },
+    /** Pin by selector. Reaches what a click cannot, the way the lasso does:
+     *  it asks the DOM, not the hit test. */
+    pin([selector]) {
+      const el2 = select(selector);
+      Controller.pinMany([el2]);
+      const p = State.pins.find((x) => x.el === el2);
+      return p ? pack(p) : null;
+    },
+    unpin([which]) {
+      const p = typeof which === "number" ? State.pins.find((x) => x.id === which) : State.pins.find((x) => x.el === select(which));
+      if (!p) throw new Error(`no pin ${which}`);
+      Controller.removePin(p);
+      return { removed: p.id, pins: State.pins.length };
+    },
+    pins() {
+      return State.pins.filter((p) => document.contains(p.el)).map(pack);
+    },
+    /** A click, as a hand makes one — so whatever is armed answers, and a
+     *  modifier means what it means at the keyboard. */
+    click([x, y, mods]) {
+      const el2 = under(x, y);
+      for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"]) {
+        el2.dispatchEvent(pointer(type, x, y, mods));
+      }
+      return {
+        at: [x, y],
+        target: U.selectorOf(el2),
+        pins: State.pins.length,
+        current: State.current ? U.selectorOf(State.current) : null
+      };
+    },
+    /** Press, drag, release. The browser sends a click after any press, so
+     *  this does too — the runtime that owns the drag is the one that claims
+     *  it, exactly as it would after a hand let go. */
+    drag([x1, y1, x2, y2]) {
+      const from = under(x1, y1);
+      from.dispatchEvent(pointer("pointerdown", x1, y1));
+      const to = under(x2, y2);
+      to.dispatchEvent(pointer("pointermove", x2, y2));
+      to.dispatchEvent(pointer("pointerup", x2, y2));
+      to.dispatchEvent(pointer("click", x2, y2));
+      return { from: [x1, y1], to: [x2, y2], pins: State.pins.length };
+    },
+    /** Move the pointer without pressing. The hover badge follows, and so
+     *  does any runtime that watches the pointer — paint's probe, for one. */
+    point([x, y]) {
+      const el2 = under(x, y);
+      el2.dispatchEvent(pointer("pointermove", x, y));
+      el2.dispatchEvent(pointer("mousemove", x, y));
+      return { at: [x, y], target: U.selectorOf(el2) };
+    },
+    /** ⌕, awaited. The sweep may yield on a large page; the answer is the
+     *  grouped findings once it has actually finished. */
+    audit() {
+      if (!State.enabled) throw new Error("powered off — call power(true) first");
+      if (Controller._sweeping) throw new Error("a sweep is already running");
+      return Controller.sweep().then(findings);
+    },
+    findings() {
+      return findings();
+    },
+    /** The report ⧉ copies — prepared, so a tool that fetches first gets to,
+     *  and never on the clipboard. */
+    report() {
+      return Report.build();
+    },
+    clear() {
+      WebPanel.onClear?.();
+      return { pins: State.pins.length };
+    }
+  };
+  function answer(fn, args, respond) {
+    let r;
+    try {
+      r = fn(Array.isArray(args) ? args : []);
+    } catch (e) {
+      respond({ ok: false, error: String(e && e.message || e) });
+      return false;
+    }
+    if (r && typeof r.then === "function") {
+      r.then(
+        (v) => respond({ ok: true, result: v ?? null }),
+        (e) => respond({ ok: false, error: String(e && e.message || e) })
+      );
+      return true;
+    }
+    respond({ ok: true, result: r ?? null });
+    return false;
+  }
+  var Remote = {
+    /** The vocabulary, for anything that wants to say what it can do. */
+    commands: () => Object.keys(commands),
+    init() {
+      const runtime = typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage ? chrome.runtime : null;
+      if (!runtime) return;
+      runtime.onMessage.addListener((msg, sender, respond) => {
+        if (!msg || msg.type !== "debug-overlay-remote") return;
+        if (sender && sender.id && runtime.id && sender.id !== runtime.id) return;
+        const fn = commands[msg.cmd];
+        if (!fn) {
+          respond({ ok: false, error: `unknown command '${msg.cmd}' — one of: ${Object.keys(commands).join(", ")}` });
+          return;
+        }
+        return answer(fn, msg.args, respond);
+      });
+    }
+  };
+
   // src/boot.js
   function start() {
     initDom();
@@ -7154,6 +7453,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     WebPanel.onState = Bridge.state;
     Controller.onToolEvent = Bridge.toolEvent;
     Bridge.init();
+    Remote.init();
     Settings.load();
     Controller.refreshBadge();
     Controller.loadTools();

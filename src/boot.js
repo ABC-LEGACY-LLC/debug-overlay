@@ -15,6 +15,7 @@ import { Render } from './ui/renderer.js';
 import { Report } from './services/report/index.js';
 import { Interactions } from './app/interactions.js';
 import { Bridge } from './app/bridge.js';
+import { Remote } from './app/remote.js';
 import { Updates } from './app/updates.js';
 import { Controller } from './app/controller.js';
 import { Settings } from './services/settings/index.js';
@@ -67,6 +68,11 @@ WebPanel.onState = Bridge.state;
 // same announce shape, and inert under the userscript gate like the rest
 Controller.onToolEvent = Bridge.toolEvent;
 Bridge.init();
+/* The THIRD door: an AI on the far end of the worker's socket. Same contract
+   as the side panel — every command lands on the slots wired above or on the
+   controller calls those slots make, so there is one code path from the
+   first line — and inert anywhere that is not a real content script. */
+Remote.init();
 
 // before loadTools: a tool's options decide what its rules do, and arming
 // one immediately schedules a render that asks

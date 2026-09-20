@@ -4149,6 +4149,263 @@ console.log('\nSTALENESS ANNOUNCES ITSELF');
 
 }
 
+console.log('\nTHE THIRD DOOR');
+/**
+ * REMOTE — an AI drives the overlay through the worker's socket, and the door
+ * on the content side (src/app/remote.js) answers with the same data the
+ * panel shows a person. Every command lands on the slots boot wired for the
+ * bar, so wherever the bar would show the effect this asserts through the
+ * DOM: arming a tool presses its button. The rest is asserted on the answer,
+ * because the reader on the far end has nothing else.
+ */
+let remoteChecked = false;
+{
+  const opts = { url: 'https://example.test/', pretendToBeVisual: true,
+                 runScripts: 'outside-only', virtualConsole: new VirtualConsole() };
+  const R = (l, t, r, b) => () => ({ left: l, top: t, right: r, bottom: b,
+                                     width: r - l, height: b - t, x: l, y: t });
+  const d = new JSDOM('<!doctype html><html><body>' +
+    '<section id="card"><b id="kid">a</b><i id="sib">b</i></section>' +
+    '<u id="ghost" style="pointer-events:none">c</u>' +
+    '<s id="far">d</s></body></html>', opts);
+  const w = d.window;
+  w.localStorage.setItem('__debug_overlay_tools', JSON.stringify(['pin']));
+  w.localStorage.setItem('__debug_overlay_seen', JSON.stringify(idsOnDisk));
+  let listener = null;
+  w.chrome = { runtime: { id: 'ext-1', onMessage: { addListener: (f) => { listener = f; } },
+                          getManifest: () => ({ version: '0' }) } };
+  w.eval(source);
+  const at = { card: R(10, 10, 90, 90), kid: R(20, 20, 50, 50), sib: R(55, 20, 85, 50),
+               ghost: R(20, 60, 80, 80), far: R(200, 200, 260, 260) };
+  for (const [id, r] of Object.entries(at)) w.document.getElementById(id).getBoundingClientRect = r;
+  w.document.body.getBoundingClientRect = R(0, 0, 400, 400);
+  // an honest hit test, as in the lasso block: #ghost cannot be clicked
+  w.document.elementFromPoint = (x, y) => {
+    const hit = [...w.document.querySelectorAll('#card,#kid,#sib,#ghost,#far')]
+      .filter((el) => el.style.pointerEvents !== 'none')
+      .filter((el) => { const b = el.getBoundingClientRect();
+                        return x >= b.left && x <= b.right && y >= b.top && y <= b.bottom; });
+    return hit[hit.length - 1] || w.document.body;
+  };
+  w.document.elementsFromPoint = (x, y) => [w.document.elementFromPoint(x, y), w.document.body];
+  w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+
+  ok('the door listens where a real content script lives',
+    typeof listener === 'function', 'chrome.runtime.onMessage was offered and nothing subscribed');
+
+  /** One command over the wire, answered the way Chrome answers: through the
+   *  respond callback, now or later. Resolves undefined when the door did not
+   *  answer at all — which is what a foreign sender must get. */
+  const ask = (cmd, args, sender = { id: 'ext-1' }) => new Promise((resolve) => {
+    let answered = false;
+    const kept = listener({ type: 'debug-overlay-remote', cmd, args }, sender,
+                          (r) => { answered = true; resolve(r); });
+    if (!kept && !answered) resolve(undefined);
+  });
+  const bar = w.document.getElementById('__debug-overlay-bar');
+  const pressed = (id) => bar.querySelector(`[data-tool="${id}"]`)?.getAttribute('aria-pressed') === 'true';
+
+  (async () => {
+    try {
+      const s = await ask('state', []);
+      ok('state answers with the version, the url and every tool by id',
+        !!(s && s.ok && s.result.version && s.result.url === 'https://example.test/' &&
+           s.result.tools.some((t) => t.id === 'lasso' && t.armed === false)),
+        JSON.stringify(s).slice(0, 160));
+      ok('…and every setting with its owner, key, value and choices',
+        !!(s && s.ok && s.result.settings.some((o) => o.owner === 'lasso' && o.key === 'reach' &&
+           o.value === 'enclosed' && Array.isArray(o.values) && o.values.includes('touched'))),
+        JSON.stringify(s && s.result && s.result.settings.find((o) => o.owner === 'lasso')));
+
+      const a = await ask('arm', ['lasso', true]);
+      ok('arm goes through the bar\'s own slot — the button shows it pressed',
+        !!(a && a.ok && a.result.armed === true && pressed('lasso')), JSON.stringify(a));
+      const bad = await ask('arm', ['no-such-tool', true]);
+      ok('an unknown id is refused WITH the ids, not ignored',
+        !!(bad && bad.ok === false && /no tool 'no-such-tool'/.test(bad.error) && /lasso/.test(bad.error)),
+        JSON.stringify(bad));
+
+      const st = await ask('set', ['lasso', 'reach', 'touched']);
+      ok('set writes a setting through the same row ⚙ edits',
+        !!(st && st.ok && st.result.value === 'touched'), JSON.stringify(st));
+      const st2 = await ask('set', ['lasso', 'take', 'deepest']);
+      ok('…on the second axis too', !!(st2 && st2.ok && st2.result.value === 'deepest'), JSON.stringify(st2));
+      const badSet = await ask('set', ['lasso', 'reach', 'sideways']);
+      ok('a value the tool does not offer is refused with the list',
+        !!(badSet && badSet.ok === false && /one of: enclosed, touched/.test(badSet.error)), JSON.stringify(badSet));
+
+      const p = await ask('pin', ['#ghost']);
+      ok('pin by selector reaches what a click cannot — pointer-events: none',
+        !!(p && p.ok && p.result.selector === '#ghost' && p.result.id === 1), JSON.stringify(p));
+      const dr = await ask('drag', [82, 52, 86, 56]);   // a small box inside #card
+      ok('drag is the hand: with the lasso armed and touched+deepest, it takes the big element',
+        !!(dr && dr.ok && dr.result.pins === 2), JSON.stringify(dr));
+      const pins = await ask('pins', []);
+      ok('pins lists every pin with its selector and rect',
+        !!(pins && pins.ok && pins.result.map((x) => x.selector).sort().join(' ') === '#card #ghost' &&
+           pins.result.every((x) => x.rect && typeof x.rect.w === 'number')), JSON.stringify(pins));
+
+      await ask('arm', ['paint', true]);
+      const pt = await ask('point', [30, 30]);
+      ok('point moves the pointer; the armed probe follows',
+        !!(pt && pt.ok && pt.result.target === '#kid'), JSON.stringify(pt));
+      const rep = await ask('report', []);
+      ok('report is the text ⧉ copies — the pins, and the probed pixel',
+        !!(rep && rep.ok && /^# UI debug report/.test(rep.result) && /\[#1\]/.test(rep.result) &&
+           /## paint — the pixel at \(30, 30\)/.test(rep.result)),
+        ((rep && rep.result) || JSON.stringify(rep)).split('\n').slice(0, 3).join(' | '));
+
+      const au = await ask('audit', []);
+      ok('audit runs ⌕ and answers once it has finished, with grouped findings',
+        !!(au && au.ok && au.result.swept === true && typeof au.result.problems === 'number' &&
+           Array.isArray(au.result.findings)), JSON.stringify(au).slice(0, 160));
+      const un = await ask('unpin', [1]);
+      ok('unpin by number', !!(un && un.ok && un.result.removed === 1 && un.result.pins === 1), JSON.stringify(un));
+      const cl = await ask('clear', []);
+      ok('clear empties the pins', !!(cl && cl.ok && cl.result.pins === 0), JSON.stringify(cl));
+
+      const unk = await ask('nonsense', []);
+      ok('an unknown command names the vocabulary',
+        !!(unk && unk.ok === false && /unknown command 'nonsense'/.test(unk.error) && /state, power, arm/.test(unk.error)),
+        JSON.stringify(unk));
+      const foreign = await ask('state', [], { id: 'someone-else' });
+      ok('a message from another extension is not answered at all',
+        foreign === undefined, JSON.stringify(foreign));
+    } catch (e) {
+      ok('the remote door block ran to the end', false, String((e && e.stack) || e));
+    }
+    remoteChecked = true;
+    w.close();
+  })();
+}
+
+console.log('\nONE SESSION, ONE TOKEN, ONE BROWSER');
+/**
+ * The MCP server (mcp/index.js), end to end: a real child process on a real
+ * port, driven over stdio the way Claude Code drives it, with Node's own
+ * WebSocket client standing in for the extension. What is under test is the
+ * gate — the token, one browser per process, and every refusal saying what
+ * to do — because the gate is the whole reason this is safe to ship.
+ */
+let mcpChecked = false;
+{
+  const { spawn } = require('child_process');
+  const net = require('net');
+  const done = (why) => { if (why) ok('the MCP block ran to the end', false, why); mcpChecked = true; };
+  const guard = setTimeout(() => done('timed out after 20s'), 20000);
+  guard.unref();
+  (async () => {
+    // a free port, so a parallel run or a live session never collides
+    const port = await new Promise((res) => {
+      const s = net.createServer();
+      s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => res(p)); });
+    });
+    const child = spawn(process.execPath, [path.join(__dirname, 'mcp', 'index.js')],
+      { env: { ...process.env, DEBUG_OVERLAY_PORT: String(port), DEBUG_OVERLAY_TOKEN: 'tok-test-1' },
+        stdio: ['pipe', 'pipe', 'pipe'] });
+    let err = '', out = '';
+    const replies = new Map();
+    child.stderr.on('data', (d) => { err += d; });
+    child.stdout.on('data', (d) => {
+      out += d;
+      let i;
+      while ((i = out.indexOf('\n')) >= 0) {
+        const line = out.slice(0, i);
+        out = out.slice(i + 1);
+        try {
+          const m = JSON.parse(line);
+          if (m.id != null && replies.has(m.id)) { replies.get(m.id)(m); replies.delete(m.id); }
+        } catch {}
+      }
+    });
+    let n = 0;
+    const rpc = (method, params) => new Promise((res) => {
+      const id = ++n;
+      replies.set(id, res);
+      child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
+    });
+    const text = (r) => (r && r.result && r.result.content && r.result.content[0] && r.result.content[0].text) || '';
+    const hello = (token, extra = {}) => new Promise((res) => {
+      const ws = new WebSocket(`ws://127.0.0.1:${port}`);
+      ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', token, ...extra }));
+      ws.onmessage = (e) => res({ ws, m: JSON.parse(e.data) });
+      ws.onerror = () => res({ ws, m: null });
+    });
+    await new Promise((res) => {
+      const t = setInterval(() => { if (/listening/.test(err) || child.exitCode != null) { clearInterval(t); res(); } }, 20);
+    });
+    try {
+      ok('the server prints its address and token to stderr, and nothing to stdout',
+        /ws:\/\/localhost:\d+\s+token tok-test-1/.test(err) && out === '', err.split('\n')[0] || '(no stderr)');
+      const init = await rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {},
+                                             clientInfo: { name: 't', version: '0' } });
+      ok('initialize names the server and offers tools',
+        !!(init.result && init.result.serverInfo && init.result.serverInfo.name === 'debug-overlay' &&
+           init.result.capabilities.tools), JSON.stringify(init).slice(0, 140));
+      const list = await rpc('tools/list', {});
+      const names = ((list.result && list.result.tools) || []).map((t) => t.name);
+      ok('tools/list carries the door\'s vocabulary as typed tools',
+        ['session', 'state', 'arm', 'set', 'pin', 'drag', 'point', 'audit', 'report'].every((x) => names.includes(x)),
+        names.join(' '));
+      ok('…each with a description an AI can act on and a schema',
+        ((list.result && list.result.tools) || []).every((t) => t.description.length > 40 && t.inputSchema),
+        '(a bare name is not a tool)');
+      const ses = await rpc('tools/call', { name: 'session', arguments: {} });
+      ok('session says no browser yet, and carries the token to hand the person',
+        /"connected": false/.test(text(ses)) && /tok-test-1/.test(text(ses)), text(ses));
+      const st0 = await rpc('tools/call', { name: 'state', arguments: {} });
+      ok('a command with no browser is an ERROR that says what to type where',
+        !!(st0.result && st0.result.isError === true && /no browser is connected/.test(text(st0)) &&
+           /tok-test-1/.test(text(st0)) && new RegExp('ws://localhost:' + port).test(text(st0))), text(st0));
+
+      // a browser with the wrong token: refused, told why, cut off
+      const wrong = await hello('nope');
+      ok('a wrong token is refused and told so',
+        !!(wrong.m && wrong.m.t === 'refused' && /wrong token/.test(wrong.m.why)), JSON.stringify(wrong.m));
+      await new Promise((res) => { wrong.ws.onclose = () => res(); setTimeout(res, 500); });
+
+      // the right one: welcomed, then answering the calls the tools make
+      const b = await hello('tok-test-1', { version: '9.9.9', tab: 42 });
+      ok('the right token is welcomed', !!(b.m && b.m.t === 'welcome'), JSON.stringify(b.m));
+      const seen = [];
+      b.ws.onmessage = (e) => {
+        const m = JSON.parse(e.data);
+        seen.push(m);
+        if (m.t === 'call') b.ws.send(JSON.stringify({ t: 'result', id: m.id, ok: true,
+                                                        result: { echo: m.cmd, args: m.args, on: true } }));
+      };
+      const st1 = await rpc('tools/call', { name: 'state', arguments: {} });
+      ok('a tool call reaches the browser as a command and comes back as data',
+        !!(st1.result && !st1.result.isError && /"echo": "state"/.test(text(st1))), text(st1));
+      await rpc('tools/call', { name: 'drag', arguments: { x1: 1, y1: 2, x2: 3, y2: 4 } });
+      ok('…with its arguments in the door\'s order',
+        seen.some((m) => m.t === 'call' && m.cmd === 'drag' && JSON.stringify(m.args) === '[1,2,3,4]'),
+        JSON.stringify(seen.filter((m) => m.t === 'call').pop()));
+      const ses2 = await rpc('tools/call', { name: 'session', arguments: {} });
+      ok('session now names the browser: its overlay version and tab',
+        /"connected": true/.test(text(ses2)) && /9\.9\.9/.test(text(ses2)) && /"tab": 42/.test(text(ses2)), text(ses2));
+
+      // a second browser with the right token while one is in: refused
+      const second = await hello('tok-test-1');
+      ok('a second browser on the same token is refused — one session, one browser',
+        !!(second.m && second.m.t === 'refused' && /already has a browser/.test(second.m.why)), JSON.stringify(second.m));
+
+      // the browser leaving: the next command says so instead of hanging
+      b.ws.close();
+      await new Promise((res) => setTimeout(res, 300));
+      const st2 = await rpc('tools/call', { name: 'state', arguments: {} });
+      ok('after the browser leaves, a command is refused with the way back in',
+        !!(st2.result && st2.result.isError === true && /no browser is connected/.test(text(st2))), text(st2));
+      const unk = await rpc('tools/call', { name: 'no-such-tool', arguments: {} });
+      ok('an unknown tool is a JSON-RPC error, not a silence',
+        !!(unk.error && /unknown tool/.test(unk.error.message)), JSON.stringify(unk));
+      done();
+    } catch (e) { done(String((e && e.stack) || e)); }
+    clearTimeout(guard);
+    try { child.kill(); } catch {}
+  })().catch((e) => done(String(e)));
+}
+
 console.log('\nA BOX TAKES WHAT A CLICK CANNOT');
 /**
  * The architecture has promised this one since before it had a name: "a lasso
@@ -5233,7 +5490,7 @@ console.log('\nINTERACTION PERFORMANCE');
 }
 
 whenPainted(() => perfChecked && sidePanelChecked && storageChecked && updaterRan &&
-                  settleChecked && capChecked &&
+                  settleChecked && capChecked && remoteChecked && mcpChecked &&
                  
                   window.document.querySelector('#__debug-overlay-root .debug-overlay-flag') &&
                   w3.document.querySelector('#__debug-overlay-root .debug-overlay-badge'), () => {

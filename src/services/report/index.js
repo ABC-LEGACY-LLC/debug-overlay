@@ -128,27 +128,45 @@ import { WebPanel } from '../../ui/web-panel.js';
         t.remove();
       }
     },
-    async copy() {
-      /* PREPARE, then build. Report.text() is synchronous and every other
-         line in this file depends on that — but a tool can need something
-         fetched before it can answer, and the alternative was a report that
-         said "ask again" the first time. Only ARMED tools, only on this
-         path: a copy is a deliberate act, which is what makes it the right
-         place to do work that a hover must never do. One failing tool does
-         not cost the report — it simply has nothing to add. */
+    /**
+     * PREPARE, then build — the report as a string. Report.text() is
+     * synchronous and every other line in this file depends on that — but a
+     * tool can need something fetched before it can answer, and the
+     * alternative was a report that said "ask again" the first time. Only
+     * ARMED tools, only on this path: a copy is a deliberate act, which is
+     * what makes it the right place to do work that a hover must never do.
+     * One failing tool does not cost the report — it simply has nothing to
+     * add.
+     *
+     * Split from copy() when a second reader arrived: the remote door hands
+     * this to an AI over the worker's socket, and the clipboard is the one
+     * thing that reader must never touch. copy() is build() plus the
+     * clipboard, so both readers get the same text by construction.
+     *
+     * Returns the TEXT, or a promise of it — A PROMISE ONLY WHEN THERE IS
+     * SOMETHING TO WAIT FOR, the same contract Sweep.run() keeps. An `async`
+     * here would cost a microtask on every copy, including the overwhelming
+     * majority that prepare nothing, and every reader of the clipboard would
+     * inherit a hop it never needed: the suite reads the clipboard in the
+     * same breath as the click, and the first version of this split made
+     * every report-reading assertion in it see null.
+     */
+    build() {
+      const waits = [];
       for (const t of Tools.withHook('prepare', true)) {
-        /* A PROMISE ONLY WHEN THERE IS SOMETHING TO WAIT FOR — the same
-           contract Sweep.run() keeps. Awaiting unconditionally would cost a
-           microtask on every copy, including the overwhelming majority that
-           prepare nothing, and every reader of the clipboard would inherit a
-           hop it never needed. */
         try {
           const r = t.prepare.call(t);
-          if (r && typeof r.then === 'function') await r;
-        } catch { /* a tool that cannot prepare says so in its own lines */ }
+          // a tool that cannot prepare says so in its own lines
+          if (r && typeof r.then === 'function') waits.push(r.catch(() => {}));
+        } catch { /* same: nothing to add */ }
       }
-      await Report.toClipboard(Report.text());
-      WebPanel.flash('✓');
+      if (!waits.length) return Report.text();
+      return Promise.all(waits).then(() => Report.text());
+    },
+    copy() {
+      const put = (txt) => Report.toClipboard(txt).then(() => WebPanel.flash('✓'));
+      const built = Report.build();
+      return built && typeof built.then === 'function' ? built.then(put) : put(built);
     },
     /**
      * The take-away actions for ONE element — what the target menu offers.

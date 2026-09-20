@@ -523,6 +523,7 @@ async function bind() {
   } catch { tabId = null; }
   drop();
   connect();
+  rmBind();   // the AI session follows the same tab this panel does
 }
 
 // the side panel follows the user's eyes: rebind on tab switch, reconnect the
@@ -562,5 +563,69 @@ document.addEventListener('keydown', (e) => {
   if (tag === 'INPUT' || tag === 'SELECT') return;   // a field's Escape is its own
   if (myView) setView(myView);                       // closes the open view
 });
+
+/* ---- the AI session: this is where the person lets an AI in -----------
+   The WORKER holds the socket (sw.js) and forgets it whenever Chrome stops
+   the worker. THIS PAGE remembers the address, the token and the wish to be
+   connected, and re-asks when it finds the worker has forgotten — which is
+   why the panel stays open during a session. The token is typed here by
+   hand: that is the whole gate, and it is a person at the keyboard. */
+const RM_KEY = 'debug-overlay-remote';
+const rm = { url: $('#rmUrl'), token: $('#rmToken'), go: $('#rmGo'), st: $('#rmSt') };
+let rmWanted = false;
+function rmSave() {
+  try { localStorage.setItem(RM_KEY, JSON.stringify({ url: rm.url.value, token: rm.token.value, wanted: rmWanted })); }
+  catch {}
+}
+function rmLoad() {
+  let s = {};
+  try { s = JSON.parse(localStorage.getItem(RM_KEY) || '{}') || {}; } catch {}
+  rm.url.value = s.url || 'ws://localhost:8787';
+  rm.token.value = s.token || '';
+  rmWanted = !!s.wanted;
+}
+/** The worker's answer, shown as it IS — connected, trying, refused, or off. */
+function rmShow(s) {
+  if (!s) s = { wanted: rmWanted, connected: false, why: '' };
+  rm.go.textContent = s.wanted ? 'Disconnect' : 'Connect';
+  rm.st.className = s.connected ? 'ok' : s.why ? 'bad' : '';
+  rm.st.textContent = s.connected ? 'connected — the AI is driving this tab'
+    : s.why || (s.wanted ? 'connecting…' : 'not connected');
+  rm.url.disabled = rm.token.disabled = !!s.wanted;
+}
+const rmAsk = (m) => { try { return chrome.runtime.sendMessage(m).catch(() => null); } catch { return Promise.resolve(null); } };
+function rmBind() { if (tabId != null) rmAsk({ type: 'debug-overlay-remote-bind', tabId }); }
+async function rmConnect() {
+  rmWanted = true;
+  rmSave();
+  rmShow(await rmAsk({ type: 'debug-overlay-remote-connect',
+                       url: rm.url.value.trim(), token: rm.token.value.trim(), tabId }));
+}
+/** A refusal is the server's answer, not an outage: stop wanting, so the
+ *  reminder below does not knock forever with a wrong token. */
+function rmSettle(s) {
+  if (s && !s.wanted && rmWanted && /^refused/.test(s.why || '')) { rmWanted = false; rmSave(); }
+  rmShow(s);
+}
+rm.go.addEventListener('click', async () => {
+  if (rmWanted) { rmWanted = false; rmSave(); rmShow(await rmAsk({ type: 'debug-overlay-remote-disconnect' })); }
+  else rmConnect();
+});
+// the worker pushes its state here; optional because the suite's stand-in
+// chrome has no runtime.onMessage, and the page must still render without it
+chrome.runtime.onMessage?.addListener((m) => {
+  if (m && m.type === 'debug-overlay-remote-state') rmSettle(m);
+});
+rmLoad();
+(async () => {
+  const s = await rmAsk({ type: 'debug-overlay-remote-status' });
+  if (rmWanted && s && !s.wanted && !/^refused/.test(s.why || '')) rmConnect();   // the worker forgot; this page did not
+  else rmSettle(s);
+})();
+setInterval(async () => {
+  if (!rmWanted) return;
+  const s = await rmAsk({ type: 'debug-overlay-remote-status' });
+  if (s && !s.wanted) { if (/^refused/.test(s.why || '')) rmSettle(s); else rmConnect(); }
+}, 5000);
 
 bind();

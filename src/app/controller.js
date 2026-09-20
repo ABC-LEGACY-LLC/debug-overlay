@@ -80,14 +80,19 @@ import { Render } from '../ui/renderer.js';
          blocking the thread WAS the mutex. Now two passes can overlap, both
          write State.sweep, and whichever finishes last wins — including a
          stale one started against an older page. */
-      if (!State.enabled || Controller._sweeping) return;
+      if (!State.enabled || Controller._sweeping) return Promise.resolve(null);
       Controller._sweeping = true;
       /* Sweep.run() hands back the result, or a promise of it when the page
          was big enough to need slicing. Both are handled here because this is
-         the only caller; anything else must await unconditionally. */
+         the only caller; anything else must await unconditionally.
+
+         ANSWERS WITH A PROMISE of the result either way — the bar ignores it,
+         the remote door waits on it. The synchronous path stays synchronous:
+         _swept has already run by the time the promise is handed back, which
+         is what the suite, map.js and compare.js rely on. */
       const r = Sweep.run();
-      if (r && typeof r.then === 'function') r.then(Controller._swept, Controller._swept);
-      else Controller._swept(r);
+      if (r && typeof r.then === 'function') return r.then(Controller._swept, Controller._swept);
+      return Promise.resolve(Controller._swept(r));
     },
 
     /** The half that runs once the pass has actually finished. */
@@ -95,7 +100,7 @@ import { Render } from '../ui/renderer.js';
       Controller._sweeping = false;
       // powered off, or the page torn down, while the pass was still running:
       // the answer describes something that is no longer on screen
-      if (!State.enabled || !result || !result.findings) return;
+      if (!State.enabled || !result || !result.findings) return null;
       State.sweep = result;
       // the grouped count, not the raw one: "3" is a page with three problems,
       // "5000" is the same page with one of them on every row. It RESTS on the
@@ -103,6 +108,7 @@ import { Render } from '../ui/renderer.js';
       WebPanel.setSwept(true, Sweep.group(State.sweep.findings).length);
       WebPanel.toggleList(true, 'findings');
       Render.schedule();   // the marks are new; nothing else would ask for them
+      return result;
     },
 
     /** Rows for whichever view the panel is showing. */

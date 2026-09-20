@@ -276,6 +276,12 @@ function build(kind) {
     `  } catch (e) { respond({ ok: false, error: String(e) + where }); }\n` +
     `  return true;   // async response\n` +
     `});\n`;
+  /* THE AI SESSION, in both builds — a real file rather than a string,
+     because a WebSocket client with reconnect and a command relay is a
+     program, and a program written as string concatenation is unreadable and
+     unlintable. It needs no permission the store build lacks. */
+  const SW_REMOTE = fs.readFileSync(
+    path.join(ROOT, 'browser-extension-source', 'remote', 'sw-remote.js'), 'utf8');
   fs.writeFileSync(path.join(EXT, 'sw.js'),
     `// Debug Overlay service worker — the extension's network door.\n` +
     `// A page's CSP cannot reach in here, so update checks work everywhere.\n` +
@@ -290,7 +296,7 @@ function build(kind) {
     `  if (msg && msg.type === 'debug-overlay-open-options') {\n` +
     `    chrome.runtime.openOptionsPage();\n` +
     `  }\n` +
-    `});\n` + SW_CAPTURE + SW_PANEL);
+    `});\n` + SW_CAPTURE + SW_PANEL + SW_REMOTE);
   /* the self-updater — real template files in browser-extension-source/,
      base substituted here. SOURCE and OUTPUT deliberately do NOT share a
      name: two folders both called browser-extension read as a duplicate in
@@ -571,7 +577,7 @@ function build(kind) {
     fs.writeFileSync(path.join(stage, 'sw.js'),
       `// Debug Overlay service worker — the store build.\n` +
       `// No fetch door: a store install is updated by the store. The capture\n` +
-      `// door stays: it is the product, not the delivery.\n` + SW_CAPTURE + SW_PANEL);
+      `// door stays: it is the product, not the delivery.\n` + SW_CAPTURE + SW_PANEL + SW_REMOTE);
     const files = fs.readdirSync(stage).sort()
       .map((f) => [f, fs.readFileSync(path.join(stage, f))]);
     fs.writeFileSync(path.join(EXT, 'debug-overlay-store.zip'), zipStore(files));

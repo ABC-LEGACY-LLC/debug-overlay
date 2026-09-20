@@ -234,6 +234,18 @@ button.primary[disabled]:hover {
     padding: 6px 8px 2px; }
   .tl-reload::before, .tl-reload::after { content: ''; flex: 1; height: 1px;
     background: #2e3a44; }
+
+  /* the AI session: two fields and a verdict */
+  #remote { display: grid; gap: 6px; }
+  #remote input { font: inherit; color: inherit; background: var(--debug-overlay-surface);
+    border: 1px solid var(--debug-overlay-line); border-radius: var(--debug-overlay-r-inner);
+    padding: 6px 8px; min-height: 30px; }
+  #remote input:disabled { opacity: .6; }
+  .rmrow { display: flex; align-items: center; gap: 8px; }
+  #rmSt { color: var(--debug-overlay-muted); font-size: 11px; min-width: 0; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  #rmSt.ok { color: var(--debug-overlay-accent); }
+  #rmSt.bad { color: var(--debug-overlay-warn); }
 </style>
 </head>
 <body data-mode="waiting">
@@ -301,6 +313,27 @@ button.primary[disabled]:hover {
         <button data-view="settings" aria-pressed="false"><span class="ic"></span>Settings</button>
       </div>
       <div id="rowsBox"></div>
+    </section>
+    <section>
+      <!-- THE THIRD DOOR. An AI drives this overlay over a socket, and this
+           is where the person lets it in: the token is typed here, by hand,
+           every session. It sees this tab and nothing else. Not .whenOn —
+           connecting is allowed while the overlay is off; the AI can switch
+           it on itself. -->
+      <h2>AI session</h2>
+      <p class="secnote">Let an AI drive the overlay on this tab. Start the
+        MCP server beside it (mcp/ in the repo), then enter the address and
+        token it prints. Keep this panel open while the session runs.</p>
+      <div id="remote">
+        <input id="rmUrl" type="text" placeholder="ws://localhost:8787" spellcheck="false"
+          autocomplete="off" aria-label="Server address">
+        <input id="rmToken" type="text" placeholder="token" spellcheck="false"
+          autocomplete="off" aria-label="Session token">
+        <div class="rmrow">
+          <button id="rmGo" class="mini">Connect</button>
+          <span id="rmSt">not connected</span>
+        </div>
+      </div>
     </section>
     <section>
       <h2 id="tlHead">Timeline <button id="tlClear" class="mini" hidden>clear</button></h2>

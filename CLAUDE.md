@@ -833,6 +833,54 @@ states and overflow cases exist only in the code, so the instrument joins the
 source read (`[code+ui]`) and never substitutes for it — the layout skill's
 own rule.
 
+## The third door — an AI session over the worker's socket
+
+The bar is one face of the controller, the side panel a second (`app/bridge.js`),
+and `app/remote.js` is a third: an AI on the far end of a socket. The rule the
+bridge lives by holds here harder, because nobody is watching the screen —
+**every command lands on the slots boot wired for the bar, or on the
+controller calls those slots make.** `arm` is `WebPanel.onTool`; `set` finds
+its row in `Controller.rows('settings')` and calls `changeRow` on that index,
+the same row-index law every callback obeys; `report` is `Report.build()`,
+which is `copy()` without the clipboard. A command that reimplements what a
+button does is the A1 defect wearing a new name.
+
+**Gestures, not tool names.** `click`, `drag` and `point` dispatch the
+pointer events a hand would, on the page, and whatever runtime is armed
+answers — a box for the lasso, a probe for paint. The file names no tool, so
+a tool shipped tomorrow is driven the day it lands; the AI learns ids from
+`state` the way a person learns them from the bar.
+
+**Why the browser dials out, and why one of each.** Claude Code may run on a
+machine the browser can reach but which cannot reach the browser back (the
+SSH / VSCode-remote arrangement), so the extension's worker connects to the
+MCP server, never the reverse — and only when the person presses Connect in
+the side panel with a token typed by hand. The server (`mcp/`, zero
+dependencies, Node 22) holds ONE token, binds to `127.0.0.1`, and accepts
+ONE browser; a second Claude Code session is a second process on a second
+port. There is no relay with a routing table, so there is nothing for one
+session to leak into another through. The AI gets the overlay's API and
+nothing else: no screenshots, no DOM, no other tabs.
+
+**Memory, not storage.** The manifest grants no `storage`, so the worker's
+session dies with the worker. The side panel remembers the address, the
+token and the wish to be connected, and re-asks when it finds the worker has
+forgotten — the reason the panel stays open during a session. The server's
+application-level pings every 20 s keep the worker alive (Chrome 116+ resets
+the idle clock on socket traffic). `chrome.storage.session` would be the
+right home, and needs the `storage` permission — a manifest change, so the
+owner's call.
+
+**The worker half is a real file** (`browser-extension-source/remote/
+sw-remote.js`), appended by `build.js` to BOTH `sw.js` variants. It needs no
+permission the store build lacks: a WebSocket is not a host permission.
+
+`test.js` drives the door in jsdom through a fake `chrome.runtime.onMessage`,
+and drives the MCP server end to end — a real child process on a real port,
+Node's own WebSocket client standing in for the extension — asserting the
+gate: wrong token refused and told so, second browser refused, a command with
+no browser answered with what to type where, never a hang.
+
 ## Escalate to the human instead of guessing
 - A change that would require relaxing an audit rule.
 - Anything touching the manifest's matches or permissions, or the update URLs.

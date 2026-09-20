@@ -278,6 +278,22 @@ HOW TO USE
   itself: a tool added tomorrow is configurable through both the moment it
   appears, with nothing installed or wired up.
 
+  AI SESSION — a third door into the same room. An AI (Claude Code, or any
+  MCP client) can drive the overlay itself instead of asking you to click
+  and paste: arm tools, change settings, pin by selector, click, drag and
+  point as a hand would, run ⌕, and read the report ⧉ would copy — as text,
+  over a socket, with nobody relaying. Start the server beside the AI
+  (`node mcp/` in the repo; mcp/README.md has the Claude Code line), then in
+  the SIDE PANEL, under "AI session", enter the address and token it prints
+  and press Connect. One server holds one token and accepts one browser, so
+  a session is one process, one token, one browser — a second AI gets a
+  second server on a second port, and nothing is shared for a session to
+  cross into. The extension connects OUT, only when you press Connect, and
+  only to the address you typed; nothing connects in. The AI sees this tab
+  through the overlay's own answers and nothing else — no screenshots, no
+  other tabs. Keep the side panel open while a session runs: the browser
+  may stop the extension's worker, and the panel is what remembers.
+
   The rules between the buttons mark the PIPELINE, top to bottom: the input
   side (⬚ group, ▭ lasso, 📌 pin — what your input becomes), then the components
   (what describes the page), then ⌕ and ⚙, then the copy/clear band — the pin
