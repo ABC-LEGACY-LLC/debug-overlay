@@ -64,9 +64,9 @@ if (canOpen) chrome.action.onClicked.addListener((tab) => {
    on a WebSocket resets the idle clock. */
 (() => {
   const S = { ws: null, url: '', token: '', tabId: null, wanted: false,
-              live: false, why: '', retry: 0, timer: 0 };
+              live: false, why: '', page: '', retry: 0, timer: 0 };
   const status = () => ({ connected: S.live, wanted: S.wanted, url: S.url,
-                          tabId: S.tabId, why: S.why });
+                          tabId: S.tabId, why: S.why, page: S.page });
   // the side panel shows this if it is open; nobody listening is not an error
   const tell = () => {
     try { chrome.runtime.sendMessage({ type: 'debug-overlay-remote-state', ...status() }).catch(() => {}); }
@@ -139,22 +139,37 @@ if (canOpen) chrome.action.onClicked.addListener((tab) => {
     if (m.t === 'call') call(m);
   }
 
+  /* The one failure a person can fix and an AI cannot: the bound tab's page
+     runs no door — an overlay from before this update, never reloaded, or a
+     browser page that never carries one. Said HERE, on the panel's status
+     line, the moment the tab is bound — the first version said it only to
+     the AI, one command later, and the person saw "connected" throughout. */
+  const NO_DOOR = 'the page in this tab does not answer — reload it (an overlay from ' +
+                  'before this update has no AI door), or switch the panel to a page that has one';
+  function ask(cmd, args, cb) {
+    try {
+      chrome.tabs.sendMessage(S.tabId, { type: 'debug-overlay-remote', cmd, args: args || [] }, (r) => {
+        const e = chrome.runtime.lastError;
+        const page = e ? NO_DOOR : '';
+        if (page !== S.page) { S.page = page; tell(); }
+        cb(e ? { ok: false, error: NO_DOOR + ' (' + e.message + ')' } : r);
+      });
+    } catch (e) { cb({ ok: false, error: String(e) }); }
+  }
+  /** Is there a door in the bound tab? Asked whenever the tab changes, so the
+   *  panel can say so before the AI finds out. */
+  function probe() {
+    if (S.tabId == null) return;
+    ask('state', [], () => {});
+  }
+
   function call(m) {
     const done = (r) => send({ t: 'result', id: m.id,
       ...(r && typeof r === 'object' ? r : { ok: false, error: 'the page gave no answer' }) });
     if (S.tabId == null) {
       return done({ ok: false, error: 'no tab bound — open the side panel on the page and press Connect again' });
     }
-    try {
-      chrome.tabs.sendMessage(S.tabId, { type: 'debug-overlay-remote', cmd: m.cmd, args: m.args || [] }, (r) => {
-        const e = chrome.runtime.lastError;
-        if (e) {
-          return done({ ok: false, error: 'the page did not answer (' + e.message + ') — the overlay ' +
-            'is not running in that tab; reload it, or switch the side panel to a page that has it' });
-        }
-        done(r);
-      });
-    } catch (e) { done({ ok: false, error: String(e) }); }
+    ask(m.cmd, m.args, done);
   }
 
   chrome.runtime.onMessage.addListener((msg, sender, respond) => {
@@ -170,6 +185,7 @@ if (canOpen) chrome.action.onClicked.addListener((tab) => {
       S.why = S.url ? '' : 'no address';
       S.retry = 0;
       open();
+      probe();
       respond(status());
       return;
     }
@@ -182,7 +198,7 @@ if (canOpen) chrome.action.onClicked.addListener((tab) => {
       return;
     }
     if (msg.type === 'debug-overlay-remote-bind') {
-      if (msg.tabId != null) S.tabId = msg.tabId;
+      if (msg.tabId != null && msg.tabId !== S.tabId) { S.tabId = msg.tabId; S.page = ''; if (S.wanted) probe(); }
       respond(status());
       return;
     }

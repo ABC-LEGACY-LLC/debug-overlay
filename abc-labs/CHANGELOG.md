@@ -1,5 +1,26 @@
 # Changelog
 
+## 3.8.197 — 2026-09-20
+
+Learned from the first AI to drive the overlay for real:
+
+- **The panel now says when the page cannot answer.** The socket was
+  "connected" while the bound tab ran an overlay from before the AI door
+  existed, and only the AI found out, one command later. The worker probes
+  the tab the moment it is bound and the status line says *reload it* —
+  the one fix a person can make and an AI cannot.
+- **Every MCP tool says what it does to the page.** `clear` and `unpin` are
+  marked destructive, the reads are marked read-only, and each description
+  says whether it changes what the person sees. The AI cleared the person's
+  pins to test `pin`, and apologised; nothing had told it.
+- **The wire protocol is documented** (`mcp/PROTOCOL.md`). The AI's machine
+  had no Node and only the extension folder, so it read `sw.js` and wrote
+  the server in PowerShell — and it worked. That is now a supported path,
+  not a reverse-engineering feat.
+- The side panel says where the server lives (the source repo, not this
+  folder) and that it needs Node; the README says the token is generated
+  and that no forwarding is needed when the AI runs on the same machine.
+
 ## 3.8.196 — 2026-09-20
 
 - **New: an AI can drive the overlay itself.** A third door into the same

@@ -588,9 +588,15 @@ function rmLoad() {
 function rmShow(s) {
   if (!s) s = { wanted: rmWanted, connected: false, why: '' };
   rm.go.textContent = s.wanted ? 'Disconnect' : 'Connect';
-  rm.st.className = s.connected ? 'ok' : s.why ? 'bad' : '';
-  rm.st.textContent = s.connected ? 'connected — the AI is driving this tab'
+  /* "connected" is the socket; the PAGE is a separate fact, and the one the
+     person can act on — a tab whose overlay predates the update answers
+     nothing, and saying only "connected" hid exactly that. */
+  const page = s.page || '';
+  rm.st.className = page ? 'bad' : s.connected ? 'ok' : s.why ? 'bad' : '';
+  rm.st.textContent = page ? (s.connected ? 'connected, but ' : '') + page
+    : s.connected ? 'connected — the AI is driving this tab'
     : s.why || (s.wanted ? 'connecting…' : 'not connected');
+  rm.st.title = rm.st.textContent;
   rm.url.disabled = rm.token.disabled = !!s.wanted;
 }
 const rmAsk = (m) => { try { return chrome.runtime.sendMessage(m).catch(() => null); } catch { return Promise.resolve(null); } };

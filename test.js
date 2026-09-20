@@ -4350,6 +4350,19 @@ let mcpChecked = false;
       ok('…each with a description an AI can act on and a schema',
         ((list.result && list.result.tools) || []).every((t) => t.description.length > 40 && t.inputSchema),
         '(a bare name is not a tool)');
+      /* The first AI to drive this cleared the person's pins to test `pin`
+         and apologised afterwards: nothing had told it. Every tool says what
+         it does to the page, and the one that takes things away says so in
+         the form a client can act on before calling. */
+      const tools = (list.result && list.result.tools) || [];
+      ok('…and each says whether it only reads — the hints a client asks on',
+        tools.every((t) => t.annotations && typeof t.annotations.readOnlyHint === 'boolean') &&
+        tools.find((t) => t.name === 'report').annotations.readOnlyHint === true,
+        tools.filter((t) => !t.annotations).map((t) => t.name).join(' ') || '(report not read-only)');
+      ok('…and clear is marked DESTRUCTIVE, in the hint and in words',
+        tools.find((t) => t.name === 'clear').annotations.destructiveHint === true &&
+        /DESTRUCTIVE/.test(tools.find((t) => t.name === 'clear').description),
+        JSON.stringify(tools.find((t) => t.name === 'clear').annotations));
       const ses = await rpc('tools/call', { name: 'session', arguments: {} });
       ok('session says no browser yet, and carries the token to hand the person',
         /"connected": false/.test(text(ses)) && /tok-test-1/.test(text(ses)), text(ses));

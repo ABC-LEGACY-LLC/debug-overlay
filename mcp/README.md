@@ -6,7 +6,16 @@ token; every tool call is then a command to that browser's current tab,
 answered with the same data the panel shows a person — and `report` returns
 exactly the text ⧉ copies.
 
-Nothing to install: `node mcp/` runs from a clone. Node 22 or newer.
+Nothing to install beyond Node 22 or newer: `node mcp/` runs from a clone
+of the **source repo** — it is not in the extension folder you load into
+Chrome, and it is not in the ZIP. On Windows without Node:
+`winget install OpenJS.NodeJS.LTS`, then `git clone
+https://github.com/ABC-LEGACY-LLC/debug-overlay` (or download the ZIP of
+the repo and use its `mcp/`).
+
+No Node at all, and an AI that can write code? The wire is small and
+documented in [PROTOCOL.md](PROTOCOL.md); a far end in any language is a
+valid server. The first one was PowerShell.
 
 ## Set up, once
 
@@ -28,13 +37,20 @@ Optional environment: `DEBUG_OVERLAY_PORT` (default `8787`) and
 if you would rather type the same one every time.
 
 **2. Connect the browser.** When the session starts, the server prints its
-address and token to stderr; the AI can also read them with the `session`
-tool and tell you. In Chrome, open the Debug Overlay **side panel** on the
-page you want examined, scroll to **AI session**, enter the address and
-token, press **Connect**. The status line says when the AI is in.
+address and token to stderr — the token is GENERATED, eight hex characters,
+different every start unless you set `DEBUG_OVERLAY_TOKEN`; any token you
+see in an example is an example. The AI can also read the real one with the
+`session` tool and tell you. In Chrome, open the Debug Overlay **side
+panel** on the page you want examined, scroll to **AI session**, enter the
+address and token, press **Connect**. The status line says when the AI is
+in — and says, in the same place, if the page in that tab cannot answer
+(an overlay from before this feature, never reloaded): reload the tab.
 
 Keep the side panel open while the session runs — it is what remembers the
 session if Chrome stops the extension's worker.
+
+**Same machine as the browser?** Then there is nothing to forward: the
+server is on `localhost:8787` and the extension connects straight to it.
 
 ## If Claude Code runs on another machine
 
@@ -69,6 +85,15 @@ The gestures name no tool. `drag` with the lasso armed pins a box; `point`
 with paint armed probes a pixel; a tool shipped tomorrow is driven the day
 it lands, because the AI learns the ids from `state` the way a person learns
 them from the bar.
+
+## What the AI is told about each tool
+
+Every tool carries MCP annotations — `readOnlyHint` on `state`, `pins`,
+`findings`, `report`, `session`; `destructiveHint` on `clear` and `unpin` —
+and its description says whether it changes what the person sees. The first
+AI to drive this cleared the person's pins to test `pin` and apologised
+afterwards; nothing had told it. A client that honours the hints asks
+first.
 
 ## What it cannot do, on purpose
 

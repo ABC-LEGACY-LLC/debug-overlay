@@ -166,8 +166,9 @@
     padding: 6px 8px; min-height: 30px; }
   #remote input:disabled { opacity: .6; }
   .rmrow { display: flex; align-items: center; gap: 8px; }
-  #rmSt { color: var(--debug-overlay-muted); font-size: 11px; min-width: 0; overflow: hidden;
-    text-overflow: ellipsis; white-space: nowrap; }
+  /* wraps: the one message here that matters ("reload this tab") is a
+     sentence, and a sentence cut to one line with an ellipsis is not read */
+  #rmSt { color: var(--debug-overlay-muted); font-size: 11px; min-width: 0; line-height: 1.35; }
   #rmSt.ok { color: var(--debug-overlay-accent); }
   #rmSt.bad { color: var(--debug-overlay-warn); }
 </style>
@@ -245,9 +246,11 @@
            connecting is allowed while the overlay is off; the AI can switch
            it on itself. -->
       <h2>AI session</h2>
-      <p class="secnote">Let an AI drive the overlay on this tab. Start the
-        MCP server beside it (mcp/ in the repo), then enter the address and
-        token it prints. Keep this panel open while the session runs.</p>
+      <p class="secnote">Let an AI drive the overlay on this tab. Run the
+        server beside the AI — <code>mcp/</code> in the source repo
+        (github.com/ABC-LEGACY-LLC/debug-overlay, needs Node 22; it is not
+        in this extension folder) — then enter the address and the token it
+        prints at start. Keep this panel open while the session runs.</p>
       <div id="remote">
         <input id="rmUrl" type="text" placeholder="ws://localhost:8787" spellcheck="false"
           autocomplete="off" aria-label="Server address">

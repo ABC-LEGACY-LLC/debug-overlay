@@ -192,72 +192,92 @@ function call(cmd, args, timeout = 30000) {
 const num = { type: 'number' };
 const str = { type: 'string' };
 const obj = (properties, required = []) => ({ type: 'object', properties, required });
+/* ANNOTATIONS — the hints MCP lets a server give about a tool's effect, so a
+   client can ask before acting. The first AI to drive this cleared the
+   person's pins to test `pin`, and apologised afterwards: nothing had told
+   it `clear` was destructive. READS are read-only; ACTS change what is on
+   the page; WIPE is the one that takes something away. */
+const READS = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
+const ACTS = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
+const WIPE = { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false };
 
 const TOOLS = [
   { name: 'session',
     description: 'Whether a browser is connected to this session. If none is, the result carries the ' +
       'address and token the person must enter in the Debug Overlay side panel (under "AI session") — ' +
       'tell them exactly that. Call this when another tool says no browser is connected.',
-    inputSchema: obj({}),
+    inputSchema: obj({}), annotations: READS,
     run: () => ({ ok: true, result: { port: PORT, address: `ws://localhost:${PORT}`, token: TOKEN,
       connected: !!browser, tab: browser ? browser.tab : null, overlay: browser ? browser.version : null } }) },
   { name: 'state',
     description: 'The overlay on the connected tab, as data: url, whether it is on, every tool with its id, ' +
       'title, roles and armed state, every setting with its owner, key, current value and allowed values, ' +
-      'the pin count. Call this FIRST — the ids here are what arm and set take, and they are not fixed.',
-    inputSchema: obj({}), run: () => call('state') },
-  { name: 'power', description: 'Switch the overlay on or off on the connected tab.',
-    inputSchema: obj({ on: { type: 'boolean' } }, ['on']), run: (a) => call('power', [a.on]) },
+      'the pin count. Call this FIRST — the ids here are what arm and set take, and they are not fixed. ' +
+      'Read-only. If it says the page did not answer, the person must reload that tab: its overlay ' +
+      'predates the AI door.',
+    inputSchema: obj({}), annotations: READS, run: () => call('state') },
+  { name: 'power',
+    description: 'Switch the overlay on or off on the connected tab. Changes what the person sees; say so.',
+    inputSchema: obj({ on: { type: 'boolean' } }, ['on']), annotations: ACTS, run: (a) => call('power', [a.on]) },
   { name: 'arm',
     description: 'Arm or disarm a tool by id (ids come from state). Armed tools decide what a click, drag ' +
       'or pointer move does: with the lasso armed a drag pins everything in the box; with paint armed, ' +
-      'point() probes a pixel and the report carries its paint stack. Omit `on` to toggle.',
-    inputSchema: obj({ id: str, on: { type: 'boolean' } }, ['id']), run: (a) => call('arm', [a.id, a.on]) },
+      'point() probes a pixel and the report carries its paint stack. Omit `on` to toggle. This is the ' +
+      'person\'s panel too — tell them what you armed, and offer to put it back.',
+    inputSchema: obj({ id: str, on: { type: 'boolean' } }, ['id']), annotations: ACTS,
+    run: (a) => call('arm', [a.id, a.on]) },
   { name: 'set',
     description: 'Change one setting: owner id, key and value exactly as state lists them. A value outside ' +
-      'the allowed list is refused with the list. Changing a detect setting discards the last audit.',
-    inputSchema: obj({ owner: str, key: str, value: {} }, ['owner', 'key', 'value']),
+      'the allowed list is refused with the list. Changing a detect setting discards the last audit. ' +
+      'Settings persist across pages for the person, so say what you changed.',
+    inputSchema: obj({ owner: str, key: str, value: {} }, ['owner', 'key', 'value']), annotations: ACTS,
     run: (a) => call('set', [a.owner, a.key, a.value]) },
   { name: 'pin',
     description: 'Pin the first element matching a CSS selector. Asks the DOM rather than the hit test, so ' +
       'it reaches elements a click cannot (pointer-events: none, outside a painted shape). Returns the ' +
-      'pin number, selector and viewport rect.',
-    inputSchema: obj({ selector: str }, ['selector']), run: (a) => call('pin', [a.selector]) },
-  { name: 'unpin', description: 'Remove one pin, by its number or by a selector.',
-    inputSchema: obj({ which: { oneOf: [num, str] } }, ['which']), run: (a) => call('unpin', [a.which]) },
-  { name: 'pins', description: 'Every pin on the page: number, kind, selector, label and viewport rect.',
-    inputSchema: obj({}), run: () => call('pins') },
+      'pin number, selector and viewport rect. Adds to the person\'s pins; it never removes any.',
+    inputSchema: obj({ selector: str }, ['selector']), annotations: ACTS, run: (a) => call('pin', [a.selector]) },
+  { name: 'unpin', description: 'Remove one pin, by its number or by a selector. Removes something the person may have placed — prefer unpinning only what you pinned.',
+    inputSchema: obj({ which: { oneOf: [num, str] } }, ['which']), annotations: WIPE, run: (a) => call('unpin', [a.which]) },
+  { name: 'pins', description: 'Every pin on the page: number, kind, selector, label and viewport rect. Read-only.',
+    inputSchema: obj({}), annotations: READS, run: () => call('pins') },
   { name: 'click',
     description: 'Click the page at viewport (x, y) as a hand would. What happens depends on what is armed: ' +
       'a plain click selects or pins, shift pairs two pins for measuring, ctrl+shift chains to the previous ' +
-      'pin. Coordinates are CSS pixels from the top-left of the viewport (see state.viewport).',
+      'pin. Coordinates are CSS pixels from the top-left of the viewport (see state.viewport). The click ' +
+      'reaches the PAGE too — a button under it is pressed. Ask before clicking anything that acts.',
     inputSchema: obj({ x: num, y: num, shift: { type: 'boolean' }, ctrl: { type: 'boolean' },
-                       meta: { type: 'boolean' } }, ['x', 'y']),
+                       meta: { type: 'boolean' } }, ['x', 'y']), annotations: ACTS,
     run: (a) => call('click', [a.x, a.y, { shift: a.shift, ctrl: a.ctrl, meta: a.meta }]) },
   { name: 'drag',
     description: 'Press at (x1, y1), drag to (x2, y2), release — as a hand would. With the lasso armed this ' +
       'pins everything the box takes; set its reach to "touched" to take elements bigger than the box by ' +
-      'dragging inside them, and keep to "deepest" to drop the wrappers.',
-    inputSchema: obj({ x1: num, y1: num, x2: num, y2: num }, ['x1', 'y1', 'x2', 'y2']),
+      'dragging inside them, and keep to "deepest" to drop the wrappers. Adds pins; removes none.',
+    inputSchema: obj({ x1: num, y1: num, x2: num, y2: num }, ['x1', 'y1', 'x2', 'y2']), annotations: ACTS,
     run: (a) => call('drag', [a.x1, a.y1, a.x2, a.y2]) },
   { name: 'point',
     description: 'Move the pointer to viewport (x, y) without pressing. The hover badge follows; with paint ' +
       'armed, the next report carries the paint stack at that pixel — which element painted it, what the ' +
-      'hit test skipped, and the real screen pixel beside the computed one if sampling is allowed.',
-    inputSchema: obj({ x: num, y: num }, ['x', 'y']), run: (a) => call('point', [a.x, a.y]) },
+      'hit test skipped, and the real screen pixel beside the computed one if sampling is allowed. ' +
+      'Touches nothing on the page.',
+    inputSchema: obj({ x: num, y: num }, ['x', 'y']), annotations: ACTS, run: (a) => call('point', [a.x, a.y]) },
   { name: 'audit',
     description: 'Run every rule over the whole page (the ⌕ button) and wait for it. Returns the grouped ' +
-      'findings with selectors and rects; the full text is in report. May take seconds on a large page.',
-    inputSchema: obj({}), run: () => call('audit', [], 180000) },
-  { name: 'findings', description: 'The last audit\'s grouped findings, without running it again.',
-    inputSchema: obj({}), run: () => call('findings') },
+      'findings with selectors and rects; the full text is in report. May take seconds on a large page. ' +
+      'Marks findings on the page; changes no pins.',
+    inputSchema: obj({}), annotations: ACTS, run: () => call('audit', [], 180000) },
+  { name: 'findings', description: 'The last audit\'s grouped findings, without running it again. Read-only.',
+    inputSchema: obj({}), annotations: READS, run: () => call('findings') },
   { name: 'report',
     description: 'The structured text report — exactly what the ⧉ Copy report button puts on the clipboard: ' +
       'every pin with its measured numbers, the paint stack if a pixel was probed, findings, and what was ' +
-      'NOT checked. This is the deliverable; read it rather than inferring from state.',
-    inputSchema: obj({}), run: () => call('report', [], 60000) },
-  { name: 'clear', description: 'Clear every pin and the last audit\'s marks.',
-    inputSchema: obj({}), run: () => call('clear') },
+      'NOT checked. This is the deliverable; read it rather than inferring from state. Read-only, except ' +
+      'that with sampling allowed it takes the one screen-pixel capture the report then says it took.',
+    inputSchema: obj({}), annotations: READS, run: () => call('report', [], 60000) },
+  { name: 'clear',
+    description: 'DESTRUCTIVE: clears EVERY pin — the person\'s as well as yours — and the last audit\'s ' +
+      'marks. Ask before calling it; to remove only what you placed, use unpin.',
+    inputSchema: obj({}), annotations: WIPE, run: () => call('clear') },
 ];
 
 /* ---- MCP over stdio: newline-delimited JSON-RPC 2.0 ------------------- */
@@ -276,7 +296,8 @@ async function onLine(line) {
       break;
     case 'ping': reply(m.id, {}); break;
     case 'tools/list':
-      reply(m.id, { tools: TOOLS.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })) });
+      reply(m.id, { tools: TOOLS.map(({ name, description, inputSchema, annotations }) =>
+        ({ name, description, inputSchema, annotations })) });
       break;
     case 'tools/call': {
       const name = m.params && m.params.name;

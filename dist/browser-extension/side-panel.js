@@ -128,7 +128,7 @@
   };
 
   // browser-extension-source/side-panel/side-panel.js
-  var VERSION = "3.8.196";
+  var VERSION = "3.8.197";
   var $ = (s) => document.querySelector(s);
   var body = document.body;
   var IC = {
@@ -667,8 +667,10 @@
   function rmShow(s) {
     if (!s) s = { wanted: rmWanted, connected: false, why: "" };
     rm.go.textContent = s.wanted ? "Disconnect" : "Connect";
-    rm.st.className = s.connected ? "ok" : s.why ? "bad" : "";
-    rm.st.textContent = s.connected ? "connected — the AI is driving this tab" : s.why || (s.wanted ? "connecting…" : "not connected");
+    const page = s.page || "";
+    rm.st.className = page ? "bad" : s.connected ? "ok" : s.why ? "bad" : "";
+    rm.st.textContent = page ? (s.connected ? "connected, but " : "") + page : s.connected ? "connected — the AI is driving this tab" : s.why || (s.wanted ? "connecting…" : "not connected");
+    rm.st.title = rm.st.textContent;
     rm.url.disabled = rm.token.disabled = !!s.wanted;
   }
   var rmAsk = (m) => {
