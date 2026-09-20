@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.189 — the extension gate */
+/* Debug Overlay v3.8.190 — the extension gate */
 
 /*
 HOW TO USE
@@ -417,7 +417,7 @@ HOW TO USE
     // manifest that ships it, and an overlay that cannot say which version it
     // is makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.189",
+    VERSION: "3.8.190",
     // Substituted like VERSION, from release.json: the MANIFEST the extension
     // publishes, which is the one file that moves with every release. It was
     // the userscript's meta header until that gate was withdrawn — and that
@@ -2398,7 +2398,7 @@ HOW TO USE
   }
   function explain(raw) {
     if (/activeTab|all_urls|permission/i.test(raw)) {
-      return `activeTab has not been granted for this tab — press the Debug Overlay toolbar button here, then copy again. It is granted by invoking the extension from the toolbar, covers this one tab, and is dropped when the tab changes origin; ⧉ on the page is not an invocation. (Chrome said: ${raw})`;
+      return `activeTab has not been granted for this tab — press the Debug Overlay icon in CHROME'S TOOLBAR (not the bar on the page, not anything in the side panel), then copy again. That click is what invokes the extension; it covers this one tab and is dropped when the tab changes origin. If the panel was already open, press it anyway: the click is the grant, not the panel. (Chrome said: ${raw})`;
     }
     return raw || "the tab could not be captured";
   }

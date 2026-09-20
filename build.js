@@ -209,10 +209,36 @@ function build(kind) {
      and the host permission that door needs is one a reviewer would rightly
      ask about. Composed rather than branched at runtime: a build ships the
      code it is allowed to run, and nothing else. */
+  /* THE TOOLBAR BUTTON OPENS THE PANEL — and it has to be US who opens it.
+     
+     `openPanelOnActionClick` was simpler and cost the capture feature. Chrome
+     handles that click ITSELF: action.onClicked never fires, so the extension
+     is never "invoked", so activeTab is never granted — and ⛏ paint's pixel
+     sample was refused with "Either the '<all_urls>' or 'activeTab'
+     permission is required" on a build whose manifest asks for activeTab.
+     The message read as a broken build; the cause was that the one gesture
+     which grants the permission was being consumed before it reached us.
+
+     Handling onClicked and opening the panel ourselves keeps the behaviour
+     and restores the grant: the click is an invocation, activeTab lands on
+     that tab, and the panel opens in the same breath. "Press the toolbar
+     button" is now advice that works.
+
+     SELF-HEALING, because this is the product's front door and a dead one is
+     worse than a missing feature: if `sidePanel.open` is absent (it needs
+     Chrome 116) the old behaviour is set instead, and if it is present but
+     REJECTS, the old behaviour is restored so the next click still opens the
+     panel. One click lost at the very worst, never the button. */
   const SW_PANEL =
-    `// the toolbar button opens the side panel (declared, so it needs no handler);\n` +
-    `// guarded because browsers without a side panel still run everything else\n` +
-    `chrome.sidePanel?.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});\n`;
+    `const canOpen = !!(chrome.sidePanel && chrome.sidePanel.open);\n` +
+    `chrome.sidePanel?.setPanelBehavior({ openPanelOnActionClick: !canOpen }).catch(() => {});\n` +
+    `if (canOpen) chrome.action.onClicked.addListener((tab) => {\n` +
+    `  // the click itself is what grants activeTab for this tab; opening the\n` +
+    `  // panel here is what keeps that grant instead of spending it on Chrome\n` +
+    `  chrome.sidePanel.open({ tabId: tab.id }).catch(() => {\n` +
+    `    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});\n` +
+    `  });\n` +
+    `});\n`;
   /* THE CAPTURE DOOR, in both builds. A content script may not call
      captureVisibleTab — only a worker may — so the one pixel ⛏ paint checks
      itself against has to come through here. Nothing is stored and nothing is

@@ -24,6 +24,12 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
   } catch (e) { respond({ ok: false, error: String(e) }); }
   return true;   // async response
 });
-// the toolbar button opens the side panel (declared, so it needs no handler);
-// guarded because browsers without a side panel still run everything else
-chrome.sidePanel?.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+const canOpen = !!(chrome.sidePanel && chrome.sidePanel.open);
+chrome.sidePanel?.setPanelBehavior({ openPanelOnActionClick: !canOpen }).catch(() => {});
+if (canOpen) chrome.action.onClicked.addListener((tab) => {
+  // the click itself is what grants activeTab for this tab; opening the
+  // panel here is what keeps that grant instead of spending it on Chrome
+  chrome.sidePanel.open({ tabId: tab.id }).catch(() => {
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+  });
+});

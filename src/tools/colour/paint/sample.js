@@ -99,9 +99,11 @@ export function prepare() {
 function explain(raw) {
   if (/activeTab|all_urls|permission/i.test(raw)) {
     return 'activeTab has not been granted for this tab — press the Debug Overlay ' +
-      'toolbar button here, then copy again. It is granted by invoking the extension ' +
-      'from the toolbar, covers this one tab, and is dropped when the tab changes ' +
-      `origin; ⧉ on the page is not an invocation. (Chrome said: ${raw})`;
+      "icon in CHROME'S TOOLBAR (not the bar on the page, not anything in the side " +
+      'panel), then copy again. That click is what invokes the extension; it covers ' +
+      'this one tab and is dropped when the tab changes origin. If the panel was ' +
+      'already open, press it anyway: the click is the grant, not the panel. ' +
+      `(Chrome said: ${raw})`;
   }
   return raw || 'the tab could not be captured';
 }

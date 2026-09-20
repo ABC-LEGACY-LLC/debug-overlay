@@ -446,6 +446,23 @@ console.log('\nONE GATE, AND ONE THAT IS FROZEN');
     /debug-overlay-capture/.test(store['sw.js'].toString()) &&
     /debug-overlay-capture/.test(side['sw.js'].toString()),
     'a build that cannot answer the capture message has the feature switched off by accident');
+  /* THE GRANT COMES FROM THE CLICK, and only if the click reaches us.
+     `openPanelOnActionClick` lets Chrome handle it, so action.onClicked never
+     fires, the extension is never invoked, and activeTab is never granted —
+     which is how a build whose manifest asks for activeTab came to be told
+     that activeTab was required. Opening the panel ourselves is what makes
+     "press the toolbar button" true. */
+  for (const [name, sw] of [['store', store['sw.js'].toString()],
+                            ['sideload', side['sw.js'].toString()]]) {
+    ok(`the ${name} worker takes the toolbar click itself, so activeTab is granted`,
+      /chrome\.action\.onClicked\.addListener/.test(sw) &&
+      /sidePanel\.open\(\{ tabId/.test(sw) &&
+      /openPanelOnActionClick: !canOpen/.test(sw),
+      'Chrome would consume the one gesture that grants the permission');
+    ok(`…and the ${name} one heals if it cannot open the panel — a dead button is worse`,
+      /\.catch\(\(\) => \{\s*\n?\s*chrome\.sidePanel\.setPanelBehavior\(\{ openPanelOnActionClick: true/.test(sw),
+      'a rejected open would leave the front door doing nothing, for ever');
+  }
   ok('the store manifest asks for no host permission',
       !sm.host_permissions,
       'the store updates a store install; asking to read a host we never use invites a no');
@@ -4363,8 +4380,16 @@ console.log('\nWHO PAINTED THIS PIXEL');
       // the reason is wrapped to stay readable, so it is read as prose
       const flat = t.replace(/\s+/g, ' ');
       ok('a refused capture says which button to press, not just what Chrome said',
-        /press the Debug Overlay toolbar button here, then copy again/.test(flat),
+        /press the Debug Overlay icon in CHROME'S TOOLBAR/.test(flat) &&
+        /not the bar on the page, not anything in the side panel/.test(flat),
         t.split('\n').find((l) => /why:/.test(l)) || '(no reason)');
+      /* The panel being open is what made the first instruction read as
+         already-done: the user had pressed the button, Chrome had kept the
+         click, and the report said to press it. Say that the click is the
+         grant rather than the panel. */
+      ok('…and says to press it even when the panel is already open',
+        /the click is the grant, not the panel/.test(flat),
+        '(the commonest way to read the instruction as already satisfied)');
       ok('…and keeps Chrome\'s own words as the evidence behind it',
         /Chrome said: Either the '<all_urls>'/.test(flat), '(evidence dropped)');
       /* Prose, wrapped. The stack's rows are a TABLE and are long on

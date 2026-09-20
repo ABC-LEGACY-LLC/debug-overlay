@@ -1,5 +1,19 @@
 # Changelog
 
+## 3.8.190 — 2026-09-20
+
+- **The toolbar button is ours again, and that is what makes the pixel sample
+  work.** Chrome was handling the click itself to open the side panel, so the
+  extension was never "invoked" and `activeTab` was never granted — which is
+  how a build whose manifest asks for activeTab came to be told that activeTab
+  was required. The click now reaches the extension, which opens the panel in
+  the same breath, so pressing the toolbar button grants the permission the way
+  the report says it does. If the panel cannot be opened that way, the old
+  behaviour is restored on the spot: one click lost at worst, never the button.
+- The refusal message names the exact button — Chrome's toolbar icon, not the
+  bar on the page or anything in the side panel — and says to press it even
+  when the panel is already open, because the click is the grant, not the panel.
+
 ## 3.8.189 — 2026-09-20
 
 - When a pixel capture is refused, ⛏ paint now says **which button to press**.
