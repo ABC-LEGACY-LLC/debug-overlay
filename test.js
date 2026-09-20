@@ -892,6 +892,31 @@ console.log('\nONE GATE, AND ONE THAT IS FROZEN');
     zip.length > 1000 && zip.readUInt32LE(0) === 0x04034b50 &&
     zip.includes(Buffer.from('manifest.json')),
     `zip ${zip.length} bytes, magic ${zip.readUInt32LE(0).toString(16)}`);
+  /* ONE VERSION IS ONE FILE. Every entry's timestamp is left at the zip
+     epoch, so rebuilding the same source gives the same bytes and the same
+     SHA-256. Stamping real mtimes — which is what a zip library does by
+     default — makes every rebuild a file Windows has never seen, and a hash
+     that is unique every time can never earn a reputation with Defender: it
+     stays "unknown", and the prompt offering to submit it as a sample reads
+     as "unsafe" to the person looking at it.
+     Asserted rather than trusted because it holds today by the shape of
+     Buffer.alloc rather than by anyone's intent — one added Date.now() in
+     the packer and it would be gone with nothing to notice. */
+  const stamps = (buf, sig, at) => {
+    const out = [];
+    for (let i = 0; i + 4 <= buf.length; i++) {
+      if (buf.readUInt32LE(i) === sig) out.push(buf.readUInt32LE(i + at));
+    }
+    return out;
+  };
+  const localStamps = stamps(zip, 0x04034b50, 10);   // mod time + date, one dword
+  const centralStamps = stamps(zip, 0x02014b50, 12);
+  ok('and every entry in it is stamped with the zip epoch, not the clock',
+    localStamps.length > 5 && localStamps.every((v) => v === 0) &&
+    centralStamps.length > 5 && centralStamps.every((v) => v === 0),
+    `${localStamps.filter(Boolean).length} local and ` +
+    `${centralStamps.filter(Boolean).length} central entries carry a real time — ` +
+    'the same source would now build to a different file every run');
   /* the emitted folder is CLEARED each build, not merged: a rename would
      otherwise leave both spellings on disk and inside the shipped ZIP,
      which is how a dead file reaches an install folder in the first place */

@@ -695,6 +695,32 @@ runs LAST, so a build that fails its parse check never moves a version. An
 updater only moves on a HIGHER version, so never hand-edit it down, and never
 commit `dist/` without running the build.
 
+**A version is SPENT once installed, not once built.** A number that was named
+in a closing message but never actually installed can be reused: rebuild at the
+same number. Once a build is on somebody's disk that number is gone, because an
+updater only fetches on a higher one and re-using it means the fix reaches
+nobody — silently, which is the whole reason `ship` and `shipped` exist.
+
+**Going DOWN is not an update.** Chrome and the updater both refuse a lower
+version, so a renumbering downward is not a release at all: it means removing
+the install and loading it fresh, and every `chrome.storage` value goes with it.
+If it ever has to happen, say so in the closing message in words — nothing in
+the number can carry it.
+
+**The number says nothing about the SERVER or the page.** Whether a host page
+needs a hard reload, whether a tab must be refreshed for a content script to be
+replaced — those are facts about somewhere else, and no digit can hold them.
+The closing message says them, every time, in words.
+
+**One version is one FILE.** Every entry in the shipped ZIP is stamped with the
+zip epoch rather than the clock, so rebuilding the same source gives the same
+bytes and the same SHA-256 (`build.js`'s `zipStore`, guarded in `test.js`).
+Stamping real mtimes makes each rebuild a file Windows has never seen, and a
+hash that is unique every time can never earn a reputation with Defender: it
+stays "unknown", and the prompt offering to submit it as a sample reads as
+"unsafe" to whoever is looking at it. This package has already been through that
+once for a different reason.
+
 `dist/script/` and `dist/debug-overlay.*` are the WITHDRAWN userscript, frozen
 at v3.8.174 and never rebuilt. **Never delete them.** An install polls its own
 update URL and that poll is the only channel that reaches it; deleting the
@@ -801,3 +827,34 @@ own rule.
 - Anything touching the manifest's matches or permissions, or the update URLs.
 - Moving a file between `core/`, `ui/` and `app/`, or anything that changes
   when a module's side effects run relative to boot's init sequence.
+- **Adding `key` to the manifest** — see below. It costs one reset, and only
+  the owner can spend that.
+
+### Open: the extension id comes from the FOLDER PATH
+
+`dist/browser-extension/manifest.json` carries no `key`, so Chrome derives the
+unpacked extension's id from the absolute path of the install folder. And
+`chrome.storage.local` is scoped per id. So **moving or renaming the install
+folder silently empties the store**: every armed tool, every ⚙ setting, the
+panel position, all of it — with no error and nothing on screen admitting it.
+That is exactly the reset `Store` exists to prevent, arriving by a door it does
+not watch.
+
+A `key` in the manifest fixes it permanently — the id then comes from the key
+and the folder can move freely. The catch, and the reason this is the owner's
+call rather than a task:
+
+1. Adding one CHANGES the id once, from path-derived to key-derived, so the
+   current install loses its settings that one time. There is no migration:
+   the old id's storage is not reachable from the new one.
+2. If this is ever published to the Chrome Web Store, the STORE generates the
+   package's key and keeps the private half. The sideload build then has to
+   carry *that* public key (Package → View public key) for the two to share an
+   id. Generating our own key now and publishing later means paying the reset
+   **twice**.
+
+So the sequencing matters more than the fix: if a store listing is anywhere on
+the horizon, create the item first and take its key. If not, generate one —
+`openssl genrsa 2048 | openssl rsa -pubout -outform DER | base64 -w0` — and put
+the result in the manifest as `"key"`. Either way say in the closing message
+that settings reset once, because the person will otherwise read it as a bug.

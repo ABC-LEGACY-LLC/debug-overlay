@@ -361,6 +361,24 @@ function build(kind) {
     for (const [name, data] of files) {
       const nameB = Buffer.from(name);
       const crc = CRC(data);
+      /* EVERY TIMESTAMP FIELD STAYS ZERO, and that is load-bearing rather
+         than an oversight of Buffer.alloc.
+
+         A zip entry normally carries its source file's mtime, which a
+         rebuild refreshes — so identical code produces a different archive,
+         and a different SHA-256, on every single run. Windows Defender
+         scores a download partly by how many machines have seen that exact
+         hash; a hash that is unique every time can never earn a reputation,
+         so it stays "unknown" and Windows offers to submit it as a sample.
+         A person reading that prompt reads "unsafe", which this package has
+         already been through once for a different reason.
+
+         Left at zero, ONE VERSION IS ONE FILE: rebuild the same source and
+         you get the same bytes, so "is this the build I think it is?" is a
+         question two people can answer by comparing hashes. test.js holds
+         the fields to it — the property was true by accident before it was
+         checked, which is the state an invariant is in right before it
+         quietly stops being true. */
       const local = Buffer.alloc(30);
       local.writeUInt32LE(0x04034b50, 0);
       local.writeUInt16LE(20, 4);                 // version needed
