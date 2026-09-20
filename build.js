@@ -244,18 +244,36 @@ function build(kind) {
      itself against has to come through here. Nothing is stored and nothing is
      returned but the data URL the caller immediately reduces to one pixel;
      activeTab means this answers only for a tab the user has just acted on,
-     and fails loudly rather than silently when it has not. */
+     and fails loudly rather than silently when it has not.
+
+     THE WINDOW IS THE SENDER'S, and leaving it out was a real bug rather than
+     a tidiness one. captureVisibleTab with no windowId takes the CURRENT
+     window — which, asked from a service worker, is the last-focused one and
+     not necessarily the window holding the tab that asked. With two Chrome
+     windows open, activeTab is granted for a tab in one of them and the
+     capture is aimed at the other's active tab, where there is no grant. The
+     refusal that produces is "Either the '<all_urls>' or 'activeTab'
+     permission is required" — which reads as a manifest that forgot to ask,
+     and sent two rounds of looking in the wrong place. sender.tab.windowId is
+     the window that asked; it is right there on every message.
+
+     The ids ride along on a failure, because the next time this refuses the
+     answer has to be in the report rather than in somebody's guess. */
   const SW_CAPTURE =
     `chrome.runtime.onMessage.addListener((msg, sender, respond) => {\n` +
     `  if (!msg || msg.type !== 'debug-overlay-capture') return;\n` +
+    `  const tab = sender && sender.tab;\n` +
+    `  const where = tab ? \` [tab \${tab.id}, window \${tab.windowId}, active \${tab.active}]\` : ' [no sender tab]';\n` +
     `  try {\n` +
-    `    chrome.tabs.captureVisibleTab({ format: 'png' }, (url) => {\n` +
+    `    const done = (url) => {\n` +
     `      const e = chrome.runtime.lastError;\n` +
-    `      if (e || !url) respond({ ok: false, error: (e && e.message) ||\n` +
-    `        'the tab could not be captured — press the toolbar button to re-grant activeTab' });\n` +
+    `      if (e || !url) respond({ ok: false, error: ((e && e.message) ||\n` +
+    `        'the tab could not be captured') + where });\n` +
     `      else respond({ ok: true, url });\n` +
-    `    });\n` +
-    `  } catch (e) { respond({ ok: false, error: String(e) }); }\n` +
+    `    };\n` +
+    `    if (tab) chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' }, done);\n` +
+    `    else chrome.tabs.captureVisibleTab({ format: 'png' }, done);\n` +
+    `  } catch (e) { respond({ ok: false, error: String(e) + where }); }\n` +
     `  return true;   // async response\n` +
     `});\n`;
   fs.writeFileSync(path.join(EXT, 'sw.js'),

@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.8.191 — 2026-09-20
+
+- **Fixed: the pixel capture was aimed at the wrong window.** It asked Chrome
+  for "the current window", which from a service worker is the last-focused one
+  — not necessarily the window holding the tab that asked. With two Chrome
+  windows open, `activeTab` is granted for a tab in one of them and the capture
+  goes to the other, where there is no grant. Chrome then says the permission
+  is required, which reads as a manifest that forgot to ask for it. It now
+  captures the window the request came from.
+- A refused capture carries the tab and window ids, so the next one can be
+  diagnosed from the report instead of guessed at.
+
 ## 3.8.190 — 2026-09-20
 
 - **The toolbar button is ours again, and that is what makes the pixel sample

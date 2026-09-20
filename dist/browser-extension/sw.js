@@ -14,14 +14,18 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
 });
 chrome.runtime.onMessage.addListener((msg, sender, respond) => {
   if (!msg || msg.type !== 'debug-overlay-capture') return;
+  const tab = sender && sender.tab;
+  const where = tab ? ` [tab ${tab.id}, window ${tab.windowId}, active ${tab.active}]` : ' [no sender tab]';
   try {
-    chrome.tabs.captureVisibleTab({ format: 'png' }, (url) => {
+    const done = (url) => {
       const e = chrome.runtime.lastError;
-      if (e || !url) respond({ ok: false, error: (e && e.message) ||
-        'the tab could not be captured — press the toolbar button to re-grant activeTab' });
+      if (e || !url) respond({ ok: false, error: ((e && e.message) ||
+        'the tab could not be captured') + where });
       else respond({ ok: true, url });
-    });
-  } catch (e) { respond({ ok: false, error: String(e) }); }
+    };
+    if (tab) chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' }, done);
+    else chrome.tabs.captureVisibleTab({ format: 'png' }, done);
+  } catch (e) { respond({ ok: false, error: String(e) + where }); }
   return true;   // async response
 });
 const canOpen = !!(chrome.sidePanel && chrome.sidePanel.open);

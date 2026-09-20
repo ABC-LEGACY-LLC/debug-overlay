@@ -452,8 +452,21 @@ console.log('\nONE GATE, AND ONE THAT IS FROZEN');
      which is how a build whose manifest asks for activeTab came to be told
      that activeTab was required. Opening the panel ourselves is what makes
      "press the toolbar button" true. */
+  /* THE WINDOW THE TAB IS IN, never "the current one". captureVisibleTab
+     with no windowId takes the last-focused window, and asked from a service
+     worker that is not reliably the window holding the tab that asked — so
+     with two Chrome windows open, activeTab is granted for a tab in one and
+     the capture is aimed at the other. The refusal reads as a manifest that
+     forgot to ask for the permission, which cost two rounds of looking in
+     the wrong place. sender.tab.windowId is on every message. */
   for (const [name, sw] of [['store', store['sw.js'].toString()],
                             ['sideload', side['sw.js'].toString()]]) {
+    ok(`the ${name} capture aims at the window that ASKED, not the focused one`,
+      /captureVisibleTab\(tab\.windowId/.test(sw),
+      'with two windows open this captures the wrong one, and activeTab says no');
+    ok(`…and the ${name} one puts the tab and window on a failure`,
+      /tab \$\{tab\.id\}, window \$\{tab\.windowId\}/.test(sw),
+      'the next refusal would be as undiagnosable as the last');
     ok(`the ${name} worker takes the toolbar click itself, so activeTab is granted`,
       /chrome\.action\.onClicked\.addListener/.test(sw) &&
       /sidePanel\.open\(\{ tabId/.test(sw) &&
