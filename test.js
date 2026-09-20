@@ -3686,6 +3686,23 @@ console.log('\nSELECTION CHOOSES, PIN KEEPS');
     w1.close();
   });
 
+  /* BY NUMBER, which is what the page and the panel's list both show. A pin's
+     number is derived — the smallest not in use — so unpinning #1 and pinning
+     again puts a pin numbered 1 at the END of State.pins, and the report read
+     #2 #3 #4 #1 against a screen reading 1 2 3 4. Seen on a real report: the
+     list sorted and the report did not, which is two surfaces over one state
+     disagreeing about the order of it. */
+  {
+    const wo = boot(['pin'], idsOnDisk, '<i id="p">1</i><i id="q">2</i><i id="r">3</i>');
+    clickOn(wo, 'p'); clickOn(wo, 'q'); clickOn(wo, 'r');
+    clickOn(wo, 'p');          // unpin #1 …
+    clickOn(wo, 'p');          // … and pin it again: it is #1, and it is LAST
+    const order = (copyText(wo) || '').match(/\[#\d\]/g) || [];
+    ok('the report lists pins by NUMBER, not by when they were made',
+      order.join('') === '[#1][#2][#3]', order.join('') || '(no pins)');
+    wo.close();
+  }
+
   // 2) a modifier must not smuggle persistence past a disarmed keeper
   const w2 = boot(['measure', 'group'], idsOnDisk, '<div id="a">a</div>');
   clickOn(w2, 'a', { shiftKey: true });
@@ -4275,6 +4292,19 @@ console.log('\nWHO PAINTED THIS PIXEL');
     ok('and the fold names the pseudo it could not include',
       /has a ::before[^\n]*fold leaves it out/.test(rep2),
       line(/has a ::before/));
+    /* A doubt about a LAYER carries that layer's row, because the rows print
+       a truncated selector and matching by eye is work the reader should not
+       do. The fader is deliberately NOT numbered: it is one fact about an
+       ancestor shared by everything under it, and numbering it per row is
+       exactly how it came to print four times for one fact. */
+    ok('every layer doubt names the row it belongs to',
+      rep2.split('\n').filter((l) => /^   \S/.test(l) && /(::|backdrop-filter|has filter|mix-blend-mode)/.test(l))
+        .every((l) => /^   \[\d+\] /.test(l)),
+      rep2.split('\n').filter((l) => /^   \S/.test(l)).join(' | '));
+    ok('…and the shared one is not numbered, so it still prints once',
+      rep2.split('\n').filter((l) => /has opacity 0\.9/.test(l)).length === 1 &&
+      !/\[\d+\][^\n]*has opacity/.test(rep2),
+      rep2.split('\n').filter((l) => /has opacity/.test(l)).join(' | '));
     ok('backdrop-filter is printed with its value, and called FILTERED',
       /backdrop-filter: blur\(24px\) saturate\(1\.4\)/.test(rep2) && /FILTERED/.test(rep2),
       line(/backdrop-filter:/));

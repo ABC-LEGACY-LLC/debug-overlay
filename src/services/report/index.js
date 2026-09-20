@@ -31,7 +31,13 @@ import { WebPanel } from '../../ui/web-panel.js';
         found.push(...Sweep.collect(active, 'audit', i));
         L.push('');
       }
-      State.pins.forEach((p) => {
+      /* BY NUMBER, which is what the reader sees. State.pins is in the order
+         they were made, and a pin's number is DERIVED — the smallest one not
+         in use — so unpinning #1 and pinning again puts a pin numbered 1 at
+         the END of the array. The report then read #2 #3 #4 #1 while the page
+         and the panel's list both showed 1 2 3 4, because the list sorts and
+         this did not. Two surfaces over one state, two orders. */
+      State.pins.slice().sort((a, b) => a.id - b.id).forEach((p) => {
         const i = U.info(p.el);
         L.push(`[#${p.id}] (${p.kind}) ${U.selectorOf(i.el)}`);
         for (const t of active) L.push(...(t.report?.call(t, i) || []));

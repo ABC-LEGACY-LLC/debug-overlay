@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.8.185 — 2026-09-20
+
+- The copied report now lists pinned elements **by number** — the order the
+  page and the panel's list both show. A pin's number is the smallest one free,
+  so unpinning #1 and pinning again used to put a pin numbered 1 at the end,
+  and the report read `#2 #3 #4 #1` while the screen read 1 2 3 4.
+- ⛏ Paint's "not accounted for" notes now name the **row** they belong to, so
+  a doubt can be matched to its layer without re-reading a truncated selector.
+  The one shared note — an ancestor's `opacity` — stays unnumbered, because it
+  is one fact about everything beneath it rather than about any single row.
+
 ## 3.8.184 — 2026-09-20
 
 - ⛏ **Paint no longer contradicts itself.** A real report marked a layer

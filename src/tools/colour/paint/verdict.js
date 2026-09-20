@@ -53,20 +53,26 @@ export function composite(layers) {
   for (let i = layers.length - 1; i >= 0; i--) {
     const L = layers[i];
     if (!L.paints) continue;
+    /* A doubt about a LAYER carries that layer's row number, because the rows
+       print a truncated selector and matching a doubt to one by eye is work
+       the reader should not be doing. The fader below deliberately does NOT:
+       it is a fact about an ancestor shared by everything under it, and
+       numbering it per row is how it came to print four times for one fact. */
+    const at = `[${i + 1}] `;
     if (floor >= 0 && i <= floor) {
       for (const ps of L.pseudo) {
-        doubts.push(`${L.sel} has a ${ps.which} (${ps.bits.join(', ')} · ${ps.geo}) — ` +
+        doubts.push(`${at}${L.sel} has a ${ps.which} (${ps.bits.join(', ')} · ${ps.geo}) — ` +
           'a pseudo paints OVER its element and no hit test reaches it, so this fold ' +
           'leaves it out and the colour above may not be the one on screen');
       }
     }
-    if (L.bgImage) doubts.push(`${L.sel} paints a background-image — its pixel here is unknown`);
-    if (L.backdrop) doubts.push(`${L.sel} has backdrop-filter: ${L.backdrop} — the pixel here is FILTERED, not composited`);
+    if (L.bgImage) doubts.push(`${at}${L.sel} paints a background-image — its pixel here is unknown`);
+    if (L.backdrop) doubts.push(`${at}${L.sel} has backdrop-filter: ${L.backdrop} — the pixel here is FILTERED, not composited`);
     /* ONE CLASS, ONE TREATMENT. None of these is expressible as colour over
        colour, which is all this fold does — so each makes the result wrong in
        a way that only saying so can expose. */
-    if (L.filter) doubts.push(`${L.sel} has filter: ${L.filter} — it transforms everything the element paints, after the fact`);
-    if (L.blend) doubts.push(`${L.sel} has mix-blend-mode: ${L.blend} — it does not composite as colour over colour`);
+    if (L.filter) doubts.push(`${at}${L.sel} has filter: ${L.filter} — it transforms everything the element paints, after the fact`);
+    if (L.blend) doubts.push(`${at}${L.sel} has mix-blend-mode: ${L.blend} — it does not composite as colour over colour`);
     if (L.fader) doubts.push(`${L.fader.sel} has opacity ${L.fader.v} — it fades its whole subtree as ONE group, which a colour-over-colour fold cannot express`);
     const c = Colour.colour(L.colour);
     if (!c) { doubts.push(`${L.sel} ${L.from} is a colour space this cannot read`); continue; }

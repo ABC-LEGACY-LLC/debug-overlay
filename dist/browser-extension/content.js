@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.184 — the extension gate */
+/* Debug Overlay v3.8.185 — the extension gate */
 
 /*
 HOW TO USE
@@ -396,7 +396,7 @@ HOW TO USE
     // manifest that ships it, and an overlay that cannot say which version it
     // is makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.184",
+    VERSION: "3.8.185",
     // Substituted like VERSION, from release.json: the MANIFEST the extension
     // publishes, which is the one file that moves with every release. It was
     // the userscript's meta header until that gate was withdrawn — and that
@@ -2259,15 +2259,16 @@ HOW TO USE
     for (let i = layers.length - 1; i >= 0; i--) {
       const L = layers[i];
       if (!L.paints) continue;
+      const at = `[${i + 1}] `;
       if (floor >= 0 && i <= floor) {
         for (const ps of L.pseudo) {
-          doubts.push(`${L.sel} has a ${ps.which} (${ps.bits.join(", ")} · ${ps.geo}) — a pseudo paints OVER its element and no hit test reaches it, so this fold leaves it out and the colour above may not be the one on screen`);
+          doubts.push(`${at}${L.sel} has a ${ps.which} (${ps.bits.join(", ")} · ${ps.geo}) — a pseudo paints OVER its element and no hit test reaches it, so this fold leaves it out and the colour above may not be the one on screen`);
         }
       }
-      if (L.bgImage) doubts.push(`${L.sel} paints a background-image — its pixel here is unknown`);
-      if (L.backdrop) doubts.push(`${L.sel} has backdrop-filter: ${L.backdrop} — the pixel here is FILTERED, not composited`);
-      if (L.filter) doubts.push(`${L.sel} has filter: ${L.filter} — it transforms everything the element paints, after the fact`);
-      if (L.blend) doubts.push(`${L.sel} has mix-blend-mode: ${L.blend} — it does not composite as colour over colour`);
+      if (L.bgImage) doubts.push(`${at}${L.sel} paints a background-image — its pixel here is unknown`);
+      if (L.backdrop) doubts.push(`${at}${L.sel} has backdrop-filter: ${L.backdrop} — the pixel here is FILTERED, not composited`);
+      if (L.filter) doubts.push(`${at}${L.sel} has filter: ${L.filter} — it transforms everything the element paints, after the fact`);
+      if (L.blend) doubts.push(`${at}${L.sel} has mix-blend-mode: ${L.blend} — it does not composite as colour over colour`);
       if (L.fader) doubts.push(`${L.fader.sel} has opacity ${L.fader.v} — it fades its whole subtree as ONE group, which a colour-over-colour fold cannot express`);
       const c = Colour.colour(L.colour);
       if (!c) {
@@ -5234,7 +5235,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         found.push(...Sweep.collect(active, "audit", i));
         L.push("");
       }
-      State.pins.forEach((p) => {
+      State.pins.slice().sort((a, b) => a.id - b.id).forEach((p) => {
         const i = U.info(p.el);
         L.push(`[#${p.id}] (${p.kind}) ${U.selectorOf(i.el)}`);
         for (const t of active) L.push(...t.report?.call(t, i) || []);
