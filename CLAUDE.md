@@ -830,6 +830,39 @@ own rule.
 - **Adding `key` to the manifest** — see below. It costs one reset, and only
   the owner can spend that.
 
+### Two channels, and every change ships to BOTH
+
+`build.js` emits two packages, and they are the same product delivered two
+ways — never two codebases:
+
+| | `debug-overlay-extension.zip` | `debug-overlay-store.zip` |
+|---|---|---|
+| how it installs | extract, Load unpacked | Chrome Web Store |
+| how it updates | its own updater, from this repo | the store |
+| `host_permissions` | the repo host, for the check | **none** |
+| `options_ui` | the update screen | **none** |
+| `sw.js` | side panel + fetch door | side panel only |
+| also carries | `updater/`, `update.html`, `install.html`, `files.json` | nothing of that |
+
+Both exist on purpose. A store install is one click and updates itself; the
+sideload path is what puts a change in a browser TODAY rather than after a
+review queue, which is the whole reason not to be store-only. The rule that
+keeps them honest: **`content.js` and `side-panel.js` are byte-identical
+between them, and `test.js` asserts it.** Only the DECLARATIONS differ, and
+each difference is a permission the store build genuinely does not need —
+asking a reviewer for read access to a host we would never use invites a no,
+and shipping a self-updater into a folder Chrome owns could only fail.
+
+The bundle needed no branch for this and never did: `Updates.capable` reads
+`host_permissions` and goes quiet without one, and the side panel hides the
+update row rather than offering one that can only fail (THE CLEAN BUILD HAS
+NOTHING TO LIE WITH).
+
+**A change is not done when the sideload zip is built.** It is done when the
+store zip has been named to the owner too, with its version. Shipping one and
+not the other means two people running "the same version" see different
+behaviour, and read the difference as a bug.
+
 ### Open: the extension id comes from the FOLDER PATH
 
 `dist/browser-extension/manifest.json` carries no `key`, so Chrome derives the
@@ -853,8 +886,19 @@ call rather than a task:
    id. Generating our own key now and publishing later means paying the reset
    **twice**.
 
-So the sequencing matters more than the fix: if a store listing is anywhere on
-the horizon, create the item first and take its key. If not, generate one —
-`openssl genrsa 2048 | openssl rsa -pubout -outform DER | base64 -w0` — and put
-the result in the manifest as `"key"`. Either way say in the closing message
-that settings reset once, because the person will otherwise read it as a bug.
+The owner has decided to run BOTH channels, which settles the sequencing: the
+key must be the STORE's, so that a sideloaded copy and a store copy compute one
+id and share one `chrome.storage`. That key does not exist until the item does,
+so the order is fixed:
+
+1. Upload `debug-overlay-store.zip` and create the item. The store generates
+   the package's key and keeps the private half.
+2. Copy the public half from the dashboard (Package → View public key).
+3. Put it in the manifest as `"key"` — in the SIDELOAD build only;
+   `build.js` already strips nothing else from the store manifest, and the
+   store refuses a package carrying a copy of its own key.
+4. Say in the closing message that settings reset once. There is no migration
+   across ids, and the person will otherwise read it as a bug.
+
+Generating our own key first would mean paying that reset twice — once now and
+again when the store's key replaces it — so it is the one thing not to do.

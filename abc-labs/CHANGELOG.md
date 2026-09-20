@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.8.180 — 2026-09-20
+
+- The build now emits a **Chrome Web Store package** alongside the sideload
+  ZIP, so both channels can run in parallel — the store install is one click
+  and updates itself, the sideload path puts a change in a browser today rather
+  than after a review queue. `content.js` and `side-panel.js` are byte-identical
+  between them; only the declarations differ, and each difference is a
+  permission the store build does not need: no host permission (the store does
+  the updating), no options page, no updater, no fetch door in its worker.
+- `versions.json` names both packages and both hashes, so nobody has to guess
+  which ZIP is the download and which is the upload.
+
 ## 3.8.179 — 2026-09-20
 
 - **You can now tell which build you downloaded.** The ZIP link always serves

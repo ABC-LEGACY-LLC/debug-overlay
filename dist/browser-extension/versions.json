@@ -1,8 +1,10 @@
 {
-  "latest": "3.8.179",
+  "latest": "3.8.180",
   "built": "2026-09-20",
   "zip": "debug-overlay-extension.zip",
-  "sha256": "7921722f0feda41af7e399b85d397a2415132f1e027b2774017ad6ed4d3596fe",
+  "sha256": "0fb11fbbaa5993ed3f2ba0bd34a5f78caf6e2160a6c52d2e296c36c205f5bea1",
+  "storeZip": "debug-overlay-store.zip",
+  "storeSha256": "10da48f4dcb2ead1b8d81ca669d497861f224a6f796ccb241f516f15f96c73f8",
   "installer": "install.html",
   "changelog": "https://github.com/ABC-LEGACY-LLC/debug-overlay/blob/main/abc-labs/CHANGELOG.md"
 }

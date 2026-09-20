@@ -47,6 +47,11 @@ SHA-256. One version is one file, so that hash is checkable: hash your
 download and compare. `install.html` states the same version in its own title
 once you have extracted it.
 
+*(There is a second ZIP beside it — `debug-overlay-store.zip`. That one is the
+Chrome Web Store upload, not an install: it carries no updater and asks for no
+host permission, because the store does its own updating. The one above is the
+one to download.)*
+
 **Step 2.** Extract the ZIP anywhere and double-click **`install.html`** —
 it opens in the browser (no command prompt involved, so it works even where
 administrators disable cmd), and its one button writes the extension into a

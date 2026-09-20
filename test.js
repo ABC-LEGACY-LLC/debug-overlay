@@ -398,6 +398,56 @@ console.log('\nONE GATE, AND ONE THAT IS FROZEN');
   const cfgNow = JSON.parse(fs.readFileSync(path.join(__dirname, 'release.json'), 'utf8'));
   ok('the extension manifest carries the shipped version',
     manifest.version === cfgNow.version, `${manifest.version} vs ${cfgNow.version}`);
+  /* THE STORE PACKAGE — the same product, the other channel. Both run in
+     parallel on purpose: a store install is one click and updates itself, and
+     the sideload path is what gets a change into a browser today instead of
+     after a review queue. The whole risk in running two is that they become
+     two codebases, so the code is held byte-for-byte and only the DECLARATIONS
+     are allowed to differ — each of them a permission the store build does not
+     need and should not be asking a reviewer for. */
+  {
+    const AdmZipless = (buf) => {
+      /* the packages are stored (never deflated), so an entry's bytes sit
+         verbatim after its local header — enough to compare two of them
+         without a zip library in the suite's dependencies */
+      const out = {};
+      for (let i = 0; i + 30 <= buf.length; i++) {
+        if (buf.readUInt32LE(i) !== 0x04034b50) continue;
+        const n = buf.readUInt16LE(i + 26), x = buf.readUInt16LE(i + 28);
+        const size = buf.readUInt32LE(i + 18);
+        const name = buf.subarray(i + 30, i + 30 + n).toString();
+        out[name] = buf.subarray(i + 30 + n + x, i + 30 + n + x + size);
+      }
+      return out;
+    };
+    const storePath = path.join(extDir, 'debug-overlay-store.zip');
+    ok('the build emits a store package as well as a sideload one',
+      fs.existsSync(storePath), 'there is nothing to upload');
+    const store = AdmZipless(fs.readFileSync(storePath));
+    const side = AdmZipless(fs.readFileSync(path.join(extDir, 'debug-overlay-extension.zip')));
+    for (const same of ['content.js', 'side-panel.js']) {
+      ok(`both channels carry the SAME ${same}, byte for byte`,
+        !!store[same] && !!side[same] && store[same].equals(side[same]),
+        'the two channels have become two codebases');
+    }
+    const sm = JSON.parse(store['manifest.json'].toString());
+    ok('the store manifest asks for no host permission',
+      !sm.host_permissions,
+      'the store updates a store install; asking to read a host we never use invites a no');
+    ok('and offers no options page — the self-updater cannot work there',
+      !sm.options_ui, 'Chrome owns a store install\'s folder; that page could only fail');
+    ok('the store package carries none of the sideload delivery apparatus',
+      !Object.keys(store).some((f) => /^updater\/|^update\.html$|^install\.html$|^files\.json$/.test(f)),
+      Object.keys(store).join(', '));
+    ok('and its worker has no fetch door, matching the permission it did not ask for',
+      !/debug-overlay-fetch/.test(store['sw.js'].toString()),
+      'a build must ship only the code it is allowed to run');
+    ok('neither package contains the other',
+      !Object.keys(side).some((f) => f.endsWith('.zip')) &&
+      !Object.keys(store).some((f) => f.endsWith('.zip')),
+      'a package swallowed its sibling');
+  }
+
   /* versions.json — the only place a PERSON can read which build is
      published without extracting a ZIP. A claim about a file has to be
      checkable or it is decoration, so the hash is held to the actual bytes;
@@ -408,6 +458,11 @@ console.log('\nONE GATE, AND ONE THAT IS FROZEN');
     const v = fs.existsSync(vf) ? JSON.parse(fs.readFileSync(vf, 'utf8')) : null;
     ok('the published build is stated where a person can read it',
       !!v && v.latest === cfgNow.version, v ? `${v.latest} vs ${cfgNow.version}` : 'no versions.json');
+    ok('…and it names the store upload too, so nobody guesses which zip goes where',
+      !!v && v.storeZip === 'debug-overlay-store.zip' &&
+      v.storeSha256 === require('crypto').createHash('sha256')
+        .update(fs.readFileSync(path.join(extDir, v.storeZip))).digest('hex'),
+      v ? `${v.storeZip} ${v.storeSha256}` : 'no record');
     ok('…and its hash is the hash of the ZIP it names',
       !!v && v.sha256 === require('crypto').createHash('sha256')
         .update(fs.readFileSync(path.join(extDir, v.zip))).digest('hex'),

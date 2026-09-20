@@ -194,6 +194,16 @@ function build(kind) {
     side_panel: { default_path: 'side-panel.html' },
     permissions: ['sidePanel'],
   }, null, 2) + '\n');
+  /* THE WORKER, IN TWO HALVES. The side-panel line is what every build needs;
+     the fetch door exists only to carry update checks past a page's CSP, and
+     a STORE build has no business with it — the store does its own updating,
+     and the host permission that door needs is one a reviewer would rightly
+     ask about. Composed rather than branched at runtime: a build ships the
+     code it is allowed to run, and nothing else. */
+  const SW_PANEL =
+    `// the toolbar button opens the side panel (declared, so it needs no handler);\n` +
+    `// guarded because browsers without a side panel still run everything else\n` +
+    `chrome.sidePanel?.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});\n`;
   fs.writeFileSync(path.join(EXT, 'sw.js'),
     `// Debug Overlay service worker — the extension's network door.\n` +
     `// A page's CSP cannot reach in here, so update checks work everywhere.\n` +
@@ -208,10 +218,7 @@ function build(kind) {
     `  if (msg && msg.type === 'debug-overlay-open-options') {\n` +
     `    chrome.runtime.openOptionsPage();\n` +
     `  }\n` +
-    `});\n` +
-    `// the toolbar button opens the side panel (declared, so it needs no handler);\n` +
-    `// guarded because browsers without a side panel still run everything else\n` +
-    `chrome.sidePanel?.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});\n`);
+    `});\n` + SW_PANEL);
   /* the self-updater — real template files in browser-extension-source/,
      base substituted here. SOURCE and OUTPUT deliberately do NOT share a
      name: two folders both called browser-extension read as a duplicate in
@@ -454,6 +461,49 @@ function build(kind) {
     .map((f) => [f, fs.readFileSync(path.join(EXT, f))]);
   const zipBytes = zipStore(extFiles);
   fs.writeFileSync(path.join(EXT, 'debug-overlay-extension.zip'), zipBytes);
+
+  /* THE STORE PACKAGE — the same product, shipped the other way.
+     
+     Both channels run in parallel on purpose: the store install is one click
+     and updates itself, and the sideload path is what lets a change reach a
+     developer's browser today rather than after a review queue. What they must
+     NOT be is two codebases, so content.js and side-panel.js are copied
+     BYTE-FOR-BYTE from the build above and test.js holds them to that.
+
+     What differs is declarative, and each difference is a permission this
+     build genuinely does not need:
+       host_permissions  the update check's door — the STORE updates a store
+                         install, so asking a reviewer for read access to a
+                         host we would never use is asking for a no
+       options_ui        the self-updater's page. It writes into the install
+                         folder, which Chrome owns for a store install; it
+                         could not work and should not be there to try
+       the fetch door    dropped from sw.js for the same reason as the
+                         permission — a build ships the code it may run
+       updater/, update.html, install.html, files.json
+                         the sideload delivery apparatus, entirely
+     The bundle already behaves correctly under this manifest and always has:
+     `Updates.capable` reads host_permissions and goes quiet, and the side
+     panel hides the update row rather than offering one that can only fail —
+     asserted in THE CLEAN BUILD HAS NOTHING TO LIE WITH. */
+  const STORE_FILES = ['content.js', 'side-panel.html', 'side-panel.js',
+                       'icon16.png', 'icon32.png', 'icon48.png', 'icon128.png'];
+  {
+    const stage = fs.mkdtempSync(path.join(require('os').tmpdir(), 'dbgov-store-'));
+    for (const f of STORE_FILES) fs.copyFileSync(path.join(EXT, f), path.join(stage, f));
+    const storeManifest = JSON.parse(fs.readFileSync(path.join(EXT, 'manifest.json'), 'utf8'));
+    delete storeManifest.host_permissions;
+    delete storeManifest.options_ui;
+    fs.writeFileSync(path.join(stage, 'manifest.json'),
+                     JSON.stringify(storeManifest, null, 2) + '\n');
+    fs.writeFileSync(path.join(stage, 'sw.js'),
+      `// Debug Overlay service worker — the store build.\n` +
+      `// No fetch door: a store install is updated by the store.\n` + SW_PANEL);
+    const files = fs.readdirSync(stage).sort()
+      .map((f) => [f, fs.readFileSync(path.join(stage, f))]);
+    fs.writeFileSync(path.join(EXT, 'debug-overlay-store.zip'), zipStore(files));
+    fs.rmSync(stage, { recursive: true, force: true });
+  }
   /* versions.json — WHICH BUILD IS PUBLISHED, in one place a person can open.
      The manifest already carried the number and `npm run shipped` already read
      it, but neither answers the question somebody actually has standing in
@@ -472,6 +522,10 @@ function build(kind) {
     built: new Date().toISOString().slice(0, 10),
     zip: 'debug-overlay-extension.zip',
     sha256: require('crypto').createHash('sha256').update(zipBytes).digest('hex'),
+    // the upload artefact, named so nobody has to guess which zip goes where
+    storeZip: 'debug-overlay-store.zip',
+    storeSha256: require('crypto').createHash('sha256')
+      .update(fs.readFileSync(path.join(EXT, 'debug-overlay-store.zip'))).digest('hex'),
     installer: 'install.html',
     changelog: `${cfg.repoUrl}/blob/main/abc-labs/CHANGELOG.md`,
   }, null, 2) + '\n');
