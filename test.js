@@ -1725,6 +1725,10 @@ let settleChecked = false;
   //    wrote all eleven files and then died on the last line.
   const r = rig(MINE);
   r.disk.set('install.bat', '@echo off');   // a real install folder still has it
+  /* and the installer, frozen at whatever version was installed FIRST — the
+     copy that has been seen in a real folder a dozen releases behind the
+     files beside it, with a button that writes it all back */
+  r.disk.set('install.html', '<!doctype html><!-- a snapshot of v3.8.149 -->');
   // wait for boot: the folder handle loads from IndexedDB and the opening
   // check runs, and only then is Verify & repair live
   whenPainted(() => !r.w.document.getElementById('repair').disabled, () => {
@@ -1757,10 +1761,23 @@ let settleChecked = false;
      Install. Seen on a real folder — every file at v3.8.149, install.html
      still at the version from a dozen releases earlier. */
   ok('the stale installer is named too — its one action is a downgrade',
-    /'install\.html',/.test(js) &&
+    /const INSTALLER = 'install\.html'/.test(js) &&
+    /RETIRED = \[[\s\S]*?\bINSTALLER,/.test(js) &&
     !shippedList.includes('install.html') &&
     /'update\.js'\]/.test(js),   // …and the pre-versioning orphan beside it
     'a page that rewrites every file from a frozen snapshot, and is never refreshed');
+      /* TWO KINDS, TWO SENTENCES. A retired page and a superseded updater are
+         inert, and "safe to delete" is the whole truth about them. The
+         installer is not inert — its one button writes a frozen snapshot back
+         over the install — so sharing the milder verdict left a reader with
+         the milder one. Three different silences must not share a sentence,
+         and neither must two different hazards. */
+      ok('…and it is NOT filed under the same verdict as the inert leftovers',
+        /DOWNGRADE waiting to be/.test(r.logText()) &&
+        // the milder list prints its members as indented bare filenames;
+        // the installer must not be one of them
+        !r.logText().split('\n').some((l) => l.trim() === 'install.html'),
+        r.logText().split('\n').filter((l) => /install\.html/.test(l)).join(' | ') || '(not named)');
       ok('and it finishes without throwing — no "failed:" at the end',
         !/failed:/.test(log),
         log.slice(-300));

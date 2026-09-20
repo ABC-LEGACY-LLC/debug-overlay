@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.8.183 — 2026-09-20
+
+- The updater no longer files `install.html` under the same verdict as inert
+  leftovers. A retired page or a superseded updater is harmless and "safe to
+  delete" is the whole truth about them; the installer is not harmless — it
+  carries a frozen copy of every file from the version you FIRST installed and
+  its one button writes them back over the current one. It now gets its own
+  warning saying so.
+
 ## 3.8.182 — 2026-09-20
 
 - ⛏ **Paint no longer makes the page feel stuck.** Its stack walk asked two

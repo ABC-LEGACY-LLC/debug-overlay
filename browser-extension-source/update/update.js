@@ -30,6 +30,9 @@ const FILES = ['manifest.json', 'content.js', 'sw.js', 'update.html', 'update.js
    quiet while install.bat sat in every install folder, being the single most
    flagged file in the package. A constant that documents an intention is not
    the same as code that acts on one. */
+/** Named on its own, because what it deserves is not what the rest of the
+ *  list deserves — see where the run reports it. */
+const INSTALLER = 'install.html';
 const RETIRED = ['cockpit.html', 'cockpit.js', 'options.html', 'options.js',
                  'install.bat',
                  /* THE INSTALLER, which is not a retired file — it still ships
@@ -47,7 +50,7 @@ const RETIRED = ['cockpit.html', 'cockpit.js', 'options.html', 'options.js',
                     loads it, nothing checks it, and its one action is
                     destructive. Named, never deleted, like everything on this
                     list. */
-                 'install.html',
+                 INSTALLER,
                  /* THE ONE-TIME MIGRATION. Every install before v3.8.151 has
                     a plain update.js, and the versioned scheme orphans it:
                     update.html now points at update-<version>.js, files.json
@@ -571,8 +574,20 @@ async function run(repairing) {
        instead, in both places a superseded updater can be sitting. Named,
        never removed, like everything on RETIRED. */
     const current = files.find((f) => f.startsWith('updater/')) || null;
+    /* TWO KINDS, and they must not share a sentence. A retired page, a dead
+       install.bat, a superseded updater: those are inert, and "safe to
+       delete" is the whole truth about them. install.html is not inert — it
+       holds a frozen copy of every file from the version you first installed
+       and its one button writes them back, so keeping it is not a tidiness
+       question but a loaded one. Listed together, the milder verdict was the
+       one a reader took away. */
     const stale = [];
-    for (const f of RETIRED) if (await stillThere(dir, f)) stale.push(f);
+    let installer = false;
+    for (const f of RETIRED) {
+      if (!(await stillThere(dir, f))) continue;
+      if (f === INSTALLER) installer = true;
+      else stale.push(f);
+    }
     for (const [where, keep] of [[null, null], ['updater', current]]) {
       try {
         const d = where ? await dir.getDirectoryHandle(where) : dir;
@@ -588,6 +603,14 @@ async function run(repairing) {
     if (stale.length) {
       log('· in the folder but not used by the extension — safe to delete:', 'warn');
       for (const f of stale) log('    ' + f, 'warn');
+    }
+    if (installer) {
+      log(`· ${INSTALLER} is still here, and it is a DOWNGRADE waiting to be`, 'warn');
+      log('  double-clicked. It carries a frozen copy of every file from the', 'warn');
+      log('  version you FIRST installed, and its one button writes them back', 'warn');
+      log('  over this one. Nothing updates it, because nothing loads it.', 'warn');
+      log(`    delete ${INSTALLER} — the ZIP carries a current one whenever`, 'warn');
+      log('    you need to install somewhere else', 'warn');
     }
     /* Every fetched file was written this run — there is no member of the
        list handled apart any more, and so none that might not be there. The
