@@ -3,6 +3,7 @@ import { badge, compact, legend, gestures } from './badge.js';
 import { reportTail } from './report.js';
 import { draw } from './draw.js';
 import { watch, unwatch } from './follow.js';
+import { prepare } from './sample.js';
 
 /* index — REGISTRATION ONLY. The tool's behaviour lives in the files beside
    this one; what is declared here is identity, appearance and wiring. */
@@ -26,6 +27,27 @@ defineTool({
 
   watch,
   unwatch,
+  prepare,
+  /**
+   * THE ONE SETTING, and it is a privacy decision rather than a preference.
+   *
+   * Everything else this tool prints is derived from the DOM. This reads the
+   * PIXEL, which means capturing the visible tab — and the pages it runs on
+   * carry names, locations and phone numbers. So it is off until somebody
+   * says otherwise, the label says what it does rather than what it gives,
+   * and the capture happens only on an explicit ⧉ copy: a hover never takes
+   * one, whatever is armed.
+   *
+   * Filed under INSPECT, because it changes what you are SHOWN about the
+   * pixel rather than what counts as a problem — so turning it on must not
+   * throw away a page audit that was judged under the same rules.
+   */
+  options() {
+    return [
+      { key: 'sample', label: 'Sample the real pixel — captures the tab on ⧉',
+        def: false, type: 'toggle', affects: 'inspect' },
+    ];
+  },
   badge,
   compact,
   legend,

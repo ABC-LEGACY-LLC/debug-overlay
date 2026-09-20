@@ -1,5 +1,19 @@
 # Changelog
 
+## 3.8.188 — 2026-09-20
+
+- ⛏ **Paint can now check its own arithmetic against the screen.** Turn on
+  "Sample the real pixel" under ⚙ and ⧉ reads the actual rendered pixel, then
+  prints it beside the computed one with **ΔRGB** — the size of the
+  disagreement is the finding, since a couple of units is a saturate and forty
+  is a whole layer nobody accounted for.
+- It is gated, deliberately: off until you turn it on, only on an explicit ⧉
+  (a hover never captures), one pixel read and the image dropped in the same
+  breath — nothing stored, nothing sent — and the report says when a capture
+  was taken. The permission is `activeTab`, granted by pressing the toolbar
+  button and covering that one tab, rather than a standing claim on every site
+  you visit.
+
 ## 3.8.186 — 2026-09-20
 
 - ⛏ **Paint now shows the layers the browser's hit test skipped** — the gap the

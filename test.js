@@ -431,7 +431,22 @@ console.log('\nONE GATE, AND ONE THAT IS FROZEN');
         'the two channels have become two codebases');
     }
     const sm = JSON.parse(store['manifest.json'].toString());
-    ok('the store manifest asks for no host permission',
+    /* THE CAPTURE PERMISSION, and the shape of it. ⛏ paint can read the one
+     pixel under its probe to check its own arithmetic, which means capturing
+     the visible tab — on pages carrying names, locations and phone numbers.
+     `<all_urls>` would buy that with permanent read access to every site the
+     person ever visits; activeTab is granted by pressing the toolbar button,
+     covers one tab, and expires. The difference is the whole privacy story. */
+  ok('the capture is bought with activeTab, never with a claim on every site',
+    (sm.permissions || []).includes('activeTab') &&
+    !(sm.permissions || []).includes('tabs') &&
+    !JSON.stringify(sm.host_permissions || []).includes('<all_urls>'),
+    JSON.stringify({ permissions: sm.permissions, host: sm.host_permissions }));
+  ok('and a content script cannot capture, so the door is in the worker — in both builds',
+    /debug-overlay-capture/.test(store['sw.js'].toString()) &&
+    /debug-overlay-capture/.test(side['sw.js'].toString()),
+    'a build that cannot answer the capture message has the feature switched off by accident');
+  ok('the store manifest asks for no host permission',
       !sm.host_permissions,
       'the store updates a store install; asking to read a host we never use invites a no');
     ok('and offers no options page — the self-updater cannot work there',
@@ -4245,8 +4260,11 @@ console.log('\nWHO PAINTED THIS PIXEL');
      Saying so is what keeps the composite a claim rather than a verified
      fact; silence here would let a reader take it for the latter. */
   ok('and it admits the composite is unverified, rather than implying it is not',
-    /sampled pixel: not available/.test(rep) && /is a CLAIM/.test(rep),
+    /sampled pixel: not taken/.test(rep) && /is a CLAIM/.test(rep),
     rep.split('\n').find((l) => /sampled pixel/.test(l)) || '(no honesty line)');
+  ok('…and says how to have it verified, rather than only that it is not',
+    /Sample the real pixel/.test(rep),
+    rep.split('\n').find((l) => /Turn on/.test(l)) || '(no way out offered)');
 
   // the probe must HOLD when the pointer leaves the page for the panel —
   // otherwise ⧉ reports the panel instead of the pixel you asked about
@@ -4267,6 +4285,91 @@ console.log('\nWHO PAINTED THIS PIXEL');
     'a stood-down runtime went on answering');
   w.close();
 }
+
+  /* ---- THE SAMPLE, AND WHAT IT COSTS ---------------------------------
+     The composite is arithmetic; only the screen can say whether the
+     arithmetic was right, and the SIZE of any disagreement is the finding —
+     a couple of units is a saturate, forty is a whole layer nobody
+     accounted for. Reading it means capturing the tab, on pages that carry
+     names and phone numbers, so the gating is the thing under test as much
+     as the number is. */
+  {
+    const opts3 = { url: 'https://example.test/', pretendToBeVisual: true,
+                    runScripts: 'outside-only', virtualConsole: new VirtualConsole() };
+    const mk = (sample) => {
+      const d3 = new JSDOM('<!doctype html><html><body style="background:rgb(20,20,20)">' +
+        '<div id="s">x</div></body></html>', opts3);
+      const w3 = d3.window;
+      w3.localStorage.setItem('__debug_overlay_tools', JSON.stringify(['paint']));
+      w3.localStorage.setItem('__debug_overlay_seen', JSON.stringify(idsOnDisk));
+      if (sample) w3.localStorage.setItem('__debug_overlay_settings',
+        JSON.stringify({ paint: { sample: true } }));
+      let captures = 0;
+      w3.chrome = { runtime: { id: 'x', lastError: null,
+        sendMessage: (m, cb) => { if (m && m.type === 'debug-overlay-capture') { captures++; cb({ ok: true, url: 'data:,' }); } } } };
+      /* a decoder and a 1×1 context, because jsdom has neither — what is
+         under test is the arithmetic over the pixel, not the decoding */
+      w3.Image = function () { setTimeout(() => this.onload && this.onload(), 0); };
+      const realCreate = w3.document.createElement.bind(w3.document);
+      w3.document.createElement = (tag) => (tag !== 'canvas' ? realCreate(tag) : {
+        width: 0, height: 0,
+        getContext: () => ({ drawImage() {},
+          getImageData: () => ({ data: [60, 20, 20, 255] }) }),   // 40 off red
+      });
+      w3.eval(source);
+      const el = w3.document.getElementById('s');
+      el.getBoundingClientRect = () => ({ left: 0, top: 0, right: 100, bottom: 100, width: 100, height: 100, x: 0, y: 0 });
+      w3.document.body.getBoundingClientRect = () => ({ left: 0, top: 0, right: 100, bottom: 100, width: 100, height: 100, x: 0, y: 0 });
+      w3.document.elementsFromPoint = () => [el, w3.document.body];
+      w3.dispatchEvent(new w3.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+      /* away from the edges: jsdom gives body a 16px border, and a probe
+         inside it would be reading a border colour rather than a background —
+         true of the code, and not what this block is about */
+      el.dispatchEvent(new w3.MouseEvent('pointermove', { bubbles: true, clientX: 50, clientY: 50 }));
+      let got = null;
+      Object.defineProperty(w3.navigator, 'clipboard',
+        { value: { writeText: async (t) => { got = t; } }, configurable: true });
+      return { w3, captures: () => captures, copy: () => {
+        w3.document.getElementById('__debug-overlay-bar').querySelector('[data-copy]')
+          .dispatchEvent(new w3.MouseEvent('click', { bubbles: true }));
+      }, text: () => got || '' };
+    };
+
+    // OFF by default, and pointing at things never takes one
+    const off = mk(false);
+    off.copy();
+    ok('with the setting off, ⧉ takes no capture at all',
+      off.captures() === 0 && /sampled pixel: not taken/.test(off.text()),
+      `${off.captures()} captures`);
+    ok('…and hovering never takes one either, whatever is armed',
+      off.captures() === 0, 'a pointer move reached the camera');
+    off.w3.close();
+
+    // ON: one capture, on the copy, and the disagreement as a NUMBER
+    const on = mk(true);
+    on.copy();
+    pendingChecks.push(() => {
+      const t = on.text();
+      ok('with it on, the copy reads the real pixel and says a capture was taken',
+        /sampled pixel: rgb\(60,20,20\)/.test(t) && /capture taken, one pixel read, discarded/.test(t),
+        t.split('\n').find((l) => /sampled pixel/.test(l)) || '(no sample)');
+      ok('…and prints the composite beside it, not instead of it',
+        /composite\s+rgb\(20,20,20\)/.test(t),
+        t.split('\n').find((l) => /composite\s+rgb/.test(l)) || '(no composite line)');
+      /* A yes/no flag would lose the only thing that matters: the SIZE says
+         what was hidden. */
+      ok('…and the disagreement as a number per channel, with its worst',
+        /ΔRGB\s+40,0,0\s+worst 40/.test(t),
+        t.split('\n').find((l) => /ΔRGB/.test(l)) || '(no delta)');
+      ok('…and says what a gap that size means, rather than only flagging it',
+        /THEY DISAGREE by 40 — something paints here that the walk did not/.test(t),
+        t.split('\n').find((l) => /DISAGREE/.test(l)) || '(no verdict)');
+      if (process.env.PAINT_SAMPLE) console.log('\n--- sample block ---\n' + t);
+      ok('exactly ONE capture for one copy — never per layer, never per frame',
+        on.captures() === 1, `${on.captures()} captures for one report`);
+      on.w3.close();
+    });
+  }
 
   /* ---- THE STACK MUST SAY WHAT IT COULD NOT SEE ----------------------
      A twelve-layer stack of `div.flex.flex-1.min-h-0` is unreadable without

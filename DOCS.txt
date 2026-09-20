@@ -180,10 +180,22 @@ HOW TO USE
                  our own overlay layers removed from the top, a stack that
                  stopped at a shadow host (at least that many — a closed root
                  cannot be detected), and any frame it could not cross. The
-                 composite is labelled a CLAIM: reading the real rendered
-                 pixel needs a capture permission this build does not ask
-                 for, so nothing here has verified it. OFF by default — it
-                 listens to every pointer move while armed.
+                 composite is arithmetic, so by default it is labelled a
+                 CLAIM — nothing has verified it. Turn on "Sample the real
+                 pixel" under ⚙ and ⧉ reads the ACTUAL screen pixel and
+                 prints both side by side with ΔRGB: the SIZE of any
+                 disagreement is the finding, since a couple of units is a
+                 saturate and forty is a whole layer nobody accounted for.
+
+                 That reads the screen, so it is gated — off until you say
+                 otherwise, only on an explicit ⧉ (a hover never captures),
+                 one pixel read and the image dropped in the same breath,
+                 nothing stored and nothing sent, and the report says when a
+                 capture was taken. The permission is activeTab: granted by
+                 pressing the toolbar button, covering that one tab, and
+                 expiring — not a standing claim on every site you visit.
+
+                 OFF by default — armed, it listens to every pointer move.
        ◐ contrast  WCAG text contrast ratio, against AA or AAA (⚙)
     ⌨ a11y       the name, role and keyboard reach of what you point at —
                  COMPUTED off the rendered page, not read out of the source.

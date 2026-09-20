@@ -192,7 +192,16 @@ function build(kind) {
        committed, so the build never needs an image toolchain */
     icons: { 16: 'icon16.png', 32: 'icon32.png', 48: 'icon48.png', 128: 'icon128.png' },
     side_panel: { default_path: 'side-panel.html' },
-    permissions: ['sidePanel'],
+    /* activeTab, NOT a host permission. ⛏ paint can read the one pixel under
+       its probe to check its own arithmetic, and reading a rendered pixel
+       means capturing the visible tab — on pages that carry names, locations
+       and phone numbers. `<all_urls>` would buy that by asking every user for
+       permanent read access to every site they visit. activeTab is granted by
+       pressing the toolbar button, covers the one tab, and expires: the
+       capability without the standing claim. The capture itself is gated
+       again in the tool — off by default, only on an explicit copy, one pixel
+       read and the image dropped in the same breath. */
+    permissions: ['sidePanel', 'activeTab'],
   }, null, 2) + '\n');
   /* THE WORKER, IN TWO HALVES. The side-panel line is what every build needs;
      the fetch door exists only to carry update checks past a page's CSP, and
@@ -204,6 +213,25 @@ function build(kind) {
     `// the toolbar button opens the side panel (declared, so it needs no handler);\n` +
     `// guarded because browsers without a side panel still run everything else\n` +
     `chrome.sidePanel?.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});\n`;
+  /* THE CAPTURE DOOR, in both builds. A content script may not call
+     captureVisibleTab — only a worker may — so the one pixel ⛏ paint checks
+     itself against has to come through here. Nothing is stored and nothing is
+     returned but the data URL the caller immediately reduces to one pixel;
+     activeTab means this answers only for a tab the user has just acted on,
+     and fails loudly rather than silently when it has not. */
+  const SW_CAPTURE =
+    `chrome.runtime.onMessage.addListener((msg, sender, respond) => {\n` +
+    `  if (!msg || msg.type !== 'debug-overlay-capture') return;\n` +
+    `  try {\n` +
+    `    chrome.tabs.captureVisibleTab({ format: 'png' }, (url) => {\n` +
+    `      const e = chrome.runtime.lastError;\n` +
+    `      if (e || !url) respond({ ok: false, error: (e && e.message) ||\n` +
+    `        'the tab could not be captured — press the toolbar button to re-grant activeTab' });\n` +
+    `      else respond({ ok: true, url });\n` +
+    `    });\n` +
+    `  } catch (e) { respond({ ok: false, error: String(e) }); }\n` +
+    `  return true;   // async response\n` +
+    `});\n`;
   fs.writeFileSync(path.join(EXT, 'sw.js'),
     `// Debug Overlay service worker — the extension's network door.\n` +
     `// A page's CSP cannot reach in here, so update checks work everywhere.\n` +
@@ -218,7 +246,7 @@ function build(kind) {
     `  if (msg && msg.type === 'debug-overlay-open-options') {\n` +
     `    chrome.runtime.openOptionsPage();\n` +
     `  }\n` +
-    `});\n` + SW_PANEL);
+    `});\n` + SW_CAPTURE + SW_PANEL);
   /* the self-updater — real template files in browser-extension-source/,
      base substituted here. SOURCE and OUTPUT deliberately do NOT share a
      name: two folders both called browser-extension read as a duplicate in
@@ -498,7 +526,8 @@ function build(kind) {
                      JSON.stringify(storeManifest, null, 2) + '\n');
     fs.writeFileSync(path.join(stage, 'sw.js'),
       `// Debug Overlay service worker — the store build.\n` +
-      `// No fetch door: a store install is updated by the store.\n` + SW_PANEL);
+      `// No fetch door: a store install is updated by the store. The capture\n` +
+      `// door stays: it is the product, not the delivery.\n` + SW_CAPTURE + SW_PANEL);
     const files = fs.readdirSync(stage).sort()
       .map((f) => [f, fs.readFileSync(path.join(stage, f))]);
     fs.writeFileSync(path.join(EXT, 'debug-overlay-store.zip'), zipStore(files));

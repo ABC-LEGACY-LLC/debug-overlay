@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Debug Overlay — AI-friendly UI inspector",
-  "version": "3.8.186",
+  "version": "3.8.188",
   "description": "Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.",
   "content_scripts": [
     {
@@ -43,6 +43,7 @@
     "default_path": "side-panel.html"
   },
   "permissions": [
-    "sidePanel"
+    "sidePanel",
+    "activeTab"
   ]
 }

@@ -802,7 +802,7 @@ an inference from source.
 | off-token spacing (compliance-design-system) | ▦ grid | every value off the project's step, with the step configurable under ⚙ |
 | contrast (compliance-design-system) | ◐ contrast | computed ratio and pass/fail at the chosen WCAG level, read off painted pixels — so gradients and `opacity` are handled, and unreadable cases return `review` rather than a wrong number |
 | name, role, keyboard reach (psychology C2, any a11y pass) | ⌨ a11y | the accessible name and where it came from, the role, and whether Tab reaches it — computed off the rendered page; `review` where the name cannot be determined from here |
-| which element produced a colour on screen (composition-layout, compliance-design-system) | ⛏ paint | the paint stack at one pixel: per layer, painted / `box only — not painted here` / clipped away by an ancestor, with its colour, plus pseudo-elements and `backdrop-filter` — the two things hit-testing cannot see |
+| which element produced a colour on screen (composition-layout, compliance-design-system) | ⛏ paint | the paint stack at one pixel: per layer, painted / `transparent` / `box only — not painted here` / clipped away, with its colour and rect; the elements whose box holds the pixel that the hit test SKIPPED, with the corner or `pointer-events` that did it; pseudo-elements with their geometry and `backdrop-filter`; and — when asked, one capture per ⧉ — the real screen pixel beside the computed one with ΔRGB |
 | duplicate accessible ids (any) | # dupid | every duplicate id, marked in place |
 | freezes, jank, per-component cost (performance-interaction) | ⚡ perf | freeze log with tier and blame, plus `mut/s`, `resp`, `shift` for a pinned subtree, and page-load timings |
 

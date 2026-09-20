@@ -17,6 +17,13 @@ import { State } from './state.js';
           compact(info)  → HTML string for the compact badge
           report(info)   → array of report lines
           reportTail()   → array of summary lines, after every pin block
+          prepare()      → a promise the COPY waits on before the report is
+                           built. Report.text() is synchronous and stays so;
+                           this is the one door for a tool that must fetch
+                           something first — asking the worker for a pixel,
+                           say — without every reader of the report learning
+                           to await. It runs on an explicit copy and nowhere
+                           else, which is what makes it safe to do work in.
           draw(ctx)      → custom drawing; ctx = { layer, Place, State, U }
           listRows()     → panel list rows { tag, label, detail, pins }
           pendingIndex() → index into State.pins of a pin still being chosen

@@ -129,6 +129,24 @@ import { WebPanel } from '../../ui/web-panel.js';
       }
     },
     async copy() {
+      /* PREPARE, then build. Report.text() is synchronous and every other
+         line in this file depends on that — but a tool can need something
+         fetched before it can answer, and the alternative was a report that
+         said "ask again" the first time. Only ARMED tools, only on this
+         path: a copy is a deliberate act, which is what makes it the right
+         place to do work that a hover must never do. One failing tool does
+         not cost the report — it simply has nothing to add. */
+      for (const t of Tools.withHook('prepare', true)) {
+        /* A PROMISE ONLY WHEN THERE IS SOMETHING TO WAIT FOR — the same
+           contract Sweep.run() keeps. Awaiting unconditionally would cost a
+           microtask on every copy, including the overwhelming majority that
+           prepare nothing, and every reader of the clipboard would inherit a
+           hop it never needed. */
+        try {
+          const r = t.prepare.call(t);
+          if (r && typeof r.then === 'function') await r;
+        } catch { /* a tool that cannot prepare says so in its own lines */ }
+      }
       await Report.toClipboard(Report.text());
       WebPanel.flash('✓');
     },

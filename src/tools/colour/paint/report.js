@@ -2,6 +2,7 @@ import { Colour } from '../../../subjects/colour.js';
 import { Probe } from './probe.js';
 import { base, composite } from './verdict.js';
 import { skipped } from './skipped.js';
+import { Sample } from './sample.js';
 
 /**
  * THE DELIVERABLE. The consumer of this tool is a reader working from the
@@ -119,20 +120,48 @@ export function reportTail() {
     L.push('no fully opaque layer in the stack — the page canvas (white) shows through,');
     L.push('   which is where the composite above starts.');
   }
-  /* THE HONEST GAP. The request asked for the sampled pixel and for the
-     disagreement between it and the walk, because a disagreement is the most
-     valuable line there is — it means something paints that the walk did not
-     account for. Reading a rendered pixel needs a capture permission this
-     build does not ask for, so there is no sample, and saying so is the only
-     alternative to letting the composite read as verified when it is not. */
-  L.push('sampled pixel: not available — reading the rendered pixel needs a tab-capture');
-  L.push('   permission this build does not ask for, so the composite above is a CLAIM,');
-  L.push('   computed from the walk, and nothing here has verified it.');
+  L.push(...sampleLines(colour));
   if (doubts.length) {
     L.push('not accounted for:');
     for (const d of doubts) L.push(`   ${d}`);
   }
   L.push(...scope(dropped, hosts, frames));
+  return L;
+}
+
+/**
+ * THE COMPOSITE AGAINST THE SCREEN — and the SIZE of any disagreement.
+ *
+ * A yes/no mismatch flag loses the only thing that matters here: how big it
+ * is says what was hidden. Two or three units is a saturate or a rounding; a
+ * few tens is a whole layer nobody accounted for. So the two colours go side
+ * by side and the difference is a number per channel and a maximum.
+ *
+ * With no sample the composite is still printed — as a CLAIM, in as many
+ * words. Silence there would let a derived answer read as a measured one,
+ * which is the one thing this tool may not do.
+ */
+function sampleLines(colour) {
+  const got = Sample.current();
+  if (!got) {
+    return ['sampled pixel: not taken — the composite above is a CLAIM computed from',
+            `   the walk, and nothing here has verified it${Sample.why ? ` (${Sample.why})` : ''}.`,
+            '   Turn on "Sample the real pixel" under ⚙ to have ⧉ read the screen.'];
+  }
+  const c = { r: Math.round(colour.r), g: Math.round(colour.g), b: Math.round(colour.b) };
+  const d = { r: Math.abs(c.r - got.rgb.r), g: Math.abs(c.g - got.rgb.g), b: Math.abs(c.b - got.rgb.b) };
+  const worst = Math.max(d.r, d.g, d.b);
+  const L = [`sampled pixel: rgb(${got.rgb.r},${got.rgb.g},${got.rgb.b})   (capture taken, one pixel read, discarded)`,
+             `   composite   rgb(${c.r},${c.g},${c.b})`,
+             `   ΔRGB        ${d.r},${d.g},${d.b}   worst ${worst}`];
+  /* THE MOST VALUABLE LINE THERE IS. A disagreement means something paints
+     that the walk did not account for — and the doubts printed below are the
+     list of candidates for what. Naming the size is what turns it from a flag
+     into a lead. */
+  if (worst === 0) L.push('   they agree — the walk accounted for everything that paints here');
+  else if (worst <= 3) L.push('   near-agreement: a rounding, a colour-space conversion, or a saturate');
+  else L.push(`   THEY DISAGREE by ${worst} — something paints here that the walk did not` +
+              ' account for; the notes below are the candidates');
   return L;
 }
 

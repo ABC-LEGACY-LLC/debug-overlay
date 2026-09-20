@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.186 — the extension gate */
+/* Debug Overlay v3.8.188 — the extension gate */
 
 /*
 HOW TO USE
@@ -183,10 +183,22 @@ HOW TO USE
                  our own overlay layers removed from the top, a stack that
                  stopped at a shadow host (at least that many — a closed root
                  cannot be detected), and any frame it could not cross. The
-                 composite is labelled a CLAIM: reading the real rendered
-                 pixel needs a capture permission this build does not ask
-                 for, so nothing here has verified it. OFF by default — it
-                 listens to every pointer move while armed.
+                 composite is arithmetic, so by default it is labelled a
+                 CLAIM — nothing has verified it. Turn on "Sample the real
+                 pixel" under ⚙ and ⧉ reads the ACTUAL screen pixel and
+                 prints both side by side with ΔRGB: the SIZE of any
+                 disagreement is the finding, since a couple of units is a
+                 saturate and forty is a whole layer nobody accounted for.
+
+                 That reads the screen, so it is gated — off until you say
+                 otherwise, only on an explicit ⧉ (a hover never captures),
+                 one pixel read and the image dropped in the same breath,
+                 nothing stored and nothing sent, and the report says when a
+                 capture was taken. The permission is activeTab: granted by
+                 pressing the toolbar button, covering that one tab, and
+                 expiring — not a standing claim on every site you visit.
+
+                 OFF by default — armed, it listens to every pointer move.
        ◐ contrast  WCAG text contrast ratio, against AA or AAA (⚙)
     ⌨ a11y       the name, role and keyboard reach of what you point at —
                  COMPUTED off the rendered page, not read out of the source.
@@ -405,7 +417,7 @@ HOW TO USE
     // manifest that ships it, and an overlay that cannot say which version it
     // is makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.186",
+    VERSION: "3.8.188",
     // Substituted like VERSION, from release.json: the MANIFEST the extension
     // publishes, which is the one file that moves with every release. It was
     // the userscript's meta header until that gate was withdrawn — and that
@@ -2342,6 +2354,102 @@ HOW TO USE
     return "skipped, and no cause this can name — worth looking at by hand";
   }
 
+  // src/tools/colour/paint/sample.js
+  var Sample = {
+    at: null,
+    // { px, py, rgb } — the last pixel read, for the point it was read at
+    why: null,
+    // why the last attempt could not answer
+    /** Is this build even able to ask? A store or sideload build has the
+     *  permission; the dev page and the suite do not, and must say so rather
+     *  than appear to have measured something. */
+    capable: () => typeof chrome !== "undefined" && !!(chrome.runtime && chrome.runtime.id),
+    forget() {
+      Sample.at = null;
+      Sample.why = null;
+    },
+    /** The pixel for the CURRENT probe point, or null. Never recomputed from a
+     *  stale point: a sample belongs to the pixel it was taken at. */
+    current() {
+      const p = Probe.at;
+      if (!p || !Sample.at) return null;
+      return Sample.at.px === p.px && Sample.at.py === p.py ? Sample.at : null;
+    }
+  };
+  function prepare() {
+    Sample.forget();
+    const p = Probe.point();
+    if (!p) return null;
+    if (!Tools.setting(this, "sample")) return null;
+    if (!Sample.capable()) {
+      Sample.why = "this build has no extension runtime to capture through";
+      return null;
+    }
+    return (async () => {
+      try {
+        const url = await ask();
+        const rgb = await pixel(url, p.x, p.y);
+        if (rgb) Sample.at = { px: Probe.at.px, py: Probe.at.py, rgb };
+        else Sample.why = "the capture arrived but that pixel could not be read";
+      } catch (e) {
+        Sample.why = String(e && e.message || e) || "the tab could not be captured — press the toolbar button to re-grant activeTab";
+      }
+    })();
+  }
+  function ask() {
+    return new Promise((resolve, reject) => {
+      let done = false;
+      const give = (fn, v) => {
+        if (!done) {
+          done = true;
+          fn(v);
+        }
+      };
+      setTimeout(() => give(reject, new Error("the worker did not answer in time")), 4e3);
+      try {
+        chrome.runtime.sendMessage({ type: "debug-overlay-capture" }, (r) => {
+          if (chrome.runtime.lastError) return give(reject, new Error(chrome.runtime.lastError.message));
+          if (!r || !r.ok) return give(reject, new Error(r && r.error || "the tab could not be captured — press the toolbar button to re-grant activeTab"));
+          give(resolve, r.url);
+        });
+      } catch (e) {
+        give(reject, e);
+      }
+    });
+  }
+  function pixel(url, x, y) {
+    return new Promise((resolve) => {
+      let img = new Image();
+      let settled = false;
+      const done = (v) => {
+        if (settled) return;
+        settled = true;
+        if (img) {
+          img.onload = img.onerror = null;
+          img.src = "";
+          img = null;
+        }
+        resolve(v);
+      };
+      setTimeout(() => done(null), 4e3);
+      img.onerror = () => done(null);
+      img.onload = () => {
+        try {
+          const c = document.createElement("canvas");
+          c.width = c.height = 1;
+          const g = c.getContext("2d", { willReadFrequently: true });
+          const r = devicePixelRatio || 1;
+          g.drawImage(img, -Math.round(x * r), -Math.round(y * r));
+          const d = g.getImageData(0, 0, 1, 1).data;
+          done({ r: d[0], g: d[1], b: d[2] });
+        } catch {
+          done(null);
+        }
+      };
+      img.src = url;
+    });
+  }
+
   // src/tools/colour/paint/report.js
   function reportTail() {
     const p = Probe.point();
@@ -2413,14 +2521,34 @@ HOW TO USE
       L.push("no fully opaque layer in the stack — the page canvas (white) shows through,");
       L.push("   which is where the composite above starts.");
     }
-    L.push("sampled pixel: not available — reading the rendered pixel needs a tab-capture");
-    L.push("   permission this build does not ask for, so the composite above is a CLAIM,");
-    L.push("   computed from the walk, and nothing here has verified it.");
+    L.push(...sampleLines(colour));
     if (doubts.length) {
       L.push("not accounted for:");
       for (const d of doubts) L.push(`   ${d}`);
     }
     L.push(...scope(dropped, hosts, frames));
+    return L;
+  }
+  function sampleLines(colour) {
+    const got = Sample.current();
+    if (!got) {
+      return [
+        "sampled pixel: not taken — the composite above is a CLAIM computed from",
+        `   the walk, and nothing here has verified it${Sample.why ? ` (${Sample.why})` : ""}.`,
+        '   Turn on "Sample the real pixel" under ⚙ to have ⧉ read the screen.'
+      ];
+    }
+    const c = { r: Math.round(colour.r), g: Math.round(colour.g), b: Math.round(colour.b) };
+    const d = { r: Math.abs(c.r - got.rgb.r), g: Math.abs(c.g - got.rgb.g), b: Math.abs(c.b - got.rgb.b) };
+    const worst = Math.max(d.r, d.g, d.b);
+    const L = [
+      `sampled pixel: rgb(${got.rgb.r},${got.rgb.g},${got.rgb.b})   (capture taken, one pixel read, discarded)`,
+      `   composite   rgb(${c.r},${c.g},${c.b})`,
+      `   ΔRGB        ${d.r},${d.g},${d.b}   worst ${worst}`
+    ];
+    if (worst === 0) L.push("   they agree — the walk accounted for everything that paints here");
+    else if (worst <= 3) L.push("   near-agreement: a rounding, a colour-space conversion, or a saturate");
+    else L.push(`   THEY DISAGREE by ${worst} — something paints here that the walk did not account for; the notes below are the candidates`);
     return L;
   }
   function scope(dropped, hosts, frames) {
@@ -2505,6 +2633,32 @@ HOW TO USE
        A meter you did not ask for is overhead pretending to be help. */
     watch,
     unwatch,
+    prepare,
+    /**
+     * THE ONE SETTING, and it is a privacy decision rather than a preference.
+     *
+     * Everything else this tool prints is derived from the DOM. This reads the
+     * PIXEL, which means capturing the visible tab — and the pages it runs on
+     * carry names, locations and phone numbers. So it is off until somebody
+     * says otherwise, the label says what it does rather than what it gives,
+     * and the capture happens only on an explicit ⧉ copy: a hover never takes
+     * one, whatever is armed.
+     *
+     * Filed under INSPECT, because it changes what you are SHOWN about the
+     * pixel rather than what counts as a problem — so turning it on must not
+     * throw away a page audit that was judged under the same rules.
+     */
+    options() {
+      return [
+        {
+          key: "sample",
+          label: "Sample the real pixel — captures the tab on ⧉",
+          def: false,
+          type: "toggle",
+          affects: "inspect"
+        }
+      ];
+    },
     badge: badge3,
     compact: compact3,
     legend: legend3,
@@ -5370,6 +5524,13 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       }
     },
     async copy() {
+      for (const t of Tools.withHook("prepare", true)) {
+        try {
+          const r = t.prepare.call(t);
+          if (r && typeof r.then === "function") await r;
+        } catch {
+        }
+      }
       await Report.toClipboard(Report.text());
       WebPanel.flash("✓");
     },
