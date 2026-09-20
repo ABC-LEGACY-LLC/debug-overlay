@@ -32,6 +32,9 @@ import { State } from './state.js';
           keeps()        → this tool KEEPS selections: while armed, a click's
                            selection persists as a pin instead of replacing
                            the previous one
+          selects()      → this tool MAKES selections of its own, by some
+                           gesture that is not the click — it pins directly
+                           rather than changing what a click means
           options()      → [{ key, label, values, def }] the panel can change
           css            → stylesheet text, read from EVERY registered tool
      ====================================================================== */
@@ -61,8 +64,20 @@ import { State } from './state.js';
       note: 'how what you click becomes what you are looking at',
       /* NOT listRows: a row in the panel's list is a service contribution —
          perf's freeze log proved it, when the old predicate filed a monitor
-         under Select and sat it at the top of the bar. */
-      has: (t) => !!(t.groups || t.pendingIndex || t.keeps) },
+         under Select and sat it at the top of the bar.
+
+         `selects` is here because the first three are all about what a CLICK
+         becomes, and the lasso proved that is not the whole of selecting: it
+         pins by a gesture of its own and changes what a click means not at
+         all, so every one of them was false and a tool whose entire product
+         is pins derived the role Act — off its `intercept`, which only
+         suppresses the click its own drag caused. The panel then gave it the
+         component shape over the comment promising a lasso the input shape,
+         and filed its `affects: 'select'` option under a heading its own
+         role contradicted. No hook could tell you this, which is what makes
+         it a declaration rather than a repeat — the same reason `keeps` is
+         one. */
+      has: (t) => !!(t.groups || t.pendingIndex || t.keeps || t.selects) },
     { key: 'inspect', label: 'Inspect',
       note: 'what gets shown about it',
       has: (t) => !!(t.badge || t.compact || t.annotate) },

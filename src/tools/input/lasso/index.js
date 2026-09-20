@@ -24,6 +24,15 @@ const tool = defineTool({
   draw,
 
   /**
+   * THE DECLARATION THAT CANNOT BE DERIVED. Everything else this tool
+   * implements is generic — a runtime, a claim on one click, a rectangle —
+   * and none of it says the product is PINS. Without this the role came out
+   * Act, off the `intercept` that exists only to swallow the click its own
+   * drag caused, and the panel dressed a selection tool as a component.
+   */
+  selects() { return true; },
+
+  /**
    * WHAT A BOX TAKES, and it is a real choice rather than a preference.
    *
    * A rectangle over one card contains the card and every node inside it. The

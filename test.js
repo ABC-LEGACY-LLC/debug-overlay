@@ -4222,6 +4222,21 @@ console.log('\nA BOX TAKES WHAT A CLICK CANNOT');
     'the whole reason a rectangle beats a point: it asks where things ARE');
   ok('…and takes nothing that is outside it',
     !/#far/.test(a.pinned()), 'the box took something it never covered');
+
+  /* THE PANEL MUST NOT DRESS A SELECTION TOOL AS A COMPONENT. Roles are
+     derived, so a tool whose whole product is pins had better derive Select —
+     and this one did not, until it said so. Everything it implements is
+     generic (a runtime, a rectangle, a claim on one click), and the `intercept`
+     that only swallows the click its own drag caused made it read as Act. The
+     input SHAPE is derived from that role, over a comment in ui/web-panel.js
+     promising exactly this tool the input shape without learning its name. */
+  const lassoBtn = a.w.document.querySelector('#__debug-overlay-bar [data-tool="lasso"]');
+  ok('a tool whose product is pins derives Select — the tooltip says so',
+    /Select/.test(lassoBtn?.getAttribute('title') || ''),
+    lassoBtn?.getAttribute('title') || '(no lasso button on the bar)');
+  ok('…so the bar gives it the INPUT shape, like the other two input tools',
+    lassoBtn?.classList.contains('debug-overlay-input'),
+    lassoBtn?.className || '(no lasso button on the bar)');
   a.w.close();
 
   // the other readings, because neither is always wrong

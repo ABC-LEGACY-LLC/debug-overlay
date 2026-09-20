@@ -15,7 +15,7 @@ const SRC = path.join(__dirname, 'src');
 
 const HOOKS = ['badge', 'compact', 'report', 'reportTail', 'draw', 'listRows',
                'pendingIndex', 'annotate', 'audit', 'auditPage', 'options',
-               'intercept', 'groups', 'gestures', 'keeps', 'legend',
+               'intercept', 'groups', 'gestures', 'keeps', 'selects', 'legend',
                'watch', 'unwatch', 'timeline', 'prepare'];
 
 /** Comments first: a file that merely EXPLAINS a hook is not implementing it. */
@@ -94,7 +94,7 @@ const SURFACES = [
   { key: '⚙ settings', core: 'settings — grouping by affects, plus KEYS and LEGEND',
     fills: ['options', 'gestures', 'legend'] },
   { key: 'input', core: 'interactions — hover, click, the CURRENT selection, hotkeys',
-    fills: ['intercept', 'keeps'] },
+    fills: ['intercept', 'keeps', 'selects'] },
 ];
 
 /**
@@ -102,8 +102,8 @@ const SURFACES = [
  *
  *   COMPONENT — reads the page, produces content INTO SERVICES for your eyes:
  *               badge/compact/annotate, audit/auditPage
- *   SOURCE    — input side: turns your clicks into what components work ON
- *               (pins, groups): groups/listRows/pendingIndex
+ *   SOURCE    — input side: turns your input into what components work ON
+ *               (pins, groups): groups/listRows/pendingIndex/selects
  *   ACTION    — input side: turns a click into a DIRECT effect, no component
  *               in between: intercept
  *
@@ -117,7 +117,8 @@ const bandsOf = (t) => {
   const out = [];
   if (has('badge') || has('compact') || has('annotate') ||
       has('audit') || has('auditPage')) out.push('COMPONENT');
-  if (has('groups') || has('pendingIndex') || has('keeps')) out.push('SOURCE');
+  if (has('groups') || has('pendingIndex') || has('keeps') ||
+      has('selects')) out.push('SOURCE');
   if (has('intercept')) out.push('ACTION');
   return out;
 };

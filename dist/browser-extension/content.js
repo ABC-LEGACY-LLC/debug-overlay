@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.192 — the extension gate */
+/* Debug Overlay v3.8.193 — the extension gate */
 
 /*
 HOW TO USE
@@ -266,7 +266,7 @@ HOW TO USE
   appears, with nothing installed or wired up.
 
   The rules between the buttons mark the PIPELINE, top to bottom: the input
-  side (📌 pin, ⬚ group, ▭ lasso — what your clicks become), then the components
+  side (⬚ group, ▭ lasso, 📌 pin — what your input becomes), then the components
   (what describes the page), then ⌕ and ⚙, then the copy/clear band — the pin
   count sits up with 📌, whose home it is. A
   green dot on a tool means its rule feeds ⌕. Arming decides what you SEE;
@@ -432,7 +432,7 @@ HOW TO USE
     // manifest that ships it, and an overlay that cannot say which version it
     // is makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.192",
+    VERSION: "3.8.193",
     // Substituted like VERSION, from release.json: the MANIFEST the extension
     // publishes, which is the one file that moves with every release. It was
     // the userscript's meta header until that gate was withdrawn — and that
@@ -735,9 +735,21 @@ HOW TO USE
       label: "Select",
       note: "how what you click becomes what you are looking at",
       /* NOT listRows: a row in the panel's list is a service contribution —
-         perf's freeze log proved it, when the old predicate filed a monitor
-         under Select and sat it at the top of the bar. */
-      has: (t) => !!(t.groups || t.pendingIndex || t.keeps)
+               perf's freeze log proved it, when the old predicate filed a monitor
+               under Select and sat it at the top of the bar.
+      
+               `selects` is here because the first three are all about what a CLICK
+               becomes, and the lasso proved that is not the whole of selecting: it
+               pins by a gesture of its own and changes what a click means not at
+               all, so every one of them was false and a tool whose entire product
+               is pins derived the role Act — off its `intercept`, which only
+               suppresses the click its own drag caused. The panel then gave it the
+               component shape over the comment promising a lasso the input shape,
+               and filed its `affects: 'select'` option under a heading its own
+               role contradicted. No hook could tell you this, which is what makes
+               it a declaration rather than a repeat — the same reason `keeps` is
+               one. */
+      has: (t) => !!(t.groups || t.pendingIndex || t.keeps || t.selects)
     },
     {
       key: "inspect",
@@ -3360,6 +3372,16 @@ HOW TO USE
     unwatch: unwatch2,
     intercept,
     draw: draw7,
+    /**
+     * THE DECLARATION THAT CANNOT BE DERIVED. Everything else this tool
+     * implements is generic — a runtime, a claim on one click, a rectangle —
+     * and none of it says the product is PINS. Without this the role came out
+     * Act, off the `intercept` that exists only to swallow the click its own
+     * drag caused, and the panel dressed a selection tool as a component.
+     */
+    selects() {
+      return true;
+    },
     /**
      * WHAT A BOX TAKES, and it is a real choice rather than a preference.
      *

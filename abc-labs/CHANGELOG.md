@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.8.193 — 2026-09-20
+
+- **Fixed: the lasso button was dressed as a component, not an input.** Roles
+  are derived from hooks, and every hook the lasso implements is generic — a
+  runtime, a rectangle, a claim on the click its own drag caused. So a tool
+  whose entire product is pins derived the role *Act*, off that claim. The bar
+  gave it the component shape, and its own "A box keeps" setting sat under a
+  Select heading its role contradicted. A tool can now declare that it makes
+  selections of its own; nothing else could tell you.
+
 ## 3.8.192 — 2026-09-20
 
 - **New: ▭ lasso — drag a box, keep everything inside it.** Selection was one
