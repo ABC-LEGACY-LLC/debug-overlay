@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.8.184 — 2026-09-20
+
+- ⛏ **Paint no longer contradicts itself.** A real report marked a layer
+  `← the colour you see` while the very next line said that layer carried a
+  full-coverage `::after` no hit test can reach. A pseudo paints OVER its
+  element, so the confident half of that pair was the wrong half. The marker
+  now says `a pseudo paints over it, unseen`, keeps the blend count beside it,
+  and the fold names the pseudo it could not include.
+- A pseudo now prints its **content value** rather than the bare word
+  `content` — `content ""` is a decoration layer, `content "→"` paints a glyph,
+  `content: url(…)` is an image — and `box-shadow` on a pseudo is reported,
+  which was missed entirely and can colour a pixel outside the pseudo's own box.
+
 ## 3.8.183 — 2026-09-20
 
 - The updater no longer files `install.html` under the same verdict as inert

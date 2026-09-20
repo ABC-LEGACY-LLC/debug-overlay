@@ -31,6 +31,7 @@ export function reportTail() {
   }
 
   const { at, over } = base(layers);
+  const covered = at >= 0 && layers.slice(0, at + 1).some((x) => x.pseudo.length);
   const w = Math.min(40, Math.max(...layers.map((x) => x.sel.length)));
   const boxes = layers.map((x) => `(${x.rect.x}, ${x.rect.y}, ${x.rect.w} × ${x.rect.h})`);
   const bw = Math.max(...boxes.map((b) => b.length));
@@ -69,9 +70,17 @@ export function reportTail() {
     /* THE ANSWER, MARKED. The composite is stated below, but working out
        which of twelve rows produced it is arithmetic the reader should not
        have to do — and it is the question they came with. */
+    /* The marker must not out-claim the doubts beneath it, and must not drop
+       what it already knew to say so. A pseudo on or above the base paints
+       over it unseen — "the colour you see" would be the report contradicting
+       its own next paragraph — but the blend count is still the answer to a
+       different question, so both are named. */
+    const notes = [];
+    if (over) notes.push(`${over} layer${over === 1 ? '' : 's'} blend over it`);
+    if (covered) notes.push('a pseudo paints over it, unseen');
     const win = i !== at ? ''
-      : over ? `  ← base · ${over} layer${over === 1 ? '' : 's'} blend over it`
-             : '  ← the colour you see';
+      : notes.length ? `  ← base · ${notes.join(' · ')}`
+                     : '  ← the colour you see';
     L.push(`  [${i + 1}] ${sel}  ${boxes[i].padEnd(bw)}  ${verdict}${win}`);
     if (x.backdrop) {
       L.push(`      backdrop-filter: ${x.backdrop} — the pixel here is FILTERED, not`);
@@ -81,7 +90,7 @@ export function reportTail() {
       /* The GEOMETRY is what tells the two apart. `inset 0` covers the whole
          element; `bottom 0px · auto × 1px` is a hairline along one edge — and
          "may paint this pixel" said exactly the same thing about both. */
-      L.push(`      ${ps.which} — content + ${ps.bits.join(', ')}`);
+      L.push(`      ${ps.which} — ${ps.bits.join(' · ')}`);
       L.push(`      ${' '.repeat(ps.which.length)}   ${ps.geo} — NOT in the stack;` +
              ' no hit test reaches it');
     }

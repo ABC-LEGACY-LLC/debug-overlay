@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.183 — the extension gate */
+/* Debug Overlay v3.8.184 — the extension gate */
 
 /*
 HOW TO USE
@@ -396,7 +396,7 @@ HOW TO USE
     // manifest that ships it, and an overlay that cannot say which version it
     // is makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.183",
+    VERSION: "3.8.184",
     // Substituted like VERSION, from release.json: the MANIFEST the extension
     // publishes, which is the one file that moves with every release. It was
     // the userscript's meta header until that gate was withdrawn — and that
@@ -1998,12 +1998,15 @@ HOW TO USE
     const content = cs.content;
     if (!content || content === "none" || content === "normal") return null;
     const bits = [];
+    bits.push(`content ${cs.content}`);
     const bg = cs.backgroundColor;
     if (bg && bg !== "transparent" && !/^rgba\(0, 0, 0, 0\)$/.test(bg)) bits.push(`bg ${bg}`);
     if (cs.backgroundImage && cs.backgroundImage !== "none") bits.push("background-image");
     if (cs.maskImage && cs.maskImage !== "none") bits.push("mask");
     if (parseFloat(cs.borderTopWidth) || parseFloat(cs.borderLeftWidth)) bits.push("border");
-    return bits.length ? { which, bits, geo: geometry(cs) } : null;
+    if (cs.boxShadow && cs.boxShadow !== "none") bits.push(`box-shadow ${cs.boxShadow}`);
+    const paints = bits.length > 1 || !/^["'](?:)?["']$/.test(cs.content);
+    return paints ? { which, bits, geo: geometry(cs) } : null;
   }
   function geometry(cs) {
     const size = `${cs.width || "auto"} × ${cs.height || "auto"}`;
@@ -2251,10 +2254,16 @@ HOW TO USE
   }
   function composite(layers) {
     const doubts = [];
+    const floor = base(layers).at;
     let out = { r: 255, g: 255, b: 255, a: 1 };
     for (let i = layers.length - 1; i >= 0; i--) {
       const L = layers[i];
       if (!L.paints) continue;
+      if (floor >= 0 && i <= floor) {
+        for (const ps of L.pseudo) {
+          doubts.push(`${L.sel} has a ${ps.which} (${ps.bits.join(", ")} · ${ps.geo}) — a pseudo paints OVER its element and no hit test reaches it, so this fold leaves it out and the colour above may not be the one on screen`);
+        }
+      }
       if (L.bgImage) doubts.push(`${L.sel} paints a background-image — its pixel here is unknown`);
       if (L.backdrop) doubts.push(`${L.sel} has backdrop-filter: ${L.backdrop} — the pixel here is FILTERED, not composited`);
       if (L.filter) doubts.push(`${L.sel} has filter: ${L.filter} — it transforms everything the element paints, after the fact`);
@@ -2290,6 +2299,7 @@ HOW TO USE
       return L;
     }
     const { at, over } = base(layers);
+    const covered = at >= 0 && layers.slice(0, at + 1).some((x) => x.pseudo.length);
     const w = Math.min(40, Math.max(...layers.map((x) => x.sel.length)));
     const boxes = layers.map((x) => `(${x.rect.x}, ${x.rect.y}, ${x.rect.w} × ${x.rect.h})`);
     const bw = Math.max(...boxes.map((b) => b.length));
@@ -2311,14 +2321,17 @@ HOW TO USE
       }
       if (x.el.shadowRoot) verdict += " · shadow content NOT walked";
       if (/^(IFRAME|FRAME)$/.test(x.el.tagName)) verdict += " · frame contents NOT walked";
-      const win = i !== at ? "" : over ? `  ← base · ${over} layer${over === 1 ? "" : "s"} blend over it` : "  ← the colour you see";
+      const notes = [];
+      if (over) notes.push(`${over} layer${over === 1 ? "" : "s"} blend over it`);
+      if (covered) notes.push("a pseudo paints over it, unseen");
+      const win = i !== at ? "" : notes.length ? `  ← base · ${notes.join(" · ")}` : "  ← the colour you see";
       L.push(`  [${i + 1}] ${sel}  ${boxes[i].padEnd(bw)}  ${verdict}${win}`);
       if (x.backdrop) {
         L.push(`      backdrop-filter: ${x.backdrop} — the pixel here is FILTERED, not`);
         L.push(`      composited; the walk below cannot account for it`);
       }
       for (const ps of x.pseudo) {
-        L.push(`      ${ps.which} — content + ${ps.bits.join(", ")}`);
+        L.push(`      ${ps.which} — ${ps.bits.join(" · ")}`);
         L.push(`      ${" ".repeat(ps.which.length)}   ${ps.geo} — NOT in the stack; no hit test reaches it`);
       }
     });

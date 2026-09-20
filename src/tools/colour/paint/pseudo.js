@@ -17,12 +17,25 @@ export function pseudo(el, which) {
   const content = cs.content;
   if (!content || content === 'none' || content === 'normal') return null;
   const bits = [];
+  /* The CONTENT VALUE, not the bare word. `content` is the gate every pseudo
+     passes, so printing it said nothing — while the value itself is the
+     difference between a decoration layer (content "") and one that paints a
+     glyph (content "→"), and between either and content: url(…), which is an
+     image. It costs a variable to say which. */
+  bits.push(`content ${cs.content}`);
   const bg = cs.backgroundColor;
   if (bg && bg !== 'transparent' && !/^rgba\(0, 0, 0, 0\)$/.test(bg)) bits.push(`bg ${bg}`);
   if (cs.backgroundImage && cs.backgroundImage !== 'none') bits.push('background-image');
   if (cs.maskImage && cs.maskImage !== 'none') bits.push('mask');
   if (parseFloat(cs.borderTopWidth) || parseFloat(cs.borderLeftWidth)) bits.push('border');
-  return bits.length ? { which, bits, geo: geometry(cs) } : null;
+  // a paint source the first version missed entirely, and one that reaches
+  // OUTSIDE the pseudo's own box, so it can colour a pixel the geometry says
+  // it does not cover
+  if (cs.boxShadow && cs.boxShadow !== 'none') bits.push(`box-shadow ${cs.boxShadow}`);
+  // the gate stays "does it paint" — content alone decorates nothing unless it
+  // is text or an image, and a pseudo that paints nothing is not a layer
+  const paints = bits.length > 1 || !/^["'](?:)?["']$/.test(cs.content);
+  return paints ? { which, bits, geo: geometry(cs) } : null;
 }
 
 /**

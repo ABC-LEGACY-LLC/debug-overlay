@@ -41,11 +41,25 @@ export function base(layers) {
  */
 export function composite(layers) {
   const doubts = [];
+  /* A PSEUDO ON OR ABOVE THE BASE UNSETTLES THE ANSWER. ::before and ::after
+     paint OVER their element's own background, and no hit test reaches them —
+     so a layer marked "the colour you see" while carrying a full-coverage
+     pseudo is a confident answer with an unstated doubt, which is the one
+     thing this tool may not produce. Below the base they cannot matter: the
+     base covers them. */
+  const floor = base(layers).at;
   // the canvas under a page is white; anything below the stack is not ours
   let out = { r: 255, g: 255, b: 255, a: 1 };
   for (let i = layers.length - 1; i >= 0; i--) {
     const L = layers[i];
     if (!L.paints) continue;
+    if (floor >= 0 && i <= floor) {
+      for (const ps of L.pseudo) {
+        doubts.push(`${L.sel} has a ${ps.which} (${ps.bits.join(', ')} · ${ps.geo}) — ` +
+          'a pseudo paints OVER its element and no hit test reaches it, so this fold ' +
+          'leaves it out and the colour above may not be the one on screen');
+      }
+    }
     if (L.bgImage) doubts.push(`${L.sel} paints a background-image — its pixel here is unknown`);
     if (L.backdrop) doubts.push(`${L.sel} has backdrop-filter: ${L.backdrop} — the pixel here is FILTERED, not composited`);
     /* ONE CLASS, ONE TREATMENT. None of these is expressible as colour over

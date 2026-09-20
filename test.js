@@ -4151,6 +4151,10 @@ console.log('\nWHO PAINTED THIS PIXEL');
   ok('the composite is stated, bottom → top',
     /composited bottom → top: rgb\(17,17,20\)/.test(rep),
     rep.split('\n').find((l) => /composited/.test(l)) || '(no composite)');
+  // the plain path: nothing paints over the base, so the marker says so flatly
+  ok('with nothing over the base, the answer is given without hedging',
+    /← the colour you see/.test(rep) && !/pseudo paints over it/.test(rep),
+    rep.split('\n').find((l) => /←/.test(l)) || '(no marker)');
   /* The most valuable line the requester asked for is the DISAGREEMENT
      between the walk and a sampled pixel — and this build cannot sample one.
      Saying so is what keeps the composite a claim rather than a verified
@@ -4257,17 +4261,29 @@ console.log('\nWHO PAINTED THIS PIXEL');
     ok('every row carries its rect — a short selector is often not unique',
       /#glass\s+\(40, 40, 320 × 160\)/.test(rep2), line(/#glass/));
     ok('the layer the colour comes from is marked, not left to be worked out',
-      /← (the colour you see|base · \d+ layers? blend over it)/.test(rep2),
+      /← base · 1 layer blend over it/.test(rep2), line(/←/));
+    /* AND THE MARKER DOES NOT OUT-CLAIM THE DOUBTS UNDER IT. Seen on a real
+       report: a layer marked "the colour you see" while the very next line
+       said it carried a full-coverage ::after that no hit test reaches. A
+       pseudo paints OVER its element, so the confident half of that pair was
+       the wrong half. */
+    ok('…and a pseudo over the base is said to unsettle it, not left implied',
+      /← base[^\n]*a pseudo paints over it, unseen/.test(rep2), line(/←/));
+    ok('…while the blend count survives saying so — two questions, two answers',
+      /← base · 1 layer blend over it · a pseudo paints over it/.test(rep2),
       line(/←/));
+    ok('and the fold names the pseudo it could not include',
+      /has a ::before[^\n]*fold leaves it out/.test(rep2),
+      line(/has a ::before/));
     ok('backdrop-filter is printed with its value, and called FILTERED',
       /backdrop-filter: blur\(24px\) saturate\(1\.4\)/.test(rep2) && /FILTERED/.test(rep2),
       line(/backdrop-filter:/));
     ok('::before is reported — the wallpaper layer no hit test can see',
-      /::before — content \+ background-image/.test(rep2), line(/::before/));
+      /::before — content "" · background-image/.test(rep2), line(/::before/));
     ok('…and WHERE it sits: inset 0 is a wallpaper, and says so',
       /inset 0px · 320px × 160px — NOT in the stack/.test(rep2), line(/inset 0px/));
     ok('and ::after with its border — the edge ring',
-      /::after — content \+ border/.test(rep2), line(/::after/));
+      /::after — content "" · border/.test(rep2), line(/::after/));
     ok('…and its geometry tells it apart from the wallpaper: one hairline',
       /right 0px bottom 0px left 0px · 320px × 1px/.test(rep2), line(/× 1px/));
 
@@ -4280,6 +4296,7 @@ console.log('\nWHO PAINTED THIS PIXEL');
       /#glass[^\n]*PAINTS · alpha 0\.06/.test(rep2), line(/#glass/));
     ok('and the blend count counts only what actually contributes',
       /← base · 1 layer blend over it/.test(rep2), line(/← base/));
+
 
     /* The three in backdrop-filter's class: the fold does colour over colour
        and none of these is that, so silence would make the composite wrong
