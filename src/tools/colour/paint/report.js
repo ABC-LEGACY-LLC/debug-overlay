@@ -1,6 +1,7 @@
 import { Colour } from '../../../subjects/colour.js';
 import { Probe } from './probe.js';
 import { base, composite } from './verdict.js';
+import { skipped } from './skipped.js';
 
 /**
  * THE DELIVERABLE. The consumer of this tool is a reader working from the
@@ -95,6 +96,22 @@ export function reportTail() {
              ' no hit test reaches it');
     }
   });
+
+  /* WHAT THE HIT TEST LEFT OUT, after the stack it produced. Listed here
+     rather than woven in, because these were never given a paint order — the
+     browser never put them in one, and inventing one would be the report
+     claiming to know something it does not. */
+  const gone = skipped(p.x, p.y, layers.map((x) => x.el));
+  if (gone.length) {
+    L.push('in the box, NOT in the stack — the hit test skipped these:');
+    for (const g of gone) {
+      const sel = g.sel.length > w ? '…' + g.sel.slice(-(w - 1)) : g.sel.padEnd(w);
+      const box = `(${Math.round(g.r.left)}, ${Math.round(g.r.top)}, ` +
+                  `${Math.round(g.r.width)} × ${Math.round(g.r.height)})`;
+      L.push(`  [—] ${sel}  ${box.padEnd(bw)}  box contains the point, hit test SKIPPED it`);
+      L.push(`      ${g.why}`);
+    }
+  }
 
   const { colour, doubts } = composite(layers);
   L.push(`composited bottom → top: rgb(${Colour.rgb(colour)})`);

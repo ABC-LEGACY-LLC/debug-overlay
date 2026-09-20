@@ -60,10 +60,20 @@
         let s = e.tagName.toLowerCase();
         const cls = [...e.classList].filter((c) => !c.startsWith('debug-overlay-')).slice(0, 2);
         if (cls.length) s += '.' + cls.join('.');
-        const p = e.parentElement;
-        if (p) {
-          const same = [...p.children].filter((x) => x.tagName === e.tagName);
-          if (same.length > 1) s += `:nth-of-type(${same.indexOf(e) + 1})`;
+        /* WALKED, not collected. `[...p.children].filter(…)` copies every
+           sibling into an array to answer two small questions — which
+           position this one is, and whether there is more than one of its
+           tag. On a list with two thousand children that is an allocation
+           and three passes per call, and this runs for every finding a sweep
+           reports as well as for every row here. Counting backwards gives
+           the index; the forward scan stops at the first match it needs. */
+        if (e.parentElement) {
+          let idx = 1, more = false;
+          for (let x = e.previousElementSibling; x; x = x.previousElementSibling)
+            if (x.tagName === e.tagName) idx++;
+          for (let x = e.nextElementSibling; x && !more; x = x.nextElementSibling)
+            if (x.tagName === e.tagName) more = true;
+          if (idx > 1 || more) s += `:nth-of-type(${idx})`;
         }
         return s;
       };

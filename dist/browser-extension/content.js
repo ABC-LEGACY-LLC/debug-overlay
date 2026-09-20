@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.185 — the extension gate */
+/* Debug Overlay v3.8.186 — the extension gate */
 
 /*
 HOW TO USE
@@ -168,6 +168,15 @@ HOW TO USE
                  mix-blend-mode, and an ancestor's opacity (which fades a
                  whole subtree as ONE group). Each would make the composite
                  quietly wrong.
+
+                 It also lists the elements whose BOX holds the pixel that
+                 the browser's hit test skipped — marked [—]. Hit-testing
+                 respects the painted shape, so a point inside a card's box
+                 but outside its rounded corner is not a hit on that card:
+                 it never reaches the stack, and you meet it as "that area
+                 is not selectable". Each says why — outside the painted
+                 shape with its corner and radius, pointer-events: none,
+                 clipped by an ancestor, or visibility: hidden.
 
                  It also says what it could NOT see, because a walk that
                  stops quietly is a partial answer wearing a complete one:
@@ -396,7 +405,7 @@ HOW TO USE
     // manifest that ships it, and an overlay that cannot say which version it
     // is makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.185",
+    VERSION: "3.8.186",
     // Substituted like VERSION, from release.json: the MANIFEST the extension
     // publishes, which is the one file that moves with every release. It was
     // the userscript's meta header until that gate was withdrawn — and that
@@ -1154,10 +1163,13 @@ HOW TO USE
         let s = e2.tagName.toLowerCase();
         const cls = [...e2.classList].filter((c) => !c.startsWith("debug-overlay-")).slice(0, 2);
         if (cls.length) s += "." + cls.join(".");
-        const p = e2.parentElement;
-        if (p) {
-          const same = [...p.children].filter((x) => x.tagName === e2.tagName);
-          if (same.length > 1) s += `:nth-of-type(${same.indexOf(e2) + 1})`;
+        if (e2.parentElement) {
+          let idx = 1, more = false;
+          for (let x = e2.previousElementSibling; x; x = x.previousElementSibling)
+            if (x.tagName === e2.tagName) idx++;
+          for (let x = e2.nextElementSibling; x && !more; x = x.nextElementSibling)
+            if (x.tagName === e2.tagName) more = true;
+          if (idx > 1 || more) s += `:nth-of-type(${idx})`;
         }
         return s;
       };
@@ -1924,6 +1936,16 @@ HOW TO USE
       bl: [sub(rad.bl[0], bw.l), sub(rad.bl[1], bw.b)]
     };
   }
+  function cornerAt(x, y, b, rad) {
+    const zones = [
+      ["top-left", x < b.left + rad.tl[0] && y < b.top + rad.tl[1], rad.tl],
+      ["top-right", x > b.right - rad.tr[0] && y < b.top + rad.tr[1], rad.tr],
+      ["bottom-right", x > b.right - rad.br[0] && y > b.bottom - rad.br[1], rad.br],
+      ["bottom-left", x < b.left + rad.bl[0] && y > b.bottom - rad.bl[1], rad.bl]
+    ];
+    const hit = zones.find(([, inZone]) => inZone);
+    return hit ? { corner: hit[0], r: Math.round(hit[2][0]) } : null;
+  }
   function sideAt(x, y, b, bw) {
     if (bw.t && y < b.top + bw.t) return "top";
     if (bw.b && y > b.bottom - bw.b) return "bottom";
@@ -2281,6 +2303,45 @@ HOW TO USE
     return { colour: out, doubts: [...new Set(doubts)] };
   }
 
+  // src/tools/colour/paint/skipped.js
+  function skipped(x, y, inStack) {
+    const hit = new Set(inStack);
+    const out = [];
+    let all = [];
+    try {
+      all = document.body ? document.body.querySelectorAll("*") : [];
+    } catch {
+      return out;
+    }
+    for (const el2 of all) {
+      if (hit.has(el2)) continue;
+      const r = el2.getBoundingClientRect();
+      if (!r.width || !r.height) continue;
+      if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
+      const cs = getComputedStyle(el2);
+      const why = reason(el2, cs, r, x, y);
+      if (why) out.push({ el: el2, sel: U.selectorOf(el2), r, why });
+    }
+    return out.sort((a, b) => a.r.width * a.r.height - b.r.width * b.r.height);
+  }
+  function reason(el2, cs, r, x, y) {
+    if (cs.visibility === "hidden") return "visibility: hidden — laid out, and not hit-testable";
+    if (cs.pointerEvents === "none") return "pointer-events: none — it declines the hit test";
+    for (let e = el2.parentElement; e && e.nodeType === 1; e = e.parentElement) {
+      if (getComputedStyle(e).pointerEvents === "none") {
+        return `pointer-events: none on ${U.selectorOf(e)} — inherited, so this declines too`;
+      }
+    }
+    const clip = clippedBy(el2, ancestry(x, y, [el2]).blockers);
+    if (clip) return `clipped away by ${clip.sel} (${clip.why})`;
+    const rad = radii(cs, r.width, r.height);
+    if (!inRounded(x, y, r, rad)) {
+      const c = cornerAt(x, y, r, rad);
+      return "outside its painted shape" + (c ? ` (r ${c.r}, ${c.corner} corner)` : "") + " — the browser skips it for the same reason, which is why it is not in the stack";
+    }
+    return "skipped, and no cause this can name — worth looking at by hand";
+  }
+
   // src/tools/colour/paint/report.js
   function reportTail() {
     const p = Probe.point();
@@ -2336,6 +2397,16 @@ HOW TO USE
         L.push(`      ${" ".repeat(ps.which.length)}   ${ps.geo} — NOT in the stack; no hit test reaches it`);
       }
     });
+    const gone = skipped(p.x, p.y, layers.map((x) => x.el));
+    if (gone.length) {
+      L.push("in the box, NOT in the stack — the hit test skipped these:");
+      for (const g of gone) {
+        const sel = g.sel.length > w ? "…" + g.sel.slice(-(w - 1)) : g.sel.padEnd(w);
+        const box = `(${Math.round(g.r.left)}, ${Math.round(g.r.top)}, ${Math.round(g.r.width)} × ${Math.round(g.r.height)})`;
+        L.push(`  [—] ${sel}  ${box.padEnd(bw)}  box contains the point, hit test SKIPPED it`);
+        L.push(`      ${g.why}`);
+      }
+    }
     const { colour, doubts } = composite(layers);
     L.push(`composited bottom → top: rgb(${Colour.rgb(colour)})`);
     if (at < 0) {

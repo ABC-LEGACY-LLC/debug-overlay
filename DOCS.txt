@@ -166,6 +166,15 @@ HOW TO USE
                  whole subtree as ONE group). Each would make the composite
                  quietly wrong.
 
+                 It also lists the elements whose BOX holds the pixel that
+                 the browser's hit test skipped — marked [—]. Hit-testing
+                 respects the painted shape, so a point inside a card's box
+                 but outside its rounded corner is not a hit on that card:
+                 it never reaches the stack, and you meet it as "that area
+                 is not selectable". Each says why — outside the painted
+                 shape with its corner and radius, pointer-events: none,
+                 clipped by an ancestor, or visibility: hidden.
+
                  It also says what it could NOT see, because a walk that
                  stops quietly is a partial answer wearing a complete one:
                  our own overlay layers removed from the top, a stack that

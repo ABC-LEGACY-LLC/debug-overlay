@@ -1,5 +1,19 @@
 # Changelog
 
+## 3.8.186 — 2026-09-20
+
+- ⛏ **Paint now shows the layers the browser's hit test skipped** — the gap the
+  tool was built for, and the one it shared. Hit-testing respects the painted
+  shape, so a point inside a card's box but outside its rounded corner is not a
+  hit on that card: it never reached the stack, and nothing said it could have.
+  Those elements are listed as `[—]` with the reason — the corner and radius
+  that cut it out, `pointer-events: none`, an ancestor's clipping, or
+  `visibility: hidden`. One symptom, four causes, none of them visible before.
+- Faster everywhere a selector is built — the copied report, and every finding
+  a page audit produces. Working out an element's `:nth-of-type` copied all of
+  its siblings into an array; on a list with two thousand children that made
+  the whole report quadratic. Measured on 2 000 elements: 2 659ms → 33ms.
+
 ## 3.8.185 — 2026-09-20
 
 - The copied report now lists pinned elements **by number** — the order the

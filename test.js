@@ -4121,7 +4121,14 @@ console.log('\nWHO PAINTED THIS PIXEL');
   const d = new JSDOM(
     `<!doctype html><html><body style="background:rgb(17,17,20)">` +
     `<div id="card" style="${rad};overflow:hidden;background:rgb(30,30,36)">` +
-    `<div id="inner" style="background:rgb(30,30,36)"></div></div></body></html>`, opts);
+    `<div id="inner" style="background:rgb(30,30,36)"></div></div>` +
+    /* THE WEDGE'S OTHER HALF. These two contain the point and the hit test
+       returns NEITHER — one because the point is outside its rounded corner,
+       one because it declines hit tests. A person meets both as "that area
+       is not selectable", and the stack showed neither. */
+    `<main id="shell" style="${rad}"></main>` +
+    `<div id="ghost" style="pointer-events:none"></div>` +
+    `</body></html>`, opts);
   const w = d.window;
   w.localStorage.setItem('__debug_overlay_tools', JSON.stringify(['paint']));
   w.localStorage.setItem('__debug_overlay_seen', JSON.stringify(idsOnDisk));
@@ -4132,6 +4139,9 @@ console.log('\nWHO PAINTED THIS PIXEL');
   card.getBoundingClientRect = R(100, 100, 300, 300);
   inner.getBoundingClientRect = R(100, 100, 300, 300);
   w.document.body.getBoundingClientRect = R(0, 0, 400, 400);
+  // both contain (105,105); the stub below returns neither, as a browser would
+  w.document.getElementById('shell').getBoundingClientRect = R(100, 100, 300, 300);
+  w.document.getElementById('ghost').getBoundingClientRect = R(0, 0, 400, 400);
   // the hit test says all three boxes contain the point; that is all it says,
   // and believing it is the mistake this tool exists to correct
   w.document.elementsFromPoint = () => [inner, card, w.document.body];
@@ -4165,6 +4175,64 @@ console.log('\nWHO PAINTED THIS PIXEL');
   ok('so the colour belongs to what is behind — body, and it says PAINTS',
     /body[^\n]*PAINTS · background-color rgb\(17, 17, 20\)/.test(rep),
     rep.split('\n').find((l) => /body/.test(l)) || '(body absent)');
+  /* THE GAP THIS TOOL WAS BUILT FOR, and had itself. Hit-testing respects the
+     PAINTED shape, so an element whose box holds the point but whose rounded
+     corner does not is skipped by the browser — the stack starts one layer
+     lower and nothing says it could have been otherwise. */
+  /* selectorOf was rewritten to walk siblings instead of collecting them —
+     an allocation and three passes per call, on a function the sweep runs for
+     every finding. The OUTPUT must be identical, and :nth-of-type is the only
+     part that changed hands: present when a tag repeats among siblings,
+     absent when it does not, and counting from one. */
+  {
+    // no ids on the parts under test: selectorOf stops at a stable id, so an
+    // id here would skip the very branch being checked
+    const wn = new JSDOM('<!doctype html><html><body><section id="s">' +
+      '<p>a</p><i>x</i><p>b</p><p>c</p>' +
+      '</section></body></html>', opts).window;
+    wn.localStorage.setItem('__debug_overlay_tools', JSON.stringify(['pin']));
+    wn.localStorage.setItem('__debug_overlay_seen', JSON.stringify(idsOnDisk));
+    wn.eval(source);
+    wn.dispatchEvent(new wn.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+    const sel = (pick) => {
+      const el = pick(wn.document);
+      wn.document.elementFromPoint = () => el;
+      el.dispatchEvent(new wn.MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
+      let got = null;
+      Object.defineProperty(wn.navigator, 'clipboard',
+        { value: { writeText: async (t) => { got = t; } }, configurable: true });
+      wn.document.getElementById('__debug-overlay-bar').querySelector('[data-copy]')
+        .dispatchEvent(new wn.MouseEvent('click', { bubbles: true }));
+      const line = (got || '').split('\n').find((l) => l.startsWith('[#'));
+      wn.document.getElementById('__debug-overlay-bar').querySelector('[data-clear]')
+        .dispatchEvent(new wn.MouseEvent('click', { bubbles: true }));
+      return line || '';
+    };
+    const second = (doc) => doc.querySelectorAll('section p')[1];
+    const lone = (doc) => doc.querySelector('section i');
+    ok('a tag that repeats among siblings still gets :nth-of-type, counting from one',
+      /p:nth-of-type\(2\)/.test(sel(second)), sel(second) || '(nothing)');
+    ok('…and one that does not, still gets none',
+      / i$/.test(sel(lone)) && !/i:nth-of-type/.test(sel(lone)),
+      sel(lone) || '(nothing)');
+    wn.close();
+  }
+
+  ok('an element the hit test skipped is listed anyway, with its own label',
+    /\[—\] #shell[^\n]*box contains the point, hit test SKIPPED it/.test(rep),
+    rep.split('\n').find((l) => /#shell/.test(l)) || '(not listed)');
+  ok('…and says WHICH corner cut it out, so a reader looks at the right pixels',
+    /outside its painted shape \(r 40, top-left corner\)/.test(rep),
+    rep.split('\n').find((l) => /painted shape \(r/.test(l)) || '(no corner)');
+  /* One symptom, a second cause — and neither was visible before. */
+  ok('the other reason a box is skipped is named too: pointer-events',
+    /\[—\] #ghost[^\n]*SKIPPED it/.test(rep) &&
+    /pointer-events: none — it declines the hit test/.test(rep),
+    rep.split('\n').find((l) => /#ghost/.test(l)) || '(not listed)');
+  ok('and they are kept OUT of the stack, which is what the browser returned',
+    !/^  \[\d+\][^\n]*#shell/m.test(rep) && !/^  \[\d+\][^\n]*#ghost/m.test(rep),
+    'a skipped element was numbered as though the hit test had returned it');
+
   ok('the composite is stated, bottom → top',
     /composited bottom → top: rgb\(17,17,20\)/.test(rep),
     rep.split('\n').find((l) => /composited/.test(l)) || '(no composite)');

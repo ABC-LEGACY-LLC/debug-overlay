@@ -68,6 +68,24 @@ export function padRadii(rad, bw) {
            bl: [sub(rad.bl[0], bw.l), sub(rad.bl[1], bw.b)] };
 }
 
+/**
+ * WHICH CORNER cut the point out, when the shape excludes it.
+ *
+ * The bare fact that a point is outside the painted shape is the finding; the
+ * corner is what lets a reader look at the right 14 pixels of the screen
+ * instead of four candidates. Only meaningful once inRounded has said no.
+ */
+export function cornerAt(x, y, b, rad) {
+  const zones = [
+    ['top-left', x < b.left + rad.tl[0] && y < b.top + rad.tl[1], rad.tl],
+    ['top-right', x > b.right - rad.tr[0] && y < b.top + rad.tr[1], rad.tr],
+    ['bottom-right', x > b.right - rad.br[0] && y > b.bottom - rad.br[1], rad.br],
+    ['bottom-left', x < b.left + rad.bl[0] && y > b.bottom - rad.bl[1], rad.bl],
+  ];
+  const hit = zones.find(([, inZone]) => inZone);
+  return hit ? { corner: hit[0], r: Math.round(hit[2][0]) } : null;
+}
+
 /** Which border the point falls in, or null for the padding box. Only
  *  meaningful once the point is known to be inside the border box. */
 export function sideAt(x, y, b, bw) {
