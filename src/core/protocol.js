@@ -53,6 +53,8 @@ const STATE = {
         rows: (view, rows, empty) => [view, rows.map(packRow), empty],
         events: null,             // (toolId, events[], isBacklog) — timeline entries, plain data;
                                   // a backlog REPLACES that tool's entries for this page visit
+        driver: null,             // ({live, busy, cmd, n, recent}) — an AI session
+                                  // driving this page, and what it is doing now
         bye: null,                // the page is unloading — expect a reconnect
 };
 

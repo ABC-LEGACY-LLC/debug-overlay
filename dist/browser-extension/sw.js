@@ -63,8 +63,28 @@ if (canOpen) chrome.action.onClicked.addListener((tab) => {
    pings every 20s keep the worker alive the way Chrome 116+ allows: traffic
    on a WebSocket resets the idle clock. */
 (() => {
+  /* THE HEARTBEAT TO THE PAGE. The page shows a chip while an AI is driving
+     it, and that chip must go out by itself when the session does — a worker
+     Chrome has suspended cannot send a farewell, so absence has to be the
+     signal. Re-asserted every BEAT ms, three times inside the page's own
+     CONFIG.AI.STALE window; change one and change the other. */
+  const BEAT = 15000;
   const S = { ws: null, url: '', token: '', tabId: null, wanted: false,
-              live: false, why: '', page: '', retry: 0, timer: 0 };
+              live: false, why: '', page: '', retry: 0, timer: 0, beat: 0 };
+  /** Tell the page it is (or is no longer) being driven. */
+  const tellTab = (tabId, live) => {
+    if (tabId == null) return;
+    try {
+      chrome.tabs.sendMessage(tabId, { type: 'debug-overlay-session', live },
+        () => void chrome.runtime.lastError);   // read = acknowledged
+    } catch {}
+  };
+  function beating(on) {
+    clearInterval(S.beat);
+    S.beat = 0;
+    if (!on) return;
+    S.beat = setInterval(() => tellTab(S.tabId, true), BEAT);
+  }
   const status = () => ({ connected: S.live, wanted: S.wanted, url: S.url,
                           tabId: S.tabId, why: S.why, page: S.page });
   // the side panel shows this if it is open; nobody listening is not an error
@@ -78,6 +98,7 @@ if (canOpen) chrome.action.onClicked.addListener((tab) => {
 
   function shut() {
     clearTimeout(S.timer);
+    beating(false);
     const ws = S.ws;
     S.ws = null;
     S.live = false;
@@ -116,6 +137,8 @@ if (canOpen) chrome.action.onClicked.addListener((tab) => {
       const was = S.live;
       S.ws = null;
       S.live = false;
+      beating(false);
+      if (was) tellTab(S.tabId, false);   // the chip goes out with the session
       if (S.wanted) {
         S.why = was ? 'connection dropped — reconnecting' : (S.why || 'no server there yet — retrying');
         later();
@@ -126,7 +149,13 @@ if (canOpen) chrome.action.onClicked.addListener((tab) => {
   }
 
   function handle(m) {
-    if (m.t === 'welcome') { S.live = true; S.retry = 0; S.why = ''; tell(); return; }
+    if (m.t === 'welcome') {
+      S.live = true; S.retry = 0; S.why = '';
+      tellTab(S.tabId, true);
+      beating(true);
+      tell();
+      return;
+    }
     if (m.t === 'refused') {
       // a refusal is an answer, not an outage: stop retrying, and say why
       S.why = 'refused: ' + (m.why || 'wrong token');
@@ -191,6 +220,8 @@ if (canOpen) chrome.action.onClicked.addListener((tab) => {
     }
     if (msg.type === 'debug-overlay-remote-disconnect') {
       S.wanted = false;
+      beating(false);
+      tellTab(S.tabId, false);
       shut();
       S.why = '';
       tell();
@@ -198,7 +229,15 @@ if (canOpen) chrome.action.onClicked.addListener((tab) => {
       return;
     }
     if (msg.type === 'debug-overlay-remote-bind') {
-      if (msg.tabId != null && msg.tabId !== S.tabId) { S.tabId = msg.tabId; S.page = ''; if (S.wanted) probe(); }
+      if (msg.tabId != null && msg.tabId !== S.tabId) {
+        // the session follows the panel's eyes: the tab it LEFT is no longer
+        // being driven, and must stop saying it is
+        tellTab(S.tabId, false);
+        S.tabId = msg.tabId;
+        S.page = '';
+        tellTab(S.tabId, S.live);
+        if (S.wanted) probe();
+      }
       respond(status());
       return;
     }

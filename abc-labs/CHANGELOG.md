@@ -1,5 +1,25 @@
 # Changelog
 
+## 3.8.198 — 2026-09-20
+
+- **The page now says who is driving it.** While an AI session is connected
+  the bar carries a chip under the power button — and only then, so a page
+  nobody is driving says nothing. Holding, it reads **AI** in blue; while a
+  command is actually running it turns green and **names the command**
+  (`audit`, `drag`, `report`…), because "it is doing something" is not the
+  question anybody has.
+- The name **rests** for a moment after the command finishes rather than
+  blinking past — most of these take a millisecond — and the tooltip carries
+  the sentence: what it is running or just ran, and how many actions the
+  session has taken.
+- **The side panel shows the list**: the last eight commands with how long
+  each took, and a ✗ against any the page refused. Both faces are painted
+  from one announcement, so they cannot tell different stories.
+- **The chip goes out by itself.** The worker re-asserts the session every
+  15s and the page forgets it after 45 without one — a worker the browser
+  suspended cannot send a farewell, and a chip still claiming a session that
+  ended is worse than no chip.
+
 ## 3.8.197 — 2026-09-20
 
 Learned from the first AI to drive the overlay for real:

@@ -448,6 +448,42 @@ const render = {
       box.append(grp);
     }
   },
+  /* WHAT THE AI IS DOING, from the page's own door — the same object the
+     on-page chip is painted from, so the two faces cannot disagree about
+     who is driving. The chip has room for one word; this has room for the
+     list, which is the question after "is it working": what has it done. */
+  driver([d]) {
+    const box = $('#rmAct');
+    if (!d || !d.live) { box.hidden = true; return; }
+    box.hidden = false;
+    box.classList.toggle('busy', !!d.busy);
+    box.textContent = '';
+    const now = document.createElement('div');
+    now.className = 'now';
+    const pip = document.createElement('span');
+    pip.className = 'pip';
+    const what = document.createElement('span');
+    const n = d.n || 0;
+    what.textContent = d.busy ? `running ${d.cmd}…`
+      : `holding · ${n} action${n === 1 ? '' : 's'}`;
+    now.append(pip, what);
+    box.append(now);
+    if (!(d.recent || []).length) return;
+    const log = document.createElement('div');
+    log.className = 'log';
+    for (const r of d.recent) {
+      const row = document.createElement('div');
+      const c = document.createElement('span');
+      c.className = 'c' + (r.ok ? '' : ' bad');
+      // a refusal is a thing that happened, and reads as one
+      c.textContent = (r.ok ? '' : '✗ ') + r.cmd;
+      const ms = document.createElement('span');
+      ms.textContent = r.ms >= 1000 ? (r.ms / 1000).toFixed(1) + 's' : r.ms + 'ms';
+      row.append(c, ms);
+      log.append(row);
+    }
+    box.append(log);
+  },
   rows([view, rows, empty]) { renderRows(view, rows, empty); },
   events([toolId, evs, backlog]) { tlPush(toolId, evs || [], !!backlog); },
   flash([msg, sel]) { flash(msg, sel); },

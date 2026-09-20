@@ -114,6 +114,15 @@
        means something. Four, because a hand on a trackpad moves one or two
        pixels between press and release without intending to. */
     LASSO_MIN: 4,
+    /* AN AI SESSION, as the person in front of the page sees it.
+       STALE: forget the driver after this long with no heartbeat. The worker
+       re-asserts every AI_BEAT ms (a literal in sw-remote.js, which is not a
+       module and cannot read this) — three times inside this window, because
+       a worker Chrome suspended cannot tell anyone it went, and a chip that
+       goes on claiming a session that ended is the panel lying about itself.
+       HOLD: how long a finished command stays named on the chip. Without it
+       every fast command is a flicker nobody can read. */
+    AI: { STALE: 45000, HOLD: 2500, RECENT: 8 },
     PICK_FLASH: 700,          // ms an element stays outlined after being picked
     LANE_SEP: 16,             // px between parallel dimension lines
     HOTKEY: { alt: true, shift: true, ctrl: false, code: 'KeyD' },

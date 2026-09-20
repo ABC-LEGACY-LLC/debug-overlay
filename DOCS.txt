@@ -294,6 +294,23 @@ HOW TO USE
   other tabs. Keep the side panel open while a session runs: the browser
   may stop the extension's worker, and the panel is what remembers.
 
+  YOU CAN SEE WHAT IT IS DOING. While a session is connected the bar carries
+  an AI chip, under the power button — and only then, so a page nobody is
+  driving says nothing. Holding, it reads "AI" in blue. While a command is
+  actually running it turns green and NAMES the command (audit, drag,
+  report…), because "it is doing something" is not the question anybody has.
+  The name rests for a moment afterwards rather than blinking past, and the
+  tooltip carries the sentence: what it is running, or just ran, and how
+  many actions this session has taken. The side panel says the same thing
+  with room for the list — the last eight commands with how long each took,
+  and a ✗ against any the page refused. Both are painted from one
+  announcement, so they cannot tell different stories.
+
+  The chip goes out by itself. The worker re-asserts the session every 15s
+  and the page forgets it after 45 without one, because a worker the browser
+  suspended cannot send a farewell — and a chip still claiming a session
+  that ended would be worse than no chip.
+
   The rules between the buttons mark the PIPELINE, top to bottom: the input
   side (⬚ group, ▭ lasso, 📌 pin — what your input becomes), then the components
   (what describes the page), then ⌕ and ⚙, then the copy/clear band — the pin

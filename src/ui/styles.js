@@ -282,6 +282,29 @@ import { CONFIG } from '../core/config.js';
     #__debug-overlay-bar.debug-overlay-removing .debug-overlay-pwr { background: var(--debug-overlay-danger); color: #fff; }
     #__debug-overlay-bar.debug-overlay-removing .debug-overlay-st { color: var(--debug-overlay-danger); }
 
+    /* AN AI SESSION IS DRIVING THIS. Hidden unless one is, so it is silent
+       on every page nobody is driving. A FIXED width, because the text is a
+       command name and the bar must not resize from "pin" to "findings".
+       Info blue while holding (in progress, not success); accent while a
+       command is actually running, which is the difference the person came
+       for. */
+    #__debug-overlay-bar .debug-overlay-ai { display: none; width: 44px; box-sizing: border-box;
+      padding: 2px 3px; border-radius: var(--debug-overlay-r-chip); text-align: center;
+      font-size: 9px; font-weight: 800; letter-spacing: .3px; line-height: 1.4;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      color: var(--debug-overlay-info); border: 1px solid var(--debug-overlay-info); }
+    #__debug-overlay-bar .debug-overlay-ai.debug-overlay-live { display: block; }
+    #__debug-overlay-bar .debug-overlay-ai.debug-overlay-busy {
+      color: var(--debug-overlay-on-accent); background: var(--debug-overlay-accent);
+      border-color: var(--debug-overlay-accent); }
+    @media (prefers-reduced-motion: no-preference) {
+      #__debug-overlay-bar .debug-overlay-ai.debug-overlay-busy {
+        animation: debug-overlay-working 1.1s ease-in-out infinite; }
+    }
+    @keyframes debug-overlay-working {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .55; } }
+
     /* hidden: the SIDE PANEL is presenting this state instead, so the web
        panel's bar steps aside — the BAR, not the overlay: pins, marks and
        badges are the page's annotations and stay. display, not visibility:

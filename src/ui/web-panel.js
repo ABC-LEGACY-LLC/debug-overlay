@@ -63,6 +63,10 @@ import { List } from './list.js';
       <span class="debug-overlay-grip" title="Drag to move — snaps to the nearest edge"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><circle cx="9" cy="12" r="1" /><circle cx="9" cy="5" r="1" /><circle cx="9" cy="19" r="1" /><circle cx="15" cy="12" r="1" /><circle cx="15" cy="5" r="1" /><circle cx="15" cy="19" r="1" /></svg></span>
       <button class="debug-overlay-pwr" title="Power (Alt+Shift+D) · v${CONFIG.VERSION}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 2v10" /><path d="M18.4 6.6a9 9 0 1 1-12.77.04" /></svg></button>
       <span class="debug-overlay-st" data-st>OFF</span>
+      <!-- WHO IS DRIVING. Not .whenOn: an AI connected while the overlay is
+           OFF is exactly when a person needs to be told, and it can switch
+           the overlay on itself. role=status so it is announced, not mimed. -->
+      <span class="debug-overlay-ai" data-ai role="status" aria-live="polite">AI</span>
       <hr class="debug-overlay-sep debug-overlay-whenOn">
       ${toolRuns}
       <!-- its own band: ⌕ and ⚙ drive the services, they are not tools -->
@@ -329,6 +333,42 @@ import { List } from './list.js';
       setCount(n) {
         el.querySelector('[data-c]').textContent = String(n);
         api.onState?.('count', n);
+      },
+
+      /**
+       * WHO IS DRIVING, and what they are doing — the one thing an overlay
+       * being moved from outside owes the person in front of it.
+       *
+       * An AI can arm tools, change settings, pin, drag and sweep. With
+       * nothing on screen saying so, a page that rearranges itself under
+       * somebody's hands is the panel lying about itself in the most
+       * literal way this project has met. The chip appears only while a
+       * session is actually connected, so it is silent the rest of the time.
+       *
+       * It names the COMMAND rather than only pulsing, because "it is doing
+       * something" is not the question anybody has — "what is it doing" is.
+       * The width is fixed so the bar does not jump from one command to the
+       * next; the title carries the sentence the chip has no room for.
+       *
+       * This file decides none of it. `busy` and `cmd` arrive from the door
+       * (app/remote.js), which is the only thing that knows — and the same
+       * call announces to the side panel, so the two faces cannot disagree.
+       */
+      setDriver(d) {
+        const c = el.querySelector('[data-ai]');
+        const live = !!(d && d.live);
+        const cmd = (d && d.cmd) || '';
+        c.classList.toggle('debug-overlay-live', live);
+        c.classList.toggle('debug-overlay-busy', !!(d && d.busy));
+        c.textContent = cmd || 'AI';
+        const n = (d && d.n) || 0;
+        const acted = `${n} action${n === 1 ? '' : 's'} so far`;
+        c.title = !live ? 'No AI session'
+          : d.busy ? `An AI session is driving this overlay — running ${cmd} · ${acted}`
+          : cmd ? `An AI session is driving this overlay — just ran ${cmd} · ${acted}`
+          : `An AI session is connected and holding · ${acted}`;
+        c.setAttribute('aria-label', c.title);
+        api.onState?.('driver', d || null);
       },
 
       // The popover's own surface, forwarded so CONTROLLER and BOOT still have

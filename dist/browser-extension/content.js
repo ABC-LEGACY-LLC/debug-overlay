@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.197 — the extension gate */
+/* Debug Overlay v3.8.198 — the extension gate */
 
 /*
 HOW TO USE
@@ -297,6 +297,23 @@ HOW TO USE
   other tabs. Keep the side panel open while a session runs: the browser
   may stop the extension's worker, and the panel is what remembers.
 
+  YOU CAN SEE WHAT IT IS DOING. While a session is connected the bar carries
+  an AI chip, under the power button — and only then, so a page nobody is
+  driving says nothing. Holding, it reads "AI" in blue. While a command is
+  actually running it turns green and NAMES the command (audit, drag,
+  report…), because "it is doing something" is not the question anybody has.
+  The name rests for a moment afterwards rather than blinking past, and the
+  tooltip carries the sentence: what it is running, or just ran, and how
+  many actions this session has taken. The side panel says the same thing
+  with room for the list — the last eight commands with how long each took,
+  and a ✗ against any the page refused. Both are painted from one
+  announcement, so they cannot tell different stories.
+
+  The chip goes out by itself. The worker re-asserts the session every 15s
+  and the page forgets it after 45 without one, because a worker the browser
+  suspended cannot send a farewell — and a chip still claiming a session
+  that ended would be worse than no chip.
+
   The rules between the buttons mark the PIPELINE, top to bottom: the input
   side (⬚ group, ▭ lasso, 📌 pin — what your input becomes), then the components
   (what describes the page), then ⌕ and ⚙, then the copy/clear band — the pin
@@ -464,7 +481,7 @@ HOW TO USE
     // manifest that ships it, and an overlay that cannot say which version it
     // is makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.197",
+    VERSION: "3.8.198",
     // Substituted like VERSION, from release.json: the MANIFEST the extension
     // publishes, which is the one file that moves with every release. It was
     // the userscript's meta header until that gate was withdrawn — and that
@@ -577,6 +594,15 @@ HOW TO USE
        means something. Four, because a hand on a trackpad moves one or two
        pixels between press and release without intending to. */
     LASSO_MIN: 4,
+    /* AN AI SESSION, as the person in front of the page sees it.
+       STALE: forget the driver after this long with no heartbeat. The worker
+       re-asserts every AI_BEAT ms (a literal in sw-remote.js, which is not a
+       module and cannot read this) — three times inside this window, because
+       a worker Chrome suspended cannot tell anyone it went, and a chip that
+       goes on claiming a session that ended is the panel lying about itself.
+       HOLD: how long a finished command stays named on the chip. Without it
+       every fast command is a flicker nobody can read. */
+    AI: { STALE: 45e3, HOLD: 2500, RECENT: 8 },
     PICK_FLASH: 700,
     // ms an element stays outlined after being picked
     LANE_SEP: 16,
@@ -4262,6 +4288,29 @@ HOW TO USE
     #__debug-overlay-bar.debug-overlay-removing .debug-overlay-pwr { background: var(--debug-overlay-danger); color: #fff; }
     #__debug-overlay-bar.debug-overlay-removing .debug-overlay-st { color: var(--debug-overlay-danger); }
 
+    /* AN AI SESSION IS DRIVING THIS. Hidden unless one is, so it is silent
+       on every page nobody is driving. A FIXED width, because the text is a
+       command name and the bar must not resize from "pin" to "findings".
+       Info blue while holding (in progress, not success); accent while a
+       command is actually running, which is the difference the person came
+       for. */
+    #__debug-overlay-bar .debug-overlay-ai { display: none; width: 44px; box-sizing: border-box;
+      padding: 2px 3px; border-radius: var(--debug-overlay-r-chip); text-align: center;
+      font-size: 9px; font-weight: 800; letter-spacing: .3px; line-height: 1.4;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      color: var(--debug-overlay-info); border: 1px solid var(--debug-overlay-info); }
+    #__debug-overlay-bar .debug-overlay-ai.debug-overlay-live { display: block; }
+    #__debug-overlay-bar .debug-overlay-ai.debug-overlay-busy {
+      color: var(--debug-overlay-on-accent); background: var(--debug-overlay-accent);
+      border-color: var(--debug-overlay-accent); }
+    @media (prefers-reduced-motion: no-preference) {
+      #__debug-overlay-bar .debug-overlay-ai.debug-overlay-busy {
+        animation: debug-overlay-working 1.1s ease-in-out infinite; }
+    }
+    @keyframes debug-overlay-working {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .55; } }
+
     /* hidden: the SIDE PANEL is presenting this state instead, so the web
        panel's bar steps aside — the BAR, not the overlay: pins, marks and
        badges are the page's annotations and stay. display, not visibility:
@@ -4749,6 +4798,10 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       <span class="debug-overlay-grip" title="Drag to move — snaps to the nearest edge"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><circle cx="9" cy="12" r="1" /><circle cx="9" cy="5" r="1" /><circle cx="9" cy="19" r="1" /><circle cx="15" cy="12" r="1" /><circle cx="15" cy="5" r="1" /><circle cx="15" cy="19" r="1" /></svg></span>
       <button class="debug-overlay-pwr" title="Power (Alt+Shift+D) · v${CONFIG.VERSION}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 2v10" /><path d="M18.4 6.6a9 9 0 1 1-12.77.04" /></svg></button>
       <span class="debug-overlay-st" data-st>OFF</span>
+      <!-- WHO IS DRIVING. Not .whenOn: an AI connected while the overlay is
+           OFF is exactly when a person needs to be told, and it can switch
+           the overlay on itself. role=status so it is announced, not mimed. -->
+      <span class="debug-overlay-ai" data-ai role="status" aria-live="polite">AI</span>
       <hr class="debug-overlay-sep debug-overlay-whenOn">
       ${toolRuns}
       <!-- its own band: ⌕ and ⚙ drive the services, they are not tools -->
@@ -5008,6 +5061,38 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         setCount(n) {
           el2.querySelector("[data-c]").textContent = String(n);
           api.onState?.("count", n);
+        },
+        /**
+         * WHO IS DRIVING, and what they are doing — the one thing an overlay
+         * being moved from outside owes the person in front of it.
+         *
+         * An AI can arm tools, change settings, pin, drag and sweep. With
+         * nothing on screen saying so, a page that rearranges itself under
+         * somebody's hands is the panel lying about itself in the most
+         * literal way this project has met. The chip appears only while a
+         * session is actually connected, so it is silent the rest of the time.
+         *
+         * It names the COMMAND rather than only pulsing, because "it is doing
+         * something" is not the question anybody has — "what is it doing" is.
+         * The width is fixed so the bar does not jump from one command to the
+         * next; the title carries the sentence the chip has no room for.
+         *
+         * This file decides none of it. `busy` and `cmd` arrive from the door
+         * (app/remote.js), which is the only thing that knows — and the same
+         * call announces to the side panel, so the two faces cannot disagree.
+         */
+        setDriver(d) {
+          const c = el2.querySelector("[data-ai]");
+          const live = !!(d && d.live);
+          const cmd = d && d.cmd || "";
+          c.classList.toggle("debug-overlay-live", live);
+          c.classList.toggle("debug-overlay-busy", !!(d && d.busy));
+          c.textContent = cmd || "AI";
+          const n = d && d.n || 0;
+          const acted = `${n} action${n === 1 ? "" : "s"} so far`;
+          c.title = !live ? "No AI session" : d.busy ? `An AI session is driving this overlay — running ${cmd} · ${acted}` : cmd ? `An AI session is driving this overlay — just ran ${cmd} · ${acted}` : `An AI session is connected and holding · ${acted}`;
+          c.setAttribute("aria-label", c.title);
+          api.onState?.("driver", d || null);
         },
         // The popover's own surface, forwarded so CONTROLLER and BOOT still have
         // one thing to talk to. What it renders is LIST's business, not this
@@ -6089,6 +6174,9 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     events: null,
     // (toolId, events[], isBacklog) — timeline entries, plain data;
     // a backlog REPLACES that tool's entries for this page visit
+    driver: null,
+    // ({live, busy, cmd, n, recent}) — an AI session
+    // driving this page, and what it is doing now
     bye: null
     // the page is unloading — expect a reconnect
   };
@@ -7394,6 +7482,63 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       return { pins: State.pins.length };
     }
   };
+  var Driver = {
+    live: false,
+    busy: false,
+    cmd: "",
+    n: 0,
+    recent: [],
+    _stale: 0,
+    _hold: 0,
+    /** The worker's heartbeat: the socket is (or is no longer) up. */
+    beat(live) {
+      clearTimeout(Driver._stale);
+      if (live) Driver._stale = setTimeout(() => Driver.beat(false), CONFIG.AI.STALE);
+      if (live === Driver.live) return;
+      Driver.live = live;
+      if (!live) {
+        Driver.busy = false;
+        Driver.cmd = "";
+        clearTimeout(Driver._hold);
+      }
+      Driver.show();
+    },
+    start(cmd) {
+      clearTimeout(Driver._hold);
+      if (!Driver.live) Driver.beat(true);
+      Driver.busy = true;
+      Driver.cmd = cmd;
+      Driver.n++;
+      Driver.show();
+    },
+    /** The command finished. Its name RESTS for a moment rather than
+     *  vanishing: most of these take a millisecond, and a chip that blinks
+     *  through eleven commands tells the person nothing about any of them. */
+    done(cmd, ok, ms) {
+      Driver.busy = false;
+      Driver.recent.unshift({ cmd, ok: !!ok, ms });
+      Driver.recent.length = Math.min(Driver.recent.length, CONFIG.AI.RECENT);
+      Driver.show();
+      clearTimeout(Driver._hold);
+      Driver._hold = setTimeout(() => {
+        if (Driver.busy) return;
+        Driver.cmd = "";
+        Driver.show();
+      }, CONFIG.AI.HOLD);
+    },
+    /* ONE ANNOUNCEMENT, BOTH FACES. setDriver paints the bar and forwards the
+       same object to the side panel through onState, so the page and the
+       panel cannot tell different stories about who is driving. */
+    show() {
+      WebPanel.setDriver({
+        live: Driver.live,
+        busy: Driver.busy,
+        cmd: Driver.cmd,
+        n: Driver.n,
+        recent: Driver.recent.slice()
+      });
+    }
+  };
   function answer(fn, args, respond) {
     let r;
     try {
@@ -7412,6 +7557,15 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     respond({ ok: true, result: r ?? null });
     return false;
   }
+  function drive(cmd, fn, args, respond) {
+    Driver.start(cmd);
+    const t = Date.now();
+    const finish = (r) => {
+      Driver.done(cmd, r && r.ok, Date.now() - t);
+      respond(r);
+    };
+    return answer(fn, args, finish);
+  }
   var Remote = {
     /** The vocabulary, for anything that wants to say what it can do. */
     commands: () => Object.keys(commands),
@@ -7419,15 +7573,27 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       const runtime = typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage ? chrome.runtime : null;
       if (!runtime) return;
       runtime.onMessage.addListener((msg, sender, respond) => {
-        if (!msg || msg.type !== "debug-overlay-remote") return;
+        if (!msg || typeof msg.type !== "string") return;
         if (sender && sender.id && runtime.id && sender.id !== runtime.id) return;
+        if (msg.type === "debug-overlay-session") {
+          Driver.beat(!!msg.live);
+          return;
+        }
+        if (msg.type !== "debug-overlay-remote") return;
         const fn = commands[msg.cmd];
         if (!fn) {
           respond({ ok: false, error: `unknown command '${msg.cmd}' — one of: ${Object.keys(commands).join(", ")}` });
           return;
         }
-        return answer(fn, msg.args, respond);
+        return drive(msg.cmd, fn, msg.args, respond);
       });
+      try {
+        runtime.sendMessage?.({ type: "debug-overlay-remote-status" }, (s) => {
+          void runtime.lastError;
+          if (s && s.connected) Driver.beat(true);
+        });
+      } catch {
+      }
     }
   };
 

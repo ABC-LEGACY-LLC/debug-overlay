@@ -238,6 +238,67 @@ const commands = {
   },
 };
 
+/**
+ * WHO IS DRIVING — the signal the page owes the person sitting in front of
+ * it. An AI can arm tools, change settings, pin, drag and sweep; with
+ * nothing on screen saying so, the page rearranges itself under somebody's
+ * hands with no account of why. This is the account.
+ *
+ * TWO FACTS, FROM TWO PLACES. Whether a session is CONNECTED is the
+ * worker's to know (it holds the socket), and it says so by heartbeat —
+ * repeated, not announced once, because a worker Chrome suspended cannot
+ * tell anyone it went, and a chip still claiming a session that ended is
+ * worse than no chip. Whether a command is RUNNING is this file's to know,
+ * because every command passes through it.
+ */
+const Driver = {
+  live: false, busy: false, cmd: '', n: 0, recent: [], _stale: 0, _hold: 0,
+
+  /** The worker's heartbeat: the socket is (or is no longer) up. */
+  beat(live) {
+    clearTimeout(Driver._stale);
+    if (live) Driver._stale = setTimeout(() => Driver.beat(false), CONFIG.AI.STALE);
+    if (live === Driver.live) return;
+    Driver.live = live;
+    if (!live) { Driver.busy = false; Driver.cmd = ''; clearTimeout(Driver._hold); }
+    Driver.show();
+  },
+
+  start(cmd) {
+    clearTimeout(Driver._hold);
+    // a command arriving IS a live session, whatever the last heartbeat said
+    if (!Driver.live) Driver.beat(true);
+    Driver.busy = true;
+    Driver.cmd = cmd;
+    Driver.n++;
+    Driver.show();
+  },
+
+  /** The command finished. Its name RESTS for a moment rather than
+   *  vanishing: most of these take a millisecond, and a chip that blinks
+   *  through eleven commands tells the person nothing about any of them. */
+  done(cmd, ok, ms) {
+    Driver.busy = false;
+    Driver.recent.unshift({ cmd, ok: !!ok, ms });
+    Driver.recent.length = Math.min(Driver.recent.length, CONFIG.AI.RECENT);
+    Driver.show();
+    clearTimeout(Driver._hold);
+    Driver._hold = setTimeout(() => {
+      if (Driver.busy) return;            // another command started meanwhile
+      Driver.cmd = '';
+      Driver.show();
+    }, CONFIG.AI.HOLD);
+  },
+
+  /* ONE ANNOUNCEMENT, BOTH FACES. setDriver paints the bar and forwards the
+     same object to the side panel through onState, so the page and the
+     panel cannot tell different stories about who is driving. */
+  show() {
+    WebPanel.setDriver({ live: Driver.live, busy: Driver.busy, cmd: Driver.cmd,
+                         n: Driver.n, recent: Driver.recent.slice() });
+  },
+};
+
 function answer(fn, args, respond) {
   let r;
   try { r = fn(Array.isArray(args) ? args : []); }
@@ -251,6 +312,14 @@ function answer(fn, args, respond) {
   return false;
 }
 
+/** Run one command, and let the page say that it is being run. */
+function drive(cmd, fn, args, respond) {
+  Driver.start(cmd);
+  const t = Date.now();
+  const finish = (r) => { Driver.done(cmd, r && r.ok, Date.now() - t); respond(r); };
+  return answer(fn, args, finish);
+}
+
 export const Remote = {
   /** The vocabulary, for anything that wants to say what it can do. */
   commands: () => Object.keys(commands),
@@ -260,15 +329,27 @@ export const Remote = {
       chrome.runtime.onMessage ? chrome.runtime : null;
     if (!runtime) return;   // not a content script: nothing to answer to
     runtime.onMessage.addListener((msg, sender, respond) => {
-      if (!msg || msg.type !== 'debug-overlay-remote') return;
+      if (!msg || typeof msg.type !== 'string') return;
       // only OUR extension may drive this page; a foreign id is not answered
       if (sender && sender.id && runtime.id && sender.id !== runtime.id) return;
+      // the worker's heartbeat — the socket is up, and keeps being up
+      if (msg.type === 'debug-overlay-session') { Driver.beat(!!msg.live); return; }
+      if (msg.type !== 'debug-overlay-remote') return;
       const fn = commands[msg.cmd];
       if (!fn) {
         respond({ ok: false, error: `unknown command '${msg.cmd}' — one of: ${Object.keys(commands).join(', ')}` });
         return;
       }
-      return answer(fn, msg.args, respond);
+      return drive(msg.cmd, fn, msg.args, respond);
     });
+    /* A RELOAD MUST NOT LOSE THE SESSION. The worker keeps the socket across
+       a page load, so a fresh content script asks whether one is up rather
+       than waiting out a heartbeat with the chip wrongly absent. */
+    try {
+      runtime.sendMessage?.({ type: 'debug-overlay-remote-status' }, (s) => {
+        void runtime.lastError;   // read = acknowledged; no worker is not an error
+        if (s && s.connected) Driver.beat(true);
+      });
+    } catch { /* no worker to ask: the heartbeat will say if one appears */ }
   },
 };

@@ -4205,6 +4205,17 @@ let remoteChecked = false;
   const bar = w.document.getElementById('__debug-overlay-bar');
   const pressed = (id) => bar.querySelector(`[data-tool="${id}"]`)?.getAttribute('aria-pressed') === 'true';
 
+  /* ---- THE PAGE MUST SAY WHO IS DRIVING IT -------------------------
+     An AI arms tools, changes settings, pins and sweeps. With nothing on
+     screen saying so, the page rearranges itself under somebody's hands
+     with no account of why — the panel lying about itself, in the most
+     literal case this project has met. Asserted BEFORE any command,
+     because a command arriving is itself a live session. */
+  const chip = bar.querySelector('[data-ai]');
+  ok('a page nobody is driving carries no AI chip at all',
+    !!chip && !chip.classList.contains('debug-overlay-live'),
+    chip ? chip.className : '(no chip on the bar)');
+
   (async () => {
     try {
       const s = await ask('state', []);
@@ -4271,6 +4282,43 @@ let remoteChecked = false;
       const foreign = await ask('state', [], { id: 'someone-else' });
       ok('a message from another extension is not answered at all',
         foreign === undefined, JSON.stringify(foreign));
+
+      /* ---- …AND WHAT IT IS DOING ------------------------------------
+         The commands above drove the chip; clear it and start from a
+         stated session, so each state is asserted on purpose. */
+      const beat = (live) => listener({ type: 'debug-overlay-session', live }, { id: 'ext-1' }, () => {});
+      beat(false);
+      ok('when the session ends the chip leaves the bar with it',
+        !chip.classList.contains('debug-overlay-live'), chip.className);
+      beat(true);
+      ok('a connected session puts it back, and it says so while holding',
+        chip.classList.contains('debug-overlay-live') && !chip.classList.contains('debug-overlay-busy') &&
+        /connected and holding/.test(chip.title), chip.className + ' — ' + chip.title);
+      /* WHICH command, not merely that one is running: "it is doing
+         something" is not the question anybody has. Read synchronously,
+         while the command is genuinely in flight — audit answers through a
+         promise, so the respond callback has not fired yet here. */
+      let settled = false;
+      listener({ type: 'debug-overlay-remote', cmd: 'audit', args: [] }, { id: 'ext-1' },
+               () => { settled = true; });
+      ok('while a command runs, the chip NAMES it and reads as working',
+        chip.textContent === 'audit' && chip.classList.contains('debug-overlay-busy'),
+        chip.textContent + ' — ' + chip.className);
+      for (let i = 0; i < 40 && !settled; i++) await new Promise((r) => setTimeout(r, 5));
+      ok('…and the sweep it was running actually finished', settled, 'audit never answered');
+      ok('…and the name RESTS afterwards, rather than blinking past',
+        chip.textContent === 'audit' && !chip.classList.contains('debug-overlay-busy'),
+        chip.textContent + ' — ' + chip.className);
+      ok('…and the title counts what it has done',
+        /just ran audit · \d+ actions so far/.test(chip.title), chip.title);
+      /* THE CHIP MUST GO OUT BY ITSELF. A worker Chrome suspended cannot
+         send a farewell, so a heartbeat that stops is the only signal there
+         is — and a chip still claiming a session that ended is worse than
+         no chip at all. */
+      beat(false);
+      ok('…and one command later, the session ending still takes it away',
+        !chip.classList.contains('debug-overlay-live') && chip.textContent === 'AI',
+        chip.className + ' — ' + chip.textContent);
     } catch (e) {
       ok('the remote door block ran to the end', false, String((e && e.stack) || e));
     }

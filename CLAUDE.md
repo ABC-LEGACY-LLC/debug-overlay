@@ -875,6 +875,24 @@ owner's call.
 sw-remote.js`), appended by `build.js` to BOTH `sw.js` variants. It needs no
 permission the store build lacks: a WebSocket is not a host permission.
 
+**The page says who is driving it.** An overlay moved from outside with
+nothing on screen admitting it is the panel lying about itself, in the most
+literal case this project has met — so a chip appears on the bar while a
+session is connected, and only then. It NAMES the running command rather
+than only pulsing: "it is doing something" is not the question anybody has.
+The name rests for `CONFIG.AI.HOLD` afterwards, because most commands take a
+millisecond and a chip blinking through eleven of them tells nobody about
+any of them. `app/remote.js` owns both facts and `WebPanel.setDriver` is the
+single announcement, so the bar and the side panel's log cannot disagree.
+It is NOT `.whenOn`: an AI connected while the overlay is off is exactly
+when someone needs to be told, and it can switch the overlay on itself.
+
+**Absence is the only honest signal for a session that ended.** A worker
+Chrome has suspended cannot send a farewell, so the worker re-asserts every
+`BEAT` ms (a literal there — it is not a module and cannot read CONFIG) and
+the page forgets the driver after `CONFIG.AI.STALE` without one. Change
+either and change the other; three beats inside the window is the margin.
+
 `test.js` drives the door in jsdom through a fake `chrome.runtime.onMessage`,
 and drives the MCP server end to end — a real child process on a real port,
 Node's own WebSocket client standing in for the extension — asserting the
