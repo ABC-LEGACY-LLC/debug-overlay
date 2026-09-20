@@ -4492,9 +4492,9 @@ console.log('\nWHO PAINTED THIS PIXEL');
   {
     const opts3 = { url: 'https://example.test/', pretendToBeVisual: true,
                     runScripts: 'outside-only', virtualConsole: new VirtualConsole() };
-    const mk = (sample) => {
+    const mk = (sample, px = [60, 20, 20, 255], attrs = '') => {
       const d3 = new JSDOM('<!doctype html><html><body style="background:rgb(20,20,20)">' +
-        '<div id="s">x</div></body></html>', opts3);
+        `<div id="s" ${attrs}>x</div></body></html>`, opts3);
       const w3 = d3.window;
       w3.localStorage.setItem('__debug_overlay_tools', JSON.stringify(['paint']));
       w3.localStorage.setItem('__debug_overlay_seen', JSON.stringify(idsOnDisk));
@@ -4510,7 +4510,7 @@ console.log('\nWHO PAINTED THIS PIXEL');
       w3.document.createElement = (tag) => (tag !== 'canvas' ? realCreate(tag) : {
         width: 0, height: 0,
         getContext: () => ({ drawImage() {},
-          getImageData: () => ({ data: [60, 20, 20, 255] }) }),   // 40 off red
+          getImageData: () => ({ data: px }) }),
       });
       w3.eval(source);
       const el = w3.document.getElementById('s');
@@ -4607,6 +4607,59 @@ console.log('\nWHO PAINTED THIS PIXEL');
         on.captures() === 1, `${on.captures()} captures for one report`);
       on.w3.close();
     });
+
+    /* ---- A DOUBT AND A MEASUREMENT MUST NOT CONTRADICT EACH OTHER -------
+       Found by the reader this tool is FOR, on a real report. A doubt is
+       raised while the fold runs, before anything has verified it, so on its
+       own it can only hedge — and the hedge was written into the doubt's own
+       text. Once a sample arrived and settled the question, the hedge stayed:
+       the report said "they agree — the walk accounted for everything that
+       paints here (ΔRGB 0)" and, four lines below, that the colour may not be
+       the one on screen. Two contradictory sentences, both for the same
+       reader, in the same section.
+
+       The fix is not to delete either: it is that the DOUBT states a fact
+       (the fold leaves this layer out) and the SAMPLE frames what that fact
+       turned out to mean. One judgement, asked in one place. */
+    const doubted = 'style="background:rgb(20,20,20); filter: blur(1px)"';
+
+    const agrees = mk(true, [20, 20, 20, 255], doubted);   // composite == screen
+    agrees.copy();
+    pendingChecks.push(() => {
+      const t = agrees.text();
+      ok('a doubt is still NAMED when the sample agrees — never quietly dropped',
+        /filter: blur\(1px\)/.test(t),
+        'the thing is really there; a later state or pixel may still make it bite');
+      ok('…but demoted, because the measurement settled it',
+        /not accounted for — flagged, but the sample AGREES exactly, so none of these painted at this pixel:/.test(t),
+        t.split('\n').find((l) => /not accounted for/.test(l)) || '(no header)');
+      ok('…and the hedge the sample answered is GONE from the doubt itself',
+        !/may not be the one on screen/.test(t),
+        'the report stated both halves of a contradiction');
+      ok('…so "they agree" no longer sits above a note saying it may be wrong',
+        /they agree — the walk accounted for everything that paints here/.test(t) &&
+        !/may not be the one on screen/.test(t),
+        '(the exact pair the reader reported)');
+      agrees.w3.close();
+    });
+
+    const differs = mk(true, [60, 20, 20, 255], doubted);  // 40 off red
+    differs.copy();
+    pendingChecks.push(() => {
+      const t = differs.text();
+      ok('the same doubt is RAISED when the sample disagrees — it is the lead',
+        /not accounted for — the sample DISAGREES by 40, and this is the likely cause:/.test(t),
+        t.split('\n').find((l) => /not accounted for/.test(l)) || '(no header)');
+      differs.w3.close();
+    });
+
+    /* Unverified, the hedge is the honest answer and must survive. */
+    const unsure = mk(false, [60, 20, 20, 255], doubted);
+    unsure.copy();
+    ok('with no sample the doubt still hedges — nothing has looked',
+      /not accounted for — nothing has verified the composite, so any of these may be why it is wrong:/.test(unsure.text()),
+      unsure.text().split('\n').find((l) => /not accounted for/.test(l)) || '(no header)');
+    unsure.w3.close();
   }
 
   /* ---- THE STACK MUST SAY WHAT IT COULD NOT SEE ----------------------

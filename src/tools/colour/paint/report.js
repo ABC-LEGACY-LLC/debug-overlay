@@ -120,11 +120,12 @@ export function reportTail() {
     L.push('no fully opaque layer in the stack — the page canvas (white) shows through,');
     L.push('   which is where the composite above starts.');
   }
-  L.push(...sampleLines(colour));
-  if (doubts.length) {
-    L.push('not accounted for:');
-    for (const d of doubts) L.push(`   ${d}`);
-  }
+  /* ONE JUDGEMENT, ASKED IN ONE PLACE. The Δ lines and the framing of the
+     doubts are the same finding stated twice, and computing it twice is how
+     they came to contradict each other. */
+  const agreed = agreement(colour);
+  L.push(...sampleLines(agreed));
+  L.push(...doubtLines(doubts, agreed));
   L.push(...scope(dropped, hosts, frames));
   return L;
 }
@@ -141,9 +142,57 @@ export function reportTail() {
  * words. Silence there would let a derived answer read as a measured one,
  * which is the one thing this tool may not do.
  */
-function sampleLines(colour) {
+function agreement(colour) {
   const got = Sample.current();
-  if (!got) {
+  if (!got) return null;
+  const c = { r: Math.round(colour.r), g: Math.round(colour.g), b: Math.round(colour.b) };
+  const d = { r: Math.abs(c.r - got.rgb.r), g: Math.abs(c.g - got.rgb.g),
+              b: Math.abs(c.b - got.rgb.b) };
+  return { got, c, d, worst: Math.max(d.r, d.g, d.b) };
+}
+
+/**
+ * WHAT THE UNACCOUNTED-FOR THINGS MEAN, once the screen has been asked.
+ *
+ * A doubt is raised while the fold runs, before anything has verified it, so
+ * on its own it can only hedge. A sample SETTLES it — and leaving the hedge
+ * standing afterwards made the report state both halves of a contradiction:
+ * "they agree — the walk accounted for everything that paints here" directly
+ * above a note saying the colour may not be the one on screen. The reader
+ * cannot act on both.
+ *
+ * So the list is framed by the measurement. Unverified, it still hedges —
+ * honestly, because nothing has looked. Verified and equal, these were
+ * flagged and did not paint here. Verified and different, they are the
+ * candidates, and that is the most useful line in the report.
+ */
+function doubtLines(doubts, a) {
+  if (!doubts.length) return [];
+  let head;
+  if (!a) {
+    head = 'not accounted for — nothing has verified the composite, so any of' +
+           ' these may be why it is wrong:';
+  } else if (a.worst === 0) {
+    /* NOT DELETED. The thing is really there and a later page state, a
+       different pixel or a different viewport may well make it bite — and a
+       reader who sees it named here can check that themselves. Demoted, not
+       hidden: the sample says it did not paint at THIS pixel. */
+    head = 'not accounted for — flagged, but the sample AGREES exactly, so none' +
+           ' of these painted at this pixel:';
+  } else if (a.worst <= 3) {
+    head = `not accounted for — the sample agrees to within ${a.worst}, so these` +
+           ' probably did not paint here; a gap that small is more likely a' +
+           ' rounding or a colour-space conversion:';
+  } else {
+    head = `not accounted for — the sample DISAGREES by ${a.worst}, and ` +
+           (doubts.length === 1 ? 'this is the likely cause:'
+                                : `these ${doubts.length} are the candidates:`);
+  }
+  return [head, ...doubts.map((d) => `   ${d}`)];
+}
+
+function sampleLines(a) {
+  if (!a) {
     const L = ['sampled pixel: not taken — the composite above is a CLAIM computed',
                '   from the walk, and nothing here has verified it.'];
     /* A REASON IS NOT A FOOTNOTE. When the capture was attempted and refused,
@@ -156,9 +205,7 @@ function sampleLines(colour) {
     }
     return L;
   }
-  const c = { r: Math.round(colour.r), g: Math.round(colour.g), b: Math.round(colour.b) };
-  const d = { r: Math.abs(c.r - got.rgb.r), g: Math.abs(c.g - got.rgb.g), b: Math.abs(c.b - got.rgb.b) };
-  const worst = Math.max(d.r, d.g, d.b);
+  const { got, c, d, worst } = a;
   const L = [`sampled pixel: rgb(${got.rgb.r},${got.rgb.g},${got.rgb.b})   (capture taken, one pixel read, discarded)`,
              `   composite   rgb(${c.r},${c.g},${c.b})`,
              `   ΔRGB        ${d.r},${d.g},${d.b}   worst ${worst}`];
@@ -170,6 +217,10 @@ function sampleLines(colour) {
   else if (worst <= 3) L.push('   near-agreement: a rounding, a colour-space conversion, or a saturate');
   else L.push(`   THEY DISAGREE by ${worst} — something paints here that the walk did not` +
               ' account for; the notes below are the candidates');
+  /* Whatever this says, the "not accounted for" header printed directly
+     under it is built from the SAME judgement — see doubtLines. They used to
+     be derived separately, and that is how one came to say the walk
+     accounted for everything while the other said the colour may be wrong. */
   return L;
 }
 

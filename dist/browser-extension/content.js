@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.194 — the extension gate */
+/* Debug Overlay v3.8.195 — the extension gate */
 
 /*
 HOW TO USE
@@ -448,7 +448,7 @@ HOW TO USE
     // manifest that ships it, and an overlay that cannot say which version it
     // is makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.194",
+    VERSION: "3.8.195",
     // Substituted like VERSION, from release.json: the MANIFEST the extension
     // publishes, which is the one file that moves with every release. It was
     // the userscript's meta header until that gate was withdrawn — and that
@@ -2350,7 +2350,7 @@ HOW TO USE
       const at = `[${i + 1}] `;
       if (floor >= 0 && i <= floor) {
         for (const ps of L.pseudo) {
-          doubts.push(`${at}${L.sel} has a ${ps.which} (${ps.bits.join(", ")} · ${ps.geo}) — a pseudo paints OVER its element and no hit test reaches it, so this fold leaves it out and the colour above may not be the one on screen`);
+          doubts.push(`${at}${L.sel} has a ${ps.which} (${ps.bits.join(", ")} · ${ps.geo}) — a pseudo paints OVER its element and no hit test reaches it, so this fold leaves it out`);
         }
       }
       if (L.bgImage) doubts.push(`${at}${L.sel} paints a background-image — its pixel here is unknown`);
@@ -2581,17 +2581,39 @@ HOW TO USE
       L.push("no fully opaque layer in the stack — the page canvas (white) shows through,");
       L.push("   which is where the composite above starts.");
     }
-    L.push(...sampleLines(colour));
-    if (doubts.length) {
-      L.push("not accounted for:");
-      for (const d of doubts) L.push(`   ${d}`);
-    }
+    const agreed = agreement(colour);
+    L.push(...sampleLines(agreed));
+    L.push(...doubtLines(doubts, agreed));
     L.push(...scope(dropped, hosts, frames));
     return L;
   }
-  function sampleLines(colour) {
+  function agreement(colour) {
     const got = Sample.current();
-    if (!got) {
+    if (!got) return null;
+    const c = { r: Math.round(colour.r), g: Math.round(colour.g), b: Math.round(colour.b) };
+    const d = {
+      r: Math.abs(c.r - got.rgb.r),
+      g: Math.abs(c.g - got.rgb.g),
+      b: Math.abs(c.b - got.rgb.b)
+    };
+    return { got, c, d, worst: Math.max(d.r, d.g, d.b) };
+  }
+  function doubtLines(doubts, a) {
+    if (!doubts.length) return [];
+    let head;
+    if (!a) {
+      head = "not accounted for — nothing has verified the composite, so any of these may be why it is wrong:";
+    } else if (a.worst === 0) {
+      head = "not accounted for — flagged, but the sample AGREES exactly, so none of these painted at this pixel:";
+    } else if (a.worst <= 3) {
+      head = `not accounted for — the sample agrees to within ${a.worst}, so these probably did not paint here; a gap that small is more likely a rounding or a colour-space conversion:`;
+    } else {
+      head = `not accounted for — the sample DISAGREES by ${a.worst}, and ` + (doubts.length === 1 ? "this is the likely cause:" : `these ${doubts.length} are the candidates:`);
+    }
+    return [head, ...doubts.map((d) => `   ${d}`)];
+  }
+  function sampleLines(a) {
+    if (!a) {
       const L2 = [
         "sampled pixel: not taken — the composite above is a CLAIM computed",
         "   from the walk, and nothing here has verified it."
@@ -2603,9 +2625,7 @@ HOW TO USE
       }
       return L2;
     }
-    const c = { r: Math.round(colour.r), g: Math.round(colour.g), b: Math.round(colour.b) };
-    const d = { r: Math.abs(c.r - got.rgb.r), g: Math.abs(c.g - got.rgb.g), b: Math.abs(c.b - got.rgb.b) };
-    const worst = Math.max(d.r, d.g, d.b);
+    const { got, c, d, worst } = a;
     const L = [
       `sampled pixel: rgb(${got.rgb.r},${got.rgb.g},${got.rgb.b})   (capture taken, one pixel read, discarded)`,
       `   composite   rgb(${c.r},${c.g},${c.b})`,

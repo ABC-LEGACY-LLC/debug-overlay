@@ -1,5 +1,24 @@
 # Changelog
 
+## 3.8.195 — 2026-09-20
+
+- **Fixed: the paint report stated both halves of a contradiction.** A doubt
+  is raised while the fold runs, before anything has verified it, so each one
+  carried its own hedge — "the colour above may not be the one on screen". A
+  sample answers that question, and the hedge stayed anyway: a report could
+  say *they agree — the walk accounted for everything that paints here* four
+  lines above a note saying the colour may be wrong.
+- The doubt now states only the fact it knows — that the fold leaves that
+  layer out. What the fact turned out to MEAN is framed by the measurement,
+  from the same judgement the ΔRGB lines are computed from, so the two cannot
+  disagree: **flagged, but the sample AGREES exactly, so none of these painted
+  at this pixel** when ΔRGB is 0, and **the sample DISAGREES by N, and this is
+  the likely cause** when it is not.
+- Nothing is deleted on agreement. The thing is really there, and a different
+  pixel, viewport or page state may still make it bite — demoted, not hidden.
+- With no sample the hedge survives unchanged, because then nothing has
+  looked.
+
 ## 3.8.194 — 2026-09-20
 
 - **The lasso can take an element bigger than the drag.** Enclosing is the

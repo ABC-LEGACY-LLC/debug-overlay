@@ -463,6 +463,17 @@ seen from the other end.
   to width and height too, so arming "Judge width & height" produced nothing.
 - **Only `affects: 'detect'` invalidates a sweep.** Throwing away the most
   expensive thing the tool does because a copy preference changed is not caution.
+- **A doubt and a measurement must not contradict each other.** ⛏ paint's
+  doubts are raised while the fold runs, before anything has verified them, so
+  each one ended with its own hedge — "the colour above may not be the one on
+  screen". A sample SETTLES that, and the hedge stayed anyway: one report said
+  "they agree — the walk accounted for everything that paints here (ΔRGB 0)"
+  four lines above a note saying the colour may be wrong. A doubt states the
+  FACT it knows (the fold leaves this layer out); whether that mattered is the
+  sample's to say, so the section header is built from the same judgement the
+  Δ lines are. Demoted when they agree, raised to "the likely cause" when they
+  do not — and never deleted, because the thing is still there and a different
+  pixel may yet make it bite.
 
 ## A pin's number is derived, never counted
 `Controller.nextPinId()` returns the **smallest number not currently in use**.

@@ -61,9 +61,18 @@ export function composite(layers) {
     const at = `[${i + 1}] `;
     if (floor >= 0 && i <= floor) {
       for (const ps of L.pseudo) {
+        /* STATE THE FACT, NOT THE CONCLUSION. This used to end "…and the
+           colour above may not be the one on screen" — a hedge written
+           before any sample exists, and left standing after one arrived to
+           settle it. The report then said "they agree (ΔRGB 0)" two lines
+           above a doubt still saying the colour may be wrong: two
+           contradictory sentences for one reader. What a doubt knows is that
+           the fold leaves this layer out. Whether that MATTERED is the
+           sample's to answer, so report.js frames the section on the
+           measurement instead. */
         doubts.push(`${at}${L.sel} has a ${ps.which} (${ps.bits.join(', ')} · ${ps.geo}) — ` +
           'a pseudo paints OVER its element and no hit test reaches it, so this fold ' +
-          'leaves it out and the colour above may not be the one on screen');
+          'leaves it out');
       }
     }
     if (L.bgImage) doubts.push(`${at}${L.sel} paints a background-image — its pixel here is unknown`);
