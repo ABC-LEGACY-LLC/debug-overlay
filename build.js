@@ -452,7 +452,29 @@ function build(kind) {
   const extFiles = walk(EXT).sort()
     .filter((f) => !f.endsWith('.zip'))   // or the second build zips the zip
     .map((f) => [f, fs.readFileSync(path.join(EXT, f))]);
-  fs.writeFileSync(path.join(EXT, 'debug-overlay-extension.zip'), zipStore(extFiles));
+  const zipBytes = zipStore(extFiles);
+  fs.writeFileSync(path.join(EXT, 'debug-overlay-extension.zip'), zipBytes);
+  /* versions.json — WHICH BUILD IS PUBLISHED, in one place a person can open.
+     The manifest already carried the number and `npm run shipped` already read
+     it, but neither answers the question somebody actually has standing in
+     front of a download: the ZIP has the same filename every release, so two
+     copies are indistinguishable without extracting one.
+
+     Written AFTER the zip and deliberately not in RUNTIME/files.json: it is a
+     publication record, not a file any install needs — the updater must not
+     fetch it, and it cannot be inside the archive whose hash it states.
+
+     The hash is what makes it more than a version string: one version is one
+     file (see zipStore), so this is checkable. Download the zip, hash it, and
+     compare — if they differ you did not get the build this says you did. */
+  fs.writeFileSync(path.join(EXT, 'versions.json'), JSON.stringify({
+    latest: version,
+    built: new Date().toISOString().slice(0, 10),
+    zip: 'debug-overlay-extension.zip',
+    sha256: require('crypto').createHash('sha256').update(zipBytes).digest('hex'),
+    installer: 'install.html',
+    changelog: `${cfg.repoUrl}/blob/main/abc-labs/CHANGELOG.md`,
+  }, null, 2) + '\n');
 
   /* THE BUMP IS LAST, and that is a change: it used to sit between the two
      gates, so a build that failed its parse check further down had already

@@ -34,6 +34,19 @@ you are still running it.
 https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/browser-extension/debug-overlay-extension.zip
 ```
 
+*Which version is that?* The link always serves the newest build, and the
+filename never changes — so two downloads look identical. To check before or
+after, open
+
+```
+https://raw.githubusercontent.com/ABC-LEGACY-LLC/debug-overlay/main/dist/browser-extension/versions.json
+```
+
+which names the published version, the day it was built, and the ZIP's
+SHA-256. One version is one file, so that hash is checkable: hash your
+download and compare. `install.html` states the same version in its own title
+once you have extracted it.
+
 **Step 2.** Extract the ZIP anywhere and double-click **`install.html`** —
 it opens in the browser (no command prompt involved, so it works even where
 administrators disable cmd), and its one button writes the extension into a

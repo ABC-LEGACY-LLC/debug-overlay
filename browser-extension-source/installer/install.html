@@ -38,7 +38,7 @@
   #prog.show { display: block; }
   #prog .ok { color: var(--debug-overlay-accent); }
 </style>
-<h1>Debug Overlay — installer</h1>
+<h1>Debug Overlay — installer <span class="muted" id="ver"></span></h1>
 
 <div class="why">
   <b>What you are installing.</b> Hover any element on any page and read its
@@ -103,6 +103,18 @@ administrators disable cmd; the browser reserves two clicks for you.</p>
 <script>
 // The FILES literal below is substituted by build.js with the real contents.
 const FILES = __FILES_JSON__;
+/* WHICH BUILD IS THIS. The page carries every runtime file inside itself, so
+   it already knows — and until it said so, a downloaded ZIP was
+   indistinguishable from any other: the same filename every release, new
+   contents each time, and the only way to tell two apart was to extract one
+   and open its manifest. Read from the EMBEDDED manifest rather than
+   substituted separately, so the number cannot disagree with the files this
+   page would actually write. */
+try {
+  const here = JSON.parse(FILES['manifest.json']).version;
+  document.getElementById('ver').textContent = 'v' + here;
+  document.title = 'Debug Overlay v' + here + ' — installer';
+} catch {}
 
 const $ = (id) => document.getElementById(id);
 let pending = null;   // a folder held back by a warning, written only on the override

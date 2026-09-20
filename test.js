@@ -398,6 +398,28 @@ console.log('\nONE GATE, AND ONE THAT IS FROZEN');
   const cfgNow = JSON.parse(fs.readFileSync(path.join(__dirname, 'release.json'), 'utf8'));
   ok('the extension manifest carries the shipped version',
     manifest.version === cfgNow.version, `${manifest.version} vs ${cfgNow.version}`);
+  /* versions.json — the only place a PERSON can read which build is
+     published without extracting a ZIP. A claim about a file has to be
+     checkable or it is decoration, so the hash is held to the actual bytes;
+     and it must stay OUT of both the archive it describes and the updater's
+     file list, or an install starts fetching a publication record. */
+  {
+    const vf = path.join(extDir, 'versions.json');
+    const v = fs.existsSync(vf) ? JSON.parse(fs.readFileSync(vf, 'utf8')) : null;
+    ok('the published build is stated where a person can read it',
+      !!v && v.latest === cfgNow.version, v ? `${v.latest} vs ${cfgNow.version}` : 'no versions.json');
+    ok('…and its hash is the hash of the ZIP it names',
+      !!v && v.sha256 === require('crypto').createHash('sha256')
+        .update(fs.readFileSync(path.join(extDir, v.zip))).digest('hex'),
+      'a stated hash that is not the file\'s is worse than none');
+    ok('it is not inside the archive whose hash it states',
+      !fs.readFileSync(path.join(extDir, 'debug-overlay-extension.zip'))
+        .includes(Buffer.from('versions.json')), 'the zip carries its own record');
+    ok('and no install fetches it — it is a record, not a runtime file',
+      !JSON.parse(fs.readFileSync(path.join(extDir, 'files.json'), 'utf8')).includes('versions.json'),
+      'the updater would write a publication record into somebody\'s folder');
+  }
+
   /* THE WITHDRAWN GATE IS STILL ON DISK, and must stay there. Its meta file
      is what an install polls; delete it and that install freezes wherever it
      is, silently, with nothing left that can tell it to move — the

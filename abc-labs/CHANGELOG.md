@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.8.179 — 2026-09-20
+
+- **You can now tell which build you downloaded.** The ZIP link always serves
+  the newest version and its filename never changes, so two downloads looked
+  identical and the only way to tell them apart was to extract one and read its
+  manifest. `versions.json` now sits beside the ZIP naming the published
+  version, the build date and the archive's SHA-256 — and since one version is
+  one file, that hash is checkable against your download. The installer page
+  states the same version in its own title.
+
 ## 3.8.178 — 2026-09-20
 
 - ⛏ **Paint** stops calling transparent layers painters. Three answers now,

@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.178 — the extension gate */
+/* Debug Overlay v3.8.179 — the extension gate */
 
 /*
 HOW TO USE
@@ -396,7 +396,7 @@ HOW TO USE
     // manifest that ships it, and an overlay that cannot say which version it
     // is makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.178",
+    VERSION: "3.8.179",
     // Substituted like VERSION, from release.json: the MANIFEST the extension
     // publishes, which is the one file that moves with every release. It was
     // the userscript's meta header until that gate was withdrawn — and that
