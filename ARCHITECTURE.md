@@ -149,6 +149,17 @@ the pin list — its real product feeds another component. A lasso or a
 select-by-query is one new file in this band, and every consumer picks it up
 unchanged.
 
+That claim has since been paid out: `tools/input/lasso/` is four files and no
+core edit beyond one capability, and measure, the pin list and the report all
+read its pins without learning its name. It also showed what a second way of
+selecting is FOR, which is not convenience. A click asks the browser what is
+under a point and gets back what it would deliver an event to — silently
+omitting anything outside its own painted shape, anything behind
+`pointer-events: none`, anything clipped away. Those are exactly the layers
+⛏ paint lists as `[—]`: real, and unreachable. A box asks where things ARE,
+so it reaches them. Two ways of selecting are two different QUESTIONS, and
+that is why the band exists rather than a flag on one tool.
+
 Three capability flows exist today, and all are name-free:
 
 | producer | capability | consumer |
@@ -286,8 +297,8 @@ everything else.
 The timeline is the one surface that lives side panel-side, because that is
 its point: a reload kills the content script and its Monitor log, but not
 the side panel. Two doors feed it, both generic. A runtime's watch ctx
-carries an `event` capability beside `redraw` — a moment worth history (a
-freeze landing) is handed up as plain data, through
+carries an `event` capability beside `redraw` and `pin` — a moment worth
+history (a freeze landing) is handed up as plain data, through
 `Controller.onToolEvent`, announce-and-let-boot-decide like everything
 else. And the `timeline` hook is the pull side: a tool returns this page
 visit's story so far (the load's timings, buffered startup tasks, logged
@@ -450,8 +461,12 @@ the same `hooks.js` reading the map prints from. Five import-graph rules hold
 the layers: a tool imports only core/, subjects/ and its own folder;
 nothing but the manifest names a tool; core imports only core; services
 never import app; ui never imports app. What a component cannot import it
-receives — capabilities like `redraw` and `toClipboard` ride in through the
-hook ctx, the way `draw()` receives `layer` and `Place`. The rules that guard this document's claims: no tool names another
+receives — capabilities like `redraw`, `toClipboard` and `pin` ride in through
+the hook ctx, the way `draw()` receives `layer` and `Place`. `pin` is the
+newest and the pattern's clearest case: a tool may not import `app/`, so the
+lasso cannot call the controller to pin the fifty elements its box took. The
+controller hands it `pinMany` instead, and the tool spends a capability
+without ever naming its holder. The rules that guard this document's claims: no tool names another
 tool; a tool must be worth arming alone (one of `badge`/`compact`/`draw`/
 `listRows`/`intercept`); a rule must `draw` where its findings are; every
 option declares `affects:` as a quoted literal; subjects never call back;

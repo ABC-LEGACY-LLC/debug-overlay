@@ -1,5 +1,19 @@
 # Changelog
 
+## 3.8.192 — 2026-09-20
+
+- **New: ▭ lasso — drag a box, keep everything inside it.** Selection was one
+  element per click, which is the wrong shape for "pin this whole card" and no
+  shape at all for an element a click cannot reach. A box asks where things
+  ARE rather than what is under a point, so it takes layers the hit test skips
+  — `pointer-events: none`, or a painted shape the pointer misses — the same
+  ones ⛏ paint lists as unreachable.
+- What a box keeps is configurable under ⚙ or by right-clicking the button:
+  OUTERMOST (the default — the things in the region, not every node inside
+  them), LEAVES, EVERY, TOUCHING.
+- Off by default, and a press that moves less than a few pixels still behaves
+  exactly as it did: arming the lasso costs single-click pinning nothing.
+
 ## 3.8.191 — 2026-09-20
 
 - **Fixed: the pixel capture was aimed at the wrong window.** It asked Chrome

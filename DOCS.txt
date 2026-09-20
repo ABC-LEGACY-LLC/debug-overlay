@@ -19,6 +19,14 @@ HOW TO USE
                         A technique is a GESTURE, not a mode: pairs and chains
                         mix freely in one session, so there is nothing to set
                         in advance and nothing to forget to set back.
+  Drag ................ with ▭ lasso armed, press on the page and drag: a box
+                        follows the pointer and everything it takes is pinned
+                        at once on release. This reaches what a click cannot —
+                        an element behind pointer-events: none, or one whose
+                        painted shape the pointer misses — because a box asks
+                        where things ARE rather than what is under a point.
+                        Below a few pixels of movement no box is started, so a
+                        press that wobbled is still an ordinary click.
   Click again ......... unpin (or click with another modifier to switch the
                         pin between note, pair and link)
   Hold X .............. REMOVE mode: a red ✕ appears on every pin and only pins
@@ -116,6 +124,13 @@ HOW TO USE
                  grouping lives here and not in measure, so a new way of
                  selecting is one new file and everything that measures
                  picks it up.
+    ▭ lasso     drag a box; keep everything inside it. Off by default — every
+                 click on the page already means something, and a gesture that
+                 reinterprets drags is not one to switch on for somebody who
+                 did not ask for it. Right-click it to choose what a box keeps:
+                 OUTERMOST (the default — the things in the region, not every
+                 node inside them), LEAVES, EVERY, or TOUCHING (anything the
+                 box overlaps at all, not just what it encloses).
     📏 geometry  the geometry family — one button; click it and its members
                  slide out sideways:
        📐 measure  sizes, radius, padding/margin, gap, font, and the distance
@@ -248,7 +263,7 @@ HOW TO USE
   appears, with nothing installed or wired up.
 
   The rules between the buttons mark the PIPELINE, top to bottom: the input
-  side (📌 pin, ⬚ group — what your clicks become), then the components
+  side (📌 pin, ⬚ group, ▭ lasso — what your clicks become), then the components
   (what describes the page), then ⌕ and ⚙, then the copy/clear band — the pin
   count sits up with 📌, whose home it is. A
   green dot on a tool means its rule feeds ⌕. Arming decides what you SEE;

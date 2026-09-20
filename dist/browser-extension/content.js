@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.191 — the extension gate */
+/* Debug Overlay v3.8.192 — the extension gate */
 
 /*
 HOW TO USE
@@ -22,6 +22,14 @@ HOW TO USE
                         A technique is a GESTURE, not a mode: pairs and chains
                         mix freely in one session, so there is nothing to set
                         in advance and nothing to forget to set back.
+  Drag ................ with ▭ lasso armed, press on the page and drag: a box
+                        follows the pointer and everything it takes is pinned
+                        at once on release. This reaches what a click cannot —
+                        an element behind pointer-events: none, or one whose
+                        painted shape the pointer misses — because a box asks
+                        where things ARE rather than what is under a point.
+                        Below a few pixels of movement no box is started, so a
+                        press that wobbled is still an ordinary click.
   Click again ......... unpin (or click with another modifier to switch the
                         pin between note, pair and link)
   Hold X .............. REMOVE mode: a red ✕ appears on every pin and only pins
@@ -119,6 +127,13 @@ HOW TO USE
                  grouping lives here and not in measure, so a new way of
                  selecting is one new file and everything that measures
                  picks it up.
+    ▭ lasso     drag a box; keep everything inside it. Off by default — every
+                 click on the page already means something, and a gesture that
+                 reinterprets drags is not one to switch on for somebody who
+                 did not ask for it. Right-click it to choose what a box keeps:
+                 OUTERMOST (the default — the things in the region, not every
+                 node inside them), LEAVES, EVERY, or TOUCHING (anything the
+                 box overlaps at all, not just what it encloses).
     📏 geometry  the geometry family — one button; click it and its members
                  slide out sideways:
        📐 measure  sizes, radius, padding/margin, gap, font, and the distance
@@ -251,7 +266,7 @@ HOW TO USE
   appears, with nothing installed or wired up.
 
   The rules between the buttons mark the PIPELINE, top to bottom: the input
-  side (📌 pin, ⬚ group — what your clicks become), then the components
+  side (📌 pin, ⬚ group, ▭ lasso — what your clicks become), then the components
   (what describes the page), then ⌕ and ⚙, then the copy/clear band — the pin
   count sits up with 📌, whose home it is. A
   green dot on a tool means its rule feeds ⌕. Arming decides what you SEE;
@@ -417,7 +432,7 @@ HOW TO USE
     // manifest that ships it, and an overlay that cannot say which version it
     // is makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.191",
+    VERSION: "3.8.192",
     // Substituted like VERSION, from release.json: the MANIFEST the extension
     // publishes, which is the one file that moves with every release. It was
     // the userscript's meta header until that gate was withdrawn — and that
@@ -519,6 +534,13 @@ HOW TO USE
     // to read one number off. A third view is one new entry here plus its
     // rendering; the 🏷 flyout and the ⚙ row both derive from this list.
     BADGE_MODES: ["compact", "full"],
+    /* How far the pointer must travel before a press counts as a DRAG rather
+       than a click that wobbled. Below it no rectangle is ever started, so a
+       lasso being armed costs single-click pinning nothing — which is the
+       condition for adding a gesture to a surface where every click already
+       means something. Four, because a hand on a trackpad moves one or two
+       pixels between press and release without intending to. */
+    LASSO_MIN: 4,
     PICK_FLASH: 700,
     // ms an element stays outlined after being picked
     LANE_SEP: 16,
@@ -3211,6 +3233,165 @@ HOW TO USE
     reportTail: reportTail3
   });
 
+  // src/tools/input/lasso/inside.js
+  var meets = (r, b) => !(r.right < b.left || r.left > b.right || r.bottom < b.top || r.top > b.bottom);
+  var within = (r, b) => b.left >= r.left && b.right <= r.right && b.top >= r.top && b.bottom <= r.bottom;
+  function inside(rect, mode) {
+    let all = [];
+    try {
+      all = document.body ? [...document.body.querySelectorAll("*")] : [];
+    } catch {
+      return [];
+    }
+    const fits = mode === "touching" ? meets : within;
+    const hit = [];
+    for (const el2 of all) {
+      const b = el2.getBoundingClientRect();
+      if (!b.width || !b.height) continue;
+      if (fits(rect, b)) hit.push(el2);
+    }
+    if (mode === "every" || mode === "touching") return hit;
+    const taken = new Set(hit);
+    if (mode === "leaves") {
+      return hit.filter((el2) => ![...el2.children].some((c) => taken.has(c)));
+    }
+    return hit.filter((el2) => {
+      for (let e = el2.parentElement; e && e.nodeType === 1; e = e.parentElement) {
+        if (taken.has(e)) return false;
+      }
+      return true;
+    });
+  }
+  var modeOf = (tool2) => Tools.setting(tool2, "take");
+
+  // src/tools/input/lasso/drag.js
+  var Drag = {
+    from: null,
+    // page coords where the press landed
+    rect: null,
+    // the live rectangle in viewport coords, or null
+    drew: false,
+    // a rectangle was completed — the click that follows is ours
+    _ctx: null,
+    /** Viewport rect from two page points, normalised so either drag direction
+     *  gives the same box. */
+    box(a, b) {
+      return {
+        left: Math.min(a.px, b.px) - scrollX,
+        right: Math.max(a.px, b.px) - scrollX,
+        top: Math.min(a.py, b.py) - scrollY,
+        bottom: Math.max(a.py, b.py) - scrollY
+      };
+    }
+  };
+  function watch2(ctx) {
+    Drag._ctx = ctx;
+    const page = (e) => !!(document.body && document.body.contains(e.target));
+    Drag._down = (e) => {
+      if (!State.enabled || e.button !== 0 || e.altKey || !page(e)) return;
+      Drag.from = { px: e.clientX + scrollX, py: e.clientY + scrollY };
+      Drag.rect = null;
+      Drag.drew = false;
+    };
+    Drag._move = (e) => {
+      if (!Drag.from) return;
+      const now = { px: e.clientX + scrollX, py: e.clientY + scrollY };
+      if (!Drag.rect && Math.hypot(now.px - Drag.from.px, now.py - Drag.from.py) < CONFIG.LASSO_MIN) return;
+      Drag.rect = Drag.box(Drag.from, now);
+      ctx.redraw?.();
+    };
+    Drag._up = () => {
+      const r = Drag.rect;
+      Drag.from = null;
+      Drag.rect = null;
+      if (!r) return;
+      Drag.drew = true;
+      const els = inside(r, modeOf(Drag.tool));
+      ctx.pin?.(els);
+      ctx.redraw?.();
+    };
+    addEventListener("pointerdown", Drag._down, true);
+    addEventListener("pointermove", Drag._move, true);
+    addEventListener("pointerup", Drag._up, true);
+    addEventListener("blur", Drag._up);
+  }
+  function unwatch2() {
+    removeEventListener("pointerdown", Drag._down, true);
+    removeEventListener("pointermove", Drag._move, true);
+    removeEventListener("pointerup", Drag._up, true);
+    removeEventListener("blur", Drag._up);
+    Drag.from = Drag.rect = null;
+    Drag.drew = false;
+    Drag._ctx = null;
+  }
+  function intercept({ type }) {
+    if (type !== "click" || !Drag.drew) return false;
+    Drag.drew = false;
+    return true;
+  }
+
+  // src/tools/input/lasso/draw.js
+  function draw7({ layer: layer2, Place: Place2 }) {
+    const r = Drag.rect;
+    if (!r) return;
+    const box = document.createElement("div");
+    box.className = "debug-overlay-lasso";
+    Place2.put(box, r.left, r.top, Math.max(1, r.right - r.left), Math.max(1, r.bottom - r.top));
+    layer2.append(box);
+  }
+
+  // src/tools/input/lasso/index.js
+  var tool = defineTool({
+    css: `
+  .debug-overlay-lasso { position: fixed; pointer-events: none;
+    border: 1px solid var(--debug-overlay-accent);
+    background: rgba(181,232,83,.10); border-radius: var(--debug-overlay-r-inner); }
+  `,
+    id: "lasso",
+    family: "input",
+    // audited: must match the domain folder this sits in
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11V8a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h3"/><path d="M14 13v8"/><path d="M10 17h8"/></svg>',
+    // lucide 'folder-plus' turned marquee
+    title: "Lasso — drag a box and keep everything inside it",
+    /* NOT startsOn. Every click on the page already means something, and a
+       gesture that reinterprets drags is not one to switch on for somebody who
+       did not ask for it. */
+    watch: watch2,
+    unwatch: unwatch2,
+    intercept,
+    draw: draw7,
+    /**
+     * WHAT A BOX TAKES, and it is a real choice rather than a preference.
+     *
+     * A rectangle over one card contains the card and every node inside it. The
+     * default keeps only the outermost of them — "the things in this region" —
+     * because the alternative is dozens of pins for one drag with the one you
+     * wanted buried among them. The other readings exist because neither is
+     * always wrong, and this is the kind of thing that must be changeable from
+     * the panel rather than by a rebuild.
+     */
+    options() {
+      return [
+        {
+          key: "take",
+          label: "A box keeps",
+          def: "outermost",
+          values: ["outermost", "leaves", "every", "touching"],
+          affects: "select"
+        }
+      ];
+    },
+    /** The gesture this adds — declared where it lives, so the KEYS legend
+     *  learns it without any core file holding a list. */
+    gestures() {
+      return [{
+        keys: "Drag on the page (▭ armed)",
+        does: "keep everything the box takes — including what a click cannot reach"
+      }];
+    }
+  });
+  Drag.tool = tool;
+
   // src/tools/input/pin/keep.js
   function keeps() {
     return true;
@@ -3466,10 +3647,10 @@ HOW TO USE
   function fmt(ms) {
     return ms < 1e3 ? `${ms}ms` : `${(ms / 1e3).toFixed(1)}s`;
   }
-  function watch2(ctx) {
+  function watch3(ctx) {
     Monitor.start(this, ctx);
   }
-  function unwatch2() {
+  function unwatch3() {
     Monitor.stop();
   }
   function readLoad() {
@@ -3635,7 +3816,7 @@ HOW TO USE
   };
 
   // src/tools/perf/draw.js
-  function draw7({ marks, found }) {
+  function draw8({ marks, found }) {
     marks(found);
   }
 
@@ -3651,8 +3832,8 @@ HOW TO USE
     subject: "time",
     title: "Perf — freezes and jank while armed; the badge shows the page's pulse",
     startsOn: false,
-    watch: watch2,
-    unwatch: unwatch2,
+    watch: watch3,
+    unwatch: unwatch3,
     timeline,
     badge: badge7,
     compact: compact7,
@@ -3661,7 +3842,7 @@ HOW TO USE
     reportTail: reportTail4,
     audit: audit4,
     rules: rules5,
-    draw: draw7,
+    draw: draw8,
     options() {
       return [
         {
@@ -6388,7 +6569,14 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           Controller._running.add(t);
           t.watch.call(t, {
             redraw: Render.schedule,
-            event: (e) => Controller.onToolEvent?.(t.id, e)
+            event: (e) => Controller.onToolEvent?.(t.id, e),
+            /* KEEPING is core's, and a tool that selects many
+               at once has no other way to say so: it may not
+               import app/, and togglePin is one element at a
+               time through the input layer. Handed in like
+               redraw, so the capability travels and the id
+               does not. */
+            pin: Controller.pinMany
           });
         } else if (!should && is) {
           Controller._running.delete(t);
@@ -6699,6 +6887,28 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         State.pins.push({ el: el2, id: Controller.nextPinId(), kind });
       }
       Controller.pinsChanged();
+    },
+    /**
+     * KEEP SEVERAL AT ONCE — one change, one announcement.
+     *
+     * Pinning in a loop would fire pinsChanged (a persist, a render and a list
+     * rebuild) once per element, which for a lasso over forty of them is
+     * forty of each. Elements already pinned are left exactly as they are:
+     * a selection that swept over something twice must not unpin it, which is
+     * what togglePin would do.
+     */
+    pinMany(els, kind = CONFIG.PIN_KIND.PLAIN) {
+      let added = 0;
+      for (const el2 of els) {
+        if (!el2 || !document.contains(el2)) continue;
+        if (State.pins.some((p) => p.el === el2)) continue;
+        State.pins.push({ el: el2, id: Controller.nextPinId(), kind });
+        added++;
+      }
+      if (!added) return 0;
+      State.current = null;
+      Controller.pinsChanged();
+      return added;
     },
     /**
      * SELECTION chooses; PIN keeps. This is the choosing half on its own:

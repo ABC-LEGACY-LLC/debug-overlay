@@ -37,7 +37,14 @@ import { Render } from '../ui/renderer.js';
         if (should && !is) {
           Controller._running.add(t);
           t.watch.call(t, { redraw: Render.schedule,
-                            event: (e) => Controller.onToolEvent?.(t.id, e) });
+                            event: (e) => Controller.onToolEvent?.(t.id, e),
+                            /* KEEPING is core's, and a tool that selects many
+                               at once has no other way to say so: it may not
+                               import app/, and togglePin is one element at a
+                               time through the input layer. Handed in like
+                               redraw, so the capability travels and the id
+                               does not. */
+                            pin: Controller.pinMany });
         } else if (!should && is) { Controller._running.delete(t); t.unwatch?.call(t); }
       }
     },
@@ -409,6 +416,29 @@ import { Render } from '../ui/renderer.js';
       }
       Controller.pinsChanged();
     },
+    /**
+     * KEEP SEVERAL AT ONCE — one change, one announcement.
+     *
+     * Pinning in a loop would fire pinsChanged (a persist, a render and a list
+     * rebuild) once per element, which for a lasso over forty of them is
+     * forty of each. Elements already pinned are left exactly as they are:
+     * a selection that swept over something twice must not unpin it, which is
+     * what togglePin would do.
+     */
+    pinMany(els, kind = CONFIG.PIN_KIND.PLAIN) {
+      let added = 0;
+      for (const el of els) {
+        if (!el || !document.contains(el)) continue;
+        if (State.pins.some((p) => p.el === el)) continue;
+        State.pins.push({ el, id: Controller.nextPinId(), kind });
+        added++;
+      }
+      if (!added) return 0;
+      State.current = null;   // a kept selection supersedes the transient one
+      Controller.pinsChanged();
+      return added;
+    },
+
     /**
      * SELECTION chooses; PIN keeps. This is the choosing half on its own:
      * with no armed keeper, a click selects ONE element — outline and badge,

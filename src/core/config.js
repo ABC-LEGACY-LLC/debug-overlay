@@ -103,6 +103,13 @@
     // to read one number off. A third view is one new entry here plus its
     // rendering; the 🏷 flyout and the ⚙ row both derive from this list.
     BADGE_MODES: ['compact', 'full'],
+    /* How far the pointer must travel before a press counts as a DRAG rather
+       than a click that wobbled. Below it no rectangle is ever started, so a
+       lasso being armed costs single-click pinning nothing — which is the
+       condition for adding a gesture to a surface where every click already
+       means something. Four, because a hand on a trackpad moves one or two
+       pixels between press and release without intending to. */
+    LASSO_MIN: 4,
     PICK_FLASH: 700,          // ms an element stays outlined after being picked
     LANE_SEP: 16,             // px between parallel dimension lines
     HOTKEY: { alt: true, shift: true, ctrl: false, code: 'KeyD' },

@@ -2722,13 +2722,18 @@ console.log('\nCATEGORIES');
   // ---- the ⚙ view, filed by what each setting changes ---------------------
   hit('[data-settings]');
   const heads = [...list.querySelectorAll('.debug-overlay-head')].map((h) => h.childNodes[0].textContent);
-  // No Select heading since 'Pin grouping' retired (a technique is a gesture
-  // now), and no Act heading since pick retired with its option (copy is a
-  // take-away action, not a tool) — a heading with no settings under it would
-  // be furniture. Each comes back the day something declares one.
+  /* A heading with no settings under it is furniture, so a category appears
+     the day something declares one and not before. Select was empty from the
+     retirement of the 'Pin grouping' mode until ▭ lasso arrived with "A box
+     keeps" — which is the shape this is meant to have: a new tool makes its
+     category appear, and no core file is edited for it. Act is still empty;
+     pick retired with its option, and copy is a take-away rather than a tool. */
   ok('the ⚙ view is grouped by what a setting changes',
-    heads.join(' → ') === 'Inspect → Detect → Keys → Legend',
+    heads.join(' → ') === 'Select → Inspect → Detect → Keys → Legend',
     heads.join(' → ') || '(no headings)');
+  ok('…and a category appears because a tool declared one, not because core did',
+    heads.indexOf('Select') === 0 && !heads.includes('Act'),
+    heads.join(' → '));
   // the grid rows are not adjacent to each other because they own the tool —
   // they are adjacent because all three change what counts as a problem
   const under = (h) => {
@@ -4142,6 +4147,118 @@ console.log('\nSTALENESS ANNOUNCES ITSELF');
     off.w.close();
   });
 
+}
+
+console.log('\nA BOX TAKES WHAT A CLICK CANNOT');
+/**
+ * The architecture has promised this one since before it had a name: "a lasso
+ * or a select-by-query is one new file that every consumer picks up". What
+ * makes it worth having beyond convenience is that a rectangle asks a
+ * DIFFERENT QUESTION from a click. A click asks the browser what is under a
+ * point, and the browser answers with what it would deliver an event to —
+ * silently omitting anything outside its own painted shape, anything behind
+ * pointer-events: none, anything an ancestor clipped away. ⛏ paint lists
+ * those as [—] precisely because they are real and unreachable. A box reaches
+ * them, because it asks where things ARE.
+ */
+{
+  const opts = { url: 'https://example.test/', pretendToBeVisual: true,
+                 runScripts: 'outside-only', virtualConsole: new VirtualConsole() };
+  const R = (l, t, r, b) => () => ({ left: l, top: t, right: r, bottom: b,
+                                     width: r - l, height: b - t, x: l, y: t });
+  const mk = (take) => {
+    const d = new JSDOM('<!doctype html><html><body>' +
+      '<section id="card"><b id="kid">a</b><i id="sib">b</i></section>' +
+      '<u id="ghost" style="pointer-events:none">c</u>' +
+      '<s id="far">d</s></body></html>', opts);
+    const w = d.window;
+    w.localStorage.setItem('__debug_overlay_tools', JSON.stringify(['lasso', 'pin']));
+    w.localStorage.setItem('__debug_overlay_seen', JSON.stringify(idsOnDisk));
+    if (take) w.localStorage.setItem('__debug_overlay_settings',
+      JSON.stringify({ lasso: { take } }));
+    w.eval(source);
+    const at = { card: R(10, 10, 90, 90), kid: R(20, 20, 50, 50), sib: R(55, 20, 85, 50),
+                 ghost: R(20, 60, 80, 80), far: R(200, 200, 260, 260) };
+    for (const [id, r] of Object.entries(at)) w.document.getElementById(id).getBoundingClientRect = r;
+    w.document.body.getBoundingClientRect = R(0, 0, 400, 400);
+    /* jsdom has no hit test, so supply an HONEST one: topmost box that holds
+       the point AND accepts pointer events — which is what a real browser
+       delivers a click to, and is why #ghost cannot be clicked at all. The
+       claim below is then tested rather than assumed. */
+    w.document.elementFromPoint = (x, y) => {
+      const hit = [...w.document.querySelectorAll('#card,#kid,#sib,#ghost,#far')]
+        .filter((el) => el.style.pointerEvents !== 'none')
+        .filter((el) => { const b = el.getBoundingClientRect();
+                          return x >= b.left && x <= b.right && y >= b.top && y <= b.bottom; });
+      return hit[hit.length - 1] || w.document.body;
+    };
+    w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+    const drag = (x1, y1, x2, y2) => {
+      const t = w.document.getElementById('card');
+      const ev = (n, x, y) => t.dispatchEvent(new w.MouseEvent(n,
+        { bubbles: true, clientX: x, clientY: y, button: 0 }));
+      ev('pointerdown', x1, y1); ev('pointermove', x2, y2); ev('pointerup', x2, y2);
+      ev('click', x2, y2);   // the browser always sends this one after a press
+    };
+    const pinned = () => {
+      let got = null;
+      Object.defineProperty(w.navigator, 'clipboard',
+        { value: { writeText: async (s2) => { got = s2; } }, configurable: true });
+      w.document.getElementById('__debug-overlay-bar').querySelector('[data-copy]')
+        .dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+      return (got || '').split('\n').filter((l) => l.startsWith('[#'))
+        .map((l) => (l.match(/#\w+$/) || [''])[0]).sort().join(' ');
+    };
+    return { w, drag, pinned };
+  };
+
+  // the default: the things in the region, not every node in it
+  const a = mk(null);
+  a.drag(0, 0, 100, 100);
+  ok('a box keeps the OUTERMOST things in it, not every node inside them',
+    a.pinned() === '#card #ghost', a.pinned() || '(nothing pinned)');
+  ok('…and it reaches what a click cannot — pointer-events: none is in the box',
+    /#ghost/.test(a.pinned()),
+    'the whole reason a rectangle beats a point: it asks where things ARE');
+  ok('…and takes nothing that is outside it',
+    !/#far/.test(a.pinned()), 'the box took something it never covered');
+  a.w.close();
+
+  // the other readings, because neither is always wrong
+  const b = mk('every');
+  b.drag(0, 0, 100, 100);
+  ok('"every" keeps the children too — the honest raw answer',
+    b.pinned() === '#card #ghost #kid #sib', b.pinned() || '(nothing)');
+  b.w.close();
+  const c = mk('leaves');
+  c.drag(0, 0, 100, 100);
+  ok('"leaves" keeps only what has nothing of its own inside the box',
+    c.pinned() === '#ghost #kid #sib', c.pinned() || '(nothing)');
+  c.w.close();
+
+  /* A GESTURE ADDED TO A SURFACE WHERE EVERY CLICK ALREADY MEANS SOMETHING
+     has to cost the existing one nothing. Under the movement threshold no
+     rectangle is ever started, so the click runs exactly as it did. */
+  const d2 = mk(null);
+  d2.drag(40, 40, 42, 41);            // a press that wobbled, not a drag
+  ok('a press that barely moves is still a click — one pin, from the HIT TEST',
+    d2.pinned() === '#kid', d2.pinned() || '(nothing)');
+  d2.w.close();
+
+  /* …and a real drag must NOT also pin whatever the release landed on. The
+     click that follows a drag is the lasso's — the overlay doing two things
+     for one gesture is its own bug. The claim is ONE-SHOT, though: the very
+     next ordinary click still pins, or the tool would quietly disable the
+     gesture it shares the surface with. */
+  const e2 = mk(null);
+  e2.drag(0, 0, 100, 100);
+  ok('the click that ends a drag is claimed, so the gesture pins once',
+    e2.pinned() === '#card #ghost', e2.pinned() || '(nothing)');
+  e2.w.document.getElementById('far').dispatchEvent(
+    new e2.w.MouseEvent('click', { bubbles: true, clientX: 220, clientY: 220 }));
+  ok('…and the claim is one-shot — the NEXT click pins as it always did',
+    /#far/.test(e2.pinned()), e2.pinned() || '(nothing)');
+  e2.w.close();
 }
 
 console.log('\nWHO PAINTED THIS PIXEL');
