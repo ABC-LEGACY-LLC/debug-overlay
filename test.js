@@ -4060,6 +4060,99 @@ console.log('\nWHO PAINTED THIS PIXEL');
   w.close();
 }
 
+  /* ---- THE STACK MUST SAY WHAT IT COULD NOT SEE ----------------------
+     A twelve-layer stack of `div.flex.flex-1.min-h-0` is unreadable without
+     rects; a walk that meets a web component and stops without saying so is
+     a partial answer wearing a complete one; and the two layers that decided
+     the real case — a wallpaper in ::before and a material in
+     backdrop-filter — are invisible to hit-testing entirely. */
+  {
+    const opts = { url: 'https://example.test/', pretendToBeVisual: true,
+                   runScripts: 'outside-only', virtualConsole: new VirtualConsole() };
+    const R = (l, t, r, b) => () => ({ left: l, top: t, right: r, bottom: b,
+                                       width: r - l, height: b - t, x: l, y: t });
+    const d2 = new JSDOM(
+      `<!doctype html><html><body style="background:rgb(17,17,20)">` +
+      `<div id="glass"></div><div id="host"></div><iframe id="frame"></iframe>` +
+      `</body></html>`, opts);
+    const w2 = d2.window;
+    w2.localStorage.setItem('__debug_overlay_tools', JSON.stringify(['paint']));
+    w2.localStorage.setItem('__debug_overlay_seen', JSON.stringify(idsOnDisk));
+    w2.eval(source);
+
+    const glass = w2.document.getElementById('glass');
+    const host = w2.document.getElementById('host');
+    const frame = w2.document.getElementById('frame');
+    host.attachShadow({ mode: 'open' });
+    glass.getBoundingClientRect = R(40, 40, 360, 200);
+    host.getBoundingClientRect = R(40, 40, 360, 200);
+    frame.getBoundingClientRect = R(0, 0, 400, 400);
+    w2.document.body.getBoundingClientRect = R(0, 0, 400, 400);
+
+    /* jsdom answers getComputedStyle(el, '::before') with the element's own
+       style, so the pseudo layers have to be supplied. What is under test is
+       whether the report SHOWS them — they are the two the real case turned
+       on, and their shape had never been seen. */
+    const real = w2.getComputedStyle.bind(w2);
+    const fake = {
+      glass: { '::before': { content: '""', backgroundColor: 'rgba(0, 0, 0, 0)',
+                             backgroundImage: 'url("wallpaper.avif")', maskImage: 'none',
+                             borderTopWidth: '0px', borderLeftWidth: '0px' },
+               '::after': { content: '""', backgroundColor: 'rgba(0, 0, 0, 0)',
+                            backgroundImage: 'none', maskImage: 'none',
+                            borderTopWidth: '1px', borderLeftWidth: '1px' } },
+    };
+    w2.getComputedStyle = (el, ps) => {
+      if (!ps) return real(el);
+      const byId = fake[el && el.id];
+      return (byId && byId[ps]) || { content: 'none' };
+    };
+    // the material itself: translucent white over a blur
+    glass.style.backgroundColor = 'rgba(255, 255, 255, 0.06)';
+    glass.style.backdropFilter = 'blur(24px) saturate(1.4)';
+
+    /* the overlay's own bar is over the pixel — it must be dropped, and the
+       report must SAY it was, or the reader wonders where [1] went */
+    const bar2 = w2.document.getElementById('__debug-overlay-bar');
+    w2.document.elementsFromPoint = () => [bar2, glass, host, frame, w2.document.body];
+
+    w2.dispatchEvent(new w2.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+    glass.dispatchEvent(new w2.MouseEvent('pointermove',
+      { bubbles: true, clientX: 200, clientY: 120 }));
+    let out2 = null;
+    Object.defineProperty(w2.navigator, 'clipboard',
+      { value: { writeText: async (t) => { out2 = t; } }, configurable: true });
+    bar2.querySelector('[data-copy]').dispatchEvent(new w2.MouseEvent('click', { bubbles: true }));
+    const rep2 = out2 || '';
+    const line = (re) => rep2.split('\n').find((l) => re.test(l)) || '(absent)';
+
+    ok('every row carries its rect — a short selector is often not unique',
+      /#glass\s+\(40, 40, 320 × 160\)/.test(rep2), line(/#glass/));
+    ok('the layer the colour comes from is marked, not left to be worked out',
+      /← (the colour you see|base · \d+ layers? blend over it)/.test(rep2),
+      line(/←/));
+    ok('backdrop-filter is printed with its value, and called FILTERED',
+      /backdrop-filter: blur\(24px\) saturate\(1\.4\)/.test(rep2) && /FILTERED/.test(rep2),
+      line(/backdrop-filter:/));
+    ok('::before is reported — the wallpaper layer no hit test can see',
+      /::before — content \+ background-image — NOT in the stack/.test(rep2),
+      line(/::before/));
+    ok('and ::after with its border — the edge ring',
+      /::after — content \+ border — NOT in the stack/.test(rep2),
+      line(/::after/));
+    ok('the walk admits it STOPPED at a shadow host, rather than stopping quietly',
+      /stack STOPPED at 1 shadow host \(#host\)/.test(rep2), line(/shadow host/));
+    ok('…and says "at least", because a closed root cannot be counted at all',
+      /AT LEAST that many/.test(rep2) && /closed root\s*\n?\s*cannot be detected at all/.test(rep2.replace(/\s+/g, ' ')), line(/AT LEAST/));
+    ok('a frame is named as not entered',
+      /1 frame not entered \(#frame\)/.test(rep2), line(/frame not entered/));
+    ok('and our own layers are said to have been removed, once',
+      /1 overlay layer of our own removed from the top/.test(rep2), line(/overlay layer/));
+
+    if (process.env.PAINT_SAMPLE) console.log('\n' + rep2.split('## paint')[1]);
+    w2.close();
+  }
+
 console.log('\nTHE SESSION SURVIVES THE REFRESH');
 /**
  * DevTools survives a reload because it lives outside the page; a userscript

@@ -144,11 +144,25 @@ HOW TO USE
                  belongs to whatever is behind. Armed, the probe follows the
                  pointer and HOLDS when you move onto the panel, so ⧉ reports
                  the pixel you meant. The report carries the whole stack, top
-                 to bottom: painted / box only — not painted here / clipped
-                 away by an ancestor's overflow, each with its colour, plus
-                 ::before and ::after (which no hit test can see) and any
-                 backdrop-filter. OFF by default — it listens to every
-                 pointer move while armed.
+                 to bottom — each row with its RECT, because a short selector
+                 is often not unique and size is what tells two of them
+                 apart — marked painted / box only — not painted here /
+                 clipped away by an ancestor's overflow, each with its
+                 colour. The layer the colour actually comes from is marked
+                 ← the colour you see, so a twelve-deep stack is not
+                 arithmetic you have to do. Plus ::before and ::after and any
+                 backdrop-filter: the layers no hit test can see, and the two
+                 that decide a frosted panel's colour.
+
+                 It also says what it could NOT see, because a walk that
+                 stops quietly is a partial answer wearing a complete one:
+                 our own overlay layers removed from the top, a stack that
+                 stopped at a shadow host (at least that many — a closed root
+                 cannot be detected), and any frame it could not cross. The
+                 composite is labelled a CLAIM: reading the real rendered
+                 pixel needs a capture permission this build does not ask
+                 for, so nothing here has verified it. OFF by default — it
+                 listens to every pointer move while armed.
        ◐ contrast  WCAG text contrast ratio, against AA or AAA (⚙)
     ⌨ a11y       the name, role and keyboard reach of what you point at —
                  COMPUTED off the rendered page, not read out of the source.

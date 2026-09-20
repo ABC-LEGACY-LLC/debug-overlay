@@ -16,6 +16,8 @@ import { radii, inRounded, padBox, padRadii, sideAt, shadowAt } from './shape.js
  * read, so it stays on the same pixel of the same content when the page
  * scrolls — the point you chose, not the point on the glass.
  */
+const EMPTY = { layers: [], dropped: 0, hosts: [], frames: [] };
+
 export const Probe = {
   at: null,        // { px, py } in page coordinates, or null
 
@@ -93,10 +95,59 @@ export const Probe = {
    * the box" — and answers nothing else. Everything below is the difference
    * between that and what is painted.
    */
-  stack(x, y) {
+  stack(x, y) { return Probe.walk(x, y).layers; },
+
+  /**
+   * The stack, AND EVERY WAY IT IS INCOMPLETE. A walk that stops silently is
+   * the worst answer this tool can give: the reader takes a partial stack for
+   * the whole one and reasons from a wrong picture. Same discipline the page
+   * sweep already lives by — say what was not checked, or the count reads as
+   * the whole page.
+   */
+  walk(x, y) {
     let els = [];
-    try { els = document.elementsFromPoint(x, y) || []; } catch { return []; }
-    return els.filter(Probe.ofPage).map((el) => Probe.layer(el, x, y));
+    try { els = document.elementsFromPoint(x, y) || []; } catch { return EMPTY; }
+    const page = els.filter(Probe.ofPage);
+    const layers = page.map((el) => Probe.layer(el, x, y));
+    return {
+      layers,
+      // our own root hangs off documentElement, so anything dropped here is
+      // the overlay's own furniture sitting over the pixel
+      dropped: els.length - page.length,
+      /* elementsFromPoint retargets to the HOST and never enters a shadow
+         tree, so a stack that meets a web component stops there. An open root
+         can at least be named; a CLOSED one cannot be detected at all, which
+         is why the report says "at least". */
+      hosts: layers.filter((L) => L.el.shadowRoot).map((L) => L.sel),
+      // a frame is a whole document this walk cannot cross into, and a
+      // cross-origin one could not be read even with permission
+      frames: layers.filter((L) => /^(IFRAME|FRAME)$/.test(L.el.tagName)).map((L) => L.sel),
+    };
+  },
+
+  /**
+   * WHICH ROW IS THE COLOUR YOU SEE.
+   *
+   * Painting runs bottom → top, so a fully opaque layer wipes out everything
+   * painted before it — everything BELOW it in this list. The last opaque one
+   * to paint (the smallest index here) is therefore the floor, and only the
+   * layers above it can still change the answer. Obvious in a stack of three;
+   * in a stack of twelve it is arithmetic the reader should not have to do.
+   */
+  base(layers) {
+    let at = -1;
+    const opaque = (L) => {
+      if (!L.paints || L.bgImage) return false;
+      const c = Colour.colour(L.colour);
+      return !!c && (c.a == null || c.a >= 0.999);
+    };
+    for (let i = layers.length - 1; i >= 0; i--) if (opaque(layers[i])) at = i;
+    const over = at < 0 ? 0 : layers.slice(0, at).filter((L) => {
+      if (!L.paints) return false;
+      const c = Colour.colour(L.colour);
+      return !!c && (c.a == null || c.a > 0);
+    }).length;
+    return { at, over };
   },
 
   /**
@@ -119,6 +170,12 @@ export const Probe = {
         .find((v) => v && v !== 'none') || null;
       return {
         el, cs, sel: U.selectorOf(el),
+        /* THE RECT, because a short selector is often not unique — one real
+           app has dozens of div.flex.flex-1.min-h-0, and from the text alone
+           there is no telling which one this is. Size and position tell them
+           apart, and they are already measured here. */
+        rect: { x: Math.round(r.left), y: Math.round(r.top),
+                w: Math.round(r.width), h: Math.round(r.height) },
         paints: inShape && !clip,
         inBox: true,                      // elementsFromPoint said so
         inShape, clip, side,

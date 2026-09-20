@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.8.177 — 2026-09-20
+
+- ⛏ **Paint** now answers the two questions a deep stack raises. Every row
+  carries its rect — a short selector like `div.flex.flex-1.min-h-0` can occur
+  dozens of times on one page, and size is what tells them apart — and the
+  layer the colour actually comes from is marked `← the colour you see`,
+  instead of leaving you to fold twelve layers by hand.
+- And it now says what it could **not** see, rather than stopping quietly: the
+  overlay's own layers removed from the top, a stack that stopped at a shadow
+  host (at least that many, since a closed root cannot be detected at all),
+  and any frame it could not cross. A walk that stops silently is a partial
+  answer wearing a complete one.
+
 ## 3.8.176 — 2026-09-20
 
 - New **Paint** tool (⛏, in the 🎨 colour family, off until you arm it): which

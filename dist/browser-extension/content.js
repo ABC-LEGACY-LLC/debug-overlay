@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.176 — the extension gate */
+/* Debug Overlay v3.8.177 — the extension gate */
 
 /*
 HOW TO USE
@@ -147,11 +147,25 @@ HOW TO USE
                  belongs to whatever is behind. Armed, the probe follows the
                  pointer and HOLDS when you move onto the panel, so ⧉ reports
                  the pixel you meant. The report carries the whole stack, top
-                 to bottom: painted / box only — not painted here / clipped
-                 away by an ancestor's overflow, each with its colour, plus
-                 ::before and ::after (which no hit test can see) and any
-                 backdrop-filter. OFF by default — it listens to every
-                 pointer move while armed.
+                 to bottom — each row with its RECT, because a short selector
+                 is often not unique and size is what tells two of them
+                 apart — marked painted / box only — not painted here /
+                 clipped away by an ancestor's overflow, each with its
+                 colour. The layer the colour actually comes from is marked
+                 ← the colour you see, so a twelve-deep stack is not
+                 arithmetic you have to do. Plus ::before and ::after and any
+                 backdrop-filter: the layers no hit test can see, and the two
+                 that decide a frosted panel's colour.
+
+                 It also says what it could NOT see, because a walk that
+                 stops quietly is a partial answer wearing a complete one:
+                 our own overlay layers removed from the top, a stack that
+                 stopped at a shadow host (at least that many — a closed root
+                 cannot be detected), and any frame it could not cross. The
+                 composite is labelled a CLAIM: reading the real rendered
+                 pixel needs a capture permission this build does not ask
+                 for, so nothing here has verified it. OFF by default — it
+                 listens to every pointer move while armed.
        ◐ contrast  WCAG text contrast ratio, against AA or AAA (⚙)
     ⌨ a11y       the name, role and keyboard reach of what you point at —
                  COMPUTED off the rendered page, not read out of the source.
@@ -370,7 +384,7 @@ HOW TO USE
     // manifest that ships it, and an overlay that cannot say which version it
     // is makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.176",
+    VERSION: "3.8.177",
     // Substituted like VERSION, from release.json: the MANIFEST the extension
     // publishes, which is the one file that moves with every release. It was
     // the userscript's meta header until that gate was withdrawn — and that
@@ -1927,6 +1941,7 @@ HOW TO USE
   }
 
   // src/tools/colour/paint/probe.js
+  var EMPTY = { layers: [], dropped: 0, hosts: [], frames: [] };
   var Probe = {
     at: null,
     // { px, py } in page coordinates, or null
@@ -2001,13 +2016,62 @@ HOW TO USE
      * between that and what is painted.
      */
     stack(x, y) {
+      return Probe.walk(x, y).layers;
+    },
+    /**
+     * The stack, AND EVERY WAY IT IS INCOMPLETE. A walk that stops silently is
+     * the worst answer this tool can give: the reader takes a partial stack for
+     * the whole one and reasons from a wrong picture. Same discipline the page
+     * sweep already lives by — say what was not checked, or the count reads as
+     * the whole page.
+     */
+    walk(x, y) {
       let els = [];
       try {
         els = document.elementsFromPoint(x, y) || [];
       } catch {
-        return [];
+        return EMPTY;
       }
-      return els.filter(Probe.ofPage).map((el2) => Probe.layer(el2, x, y));
+      const page = els.filter(Probe.ofPage);
+      const layers = page.map((el2) => Probe.layer(el2, x, y));
+      return {
+        layers,
+        // our own root hangs off documentElement, so anything dropped here is
+        // the overlay's own furniture sitting over the pixel
+        dropped: els.length - page.length,
+        /* elementsFromPoint retargets to the HOST and never enters a shadow
+           tree, so a stack that meets a web component stops there. An open root
+           can at least be named; a CLOSED one cannot be detected at all, which
+           is why the report says "at least". */
+        hosts: layers.filter((L) => L.el.shadowRoot).map((L) => L.sel),
+        // a frame is a whole document this walk cannot cross into, and a
+        // cross-origin one could not be read even with permission
+        frames: layers.filter((L) => /^(IFRAME|FRAME)$/.test(L.el.tagName)).map((L) => L.sel)
+      };
+    },
+    /**
+     * WHICH ROW IS THE COLOUR YOU SEE.
+     *
+     * Painting runs bottom → top, so a fully opaque layer wipes out everything
+     * painted before it — everything BELOW it in this list. The last opaque one
+     * to paint (the smallest index here) is therefore the floor, and only the
+     * layers above it can still change the answer. Obvious in a stack of three;
+     * in a stack of twelve it is arithmetic the reader should not have to do.
+     */
+    base(layers) {
+      let at = -1;
+      const opaque = (L) => {
+        if (!L.paints || L.bgImage) return false;
+        const c = Colour.colour(L.colour);
+        return !!c && (c.a == null || c.a >= 0.999);
+      };
+      for (let i = layers.length - 1; i >= 0; i--) if (opaque(layers[i])) at = i;
+      const over = at < 0 ? 0 : layers.slice(0, at).filter((L) => {
+        if (!L.paints) return false;
+        const c = Colour.colour(L.colour);
+        return !!c && (c.a == null || c.a > 0);
+      }).length;
+      return { at, over };
     },
     /**
      * ONE element, judged at one point. Split out because the badge asks it of
@@ -2034,6 +2098,16 @@ HOW TO USE
         el: el2,
         cs,
         sel: U.selectorOf(el2),
+        /* THE RECT, because a short selector is often not unique — one real
+           app has dozens of div.flex.flex-1.min-h-0, and from the text alone
+           there is no telling which one this is. Size and position tell them
+           apart, and they are already measured here. */
+        rect: {
+          x: Math.round(r.left),
+          y: Math.round(r.top),
+          w: Math.round(r.width),
+          h: Math.round(r.height)
+        },
         paints: inShape && !clip,
         inBox: true,
         // elementsFromPoint said so
@@ -2131,12 +2205,16 @@ HOW TO USE
     const L = [];
     L.push("", `## paint — the pixel at (${Math.round(p.x)}, ${Math.round(p.y)})`);
     L.push(`page coordinates (${Math.round(Probe.at.px)}, ${Math.round(Probe.at.py)}) · dpr ${devicePixelRatio}`);
-    const layers = Probe.stack(p.x, p.y);
+    const { layers, dropped, hosts, frames } = Probe.walk(p.x, p.y);
     if (!layers.length) {
       L.push("nothing in the page is under that point.");
+      L.push(...scope(dropped, hosts, frames));
       return L;
     }
-    const w = Math.min(46, Math.max(...layers.map((x) => x.sel.length)));
+    const { at, over } = Probe.base(layers);
+    const w = Math.min(40, Math.max(...layers.map((x) => x.sel.length)));
+    const boxes = layers.map((x) => `(${x.rect.x}, ${x.rect.y}, ${x.rect.w} × ${x.rect.h})`);
+    const bw = Math.max(...boxes.map((b) => b.length));
     L.push("stack, top → bottom:");
     layers.forEach((x, i) => {
       const sel = x.sel.length > w ? "…" + x.sel.slice(-(w - 1)) : x.sel.padEnd(w);
@@ -2148,14 +2226,24 @@ HOW TO USE
       } else {
         verdict = `PAINTS · ${x.from} ${x.colour}` + (x.bgImage ? ` · background-image ${x.bgImage}` : "");
       }
-      L.push(`  [${i + 1}] ${sel}  ${verdict}`);
-      if (x.backdrop) L.push(`      backdrop-filter: ${x.backdrop}`);
+      if (x.el.shadowRoot) verdict += " · shadow content NOT walked";
+      if (/^(IFRAME|FRAME)$/.test(x.el.tagName)) verdict += " · frame contents NOT walked";
+      const win = i !== at ? "" : over ? `  ← base · ${over} layer${over === 1 ? "" : "s"} blend over it` : "  ← the colour you see";
+      L.push(`  [${i + 1}] ${sel}  ${boxes[i].padEnd(bw)}  ${verdict}${win}`);
+      if (x.backdrop) {
+        L.push(`      backdrop-filter: ${x.backdrop} — the pixel here is FILTERED, not`);
+        L.push(`      composited; the walk below cannot account for it`);
+      }
       for (const ps of x.pseudo) {
         L.push(`      ${ps.which} — content + ${ps.bits.join(", ")} — NOT in the stack; it may paint this pixel`);
       }
     });
     const { colour, doubts } = Probe.composite(layers);
     L.push(`composited bottom → top: rgb(${Colour.rgb(colour)})`);
+    if (at < 0) {
+      L.push("no fully opaque layer in the stack — the page canvas (white) shows through,");
+      L.push("   which is where the composite above starts.");
+    }
     L.push("sampled pixel: not available — reading the rendered pixel needs a tab-capture");
     L.push("   permission this build does not ask for, so the composite above is a CLAIM,");
     L.push("   computed from the walk, and nothing here has verified it.");
@@ -2163,7 +2251,28 @@ HOW TO USE
       L.push("not accounted for:");
       for (const d of doubts) L.push(`   ${d}`);
     }
+    L.push(...scope(dropped, hosts, frames));
     return L;
+  }
+  function scope(dropped, hosts, frames) {
+    const parts = [];
+    if (dropped) {
+      parts.push(`${dropped} overlay layer${dropped === 1 ? "" : "s"} of our own removed from the top — they are not the page`);
+    }
+    if (hosts.length) {
+      parts.push(
+        `stack STOPPED at ${hosts.length} shadow host${hosts.length === 1 ? "" : "s"} (${hosts.join(", ")}) — elementsFromPoint retargets to the`,
+        "   host and never enters the tree. AT LEAST that many: a closed root",
+        "   cannot be detected at all, so this is a floor, not a total."
+      );
+    }
+    if (frames.length) {
+      parts.push(
+        `${frames.length} frame${frames.length === 1 ? "" : "s"} not entered (${frames.join(", ")}) — a separate document, and a`,
+        "   cross-origin one could not be read even with permission."
+      );
+    }
+    return parts.length ? ["not walked:", ...parts.map((x) => x.startsWith("   ") ? x : `   ${x}`)] : [];
   }
 
   // src/tools/colour/paint/draw.js
@@ -2175,7 +2284,8 @@ HOW TO USE
     Place2.put(dot, p.x - 5, p.y - 5, 10, 10);
     Place2.claim(p.x - 7, p.y - 7, 14, 14);
     layer2.append(dot);
-    const painter = Probe.stack(p.x, p.y).find((L) => L.paints);
+    const layers = Probe.walk(p.x, p.y).layers;
+    const painter = layers[Probe.base(layers).at];
     if (!painter || !document.contains(painter.el)) return;
     const r = painter.el.getBoundingClientRect();
     const box = document.createElement("div");

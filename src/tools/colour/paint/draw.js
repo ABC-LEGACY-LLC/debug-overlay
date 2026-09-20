@@ -17,7 +17,10 @@ export function draw({ layer, Place }) {
   Place.claim(p.x - 7, p.y - 7, 14, 14);
   layer.append(dot);
 
-  const painter = Probe.stack(p.x, p.y).find((L) => L.paints);
+  /* The BASE, not merely the topmost painter — that is the layer the colour
+     comes from, and it is what the report marks too. One answer, two faces. */
+  const layers = Probe.walk(p.x, p.y).layers;
+  const painter = layers[Probe.base(layers).at];
   if (!painter || !document.contains(painter.el)) return;
   const r = painter.el.getBoundingClientRect();
   const box = document.createElement('div');

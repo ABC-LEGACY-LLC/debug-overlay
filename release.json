@@ -1,6 +1,6 @@
 {
   "name": "Debug Overlay — AI-friendly UI inspector",
-  "version": "3.8.176",
+  "version": "3.8.177",
   "description": "Pluggable, screenshot-friendly UI debug overlay. Power switch plus independent tools (measure, grid, contrast). Pin elements, read exact values off the screenshot, copy a structured report for an AI chat.",
   "author": "Alonur",
   "repoUrl": "https://github.com/ABC-LEGACY-LLC/debug-overlay",
