@@ -4097,10 +4097,16 @@ console.log('\nWHO PAINTED THIS PIXEL');
     const fake = {
       glass: { '::before': { content: '""', backgroundColor: 'rgba(0, 0, 0, 0)',
                              backgroundImage: 'url("wallpaper.avif")', maskImage: 'none',
-                             borderTopWidth: '0px', borderLeftWidth: '0px' },
+                             borderTopWidth: '0px', borderLeftWidth: '0px',
+                             // the wallpaper: it covers the element
+                             top: '0px', right: '0px', bottom: '0px', left: '0px',
+                             width: '320px', height: '160px' },
                '::after': { content: '""', backgroundColor: 'rgba(0, 0, 0, 0)',
                             backgroundImage: 'none', maskImage: 'none',
-                            borderTopWidth: '1px', borderLeftWidth: '1px' } },
+                            borderTopWidth: '1px', borderLeftWidth: '1px',
+                            // the edge ring: one hairline, not the surface
+                            top: 'auto', right: '0px', bottom: '0px', left: '0px',
+                            width: '320px', height: '1px' } },
     };
     w2.getComputedStyle = (el, ps) => {
       if (!ps) return real(el);
@@ -4110,6 +4116,9 @@ console.log('\nWHO PAINTED THIS PIXEL');
     // the material itself: translucent white over a blur
     glass.style.backgroundColor = 'rgba(255, 255, 255, 0.06)';
     glass.style.backdropFilter = 'blur(24px) saturate(1.4)';
+    glass.style.filter = 'drop-shadow(0 1px 2px rgba(0,0,0,.4))';
+    glass.style.mixBlendMode = 'luminosity';
+    w2.document.body.style.opacity = '0.9';   // an ancestor's fade
 
     /* the overlay's own bar is over the pixel — it must be dropped, and the
        report must SAY it was, or the reader wonders where [1] went */
@@ -4135,11 +4144,37 @@ console.log('\nWHO PAINTED THIS PIXEL');
       /backdrop-filter: blur\(24px\) saturate\(1\.4\)/.test(rep2) && /FILTERED/.test(rep2),
       line(/backdrop-filter:/));
     ok('::before is reported — the wallpaper layer no hit test can see',
-      /::before — content \+ background-image — NOT in the stack/.test(rep2),
-      line(/::before/));
+      /::before — content \+ background-image/.test(rep2), line(/::before/));
+    ok('…and WHERE it sits: inset 0 is a wallpaper, and says so',
+      /inset 0px · 320px × 160px — NOT in the stack/.test(rep2), line(/inset 0px/));
     ok('and ::after with its border — the edge ring',
-      /::after — content \+ border — NOT in the stack/.test(rep2),
-      line(/::after/));
+      /::after — content \+ border/.test(rep2), line(/::after/));
+    ok('…and its geometry tells it apart from the wallpaper: one hairline',
+      /right 0px bottom 0px left 0px · 320px × 1px/.test(rep2), line(/× 1px/));
+
+    /* THREE STATES, not one word for all of them. A transparent wrapper was
+       being called a painter, which is false on its face and also poisoned
+       the blend count — the count is only an answer if it counts answers. */
+    ok('a transparent layer is not called a painter',
+      /#host[^\n]*transparent — contributes nothing/.test(rep2), line(/#host/));
+    ok('a partly transparent one says how partly',
+      /#glass[^\n]*PAINTS · alpha 0\.06/.test(rep2), line(/#glass/));
+    ok('and the blend count counts only what actually contributes',
+      /← base · 1 layer blend over it/.test(rep2), line(/← base/));
+
+    /* The three in backdrop-filter's class: the fold does colour over colour
+       and none of these is that, so silence would make the composite wrong
+       without ever saying it might be. */
+    ok('filter on the element itself is called out',
+      /has filter: drop-shadow[^\n]*after the fact/.test(rep2), line(/has filter:/));
+    ok('mix-blend-mode is called out',
+      /has mix-blend-mode: luminosity[^\n]*not composite as colour over colour/.test(rep2),
+      line(/mix-blend-mode:/));
+    ok('and an ancestor\'s opacity is called out, named by its owner',
+      /html > body has opacity 0\.9[^\n]*ONE group/.test(rep2), line(/has opacity/));
+    ok('…once, not once per layer beneath it',
+      rep2.split('\n').filter((l) => /has opacity 0\.9/.test(l)).length === 1,
+      `${rep2.split('\n').filter((l) => /has opacity/.test(l)).length} copies of one fact`);
     ok('the walk admits it STOPPED at a shadow host, rather than stopping quietly',
       /stack STOPPED at 1 shadow host \(#host\)/.test(rep2), line(/shadow host/));
     ok('…and says "at least", because a closed root cannot be counted at all',

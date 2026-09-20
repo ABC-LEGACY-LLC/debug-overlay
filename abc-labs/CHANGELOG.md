@@ -1,5 +1,20 @@
 # Changelog
 
+## 3.8.178 — 2026-09-20
+
+- ⛏ **Paint** stops calling transparent layers painters. Three answers now,
+  not one word: a visible colour is `PAINTS`, alpha 0 is `transparent —
+  contributes nothing`, and part-way is `PAINTS · alpha 0.06`. That also makes
+  the blend count mean something — transparent layers drop out of it, so the
+  number is the answer rather than a row tally.
+- A `::before` or `::after` now prints **where it sits**. `inset 0` is a
+  wallpaper covering the element; `bottom 0 · auto × 1px` is a hairline ring.
+  Told only that both "may paint here", you could not tell them apart.
+- Three more things the fold cannot model are named instead of folded in
+  silently: the element's own `filter`, `mix-blend-mode`, and an ancestor's
+  `opacity` — which fades a whole subtree as one group, and is reported once
+  against the element that sets it rather than once per layer beneath it.
+
 ## 3.8.177 — 2026-09-20
 
 - ⛏ **Paint** now answers the two questions a deep stack raises. Every row

@@ -148,11 +148,23 @@ HOW TO USE
                  is often not unique and size is what tells two of them
                  apart — marked painted / box only — not painted here /
                  clipped away by an ancestor's overflow, each with its
-                 colour. The layer the colour actually comes from is marked
+                 colour — and painting is three answers, not one word: a
+                 visible colour is PAINTS, alpha 0 is transparent —
+                 contributes nothing, and part-way is PAINTS · alpha 0.06.
+                 The layer the colour actually comes from is marked
                  ← the colour you see, so a twelve-deep stack is not
                  arithmetic you have to do. Plus ::before and ::after and any
                  backdrop-filter: the layers no hit test can see, and the two
-                 that decide a frosted panel's colour.
+                 that decide a frosted panel's colour. A pseudo prints WHERE
+                 it sits, because inset 0 is a wallpaper and bottom 0 ·
+                 auto × 1px is an edge ring, and "may paint here" said the
+                 same thing about both.
+
+                 Four things it cannot model are named rather than folded
+                 in silently: backdrop-filter, the element's own filter,
+                 mix-blend-mode, and an ancestor's opacity (which fades a
+                 whole subtree as ONE group). Each would make the composite
+                 quietly wrong.
 
                  It also says what it could NOT see, because a walk that
                  stops quietly is a partial answer wearing a complete one:

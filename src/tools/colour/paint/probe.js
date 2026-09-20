@@ -18,6 +18,28 @@ import { radii, inRounded, padBox, padRadii, sideAt, shadowAt } from './shape.js
  */
 const EMPTY = { layers: [], dropped: 0, hosts: [], frames: [] };
 
+/** A colour's alpha, or null when the colour space cannot be read. Unreadable
+ *  is not zero: one is an absence of information, the other is a fact. */
+const alphaOf = (v) => {
+  const c = Colour.colour(v);
+  return c ? (c.a == null ? 1 : c.a) : null;
+};
+/**
+ * The nearest element at or above this one that sets `opacity` below 1, or
+ * null. Opacity fades a whole subtree AS ONE GROUP — which is precisely what
+ * a colour-over-colour fold cannot express — so the element that sets it is
+ * the fact worth reporting, once.
+ */
+function fadeOwner(el) {
+  try {
+    for (let e = el; e && e.nodeType === 1; e = e.parentElement) {
+      const v = parseFloat(getComputedStyle(e).opacity);
+      if (Number.isFinite(v) && v < 1) return { sel: U.selectorOf(e), v };
+    }
+  } catch {}
+  return null;
+}
+
 export const Probe = {
   at: null,        // { px, py } in page coordinates, or null
 
@@ -85,7 +107,28 @@ export const Probe = {
     if (cs.backgroundImage && cs.backgroundImage !== 'none') bits.push('background-image');
     if (cs.maskImage && cs.maskImage !== 'none') bits.push('mask');
     if (parseFloat(cs.borderTopWidth) || parseFloat(cs.borderLeftWidth)) bits.push('border');
-    return bits.length ? { which, bits } : null;
+    return bits.length ? { which, bits, geo: Probe.geometry(cs) } : null;
+  },
+
+  /**
+   * WHERE the pseudo sits, which is the difference between the two that
+   * matter. `inset: 0` covers the whole element; `bottom: 0; height: 1px` is
+   * a hairline along one edge. Told only that both "may paint here", a reader
+   * cannot tell a wallpaper from a border — and on the case this tool was
+   * built for, those were the two layers that decided the colour.
+   *
+   * Read from the getComputedStyle call that already found the pseudo, so it
+   * costs nothing extra. `auto` prints as `auto`: it is what the style says,
+   * and resolving it would mean claiming a geometry no API reports.
+   */
+  geometry(cs) {
+    const size = `${cs.width || 'auto'} × ${cs.height || 'auto'}`;
+    const set = ['top', 'right', 'bottom', 'left']
+      .map((k) => [k, cs[k]]).filter(([, v]) => v && v !== 'auto');
+    if (!set.length) return `no inset · ${size}`;
+    const vals = set.map(([, v]) => v);
+    if (set.length === 4 && vals.every((v) => v === vals[0])) return `inset ${vals[0]} · ${size}`;
+    return `${set.map(([k, v]) => `${k} ${v}`).join(' ')} · ${size}`;
   },
 
   /**
@@ -126,31 +169,6 @@ export const Probe = {
   },
 
   /**
-   * WHICH ROW IS THE COLOUR YOU SEE.
-   *
-   * Painting runs bottom → top, so a fully opaque layer wipes out everything
-   * painted before it — everything BELOW it in this list. The last opaque one
-   * to paint (the smallest index here) is therefore the floor, and only the
-   * layers above it can still change the answer. Obvious in a stack of three;
-   * in a stack of twelve it is arithmetic the reader should not have to do.
-   */
-  base(layers) {
-    let at = -1;
-    const opaque = (L) => {
-      if (!L.paints || L.bgImage) return false;
-      const c = Colour.colour(L.colour);
-      return !!c && (c.a == null || c.a >= 0.999);
-    };
-    for (let i = layers.length - 1; i >= 0; i--) if (opaque(layers[i])) at = i;
-    const over = at < 0 ? 0 : layers.slice(0, at).filter((L) => {
-      if (!L.paints) return false;
-      const c = Colour.colour(L.colour);
-      return !!c && (c.a == null || c.a > 0);
-    }).length;
-    return { at, over };
-  },
-
-  /**
    * ONE element, judged at one point. Split out because the badge asks it of
    * whatever you are pointing at — which may not be in the stack at all — and
    * two copies of this judgement is how a badge comes to disagree with the
@@ -184,31 +202,29 @@ export const Probe = {
         colour: side ? cs[`border${side[0].toUpperCase()}${side.slice(1)}Color`] : cs.backgroundColor,
         from: side ? `border-${side}-color` : 'background-color',
         bgImage, backdrop,
+        /* THE ALPHA, resolved once. "PAINTS" over rgba(0,0,0,0) is a lie —
+           a transparent layer contributes nothing, and calling it a painter
+           puts it in the blend count too, where it makes the count mean
+           nothing. null is a colour this cannot read, which is its own
+           answer and not a zero. */
+        alpha: alphaOf(side ? cs[`border${side[0].toUpperCase()}${side.slice(1)}Color`]
+                            : cs.backgroundColor),
+        /* The same class as backdrop-filter: things the fold cannot model,
+           each of which makes the composite quietly wrong if left unsaid.
+           `filter` is the element's OWN — it transforms everything the
+           element paints, after the fact. */
+        filter: cs.filter && cs.filter !== 'none' ? cs.filter : null,
+        blend: cs.mixBlendMode && cs.mixBlendMode !== 'normal' ? cs.mixBlendMode : null,
+        /* The NEAREST element that actually sets opacity — itself or an
+           ancestor — rather than this layer's cumulative value. One faded
+           wrapper made every layer beneath it report the same number, which
+           is four lines for one fact: the same repetition Sweep.group exists
+           to collapse. Named by its owner, it collapses to one. */
+        fader: fadeOwner(el),
         shadow: inShape ? null : shadowAt(x, y, r, cs),
         pseudo: [Probe.pseudo(el, '::before'), Probe.pseudo(el, '::after')].filter(Boolean),
         radius: U.radius(cs),
       };
   },
 
-  /**
-   * Fold the painting layers bottom → top. Returns the composite and every
-   * reason it might be wrong — a reader who cannot see the reasons cannot
-   * tell a computed answer from a guess.
-   */
-  composite(layers) {
-    const doubts = [];
-    // the canvas under a page is white; anything below the stack is not ours
-    let out = { r: 255, g: 255, b: 255, a: 1 };
-    for (let i = layers.length - 1; i >= 0; i--) {
-      const L = layers[i];
-      if (!L.paints) continue;
-      if (L.bgImage) doubts.push(`${L.sel} paints a background-image — its pixel here is unknown`);
-      if (L.backdrop) doubts.push(`${L.sel} has backdrop-filter: ${L.backdrop} — the pixel here is FILTERED, not composited`);
-      const c = Colour.colour(L.colour);
-      if (!c) { doubts.push(`${L.sel} ${L.from} is a colour space this cannot read`); continue; }
-      if (c.a === 0) continue;
-      out = Colour.over(c, out);
-    }
-    return { colour: out, doubts };
-  },
 };

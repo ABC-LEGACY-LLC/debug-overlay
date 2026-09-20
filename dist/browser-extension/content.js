@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.177 — the extension gate */
+/* Debug Overlay v3.8.178 — the extension gate */
 
 /*
 HOW TO USE
@@ -151,11 +151,23 @@ HOW TO USE
                  is often not unique and size is what tells two of them
                  apart — marked painted / box only — not painted here /
                  clipped away by an ancestor's overflow, each with its
-                 colour. The layer the colour actually comes from is marked
+                 colour — and painting is three answers, not one word: a
+                 visible colour is PAINTS, alpha 0 is transparent —
+                 contributes nothing, and part-way is PAINTS · alpha 0.06.
+                 The layer the colour actually comes from is marked
                  ← the colour you see, so a twelve-deep stack is not
                  arithmetic you have to do. Plus ::before and ::after and any
                  backdrop-filter: the layers no hit test can see, and the two
-                 that decide a frosted panel's colour.
+                 that decide a frosted panel's colour. A pseudo prints WHERE
+                 it sits, because inset 0 is a wallpaper and bottom 0 ·
+                 auto × 1px is an edge ring, and "may paint here" said the
+                 same thing about both.
+
+                 Four things it cannot model are named rather than folded
+                 in silently: backdrop-filter, the element's own filter,
+                 mix-blend-mode, and an ancestor's opacity (which fades a
+                 whole subtree as ONE group). Each would make the composite
+                 quietly wrong.
 
                  It also says what it could NOT see, because a walk that
                  stops quietly is a partial answer wearing a complete one:
@@ -384,7 +396,7 @@ HOW TO USE
     // manifest that ships it, and an overlay that cannot say which version it
     // is makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.177",
+    VERSION: "3.8.178",
     // Substituted like VERSION, from release.json: the MANIFEST the extension
     // publishes, which is the one file that moves with every release. It was
     // the userscript's meta header until that gate was withdrawn — and that
@@ -978,12 +990,12 @@ HOW TO USE
       return out;
     },
     /** Composite `over` (with alpha) onto the opaque colour `base`. */
-    over(over, base) {
+    over(over, base2) {
       const a = over.a == null ? 1 : over.a;
       return {
-        r: over.r * a + base.r * (1 - a),
-        g: over.g * a + base.g * (1 - a),
-        b: over.b * a + base.b * (1 - a),
+        r: over.r * a + base2.r * (1 - a),
+        g: over.g * a + base2.g * (1 - a),
+        b: over.b * a + base2.b * (1 - a),
         a: 1
       };
     },
@@ -1010,12 +1022,12 @@ HOW TO USE
           if (raw && raw !== "transparent")
             return { unknown: this.paint() ? "bg-colour" : "no-canvas" };
         } else if (c.a >= 0.999) {
-          return layers.reduceRight((base, l) => this.over(l, base), c);
+          return layers.reduceRight((base2, l) => this.over(l, base2), c);
         } else if (c.a > 0) layers.push(c);
         e = e.parentElement;
       }
       return layers.reduceRight(
-        (base, l) => this.over(l, base),
+        (base2, l) => this.over(l, base2),
         { r: 255, g: 255, b: 255, a: 1 }
       );
     },
@@ -1842,7 +1854,7 @@ HOW TO USE
   function radii(cs, w, h) {
     const pair = (v) => {
       const p = String(v || "0").trim().split(/\s+/);
-      const n = (s, base) => String(s).endsWith("%") ? (parseFloat(s) || 0) / 100 * base : parseFloat(s) || 0;
+      const n = (s, base2) => String(s).endsWith("%") ? (parseFloat(s) || 0) / 100 * base2 : parseFloat(s) || 0;
       return [Math.max(0, n(p[0], w)), Math.max(0, n(p[1] === void 0 ? p[0] : p[1], h))];
     };
     const r = {
@@ -1942,6 +1954,20 @@ HOW TO USE
 
   // src/tools/colour/paint/probe.js
   var EMPTY = { layers: [], dropped: 0, hosts: [], frames: [] };
+  var alphaOf = (v) => {
+    const c = Colour.colour(v);
+    return c ? c.a == null ? 1 : c.a : null;
+  };
+  function fadeOwner(el2) {
+    try {
+      for (let e = el2; e && e.nodeType === 1; e = e.parentElement) {
+        const v = parseFloat(getComputedStyle(e).opacity);
+        if (Number.isFinite(v) && v < 1) return { sel: U.selectorOf(e), v };
+      }
+    } catch {
+    }
+    return null;
+  }
   var Probe = {
     at: null,
     // { px, py } in page coordinates, or null
@@ -2006,7 +2032,26 @@ HOW TO USE
       if (cs.backgroundImage && cs.backgroundImage !== "none") bits.push("background-image");
       if (cs.maskImage && cs.maskImage !== "none") bits.push("mask");
       if (parseFloat(cs.borderTopWidth) || parseFloat(cs.borderLeftWidth)) bits.push("border");
-      return bits.length ? { which, bits } : null;
+      return bits.length ? { which, bits, geo: Probe.geometry(cs) } : null;
+    },
+    /**
+     * WHERE the pseudo sits, which is the difference between the two that
+     * matter. `inset: 0` covers the whole element; `bottom: 0; height: 1px` is
+     * a hairline along one edge. Told only that both "may paint here", a reader
+     * cannot tell a wallpaper from a border — and on the case this tool was
+     * built for, those were the two layers that decided the colour.
+     *
+     * Read from the getComputedStyle call that already found the pseudo, so it
+     * costs nothing extra. `auto` prints as `auto`: it is what the style says,
+     * and resolving it would mean claiming a geometry no API reports.
+     */
+    geometry(cs) {
+      const size = `${cs.width || "auto"} × ${cs.height || "auto"}`;
+      const set = ["top", "right", "bottom", "left"].map((k) => [k, cs[k]]).filter(([, v]) => v && v !== "auto");
+      if (!set.length) return `no inset · ${size}`;
+      const vals = set.map(([, v]) => v);
+      if (set.length === 4 && vals.every((v) => v === vals[0])) return `inset ${vals[0]} · ${size}`;
+      return `${set.map(([k, v]) => `${k} ${v}`).join(" ")} · ${size}`;
     },
     /**
      * The stack at a viewport point, top → bottom, each layer judged.
@@ -2048,30 +2093,6 @@ HOW TO USE
         // cross-origin one could not be read even with permission
         frames: layers.filter((L) => /^(IFRAME|FRAME)$/.test(L.el.tagName)).map((L) => L.sel)
       };
-    },
-    /**
-     * WHICH ROW IS THE COLOUR YOU SEE.
-     *
-     * Painting runs bottom → top, so a fully opaque layer wipes out everything
-     * painted before it — everything BELOW it in this list. The last opaque one
-     * to paint (the smallest index here) is therefore the floor, and only the
-     * layers above it can still change the answer. Obvious in a stack of three;
-     * in a stack of twelve it is arithmetic the reader should not have to do.
-     */
-    base(layers) {
-      let at = -1;
-      const opaque = (L) => {
-        if (!L.paints || L.bgImage) return false;
-        const c = Colour.colour(L.colour);
-        return !!c && (c.a == null || c.a >= 0.999);
-      };
-      for (let i = layers.length - 1; i >= 0; i--) if (opaque(layers[i])) at = i;
-      const over = at < 0 ? 0 : layers.slice(0, at).filter((L) => {
-        if (!L.paints) return false;
-        const c = Colour.colour(L.colour);
-        return !!c && (c.a == null || c.a > 0);
-      }).length;
-      return { at, over };
     },
     /**
      * ONE element, judged at one point. Split out because the badge asks it of
@@ -2120,33 +2141,28 @@ HOW TO USE
         from: side ? `border-${side}-color` : "background-color",
         bgImage,
         backdrop,
+        /* THE ALPHA, resolved once. "PAINTS" over rgba(0,0,0,0) is a lie —
+           a transparent layer contributes nothing, and calling it a painter
+           puts it in the blend count too, where it makes the count mean
+           nothing. null is a colour this cannot read, which is its own
+           answer and not a zero. */
+        alpha: alphaOf(side ? cs[`border${side[0].toUpperCase()}${side.slice(1)}Color`] : cs.backgroundColor),
+        /* The same class as backdrop-filter: things the fold cannot model,
+           each of which makes the composite quietly wrong if left unsaid.
+           `filter` is the element's OWN — it transforms everything the
+           element paints, after the fact. */
+        filter: cs.filter && cs.filter !== "none" ? cs.filter : null,
+        blend: cs.mixBlendMode && cs.mixBlendMode !== "normal" ? cs.mixBlendMode : null,
+        /* The NEAREST element that actually sets opacity — itself or an
+           ancestor — rather than this layer's cumulative value. One faded
+           wrapper made every layer beneath it report the same number, which
+           is four lines for one fact: the same repetition Sweep.group exists
+           to collapse. Named by its owner, it collapses to one. */
+        fader: fadeOwner(el2),
         shadow: inShape ? null : shadowAt(x, y, r, cs),
         pseudo: [Probe.pseudo(el2, "::before"), Probe.pseudo(el2, "::after")].filter(Boolean),
         radius: U.radius(cs)
       };
-    },
-    /**
-     * Fold the painting layers bottom → top. Returns the composite and every
-     * reason it might be wrong — a reader who cannot see the reasons cannot
-     * tell a computed answer from a guess.
-     */
-    composite(layers) {
-      const doubts = [];
-      let out = { r: 255, g: 255, b: 255, a: 1 };
-      for (let i = layers.length - 1; i >= 0; i--) {
-        const L = layers[i];
-        if (!L.paints) continue;
-        if (L.bgImage) doubts.push(`${L.sel} paints a background-image — its pixel here is unknown`);
-        if (L.backdrop) doubts.push(`${L.sel} has backdrop-filter: ${L.backdrop} — the pixel here is FILTERED, not composited`);
-        const c = Colour.colour(L.colour);
-        if (!c) {
-          doubts.push(`${L.sel} ${L.from} is a colour space this cannot read`);
-          continue;
-        }
-        if (c.a === 0) continue;
-        out = Colour.over(c, out);
-      }
-      return { colour: out, doubts };
     }
   };
 
@@ -2164,7 +2180,13 @@ HOW TO USE
       const why = L.radius ? `outside r ${esc2(L.radius)}` : "outside the painted shape";
       return `<span class="debug-overlay-paint-no">⛏ box only — not painted here</span><span class="debug-overlay-paint-k"> ${why}</span>`;
     }
-    return `<span class="debug-overlay-paint-yes">⛏ paints here</span><span class="debug-overlay-paint-k"> ${esc2(L.from.replace("background-color", "bg"))} ${esc2(L.colour)}</span>`;
+    const where = `<span class="debug-overlay-paint-k"> ${esc2(L.from.replace("background-color", "bg"))} ${esc2(L.colour)}</span>`;
+    if (L.alpha === null) return `<span class="debug-overlay-paint-no">⛏ colour not read</span>${where}`;
+    if (L.alpha === 0 && !L.bgImage) {
+      return `<span class="debug-overlay-paint-no">⛏ transparent here</span><span class="debug-overlay-paint-k"> contributes nothing</span>`;
+    }
+    const a = L.alpha < 1 ? `<span class="debug-overlay-paint-k"> alpha ${L.alpha}</span>` : "";
+    return `<span class="debug-overlay-paint-yes">⛏ paints here</span>${a}${where}`;
   }
   function compact3(i) {
     const p = Probe.point();
@@ -2174,13 +2196,16 @@ HOW TO USE
     const L = Probe.layer(i.el, p.x, p.y);
     if (L.clip) return `<span class="debug-overlay-paint-no">⛏ clipped</span>`;
     if (!L.inShape) return `<span class="debug-overlay-paint-no">⛏ box only</span>`;
+    if (L.alpha === 0 && !L.bgImage) return `<span class="debug-overlay-paint-no">⛏ transparent</span>`;
     return null;
   }
   function legend3() {
     return [
       { mark: "⛏ paints here", means: "green: this element really does paint the probed pixel" },
       { mark: "⛏ box only", means: "amber: the probe is inside its box but outside its rounded shape — the colour there is somebody else’s" },
-      { mark: "⛏ clipped here", means: "amber: an ancestor’s overflow removes this element at that point" }
+      { mark: "⛏ clipped here", means: "amber: an ancestor’s overflow removes this element at that point" },
+      { mark: "⛏ transparent here", means: "amber: its box is over the pixel, but it contributes no colour at all" },
+      { mark: "alpha 0.06", means: "it paints, but only partly — what you see is a blend of it and what is behind" }
     ];
   }
   function gestures() {
@@ -2191,6 +2216,40 @@ HOW TO USE
   }
   function esc2(s) {
     return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  }
+
+  // src/tools/colour/paint/verdict.js
+  function base(layers) {
+    let at = -1;
+    const opaque = (L) => {
+      if (!L.paints || L.bgImage) return false;
+      const c = Colour.colour(L.colour);
+      return !!c && (c.a == null || c.a >= 0.999);
+    };
+    for (let i = layers.length - 1; i >= 0; i--) if (opaque(layers[i])) at = i;
+    const over = at < 0 ? 0 : layers.slice(0, at).filter((L) => L.paints && (L.bgImage || L.alpha != null && L.alpha > 0)).length;
+    return { at, over };
+  }
+  function composite(layers) {
+    const doubts = [];
+    let out = { r: 255, g: 255, b: 255, a: 1 };
+    for (let i = layers.length - 1; i >= 0; i--) {
+      const L = layers[i];
+      if (!L.paints) continue;
+      if (L.bgImage) doubts.push(`${L.sel} paints a background-image — its pixel here is unknown`);
+      if (L.backdrop) doubts.push(`${L.sel} has backdrop-filter: ${L.backdrop} — the pixel here is FILTERED, not composited`);
+      if (L.filter) doubts.push(`${L.sel} has filter: ${L.filter} — it transforms everything the element paints, after the fact`);
+      if (L.blend) doubts.push(`${L.sel} has mix-blend-mode: ${L.blend} — it does not composite as colour over colour`);
+      if (L.fader) doubts.push(`${L.fader.sel} has opacity ${L.fader.v} — it fades its whole subtree as ONE group, which a colour-over-colour fold cannot express`);
+      const c = Colour.colour(L.colour);
+      if (!c) {
+        doubts.push(`${L.sel} ${L.from} is a colour space this cannot read`);
+        continue;
+      }
+      if (c.a === 0) continue;
+      out = Colour.over(c, out);
+    }
+    return { colour: out, doubts: [...new Set(doubts)] };
   }
 
   // src/tools/colour/paint/report.js
@@ -2211,7 +2270,7 @@ HOW TO USE
       L.push(...scope(dropped, hosts, frames));
       return L;
     }
-    const { at, over } = Probe.base(layers);
+    const { at, over } = base(layers);
     const w = Math.min(40, Math.max(...layers.map((x) => x.sel.length)));
     const boxes = layers.map((x) => `(${x.rect.x}, ${x.rect.y}, ${x.rect.w} × ${x.rect.h})`);
     const bw = Math.max(...boxes.map((b) => b.length));
@@ -2224,7 +2283,12 @@ HOW TO USE
       } else if (!x.inShape) {
         verdict = `box only — not painted here` + (x.radius ? ` (outside r ${x.radius})` : "") + (x.shadow ? ` · box-shadow reaches here: ${x.shadow}` : "");
       } else {
-        verdict = `PAINTS · ${x.from} ${x.colour}` + (x.bgImage ? ` · background-image ${x.bgImage}` : "");
+        const a = x.alpha;
+        const img = x.bgImage ? ` · background-image ${x.bgImage}` : "";
+        if (a === null) verdict = `colour NOT READ (${x.colour}) — a colour space this cannot resolve${img}`;
+        else if (a === 0 && !x.bgImage) verdict = `transparent — contributes nothing · ${x.from} ${x.colour}`;
+        else if (a < 1) verdict = `PAINTS · alpha ${a} · ${x.from} ${x.colour}${img}`;
+        else verdict = `PAINTS · ${x.from} ${x.colour}${img}`;
       }
       if (x.el.shadowRoot) verdict += " · shadow content NOT walked";
       if (/^(IFRAME|FRAME)$/.test(x.el.tagName)) verdict += " · frame contents NOT walked";
@@ -2235,10 +2299,11 @@ HOW TO USE
         L.push(`      composited; the walk below cannot account for it`);
       }
       for (const ps of x.pseudo) {
-        L.push(`      ${ps.which} — content + ${ps.bits.join(", ")} — NOT in the stack; it may paint this pixel`);
+        L.push(`      ${ps.which} — content + ${ps.bits.join(", ")}`);
+        L.push(`      ${" ".repeat(ps.which.length)}   ${ps.geo} — NOT in the stack; no hit test reaches it`);
       }
     });
-    const { colour, doubts } = Probe.composite(layers);
+    const { colour, doubts } = composite(layers);
     L.push(`composited bottom → top: rgb(${Colour.rgb(colour)})`);
     if (at < 0) {
       L.push("no fully opaque layer in the stack — the page canvas (white) shows through,");
@@ -2285,7 +2350,7 @@ HOW TO USE
     Place2.claim(p.x - 7, p.y - 7, 14, 14);
     layer2.append(dot);
     const layers = Probe.walk(p.x, p.y).layers;
-    const painter = layers[Probe.base(layers).at];
+    const painter = layers[base(layers).at];
     if (!painter || !document.contains(painter.el)) return;
     const r = painter.el.getBoundingClientRect();
     const box = document.createElement("div");

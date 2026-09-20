@@ -1,5 +1,6 @@
 import { Colour } from '../../../subjects/colour.js';
 import { Probe } from './probe.js';
+import { base, composite } from './verdict.js';
 
 /**
  * THE DELIVERABLE. The consumer of this tool is a reader working from the
@@ -29,7 +30,7 @@ export function reportTail() {
     return L;
   }
 
-  const { at, over } = Probe.base(layers);
+  const { at, over } = base(layers);
   const w = Math.min(40, Math.max(...layers.map((x) => x.sel.length)));
   const boxes = layers.map((x) => `(${x.rect.x}, ${x.rect.y}, ${x.rect.w} × ${x.rect.h})`);
   const bw = Math.max(...boxes.map((b) => b.length));
@@ -49,8 +50,16 @@ export function reportTail() {
                 (x.radius ? ` (outside r ${x.radius})` : '') +
                 (x.shadow ? ` · box-shadow reaches here: ${x.shadow}` : '');
     } else {
-      verdict = `PAINTS · ${x.from} ${x.colour}` +
-                (x.bgImage ? ` · background-image ${x.bgImage}` : '');
+      /* THREE ANSWERS, because "PAINTS" over rgba(0,0,0,0) is a lie and it
+         was told on every transparent wrapper in the stack. A fourth is
+         forced by this project's own rule: a colour we could not read is not
+         a zero, and must not be filed with the ones we could. */
+      const a = x.alpha;
+      const img = x.bgImage ? ` · background-image ${x.bgImage}` : '';
+      if (a === null) verdict = `colour NOT READ (${x.colour}) — a colour space this cannot resolve${img}`;
+      else if (a === 0 && !x.bgImage) verdict = `transparent — contributes nothing · ${x.from} ${x.colour}`;
+      else if (a < 1) verdict = `PAINTS · alpha ${a} · ${x.from} ${x.colour}${img}`;
+      else verdict = `PAINTS · ${x.from} ${x.colour}${img}`;
     }
     /* The row says its own gap. The scope note at the end lists them all,
        but a reader looking at row [3] should not have to match a selector
@@ -69,12 +78,16 @@ export function reportTail() {
       L.push(`      composited; the walk below cannot account for it`);
     }
     for (const ps of x.pseudo) {
-      L.push(`      ${ps.which} — content + ${ps.bits.join(', ')}` +
-             ` — NOT in the stack; it may paint this pixel`);
+      /* The GEOMETRY is what tells the two apart. `inset 0` covers the whole
+         element; `bottom 0px · auto × 1px` is a hairline along one edge — and
+         "may paint this pixel" said exactly the same thing about both. */
+      L.push(`      ${ps.which} — content + ${ps.bits.join(', ')}`);
+      L.push(`      ${' '.repeat(ps.which.length)}   ${ps.geo} — NOT in the stack;` +
+             ' no hit test reaches it');
     }
   });
 
-  const { colour, doubts } = Probe.composite(layers);
+  const { colour, doubts } = composite(layers);
   L.push(`composited bottom → top: rgb(${Colour.rgb(colour)})`);
   if (at < 0) {
     L.push('no fully opaque layer in the stack — the page canvas (white) shows through,');

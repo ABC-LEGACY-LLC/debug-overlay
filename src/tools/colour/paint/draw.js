@@ -1,4 +1,5 @@
 import { Probe } from './probe.js';
+import { base } from './verdict.js';
 
 /**
  * THE PROBE, ON THE PAGE — so a screenshot says which pixel the report is
@@ -20,7 +21,7 @@ export function draw({ layer, Place }) {
   /* The BASE, not merely the topmost painter — that is the layer the colour
      comes from, and it is what the report marks too. One answer, two faces. */
   const layers = Probe.walk(p.x, p.y).layers;
-  const painter = layers[Probe.base(layers).at];
+  const painter = layers[base(layers).at];
   if (!painter || !document.contains(painter.el)) return;
   const r = painter.el.getBoundingClientRect();
   const box = document.createElement('div');
