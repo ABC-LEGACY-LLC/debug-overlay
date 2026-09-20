@@ -33,19 +33,29 @@ const tool = defineTool({
   selects() { return true; },
 
   /**
-   * WHAT A BOX TAKES, and it is a real choice rather than a preference.
+   * WHAT A BOX TAKES — two questions, and they are independent.
    *
-   * A rectangle over one card contains the card and every node inside it. The
-   * default keeps only the outermost of them — "the things in this region" —
-   * because the alternative is dozens of pins for one drag with the one you
-   * wanted buried among them. The other readings exist because neither is
-   * always wrong, and this is the kind of thing that must be changeable from
-   * the panel rather than by a rebuild.
+   * REACH is which boxes count. `enclosed` is what a marquee usually means
+   * and it cannot take anything bigger than the drag: a full-width wallpaper
+   * is unreachable, because enclosing it means dragging a box around it, and
+   * it may be larger than the viewport. `touched` takes anything the box
+   * overlaps at all, down to one pixel, so a big element is taken by dragging
+   * INSIDE it.
+   *
+   * KEEP is which of those survive, and it is a separate axis because under
+   * `touched` every ancestor up to <body> overlaps too. These shipped as one
+   * four-valued setting, which made choosing overlap also mean "prune
+   * nothing" — every wrapper between <body> and the thing you wanted.
+   *
+   * `touched` + `deepest` is the pairing for a large element, and neither
+   * half of it can be said with one setting.
    */
   options() {
     return [
-      { key: 'take', label: 'A box keeps', def: 'outermost',
-        values: ['outermost', 'leaves', 'every', 'touching'], affects: 'select' },
+      { key: 'reach', label: 'A box takes what it', def: 'enclosed',
+        values: ['enclosed', 'touched'], affects: 'select' },
+      { key: 'take', label: '…and keeps the', def: 'outermost',
+        values: ['outermost', 'deepest', 'every'], affects: 'select' },
     ];
   },
 

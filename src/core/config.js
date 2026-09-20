@@ -47,6 +47,10 @@
     // the project. Global power would pop the overlay onto every site the
     // browser visits. Pins add the PATH: a pin on /live-map is not a pin on
     // /settings.
+    /* The overlay's own root element. It lives in the page's own body, so
+       anything sweeping the DOM has to be able to tell our chrome from the
+       page — the lasso pinned its own buttons otherwise. */
+    ROOT_ID: '__debug-overlay-root',
     POWER_KEY: '__debug_overlay_on',
     /* Whether the WEB PANEL's bar shows while the SIDE PANEL is driving.
        Off by default — two controls claiming one state is what docking

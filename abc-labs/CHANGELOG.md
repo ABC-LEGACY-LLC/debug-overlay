@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.8.194 — 2026-09-20
+
+- **The lasso can take an element bigger than the drag.** Enclosing is the
+  usual reading of a marquee and it cannot reach a full-width wallpaper at
+  all: enclosing one means dragging a box around it, and it may be larger than
+  the screen. **A box takes what it** is now its own setting — `enclosed` (the
+  default) or `touched`, which takes anything the box overlaps down to one
+  pixel, so a large element is taken by dragging inside it.
+- **…and keeps the** is a second setting, because these were one four-valued
+  option and that made them silently dependent: picking overlap also picked
+  "prune nothing", which under overlap means every wrapper between `<body>`
+  and the thing you wanted. `touched` + `deepest` is the pairing for one big
+  element.
+- **Fixed: a box could pin the overlay's own buttons.** The root lives in the
+  page's own body, so the sweep reached it. Under `touched` that would have
+  been the common case rather than the odd one.
+
 ## 3.8.193 — 2026-09-20
 
 - **Fixed: the lasso button was dressed as a component, not an input.** Roles

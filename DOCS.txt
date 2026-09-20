@@ -21,7 +21,10 @@ HOW TO USE
                         in advance and nothing to forget to set back.
   Drag ................ with ▭ lasso armed, press on the page and drag: a box
                         follows the pointer and everything it takes is pinned
-                        at once on release. This reaches what a click cannot —
+                        at once on release. Set it to TOUCHED and the box need
+                        not enclose anything — one pixel of overlap takes an
+                        element, which is the only way to reach something
+                        bigger than the drag. This reaches what a click cannot —
                         an element behind pointer-events: none, or one whose
                         painted shape the pointer misses — because a box asks
                         where things ARE rather than what is under a point.
@@ -124,13 +127,26 @@ HOW TO USE
                  grouping lives here and not in measure, so a new way of
                  selecting is one new file and everything that measures
                  picks it up.
-    ▭ lasso     drag a box; keep everything inside it. Off by default — every
-                 click on the page already means something, and a gesture that
+    ▭ lasso     drag a box; keep what it takes. Off by default — every click
+                 on the page already means something, and a gesture that
                  reinterprets drags is not one to switch on for somebody who
-                 did not ask for it. Right-click it to choose what a box keeps:
-                 OUTERMOST (the default — the things in the region, not every
-                 node inside them), LEAVES, EVERY, or TOUCHING (anything the
-                 box overlaps at all, not just what it encloses).
+                 did not ask for it. Right-click it for two settings, which
+                 are two separate questions:
+                   A box takes what it … ENCLOSED (the default) is the usual
+                 reading of a marquee, and it cannot take anything bigger than
+                 the drag — a full-width wallpaper is unreachable, because
+                 enclosing it means dragging a box around it and it may be
+                 larger than the screen. TOUCHED takes anything the box
+                 overlaps at all, down to one pixel, so a large element is
+                 taken by dragging INSIDE it.
+                   …and keeps the … OUTERMOST (the default) is "the things in
+                 this region, not every node inside them". DEEPEST is the
+                 other end — nothing kept that has a match inside it. EVERY
+                 prunes nothing.
+                   TOUCHED + DEEPEST is the pairing for one big element: every
+                 wrapper above it overlaps too, and deepest is what drops
+                 them. Under TOUCHED, outermost returns one page wrapper —
+                 true, and rarely what you meant.
     📏 geometry  the geometry family — one button; click it and its members
                  slide out sideways:
        📐 measure  sizes, radius, padding/margin, gap, font, and the distance

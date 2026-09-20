@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.193 — the extension gate */
+/* Debug Overlay v3.8.194 — the extension gate */
 
 /*
 HOW TO USE
@@ -24,7 +24,10 @@ HOW TO USE
                         in advance and nothing to forget to set back.
   Drag ................ with ▭ lasso armed, press on the page and drag: a box
                         follows the pointer and everything it takes is pinned
-                        at once on release. This reaches what a click cannot —
+                        at once on release. Set it to TOUCHED and the box need
+                        not enclose anything — one pixel of overlap takes an
+                        element, which is the only way to reach something
+                        bigger than the drag. This reaches what a click cannot —
                         an element behind pointer-events: none, or one whose
                         painted shape the pointer misses — because a box asks
                         where things ARE rather than what is under a point.
@@ -127,13 +130,26 @@ HOW TO USE
                  grouping lives here and not in measure, so a new way of
                  selecting is one new file and everything that measures
                  picks it up.
-    ▭ lasso     drag a box; keep everything inside it. Off by default — every
-                 click on the page already means something, and a gesture that
+    ▭ lasso     drag a box; keep what it takes. Off by default — every click
+                 on the page already means something, and a gesture that
                  reinterprets drags is not one to switch on for somebody who
-                 did not ask for it. Right-click it to choose what a box keeps:
-                 OUTERMOST (the default — the things in the region, not every
-                 node inside them), LEAVES, EVERY, or TOUCHING (anything the
-                 box overlaps at all, not just what it encloses).
+                 did not ask for it. Right-click it for two settings, which
+                 are two separate questions:
+                   A box takes what it … ENCLOSED (the default) is the usual
+                 reading of a marquee, and it cannot take anything bigger than
+                 the drag — a full-width wallpaper is unreachable, because
+                 enclosing it means dragging a box around it and it may be
+                 larger than the screen. TOUCHED takes anything the box
+                 overlaps at all, down to one pixel, so a large element is
+                 taken by dragging INSIDE it.
+                   …and keeps the … OUTERMOST (the default) is "the things in
+                 this region, not every node inside them". DEEPEST is the
+                 other end — nothing kept that has a match inside it. EVERY
+                 prunes nothing.
+                   TOUCHED + DEEPEST is the pairing for one big element: every
+                 wrapper above it overlaps too, and deepest is what drops
+                 them. Under TOUCHED, outermost returns one page wrapper —
+                 true, and rarely what you meant.
     📏 geometry  the geometry family — one button; click it and its members
                  slide out sideways:
        📐 measure  sizes, radius, padding/margin, gap, font, and the distance
@@ -432,7 +448,7 @@ HOW TO USE
     // manifest that ships it, and an overlay that cannot say which version it
     // is makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.193",
+    VERSION: "3.8.194",
     // Substituted like VERSION, from release.json: the MANIFEST the extension
     // publishes, which is the one file that moves with every release. It was
     // the userscript's meta header until that gate was withdrawn — and that
@@ -469,6 +485,10 @@ HOW TO USE
     // the project. Global power would pop the overlay onto every site the
     // browser visits. Pins add the PATH: a pin on /live-map is not a pin on
     // /settings.
+    /* The overlay's own root element. It lives in the page's own body, so
+       anything sweeping the DOM has to be able to tell our chrome from the
+       page — the lasso pinned its own buttons otherwise. */
+    ROOT_ID: "__debug-overlay-root",
     POWER_KEY: "__debug_overlay_on",
     /* Whether the WEB PANEL's bar shows while the SIDE PANEL is driving.
        Off by default — two controls claiming one state is what docking
@@ -3246,35 +3266,56 @@ HOW TO USE
   });
 
   // src/tools/input/lasso/inside.js
-  var meets = (r, b) => !(r.right < b.left || r.left > b.right || r.bottom < b.top || r.top > b.bottom);
-  var within = (r, b) => b.left >= r.left && b.right <= r.right && b.top >= r.top && b.bottom <= r.bottom;
-  function inside(rect, mode) {
+  var REACH = {
+    /** Entirely inside it. What a marquee usually means, and useless for an
+     *  element bigger than the drag — or bigger than the viewport. */
+    enclosed: (r, b) => b.left >= r.left && b.right <= r.right && b.top >= r.top && b.bottom <= r.bottom,
+    /** Overlapping it at all, down to one pixel. This is how you take something
+     *  large by dragging INSIDE it, which enclosed can never do. */
+    touched: (r, b) => !(r.right < b.left || r.left > b.right || r.bottom < b.top || r.top > b.bottom)
+  };
+  var KEEP = {
+    /* A rectangle over one card matches the card AND every node inside it — on
+       a real page dozens of pins for one drag, with the one you wanted buried
+       among them. Dropping anything whose ancestor also matched leaves "the
+       things in this region". Under `touched` this reads differently and says
+       so: every ancestor up to <body> overlaps, so outermost returns the
+       outermost of THOSE — one page wrapper. That is a true answer to a
+       question few people are asking, which is why it is not the default. */
+    outermost: (hit, taken) => hit.filter((el2) => {
+      for (let e = el2.parentElement; e; e = e.parentElement) if (taken.has(e)) return false;
+      return true;
+    }),
+    /* The deepest matches — nothing kept that has a match inside it. Paired
+       with `touched` this is the answer for a large element: drag inside the
+       wallpaper and the wallpaper is the deepest thing the box reaches, while
+       every wrapper above it is dropped for having a matched child. */
+    deepest: (hit, taken) => hit.filter((el2) => ![...el2.children].some((c) => taken.has(c))),
+    /** The honest raw answer, pruned by nothing. */
+    every: (hit) => hit
+  };
+  function inside(rect, { keep, reach } = {}) {
     let all = [];
     try {
       all = document.body ? [...document.body.querySelectorAll("*")] : [];
     } catch {
       return [];
     }
-    const fits = mode === "touching" ? meets : within;
+    const ours = document.getElementById(CONFIG.ROOT_ID);
+    const fits = REACH[reach] || REACH.enclosed;
     const hit = [];
     for (const el2 of all) {
+      if (ours && (el2 === ours || ours.contains(el2))) continue;
       const b = el2.getBoundingClientRect();
       if (!b.width || !b.height) continue;
       if (fits(rect, b)) hit.push(el2);
     }
-    if (mode === "every" || mode === "touching") return hit;
-    const taken = new Set(hit);
-    if (mode === "leaves") {
-      return hit.filter((el2) => ![...el2.children].some((c) => taken.has(c)));
-    }
-    return hit.filter((el2) => {
-      for (let e = el2.parentElement; e && e.nodeType === 1; e = e.parentElement) {
-        if (taken.has(e)) return false;
-      }
-      return true;
-    });
+    return (KEEP[keep] || KEEP.outermost)(hit, new Set(hit));
   }
-  var modeOf = (tool2) => Tools.setting(tool2, "take");
+  var modeOf = (tool2) => ({
+    keep: Tools.setting(tool2, "take"),
+    reach: Tools.setting(tool2, "reach")
+  });
 
   // src/tools/input/lasso/drag.js
   var Drag = {
@@ -3383,22 +3424,37 @@ HOW TO USE
       return true;
     },
     /**
-     * WHAT A BOX TAKES, and it is a real choice rather than a preference.
+     * WHAT A BOX TAKES — two questions, and they are independent.
      *
-     * A rectangle over one card contains the card and every node inside it. The
-     * default keeps only the outermost of them — "the things in this region" —
-     * because the alternative is dozens of pins for one drag with the one you
-     * wanted buried among them. The other readings exist because neither is
-     * always wrong, and this is the kind of thing that must be changeable from
-     * the panel rather than by a rebuild.
+     * REACH is which boxes count. `enclosed` is what a marquee usually means
+     * and it cannot take anything bigger than the drag: a full-width wallpaper
+     * is unreachable, because enclosing it means dragging a box around it, and
+     * it may be larger than the viewport. `touched` takes anything the box
+     * overlaps at all, down to one pixel, so a big element is taken by dragging
+     * INSIDE it.
+     *
+     * KEEP is which of those survive, and it is a separate axis because under
+     * `touched` every ancestor up to <body> overlaps too. These shipped as one
+     * four-valued setting, which made choosing overlap also mean "prune
+     * nothing" — every wrapper between <body> and the thing you wanted.
+     *
+     * `touched` + `deepest` is the pairing for a large element, and neither
+     * half of it can be said with one setting.
      */
     options() {
       return [
         {
+          key: "reach",
+          label: "A box takes what it",
+          def: "enclosed",
+          values: ["enclosed", "touched"],
+          affects: "select"
+        },
+        {
           key: "take",
-          label: "A box keeps",
+          label: "…and keeps the",
           def: "outermost",
-          values: ["outermost", "leaves", "every", "touching"],
+          values: ["outermost", "deepest", "every"],
           affects: "select"
         }
       ];
@@ -4323,7 +4379,7 @@ HOW TO USE
   var layer;
   function initDom() {
     root = document.createElement("div");
-    root.id = "__debug-overlay-root";
+    root.id = CONFIG.ROOT_ID;
     root.setAttribute("role", "region");
     root.setAttribute("aria-label", "Debug overlay");
     const sheet = (css, owner) => {

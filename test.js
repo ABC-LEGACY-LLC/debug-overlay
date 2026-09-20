@@ -4166,7 +4166,7 @@ console.log('\nA BOX TAKES WHAT A CLICK CANNOT');
                  runScripts: 'outside-only', virtualConsole: new VirtualConsole() };
   const R = (l, t, r, b) => () => ({ left: l, top: t, right: r, bottom: b,
                                      width: r - l, height: b - t, x: l, y: t });
-  const mk = (take) => {
+  const mk = (take, reach) => {
     const d = new JSDOM('<!doctype html><html><body>' +
       '<section id="card"><b id="kid">a</b><i id="sib">b</i></section>' +
       '<u id="ghost" style="pointer-events:none">c</u>' +
@@ -4174,8 +4174,8 @@ console.log('\nA BOX TAKES WHAT A CLICK CANNOT');
     const w = d.window;
     w.localStorage.setItem('__debug_overlay_tools', JSON.stringify(['lasso', 'pin']));
     w.localStorage.setItem('__debug_overlay_seen', JSON.stringify(idsOnDisk));
-    if (take) w.localStorage.setItem('__debug_overlay_settings',
-      JSON.stringify({ lasso: { take } }));
+    if (take || reach) w.localStorage.setItem('__debug_overlay_settings',
+      JSON.stringify({ lasso: { ...(take ? { take } : {}), ...(reach ? { reach } : {}) } }));
     w.eval(source);
     const at = { card: R(10, 10, 90, 90), kid: R(20, 20, 50, 50), sib: R(55, 20, 85, 50),
                  ghost: R(20, 60, 80, 80), far: R(200, 200, 260, 260) };
@@ -4200,16 +4200,18 @@ console.log('\nA BOX TAKES WHAT A CLICK CANNOT');
       ev('pointerdown', x1, y1); ev('pointermove', x2, y2); ev('pointerup', x2, y2);
       ev('click', x2, y2);   // the browser always sends this one after a press
     };
+    let raw = '';
     const pinned = () => {
       let got = null;
       Object.defineProperty(w.navigator, 'clipboard',
         { value: { writeText: async (s2) => { got = s2; } }, configurable: true });
       w.document.getElementById('__debug-overlay-bar').querySelector('[data-copy]')
         .dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
-      return (got || '').split('\n').filter((l) => l.startsWith('[#'))
+      raw = got || '';
+      return raw.split('\n').filter((l) => l.startsWith('[#'))
         .map((l) => (l.match(/#\w+$/) || [''])[0]).sort().join(' ');
     };
-    return { w, drag, pinned };
+    return { w, drag, pinned, raw: () => raw };
   };
 
   // the default: the things in the region, not every node in it
@@ -4245,11 +4247,43 @@ console.log('\nA BOX TAKES WHAT A CLICK CANNOT');
   ok('"every" keeps the children too — the honest raw answer',
     b.pinned() === '#card #ghost #kid #sib', b.pinned() || '(nothing)');
   b.w.close();
-  const c = mk('leaves');
+  const c = mk('deepest');
   c.drag(0, 0, 100, 100);
-  ok('"leaves" keeps only what has nothing of its own inside the box',
+  ok('"deepest" keeps only what has nothing of its own inside the box',
     c.pinned() === '#ghost #kid #sib', c.pinned() || '(nothing)');
   c.w.close();
+
+  /* THE ELEMENT BIGGER THAN THE DRAG. Enclosing is the usual reading of a
+     marquee and it cannot take a full-width wallpaper at all: enclosing one
+     means dragging a box around it, and it may be larger than the viewport.
+     So reach is its own axis — and keep has to be a second one, because under
+     overlap every wrapper up to <body> is taken for free. */
+  const f = mk('deepest');
+  f.drag(82, 52, 86, 56);             // a small box wholly inside #card
+  ok('a box enclosing nothing takes nothing, however deep inside it lies',
+    f.pinned() === '', f.pinned() || '(nothing)');
+  f.w.close();
+  const g = mk('deepest', 'touched');
+  g.drag(82, 52, 86, 56);
+  ok('"touched" takes the big element by dragging INSIDE it',
+    g.pinned() === '#card', g.pinned() || '(nothing)');
+  g.w.close();
+  const h = mk('outermost', 'touched');
+  h.drag(20, 20, 24, 24);             // overlaps #card and #kid both
+  ok('…and keep is genuinely a second axis — outermost reads differently here',
+    h.pinned() === '#card', h.pinned() || '(nothing)');
+  h.w.close();
+
+  /* OUR OWN CHROME IS NOT THE PAGE. The root lives in the page's own body, so
+     querySelectorAll('*') reaches it — a box over the bar pinned the
+     overlay's own buttons, and `touched` would make that the common case. */
+  const i2 = mk('every', 'touched');
+  i2.drag(0, 0, 400, 400);            // everything, the panel included
+  i2.pinned();
+  ok('a box never pins the overlay\'s own chrome, whatever it covers',
+    !/debug-overlay/.test(i2.raw()),
+    (i2.raw().split('\n').find((l) => /debug-overlay/.test(l)) || '').slice(0, 70));
+  i2.w.close();
 
   /* A GESTURE ADDED TO A SURFACE WHERE EVERY CLICK ALREADY MEANS SOMETHING
      has to cost the existing one nothing. Under the movement threshold no

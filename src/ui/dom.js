@@ -1,4 +1,5 @@
 import { Tools } from '../core/registry.js';
+import { CONFIG } from '../core/config.js';
 import { CSS } from './styles.js';
 
 /**
@@ -14,7 +15,7 @@ export function initDom() {
      DOM
      ====================================================================== */
   root = document.createElement('div');
-  root.id = '__debug-overlay-root';
+  root.id = CONFIG.ROOT_ID;
   /* NOT aria-hidden. This root holds 13 tabbable buttons, so hiding it told
      assistive tech the subtree does not exist while keyboard focus could still
      land inside it — axe's aria-hidden-focus, WCAG 4.1.2. The decorative
