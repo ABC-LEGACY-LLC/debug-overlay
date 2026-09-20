@@ -1,4 +1,4 @@
-import { Colour } from './service.js';
+import { Colour } from '../../../subjects/colour.js';
 
 export function report(i) {
         const c = Colour.measure(i);

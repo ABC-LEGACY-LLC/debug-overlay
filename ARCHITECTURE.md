@@ -370,29 +370,41 @@ two tools consult (geometry — measure draws with it, group words its rows with
 it), and a sole-consumer subject stays inside its tool's folder as
 `service.js` until a second consumer appears.
 
-## The colour family — half promoted, and the half that is left
+## The colour family — promoted, and what triggered it
 
 Colour is the fundamental thing; contrast is a relationship BETWEEN colours,
 derived from it. The code points the way reality does: the component consults
 the subject, never the reverse.
 
-The DOMAIN FOLDER already exists — contrast lives at `tools/colour/contrast/`,
-declaring `family: 'colour'`, and the family's 🎨 mark is on the bar with
-contrast in its flyout. What has NOT happened is the subject's own move: Colour
-still has one consumer, so it stays inside `tools/colour/contrast/service.js`
-— a hierarchy is not built over one child.
-
-The day a second colour component ships (palette, colour-blindness, …):
+It happened, and the script written for it held. ⛏ paint is the second colour
+component: it needs the canvas colour reader and `over()` to composite a paint
+stack, and a second copy of either would let two tools disagree about one
+pixel — which is the contradiction a subject exists to rule out.
 
 1. `tools/colour/contrast/service.js` → `subjects/colour.js`. The settings id
-   is already `colour`, so nobody's WCAG level resets; both components declare
-   `uses: [Colour]`.
-2. The new sibling is one new folder, `tools/colour/<name>/`, declaring the
-   same `family`. Nothing else moves: a component is the nearest folder with
-   an `index.js`, so the tooling already understands this shape.
-3. The panel stays flat: each sibling is its own armable button inside the
-   family flyout. "These belong to colour" reaches the user through the shared
-   ◐ ⚙ rows and menus, not through deeper bar hierarchy.
+   was already `colour`, so nobody's WCAG level reset.
+2. The sibling was one new folder, `tools/colour/paint/`, declaring the same
+   `family`. Nothing else moved: a component is the nearest folder with an
+   `index.js`, and the tooling already understood that shape.
+3. The panel stays flat: each sibling is its own armable button inside the 🎨
+   flyout. "These belong to colour" reaches the user through the shared ⚙ rows
+   and menus, not through deeper bar hierarchy.
+
+Only `uses:` differed from the script. It says which SETTINGS a tool consults,
+and paint consults none of Colour's — it wants the reader and the compositor,
+not the WCAG level. Declaring it would have put "WCAG level" on paint's own
+menu, which is the panel claiming a tool is configured by something it never
+reads. A tool imports a subject for its FUNCTIONS freely; `uses:` is about
+settings alone.
+
+Promoting also exposed a second-order bug the bar had been hiding. The bar
+draws a family as ONE button whose members slide out, and it pulled the
+siblings together while DRAWING — silently reordering the list it had been
+handed. Invisible while every family had one member; with two, the bar showed
+`… paint contrast a11y …` and the side panel, rendering the same bands flat,
+showed `… paint a11y contrast …`. Clumping is an ORDERING decision, so it
+moved into `Tools.runs()` with the rest of the ordering, and both faces render
+what they are given.
 
 A tool inside a domain folder declares `family: '<domain>'` — the runtime
 bundle has no folders, so like `affects:` it is declared, and the audit fails

@@ -1,4 +1,4 @@
-import { Colour } from './service.js';
+import { Colour } from '../../../subjects/colour.js';
 
 // What each rule IS, separate from what any one element measured. The
 // instance message says 2.76:1; this says why, and what to do.

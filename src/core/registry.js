@@ -186,13 +186,34 @@ import { State } from './state.js';
 
          Named here rather than in the side panel, because the day a third
          band exists both faces must learn about it from the same place. */
+      /* A FAMILY'S MEMBERS SIT TOGETHER, at the position of the first of
+         them. The bar draws a family as ONE button whose members slide out,
+         so it has to pull the siblings together — and it used to do that
+         while DRAWING, which silently reordered the list it had been given.
+         Invisible while every family had one member; the day colour gained a
+         second, the bar showed `… paint contrast a11y …` and the side panel,
+         rendering the same bands flat, showed `… paint a11y contrast …`.
+         Two faces, two orders, which this project has a rule against. The
+         clumping is an ORDERING decision, so it belongs here with the rest
+         of the ordering, and both faces render what they are handed. */
+      const clump = (list) => {
+        const out = [];
+        const seen = new Set();
+        for (const t of list) {
+          if (!t.family) { out.push(t); continue; }
+          if (seen.has(t.family)) continue;
+          seen.add(t.family);
+          out.push(...list.filter((x) => x.family === t.family));
+        }
+        return out;
+      };
       return [
-        { name: 'Choose what to inspect', tools: inOrder.filter(input) },
+        { name: 'Choose what to inspect', tools: clump(inOrder.filter(input)) },
         // plain read-outs first, then the dotted ones — inside the band the
         // dot still deserves the eye-track it always had
         { name: 'Describe what you chose',
-          tools: [...comps.filter((t) => !role('detect').has(t)),
-                  ...comps.filter((t) => role('detect').has(t))] },
+          tools: clump([...comps.filter((t) => !role('detect').has(t)),
+                        ...comps.filter((t) => role('detect').has(t))]) },
       ].filter((r) => r.tools.length);
     },
 

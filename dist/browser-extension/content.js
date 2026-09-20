@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.175 — the extension gate */
+/* Debug Overlay v3.8.176 — the extension gate */
 
 /*
 HOW TO USE
@@ -139,6 +139,19 @@ HOW TO USE
                  margin:auto lands.
     🎨 colour    the colour family — one button; click it and its members
                  slide out sideways:
+       ⛏ paint     WHICH ELEMENT actually paints the pixel you are pointing
+                 at. Inspect answers "the topmost element here", which is a
+                 different question: on a rounded card the topmost element is
+                 often the one NOT painting, because the point sits in the
+                 box but outside the rounded shape — and the colour you see
+                 belongs to whatever is behind. Armed, the probe follows the
+                 pointer and HOLDS when you move onto the panel, so ⧉ reports
+                 the pixel you meant. The report carries the whole stack, top
+                 to bottom: painted / box only — not painted here / clipped
+                 away by an ancestor's overflow, each with its colour, plus
+                 ::before and ::after (which no hit test can see) and any
+                 backdrop-filter. OFF by default — it listens to every
+                 pointer move while armed.
        ◐ contrast  WCAG text contrast ratio, against AA or AAA (⚙)
     ⌨ a11y       the name, role and keyboard reach of what you point at —
                  COMPUTED off the rendered page, not read out of the source.
@@ -357,7 +370,7 @@ HOW TO USE
     // manifest that ships it, and an overlay that cannot say which version it
     // is makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.175",
+    VERSION: "3.8.176",
     // Substituted like VERSION, from release.json: the MANIFEST the extension
     // publishes, which is the one file that moves with every release. It was
     // the userscript's meta header until that gate was withdrawn — and that
@@ -482,113 +495,6 @@ HOW TO USE
     // and this runs at 60fps, so it is a ceiling on cost, not on truth — the
     // list and the report still carry every one of them.
     MARK_LIMIT: 200
-  };
-
-  // src/core/utils.js
-  var U = {
-    /**
-     * Math.round breaks ties toward +Infinity, so +2.5 became 3 (off a 2px
-     * grid) and -2.5 became -2 (on it) — the SIGN of a half-pixel decided the
-     * verdict rather than its distance from the grid. Fractional computed
-     * margins are ordinary on fractional-DPR displays. Half away from zero
-     * treats a margin and its mirror image alike.
-     */
-    px: (v) => {
-      const n = parseFloat(v) || 0;
-      return Math.sign(n) * Math.round(Math.abs(n));
-    },
-    /**
-     * Anything the PAGE controls has to come through here before it is
-     * interpolated into badge markup, because badges reach the DOM through
-     * innerHTML. An element's id is page-authored text, and a hostile — or
-     * merely careless — one closed the span and opened a tag of its own.
-     */
-    esc: (s) => String(s).replace(
-      /[&<>"']/g,
-      (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]
-    ),
-    // `dec` is a decorator, (n) => html, handed in by the caller. UTILS never
-    // reads State, and never learns what decorating a number means.
-    mark: (n, dec) => dec ? dec(n) : `${n}`,
-    four(cs, prop, dec) {
-      const t = U.px(cs[prop + "Top"]), r = U.px(cs[prop + "Right"]), b = U.px(cs[prop + "Bottom"]), l = U.px(cs[prop + "Left"]);
-      if (!t && !r && !b && !l) return null;
-      if (t === b && r === l)
-        return t === r ? [U.mark(t, dec)] : [U.mark(t, dec), U.mark(r, dec)];
-      return [U.mark(t, dec), U.mark(r, dec), U.mark(b, dec), U.mark(l, dec)];
-    },
-    fourPlain(cs, prop) {
-      return {
-        t: U.px(cs[prop + "Top"]),
-        r: U.px(cs[prop + "Right"]),
-        b: U.px(cs[prop + "Bottom"]),
-        l: U.px(cs[prop + "Left"])
-      };
-    },
-    radius(cs) {
-      const c = ["TopLeft", "TopRight", "BottomRight", "BottomLeft"].map((k) => U.px(cs["border" + k + "Radius"]));
-      if (!c.some(Boolean)) return null;
-      return c.every((v) => v === c[0]) ? `${c[0]}` : c.join("/");
-    },
-    /**
-     * An id a person chose is the best address there is. A generated one is
-     * the worst: React and base-ui emit things like `base-ui-:r1t9:`, which
-     * changes on the next render, so a report that says #base-ui-:r1t9: names
-     * an element nobody can find twice. A bare CSS identifier is the test —
-     * a colon is not legal in one unescaped, so nobody typed it.
-     */
-    stableId: (id) => /^[A-Za-z][\w-]*$/.test(id),
-    selectorOf(el2) {
-      const part = (e2) => {
-        if (e2.id && U.stableId(e2.id)) return "#" + e2.id;
-        let s = e2.tagName.toLowerCase();
-        const cls = [...e2.classList].filter((c) => !c.startsWith("debug-overlay-")).slice(0, 2);
-        if (cls.length) s += "." + cls.join(".");
-        const p = e2.parentElement;
-        if (p) {
-          const same = [...p.children].filter((x) => x.tagName === e2.tagName);
-          if (same.length > 1) s += `:nth-of-type(${same.indexOf(e2) + 1})`;
-        }
-        return s;
-      };
-      const chain = [];
-      let e = el2;
-      while (e && e.tagName && chain.length < 3) {
-        chain.unshift(part(e));
-        if (e.id && U.stableId(e.id)) break;
-        e = e.parentElement;
-      }
-      return chain.join(" > ");
-    },
-    // human-readable name for a pin row: the element's own text, else a selector
-    labelOf(el2) {
-      const t = (el2.innerText || el2.textContent || "").trim().replace(/\s+/g, " ");
-      if (t) return t.length <= 34 ? t : t.slice(0, 31) + "…";
-      const cls = [...el2.classList].filter((c) => !c.startsWith("debug-overlay-"))[0];
-      return el2.tagName.toLowerCase() + (el2.id ? "#" + el2.id : cls ? "." + cls : "");
-    },
-    /**
-     * `r` is a getter: a rule that only reads colours never pays for a
-     * layout read, which over a whole page is thousands of them. `cs` can be
-     * handed in by a caller that has already read it.
-     */
-    info(el2, cs) {
-      let r = null;
-      return {
-        el: el2,
-        cs: cs || getComputedStyle(el2),
-        get r() {
-          return r || (r = el2.getBoundingClientRect());
-        }
-      };
-    },
-    gap(a, b) {
-      const dx = Math.max(a.left - b.right, b.left - a.right, 0);
-      const dy = Math.max(a.top - b.bottom, b.top - a.bottom, 0);
-      return { dx: Math.round(dx), dy: Math.round(dy), d: Math.round(Math.hypot(dx, dy)) };
-    },
-    rectOf: (x, y, w, h) => ({ l: x, t: y, r: x + w, b: y + h }),
-    overlap: (a, b) => Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) * Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t))
   };
 
   // src/core/state.js
@@ -851,16 +757,30 @@ HOW TO USE
       const input = (t) => role("select").has(t) || role("act").has(t);
       const inOrder = ordered();
       const comps = inOrder.filter((t) => !input(t));
+      const clump = (list) => {
+        const out = [];
+        const seen = /* @__PURE__ */ new Set();
+        for (const t of list) {
+          if (!t.family) {
+            out.push(t);
+            continue;
+          }
+          if (seen.has(t.family)) continue;
+          seen.add(t.family);
+          out.push(...list.filter((x) => x.family === t.family));
+        }
+        return out;
+      };
       return [
-        { name: "Choose what to inspect", tools: inOrder.filter(input) },
+        { name: "Choose what to inspect", tools: clump(inOrder.filter(input)) },
         // plain read-outs first, then the dotted ones — inside the band the
         // dot still deserves the eye-track it always had
         {
           name: "Describe what you chose",
-          tools: [
+          tools: clump([
             ...comps.filter((t) => !role("detect").has(t)),
             ...comps.filter((t) => role("detect").has(t))
-          ]
+          ])
         }
       ].filter((r) => r.tools.length);
     },
@@ -963,6 +883,296 @@ HOW TO USE
         `${n}`
       );
     }
+  };
+
+  // src/subjects/colour.js
+  var Colour = defineSubject({
+    id: "colour",
+    was: "contrast",
+    // its settings lived under this id before the subject existed
+    // the FAMILY's mark, not contrast's — ◐ is the read-out's glyph, and the
+    // "WCAG level" row wearing it made the subject look like one of its tools
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z" /><circle cx="13.5" cy="6.5" r=".5" fill="currentColor" /><circle cx="17.5" cy="10.5" r=".5" fill="currentColor" /><circle cx="6.5" cy="12.5" r=".5" fill="currentColor" /><circle cx="8.5" cy="7.5" r=".5" fill="currentColor" /></svg>',
+    // lucide 'palette' (ISC) — the colour family's mark
+    /**
+     * AA is the level nearly everyone is held to; AAA is what accessibility
+     * commitments and public-sector procurement actually ask for. Both
+     * thresholds move together — a check wanting AAA of body text and AA of
+     * headings would be reporting against no standard at all.
+     */
+    options() {
+      return [{
+        key: "level",
+        label: "WCAG level",
+        def: CONFIG.CONTRAST.level,
+        values: Object.keys(CONFIG.CONTRAST.levels),
+        affects: "detect"
+      }];
+    },
+    cache: /* @__PURE__ */ new Map(),
+    // 20-50 distinct colours per page, 1000s of nodes
+    ctx: void 0,
+    // undefined = not tried yet, null = no canvas
+    /** A 1×1 scratch context, or null where canvas is unavailable. */
+    paint() {
+      if (this.ctx !== void 0) return this.ctx;
+      try {
+        const c = document.createElement("canvas");
+        c.width = c.height = 1;
+        this.ctx = c.getContext("2d", { willReadFrequently: true }) || null;
+      } catch {
+        this.ctx = null;
+      }
+      return this.ctx;
+    },
+    /**
+     * Any CSS colour → sRGB, by asking the browser to paint one pixel of it.
+     * That covers oklch(), lab(), color(display-p3 …) and whatever ships
+     * next, without this file knowing the maths for any of them.
+     *
+     * Guessing is what made this necessary: scraping the numbers out of
+     * oklch(0.985 0 0) read near-white as near-black and reported 1.00:1
+     * for text measuring 10.9:1. Anything still unreadable returns null,
+     * and null must stay "unknown" all the way up.
+     */
+    colour(str) {
+      const s = String(str || "");
+      if (!s) return null;
+      if (this.cache.has(s)) return this.cache.get(s);
+      let out = null;
+      const m = /^rgba?\(/.test(s) && s.match(/[\d.]+/g);
+      if (m && m.length >= 3) {
+        out = { r: +m[0], g: +m[1], b: +m[2], a: m[3] !== void 0 ? +m[3] : 1 };
+      } else {
+        const ctx = this.paint();
+        if (ctx) {
+          ctx.fillStyle = "#000";
+          ctx.fillStyle = s;
+          const a = ctx.fillStyle;
+          ctx.fillStyle = "#fff";
+          ctx.fillStyle = s;
+          const b = ctx.fillStyle;
+          if (a === b) {
+            ctx.clearRect(0, 0, 1, 1);
+            ctx.fillRect(0, 0, 1, 1);
+            const d = ctx.getImageData(0, 0, 1, 1).data;
+            out = { r: d[0], g: d[1], b: d[2], a: d[3] / 255 };
+          }
+        }
+      }
+      this.cache.set(s, out);
+      return out;
+    },
+    /** Composite `over` (with alpha) onto the opaque colour `base`. */
+    over(over, base) {
+      const a = over.a == null ? 1 : over.a;
+      return {
+        r: over.r * a + base.r * (1 - a),
+        g: over.g * a + base.g * (1 - a),
+        b: over.b * a + base.b * (1 - a),
+        a: 1
+      };
+    },
+    /**
+     * What the text is actually painted on, or `{ unknown }` naming what
+     * stopped it — the caller turns that into a finding rather than silence.
+     *
+     * Starts at the element, not its parent: an element that sets its own
+     * background paints it behind its own text, so every button, chip and
+     * alert was previously scored against whatever was behind the card
+     * instead. Translucent layers are collected and composited rather than
+     * taken as if opaque — the first layer over 5% alpha used to be returned
+     * outright, which is a different colour from what a reader sees.
+     */
+    bg(el2) {
+      const layers = [];
+      let e = el2;
+      while (e && e.nodeType === 1) {
+        const cs = getComputedStyle(e);
+        if (cs.backgroundImage && cs.backgroundImage !== "none") return { unknown: "bg-image" };
+        const raw = cs.backgroundColor;
+        const c = this.colour(raw);
+        if (!c) {
+          if (raw && raw !== "transparent")
+            return { unknown: this.paint() ? "bg-colour" : "no-canvas" };
+        } else if (c.a >= 0.999) {
+          return layers.reduceRight((base, l) => this.over(l, base), c);
+        } else if (c.a > 0) layers.push(c);
+        e = e.parentElement;
+      }
+      return layers.reduceRight(
+        (base, l) => this.over(l, base),
+        { r: 255, g: 255, b: 255, a: 1 }
+      );
+    },
+    lum({ r, g, b }) {
+      const f = (v) => {
+        v /= 255;
+        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+      };
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+    },
+    ratio(fg, bg) {
+      const a = fg.a == null ? 1 : fg.a;
+      const mixed = {
+        r: fg.r * a + bg.r * (1 - a),
+        g: fg.g * a + bg.g * (1 - a),
+        b: fg.b * a + bg.b * (1 - a)
+      };
+      const l1 = this.lum(mixed), l2 = this.lum(bg);
+      const hi = Math.max(l1, l2), lo = Math.min(l1, l2);
+      return (hi + 0.05) / (lo + 0.05);
+    },
+    // Walked rather than spread: this is the first thing asked of every
+    // element in a page sweep, and [...childNodes] allocates an array for
+    // each one only to look at the first text node.
+    ownText(el2) {
+      for (let n = el2.firstChild; n; n = n.nextSibling)
+        if (n.nodeType === 3 && n.nodeValue.trim()) return true;
+      return false;
+    },
+    // Why a measurement could not be made. These reach the user, so they say
+    // what happened rather than naming the branch that produced them.
+    why: {
+      "fg-colour": "the text colour is in a colour space this cannot read",
+      "bg-colour": "the background colour is in a colour space this cannot read",
+      "bg-image": "it sits on an image or gradient, so the pixel under the text is unknown",
+      "no-canvas": "no canvas is available to resolve colours"
+    },
+    measure({ el: el2, cs }) {
+      if (!this.ownText(el2)) return null;
+      const fg = this.colour(cs.color);
+      if (!fg) return { unknown: this.paint() ? "fg-colour" : "no-canvas" };
+      const bg = this.bg(el2);
+      if (bg.unknown) return bg;
+      const faded = { ...fg, a: (fg.a == null ? 1 : fg.a) * this.opacityOf(el2) };
+      const ratio = this.ratio(faded, bg);
+      const size = parseFloat(cs.fontSize);
+      const bold = parseInt(cs.fontWeight, 10) >= 700;
+      const isLarge = size >= CONFIG.CONTRAST.largePx || bold && size >= CONFIG.CONTRAST.largeBoldPx;
+      const level = Tools.setting(this, "level");
+      const want = CONFIG.CONTRAST.levels[level];
+      const need = isLarge ? want.large : want.normal;
+      return { ratio, need, pass: ratio >= need, isLarge, fg: faded, bg, level, want };
+    },
+    /** Cumulative CSS opacity: every ancestor multiplies what is painted. */
+    opacityOf(el2) {
+      let o = 1;
+      for (let e = el2; e && e.nodeType === 1; e = e.parentElement) {
+        const v = parseFloat(getComputedStyle(e).opacity);
+        if (Number.isFinite(v) && v < 1) o *= Math.max(0, v);
+        if (o === 0) break;
+      }
+      return o;
+    },
+    rgb: (c) => `${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)}`
+  });
+
+  // src/core/utils.js
+  var U = {
+    /**
+     * Math.round breaks ties toward +Infinity, so +2.5 became 3 (off a 2px
+     * grid) and -2.5 became -2 (on it) — the SIGN of a half-pixel decided the
+     * verdict rather than its distance from the grid. Fractional computed
+     * margins are ordinary on fractional-DPR displays. Half away from zero
+     * treats a margin and its mirror image alike.
+     */
+    px: (v) => {
+      const n = parseFloat(v) || 0;
+      return Math.sign(n) * Math.round(Math.abs(n));
+    },
+    /**
+     * Anything the PAGE controls has to come through here before it is
+     * interpolated into badge markup, because badges reach the DOM through
+     * innerHTML. An element's id is page-authored text, and a hostile — or
+     * merely careless — one closed the span and opened a tag of its own.
+     */
+    esc: (s) => String(s).replace(
+      /[&<>"']/g,
+      (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]
+    ),
+    // `dec` is a decorator, (n) => html, handed in by the caller. UTILS never
+    // reads State, and never learns what decorating a number means.
+    mark: (n, dec) => dec ? dec(n) : `${n}`,
+    four(cs, prop, dec) {
+      const t = U.px(cs[prop + "Top"]), r = U.px(cs[prop + "Right"]), b = U.px(cs[prop + "Bottom"]), l = U.px(cs[prop + "Left"]);
+      if (!t && !r && !b && !l) return null;
+      if (t === b && r === l)
+        return t === r ? [U.mark(t, dec)] : [U.mark(t, dec), U.mark(r, dec)];
+      return [U.mark(t, dec), U.mark(r, dec), U.mark(b, dec), U.mark(l, dec)];
+    },
+    fourPlain(cs, prop) {
+      return {
+        t: U.px(cs[prop + "Top"]),
+        r: U.px(cs[prop + "Right"]),
+        b: U.px(cs[prop + "Bottom"]),
+        l: U.px(cs[prop + "Left"])
+      };
+    },
+    radius(cs) {
+      const c = ["TopLeft", "TopRight", "BottomRight", "BottomLeft"].map((k) => U.px(cs["border" + k + "Radius"]));
+      if (!c.some(Boolean)) return null;
+      return c.every((v) => v === c[0]) ? `${c[0]}` : c.join("/");
+    },
+    /**
+     * An id a person chose is the best address there is. A generated one is
+     * the worst: React and base-ui emit things like `base-ui-:r1t9:`, which
+     * changes on the next render, so a report that says #base-ui-:r1t9: names
+     * an element nobody can find twice. A bare CSS identifier is the test —
+     * a colon is not legal in one unescaped, so nobody typed it.
+     */
+    stableId: (id) => /^[A-Za-z][\w-]*$/.test(id),
+    selectorOf(el2) {
+      const part = (e2) => {
+        if (e2.id && U.stableId(e2.id)) return "#" + e2.id;
+        let s = e2.tagName.toLowerCase();
+        const cls = [...e2.classList].filter((c) => !c.startsWith("debug-overlay-")).slice(0, 2);
+        if (cls.length) s += "." + cls.join(".");
+        const p = e2.parentElement;
+        if (p) {
+          const same = [...p.children].filter((x) => x.tagName === e2.tagName);
+          if (same.length > 1) s += `:nth-of-type(${same.indexOf(e2) + 1})`;
+        }
+        return s;
+      };
+      const chain = [];
+      let e = el2;
+      while (e && e.tagName && chain.length < 3) {
+        chain.unshift(part(e));
+        if (e.id && U.stableId(e.id)) break;
+        e = e.parentElement;
+      }
+      return chain.join(" > ");
+    },
+    // human-readable name for a pin row: the element's own text, else a selector
+    labelOf(el2) {
+      const t = (el2.innerText || el2.textContent || "").trim().replace(/\s+/g, " ");
+      if (t) return t.length <= 34 ? t : t.slice(0, 31) + "…";
+      const cls = [...el2.classList].filter((c) => !c.startsWith("debug-overlay-"))[0];
+      return el2.tagName.toLowerCase() + (el2.id ? "#" + el2.id : cls ? "." + cls : "");
+    },
+    /**
+     * `r` is a getter: a rule that only reads colours never pays for a
+     * layout read, which over a whole page is thousands of them. `cs` can be
+     * handed in by a caller that has already read it.
+     */
+    info(el2, cs) {
+      let r = null;
+      return {
+        el: el2,
+        cs: cs || getComputedStyle(el2),
+        get r() {
+          return r || (r = el2.getBoundingClientRect());
+        }
+      };
+    },
+    gap(a, b) {
+      const dx = Math.max(a.left - b.right, b.left - a.right, 0);
+      const dy = Math.max(a.top - b.bottom, b.top - a.bottom, 0);
+      return { dx: Math.round(dx), dy: Math.round(dy), d: Math.round(Math.hypot(dx, dy)) };
+    },
+    rectOf: (x, y, w, h) => ({ l: x, t: y, r: x + w, b: y + h }),
+    overlap: (a, b) => Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) * Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t))
   };
 
   // src/subjects/geometry.js
@@ -1514,189 +1724,6 @@ HOW TO USE
     }
   });
 
-  // src/tools/colour/contrast/service.js
-  var Colour = defineSubject({
-    id: "colour",
-    was: "contrast",
-    // its settings lived under this id before the subject existed
-    // the FAMILY's mark, not contrast's — ◐ is the read-out's glyph, and the
-    // "WCAG level" row wearing it made the subject look like one of its tools
-    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z" /><circle cx="13.5" cy="6.5" r=".5" fill="currentColor" /><circle cx="17.5" cy="10.5" r=".5" fill="currentColor" /><circle cx="6.5" cy="12.5" r=".5" fill="currentColor" /><circle cx="8.5" cy="7.5" r=".5" fill="currentColor" /></svg>',
-    // lucide 'palette' (ISC) — the colour family's mark
-    /**
-     * AA is the level nearly everyone is held to; AAA is what accessibility
-     * commitments and public-sector procurement actually ask for. Both
-     * thresholds move together — a check wanting AAA of body text and AA of
-     * headings would be reporting against no standard at all.
-     */
-    options() {
-      return [{
-        key: "level",
-        label: "WCAG level",
-        def: CONFIG.CONTRAST.level,
-        values: Object.keys(CONFIG.CONTRAST.levels),
-        affects: "detect"
-      }];
-    },
-    cache: /* @__PURE__ */ new Map(),
-    // 20-50 distinct colours per page, 1000s of nodes
-    ctx: void 0,
-    // undefined = not tried yet, null = no canvas
-    /** A 1×1 scratch context, or null where canvas is unavailable. */
-    paint() {
-      if (this.ctx !== void 0) return this.ctx;
-      try {
-        const c = document.createElement("canvas");
-        c.width = c.height = 1;
-        this.ctx = c.getContext("2d", { willReadFrequently: true }) || null;
-      } catch {
-        this.ctx = null;
-      }
-      return this.ctx;
-    },
-    /**
-     * Any CSS colour → sRGB, by asking the browser to paint one pixel of it.
-     * That covers oklch(), lab(), color(display-p3 …) and whatever ships
-     * next, without this file knowing the maths for any of them.
-     *
-     * Guessing is what made this necessary: scraping the numbers out of
-     * oklch(0.985 0 0) read near-white as near-black and reported 1.00:1
-     * for text measuring 10.9:1. Anything still unreadable returns null,
-     * and null must stay "unknown" all the way up.
-     */
-    colour(str) {
-      const s = String(str || "");
-      if (!s) return null;
-      if (this.cache.has(s)) return this.cache.get(s);
-      let out = null;
-      const m = /^rgba?\(/.test(s) && s.match(/[\d.]+/g);
-      if (m && m.length >= 3) {
-        out = { r: +m[0], g: +m[1], b: +m[2], a: m[3] !== void 0 ? +m[3] : 1 };
-      } else {
-        const ctx = this.paint();
-        if (ctx) {
-          ctx.fillStyle = "#000";
-          ctx.fillStyle = s;
-          const a = ctx.fillStyle;
-          ctx.fillStyle = "#fff";
-          ctx.fillStyle = s;
-          const b = ctx.fillStyle;
-          if (a === b) {
-            ctx.clearRect(0, 0, 1, 1);
-            ctx.fillRect(0, 0, 1, 1);
-            const d = ctx.getImageData(0, 0, 1, 1).data;
-            out = { r: d[0], g: d[1], b: d[2], a: d[3] / 255 };
-          }
-        }
-      }
-      this.cache.set(s, out);
-      return out;
-    },
-    /** Composite `over` (with alpha) onto the opaque colour `base`. */
-    over(over, base) {
-      const a = over.a == null ? 1 : over.a;
-      return {
-        r: over.r * a + base.r * (1 - a),
-        g: over.g * a + base.g * (1 - a),
-        b: over.b * a + base.b * (1 - a),
-        a: 1
-      };
-    },
-    /**
-     * What the text is actually painted on, or `{ unknown }` naming what
-     * stopped it — the caller turns that into a finding rather than silence.
-     *
-     * Starts at the element, not its parent: an element that sets its own
-     * background paints it behind its own text, so every button, chip and
-     * alert was previously scored against whatever was behind the card
-     * instead. Translucent layers are collected and composited rather than
-     * taken as if opaque — the first layer over 5% alpha used to be returned
-     * outright, which is a different colour from what a reader sees.
-     */
-    bg(el2) {
-      const layers = [];
-      let e = el2;
-      while (e && e.nodeType === 1) {
-        const cs = getComputedStyle(e);
-        if (cs.backgroundImage && cs.backgroundImage !== "none") return { unknown: "bg-image" };
-        const raw = cs.backgroundColor;
-        const c = this.colour(raw);
-        if (!c) {
-          if (raw && raw !== "transparent")
-            return { unknown: this.paint() ? "bg-colour" : "no-canvas" };
-        } else if (c.a >= 0.999) {
-          return layers.reduceRight((base, l) => this.over(l, base), c);
-        } else if (c.a > 0) layers.push(c);
-        e = e.parentElement;
-      }
-      return layers.reduceRight(
-        (base, l) => this.over(l, base),
-        { r: 255, g: 255, b: 255, a: 1 }
-      );
-    },
-    lum({ r, g, b }) {
-      const f = (v) => {
-        v /= 255;
-        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-      };
-      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
-    },
-    ratio(fg, bg) {
-      const a = fg.a == null ? 1 : fg.a;
-      const mixed = {
-        r: fg.r * a + bg.r * (1 - a),
-        g: fg.g * a + bg.g * (1 - a),
-        b: fg.b * a + bg.b * (1 - a)
-      };
-      const l1 = this.lum(mixed), l2 = this.lum(bg);
-      const hi = Math.max(l1, l2), lo = Math.min(l1, l2);
-      return (hi + 0.05) / (lo + 0.05);
-    },
-    // Walked rather than spread: this is the first thing asked of every
-    // element in a page sweep, and [...childNodes] allocates an array for
-    // each one only to look at the first text node.
-    ownText(el2) {
-      for (let n = el2.firstChild; n; n = n.nextSibling)
-        if (n.nodeType === 3 && n.nodeValue.trim()) return true;
-      return false;
-    },
-    // Why a measurement could not be made. These reach the user, so they say
-    // what happened rather than naming the branch that produced them.
-    why: {
-      "fg-colour": "the text colour is in a colour space this cannot read",
-      "bg-colour": "the background colour is in a colour space this cannot read",
-      "bg-image": "it sits on an image or gradient, so the pixel under the text is unknown",
-      "no-canvas": "no canvas is available to resolve colours"
-    },
-    measure({ el: el2, cs }) {
-      if (!this.ownText(el2)) return null;
-      const fg = this.colour(cs.color);
-      if (!fg) return { unknown: this.paint() ? "fg-colour" : "no-canvas" };
-      const bg = this.bg(el2);
-      if (bg.unknown) return bg;
-      const faded = { ...fg, a: (fg.a == null ? 1 : fg.a) * this.opacityOf(el2) };
-      const ratio = this.ratio(faded, bg);
-      const size = parseFloat(cs.fontSize);
-      const bold = parseInt(cs.fontWeight, 10) >= 700;
-      const isLarge = size >= CONFIG.CONTRAST.largePx || bold && size >= CONFIG.CONTRAST.largeBoldPx;
-      const level = Tools.setting(this, "level");
-      const want = CONFIG.CONTRAST.levels[level];
-      const need = isLarge ? want.large : want.normal;
-      return { ratio, need, pass: ratio >= need, isLarge, fg: faded, bg, level, want };
-    },
-    /** Cumulative CSS opacity: every ancestor multiplies what is painted. */
-    opacityOf(el2) {
-      let o = 1;
-      for (let e = el2; e && e.nodeType === 1; e = e.parentElement) {
-        const v = parseFloat(getComputedStyle(e).opacity);
-        if (Number.isFinite(v) && v < 1) o *= Math.max(0, v);
-        if (o === 0) break;
-      }
-      return o;
-    },
-    rgb: (c) => `${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)}`
-  });
-
   // src/tools/colour/contrast/badge.js
   function badge2(i) {
     const c = Colour.measure(i);
@@ -1797,18 +1824,427 @@ HOW TO USE
     draw: draw2
   });
 
+  // src/tools/colour/paint/shape.js
+  function radii(cs, w, h) {
+    const pair = (v) => {
+      const p = String(v || "0").trim().split(/\s+/);
+      const n = (s, base) => String(s).endsWith("%") ? (parseFloat(s) || 0) / 100 * base : parseFloat(s) || 0;
+      return [Math.max(0, n(p[0], w)), Math.max(0, n(p[1] === void 0 ? p[0] : p[1], h))];
+    };
+    const r = {
+      tl: pair(cs.borderTopLeftRadius),
+      tr: pair(cs.borderTopRightRadius),
+      br: pair(cs.borderBottomRightRadius),
+      bl: pair(cs.borderBottomLeftRadius)
+    };
+    const ratio = (sum, len) => sum > 0 ? len / sum : Infinity;
+    const f = Math.min(
+      ratio(r.tl[0] + r.tr[0], w),
+      ratio(r.bl[0] + r.br[0], w),
+      ratio(r.tl[1] + r.bl[1], h),
+      ratio(r.tr[1] + r.br[1], h),
+      1
+    );
+    if (f < 1) for (const k of ["tl", "tr", "br", "bl"]) r[k] = [r[k][0] * f, r[k][1] * f];
+    return r;
+  }
+  function inRounded(x, y, b, rad) {
+    if (x < b.left || x > b.right || y < b.top || y > b.bottom) return false;
+    const corner = (zone, cx, cy, rx, ry) => {
+      if (!zone || rx <= 0 || ry <= 0) return true;
+      const dx = (x - cx) / rx, dy = (y - cy) / ry;
+      return dx * dx + dy * dy <= 1;
+    };
+    return corner(
+      x < b.left + rad.tl[0] && y < b.top + rad.tl[1],
+      b.left + rad.tl[0],
+      b.top + rad.tl[1],
+      rad.tl[0],
+      rad.tl[1]
+    ) && corner(
+      x > b.right - rad.tr[0] && y < b.top + rad.tr[1],
+      b.right - rad.tr[0],
+      b.top + rad.tr[1],
+      rad.tr[0],
+      rad.tr[1]
+    ) && corner(
+      x > b.right - rad.br[0] && y > b.bottom - rad.br[1],
+      b.right - rad.br[0],
+      b.bottom - rad.br[1],
+      rad.br[0],
+      rad.br[1]
+    ) && corner(
+      x < b.left + rad.bl[0] && y > b.bottom - rad.bl[1],
+      b.left + rad.bl[0],
+      b.bottom - rad.bl[1],
+      rad.bl[0],
+      rad.bl[1]
+    );
+  }
+  function padBox(b, bw) {
+    return {
+      left: b.left + bw.l,
+      top: b.top + bw.t,
+      right: b.right - bw.r,
+      bottom: b.bottom - bw.b
+    };
+  }
+  function padRadii(rad, bw) {
+    const sub = (v, n) => Math.max(0, v - n);
+    return {
+      tl: [sub(rad.tl[0], bw.l), sub(rad.tl[1], bw.t)],
+      tr: [sub(rad.tr[0], bw.r), sub(rad.tr[1], bw.t)],
+      br: [sub(rad.br[0], bw.r), sub(rad.br[1], bw.b)],
+      bl: [sub(rad.bl[0], bw.l), sub(rad.bl[1], bw.b)]
+    };
+  }
+  function sideAt(x, y, b, bw) {
+    if (bw.t && y < b.top + bw.t) return "top";
+    if (bw.b && y > b.bottom - bw.b) return "bottom";
+    if (bw.l && x < b.left + bw.l) return "left";
+    if (bw.r && x > b.right - bw.r) return "right";
+    return null;
+  }
+  function shadowAt(x, y, b, cs) {
+    const raw = String(cs.boxShadow || "none");
+    if (raw === "none" || !raw) return null;
+    const parts = raw.split(/,(?![^(]*\))/);
+    for (const part of parts) {
+      const s = part.trim();
+      if (/\binset\b/.test(s)) continue;
+      const nums = (s.match(/-?[\d.]+px/g) || []).map(parseFloat);
+      if (nums.length < 2) continue;
+      const [dx, dy, , spread = 0] = nums;
+      const r = {
+        left: b.left + dx - spread,
+        top: b.top + dy - spread,
+        right: b.right + dx + spread,
+        bottom: b.bottom + dy + spread
+      };
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return s;
+    }
+    return null;
+  }
+
+  // src/tools/colour/paint/probe.js
+  var Probe = {
+    at: null,
+    // { px, py } in page coordinates, or null
+    set(clientX, clientY) {
+      Probe.at = { px: clientX + scrollX, py: clientY + scrollY };
+    },
+    /** The probe in viewport coordinates, or null. */
+    point() {
+      if (!Probe.at) return null;
+      return { x: Probe.at.px - scrollX, y: Probe.at.py - scrollY };
+    },
+    /**
+     * Everything the OVERLAY drew is not the page. Our root is appended to
+     * documentElement rather than body — the same fact the sweep leans on to
+     * exclude itself without a per-element check — so containment in body is
+     * exactly the test, and no id is spelled here.
+     */
+    ofPage: (el2) => !!(document.body && document.body.contains(el2)),
+    /**
+     * An ancestor whose overflow removes this element AT THIS POINT, or null.
+     *
+     * This is the other half of the rounded-card case: the card clips, the child
+     * paints, and in the corner the child is simply not there. Walking to the
+     * root rather than stopping at the first clipper, because a page can nest
+     * them and only the innermost one that actually excludes the point matters.
+     */
+    clipper(el2, x, y) {
+      for (let e = el2.parentElement; e && e.nodeType === 1; e = e.parentElement) {
+        const cs = getComputedStyle(e);
+        const clips = /\b(hidden|clip|auto|scroll|overlay)\b/.test(cs.overflow || "") || cs.clipPath && cs.clipPath !== "none";
+        if (!clips) continue;
+        const r = e.getBoundingClientRect();
+        const bw = {
+          t: parseFloat(cs.borderTopWidth) || 0,
+          r: parseFloat(cs.borderRightWidth) || 0,
+          b: parseFloat(cs.borderBottomWidth) || 0,
+          l: parseFloat(cs.borderLeftWidth) || 0
+        };
+        const pb = padBox(r, bw);
+        const pr = padRadii(radii(cs, r.width, r.height), bw);
+        if (cs.clipPath && cs.clipPath !== "none")
+          return { el: e, sel: U.selectorOf(e), why: `clip-path: ${cs.clipPath}`, sure: false };
+        if (!inRounded(x, y, pb, pr))
+          return { el: e, sel: U.selectorOf(e), why: `overflow: ${cs.overflow}`, sure: true };
+      }
+      return null;
+    },
+    /** A pseudo-element that paints but is invisible to elementsFromPoint. */
+    pseudo(el2, which) {
+      let cs = null;
+      try {
+        cs = getComputedStyle(el2, which);
+      } catch {
+        return null;
+      }
+      if (!cs) return null;
+      const content = cs.content;
+      if (!content || content === "none" || content === "normal") return null;
+      const bits = [];
+      const bg = cs.backgroundColor;
+      if (bg && bg !== "transparent" && !/^rgba\(0, 0, 0, 0\)$/.test(bg)) bits.push(`bg ${bg}`);
+      if (cs.backgroundImage && cs.backgroundImage !== "none") bits.push("background-image");
+      if (cs.maskImage && cs.maskImage !== "none") bits.push("mask");
+      if (parseFloat(cs.borderTopWidth) || parseFloat(cs.borderLeftWidth)) bits.push("border");
+      return bits.length ? { which, bits } : null;
+    },
+    /**
+     * The stack at a viewport point, top → bottom, each layer judged.
+     *
+     * elementsFromPoint is hit-testing, so it already answers "is the point in
+     * the box" — and answers nothing else. Everything below is the difference
+     * between that and what is painted.
+     */
+    stack(x, y) {
+      let els = [];
+      try {
+        els = document.elementsFromPoint(x, y) || [];
+      } catch {
+        return [];
+      }
+      return els.filter(Probe.ofPage).map((el2) => Probe.layer(el2, x, y));
+    },
+    /**
+     * ONE element, judged at one point. Split out because the badge asks it of
+     * whatever you are pointing at — which may not be in the stack at all — and
+     * two copies of this judgement is how a badge comes to disagree with the
+     * report about the same pixel.
+     */
+    layer(el2, x, y) {
+      const cs = getComputedStyle(el2);
+      const r = el2.getBoundingClientRect();
+      const bw = {
+        t: parseFloat(cs.borderTopWidth) || 0,
+        r: parseFloat(cs.borderRightWidth) || 0,
+        b: parseFloat(cs.borderBottomWidth) || 0,
+        l: parseFloat(cs.borderLeftWidth) || 0
+      };
+      const rad = radii(cs, r.width, r.height);
+      const inShape = inRounded(x, y, r, rad);
+      const clip = Probe.clipper(el2, x, y);
+      const side = inShape ? sideAt(x, y, r, bw) : null;
+      const bgImage = cs.backgroundImage && cs.backgroundImage !== "none" ? cs.backgroundImage : null;
+      const backdrop = [cs.backdropFilter, cs.webkitBackdropFilter].find((v) => v && v !== "none") || null;
+      return {
+        el: el2,
+        cs,
+        sel: U.selectorOf(el2),
+        paints: inShape && !clip,
+        inBox: true,
+        // elementsFromPoint said so
+        inShape,
+        clip,
+        side,
+        // the border wins where the point is in it: that is the colour the
+        // pixel gets, and a card's ring is exactly where a wedge tends to be
+        colour: side ? cs[`border${side[0].toUpperCase()}${side.slice(1)}Color`] : cs.backgroundColor,
+        from: side ? `border-${side}-color` : "background-color",
+        bgImage,
+        backdrop,
+        shadow: inShape ? null : shadowAt(x, y, r, cs),
+        pseudo: [Probe.pseudo(el2, "::before"), Probe.pseudo(el2, "::after")].filter(Boolean),
+        radius: U.radius(cs)
+      };
+    },
+    /**
+     * Fold the painting layers bottom → top. Returns the composite and every
+     * reason it might be wrong — a reader who cannot see the reasons cannot
+     * tell a computed answer from a guess.
+     */
+    composite(layers) {
+      const doubts = [];
+      let out = { r: 255, g: 255, b: 255, a: 1 };
+      for (let i = layers.length - 1; i >= 0; i--) {
+        const L = layers[i];
+        if (!L.paints) continue;
+        if (L.bgImage) doubts.push(`${L.sel} paints a background-image — its pixel here is unknown`);
+        if (L.backdrop) doubts.push(`${L.sel} has backdrop-filter: ${L.backdrop} — the pixel here is FILTERED, not composited`);
+        const c = Colour.colour(L.colour);
+        if (!c) {
+          doubts.push(`${L.sel} ${L.from} is a colour space this cannot read`);
+          continue;
+        }
+        if (c.a === 0) continue;
+        out = Colour.over(c, out);
+      }
+      return { colour: out, doubts };
+    }
+  };
+
+  // src/tools/colour/paint/badge.js
+  function badge3(i) {
+    const p = Probe.point();
+    if (!p) return null;
+    const r = i.r;
+    if (p.x < r.left || p.x > r.right || p.y < r.top || p.y > r.bottom) return null;
+    const L = Probe.layer(i.el, p.x, p.y);
+    if (L.clip) {
+      return `<span class="debug-overlay-paint-no">⛏ clipped here</span><span class="debug-overlay-paint-k"> by ${esc2(L.clip.sel)}</span>`;
+    }
+    if (!L.inShape) {
+      const why = L.radius ? `outside r ${esc2(L.radius)}` : "outside the painted shape";
+      return `<span class="debug-overlay-paint-no">⛏ box only — not painted here</span><span class="debug-overlay-paint-k"> ${why}</span>`;
+    }
+    return `<span class="debug-overlay-paint-yes">⛏ paints here</span><span class="debug-overlay-paint-k"> ${esc2(L.from.replace("background-color", "bg"))} ${esc2(L.colour)}</span>`;
+  }
+  function compact3(i) {
+    const p = Probe.point();
+    if (!p) return null;
+    const r = i.r;
+    if (p.x < r.left || p.x > r.right || p.y < r.top || p.y > r.bottom) return null;
+    const L = Probe.layer(i.el, p.x, p.y);
+    if (L.clip) return `<span class="debug-overlay-paint-no">⛏ clipped</span>`;
+    if (!L.inShape) return `<span class="debug-overlay-paint-no">⛏ box only</span>`;
+    return null;
+  }
+  function legend3() {
+    return [
+      { mark: "⛏ paints here", means: "green: this element really does paint the probed pixel" },
+      { mark: "⛏ box only", means: "amber: the probe is inside its box but outside its rounded shape — the colour there is somebody else’s" },
+      { mark: "⛏ clipped here", means: "amber: an ancestor’s overflow removes this element at that point" }
+    ];
+  }
+  function gestures() {
+    return [{
+      keys: "Point at a pixel (⛏ armed)",
+      does: "the paint probe follows, and HOLDS when you move onto the panel — so ⧉ reports the pixel you meant"
+    }];
+  }
+  function esc2(s) {
+    return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  }
+
+  // src/tools/colour/paint/report.js
+  function reportTail() {
+    const p = Probe.point();
+    if (!p) return [
+      "",
+      "## paint — no probe yet",
+      "Armed, but the pointer has not been over the page since. Point at the pixel",
+      "in question; the stack at that point appears here."
+    ];
+    const L = [];
+    L.push("", `## paint — the pixel at (${Math.round(p.x)}, ${Math.round(p.y)})`);
+    L.push(`page coordinates (${Math.round(Probe.at.px)}, ${Math.round(Probe.at.py)}) · dpr ${devicePixelRatio}`);
+    const layers = Probe.stack(p.x, p.y);
+    if (!layers.length) {
+      L.push("nothing in the page is under that point.");
+      return L;
+    }
+    const w = Math.min(46, Math.max(...layers.map((x) => x.sel.length)));
+    L.push("stack, top → bottom:");
+    layers.forEach((x, i) => {
+      const sel = x.sel.length > w ? "…" + x.sel.slice(-(w - 1)) : x.sel.padEnd(w);
+      let verdict;
+      if (x.clip) {
+        verdict = `clipped away here by ${x.clip.sel} (${x.clip.why})${x.clip.sure ? "" : " — not evaluated, assume it may clip"}`;
+      } else if (!x.inShape) {
+        verdict = `box only — not painted here` + (x.radius ? ` (outside r ${x.radius})` : "") + (x.shadow ? ` · box-shadow reaches here: ${x.shadow}` : "");
+      } else {
+        verdict = `PAINTS · ${x.from} ${x.colour}` + (x.bgImage ? ` · background-image ${x.bgImage}` : "");
+      }
+      L.push(`  [${i + 1}] ${sel}  ${verdict}`);
+      if (x.backdrop) L.push(`      backdrop-filter: ${x.backdrop}`);
+      for (const ps of x.pseudo) {
+        L.push(`      ${ps.which} — content + ${ps.bits.join(", ")} — NOT in the stack; it may paint this pixel`);
+      }
+    });
+    const { colour, doubts } = Probe.composite(layers);
+    L.push(`composited bottom → top: rgb(${Colour.rgb(colour)})`);
+    L.push("sampled pixel: not available — reading the rendered pixel needs a tab-capture");
+    L.push("   permission this build does not ask for, so the composite above is a CLAIM,");
+    L.push("   computed from the walk, and nothing here has verified it.");
+    if (doubts.length) {
+      L.push("not accounted for:");
+      for (const d of doubts) L.push(`   ${d}`);
+    }
+    return L;
+  }
+
+  // src/tools/colour/paint/draw.js
+  function draw3({ layer: layer2, Place: Place2 }) {
+    const p = Probe.point();
+    if (!p) return;
+    const dot = document.createElement("div");
+    dot.className = "debug-overlay-paint-dot";
+    Place2.put(dot, p.x - 5, p.y - 5, 10, 10);
+    Place2.claim(p.x - 7, p.y - 7, 14, 14);
+    layer2.append(dot);
+    const painter = Probe.stack(p.x, p.y).find((L) => L.paints);
+    if (!painter || !document.contains(painter.el)) return;
+    const r = painter.el.getBoundingClientRect();
+    const box = document.createElement("div");
+    box.className = "debug-overlay-box debug-overlay-paint-box";
+    Place2.put(box, r.left, r.top, r.width, r.height);
+    layer2.append(box);
+  }
+
+  // src/tools/colour/paint/follow.js
+  function watch(ctx) {
+    Probe.redraw = ctx && ctx.redraw;
+    Probe.onMove = (e) => {
+      if (!document.body || !document.body.contains(e.target)) return;
+      const p = Probe.point();
+      if (p && Math.round(p.x) === Math.round(e.clientX) && Math.round(p.y) === Math.round(e.clientY)) return;
+      Probe.set(e.clientX, e.clientY);
+      Probe.redraw?.();
+    };
+    addEventListener("pointermove", Probe.onMove, true);
+  }
+  function unwatch() {
+    if (Probe.onMove) removeEventListener("pointermove", Probe.onMove, true);
+    Probe.onMove = null;
+    Probe.redraw = null;
+    Probe.at = null;
+  }
+
+  // src/tools/colour/paint/index.js
+  defineTool({
+    css: `
+  .debug-overlay-paint-dot { position: fixed; pointer-events: none;
+    border-radius: 50%; border: 2px solid var(--debug-overlay-info);
+    box-shadow: 0 0 0 1px rgba(0,0,0,.6); }
+  .debug-overlay-paint-box { outline: 2px dashed var(--debug-overlay-info); }
+  .debug-overlay-badge .debug-overlay-paint-yes { color: var(--debug-overlay-accent); font-weight: 700; }
+  .debug-overlay-badge .debug-overlay-paint-no  { color: var(--debug-overlay-warn); font-weight: 700; }
+  .debug-overlay-badge .debug-overlay-paint-k   { color: var(--debug-overlay-muted); }
+  `,
+    id: "paint",
+    family: "colour",
+    // audited: must match the domain folder this sits in
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 22 1-1h3l9-9"/><path d="M3 21v-3l9-9"/><path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z"/></svg>',
+    // lucide 'pipette' (ISC)
+    title: "Paint — which element actually paints the pixel you clicked",
+    /* NOT startsOn, and honestly off for COST as well as caution: armed, it
+       listens to every pointer move and rebuilds the stack under the cursor.
+       A meter you did not ask for is overhead pretending to be help. */
+    watch,
+    unwatch,
+    badge: badge3,
+    compact: compact3,
+    legend: legend3,
+    gestures,
+    draw: draw3,
+    reportTail
+  });
+
   // src/tools/dupid/badge.js
-  function badge3({ el: el2 }) {
+  function badge4({ el: el2 }) {
     if (!el2.id) return null;
     const n = document.querySelectorAll(
       `[id="${CSS.escape ? CSS.escape(el2.id) : el2.id}"]`
     ).length;
     return n > 1 ? `<span class="debug-overlay-dup">⌗ id ×${n}</span>` : null;
   }
-  function compact3(i) {
+  function compact4(i) {
     return this.badge(i);
   }
-  function legend3() {
+  function legend4() {
     return [{ mark: "⌗ id ×2", means: "orange: this id is used more than once in the document" }];
   }
 
@@ -1853,7 +2289,7 @@ HOW TO USE
   }
 
   // src/tools/dupid/draw.js
-  function draw3({ marks, found }) {
+  function draw4({ marks, found }) {
     marks(found);
   }
 
@@ -1874,17 +2310,17 @@ HOW TO USE
     // as a column, and a column is not a column if some rows are blank.
     subject: "ids",
     title: "Duplicate ids — the same id used more than once",
-    badge: badge3,
-    legend: legend3,
-    compact: compact3,
+    badge: badge4,
+    legend: legend4,
+    compact: compact4,
     report: report3,
     rules: rules3,
     auditPage,
-    draw: draw3
+    draw: draw4
   });
 
   // src/tools/geometry/measure/badge.js
-  function badge4(i) {
+  function badge5(i) {
     const { el: el2, r, cs } = i;
     const dec = Tools.annotator(i);
     const on = (k) => Tools.setting(this, k);
@@ -1910,7 +2346,7 @@ HOW TO USE
     if (on("tag")) bits.push(`<span class="debug-overlay-tag">${el2.tagName.toLowerCase()}${el2.id ? "#" + U.esc(el2.id) : ""}</span>`);
     return bits.join(" · ");
   }
-  function compact4(i) {
+  function compact5(i) {
     const { r, cs } = i;
     const dec = Tools.annotator(i);
     const on = (k) => Tools.setting(this, k);
@@ -1937,7 +2373,7 @@ HOW TO USE
       { key: "tag", label: "Tag & id", def: true, type: "toggle", affects: "inspect" }
     ];
   }
-  function legend4() {
+  function legend5() {
     return [
       { mark: "92×24", means: "width × height, rounded" },
       { mark: "r 13", means: "border-radius" },
@@ -1958,7 +2394,7 @@ HOW TO USE
       `  color: ${cs.color} | bg: ${cs.backgroundColor}`
     ];
   }
-  function reportTail() {
+  function reportTail2() {
     return this._pairs().map(([A, B]) => {
       const ra = A.el.getBoundingClientRect(), rb = B.el.getBoundingClientRect();
       const g = U.gap(ra, rb);
@@ -1968,7 +2404,7 @@ HOW TO USE
   }
 
   // src/tools/geometry/measure/draw.js
-  function draw4({ layer: layer2, Place: Place2 }) {
+  function draw5({ layer: layer2, Place: Place2 }) {
     Measure.resetLanes();
     for (const [A, B] of this._pairs()) {
       Measure.dimension(
@@ -2025,13 +2461,13 @@ HOW TO USE
      * which two of them were meant.
      */
     _pairs: () => Tools.groups().filter((g) => g.length === 2),
-    badge: badge4,
-    legend: legend4,
-    compact: compact4,
+    badge: badge5,
+    legend: legend5,
+    compact: compact5,
     options,
     report: report4,
-    reportTail,
-    draw: draw4
+    reportTail: reportTail2,
+    draw: draw5
   });
 
   // src/tools/grid/service.js
@@ -2158,17 +2594,17 @@ HOW TO USE
   });
 
   // src/tools/grid/badge.js
-  function badge5(i) {
+  function badge6(i) {
     const bad = Scale.scan(i, true);
     if (!bad.length) return null;
     const vals = [...new Set(bad.map(([, v]) => v))];
     return `<span class="debug-overlay-warn">⚠ ${vals.join(" ")} off ${Scale.step()}px</span>`;
   }
-  function compact5(i) {
+  function compact6(i) {
     const bad = Scale.scan(i, true);
     return bad.length ? `<span class="debug-overlay-warn">⚠${bad.length}</span>` : null;
   }
-  function legend5() {
+  function legend6() {
     return [
       { mark: "7⚠", means: "amber: this number is off the spacing step" },
       { mark: "7⚠→8", means: "the nearest on-step value - the Recommendation facet" }
@@ -2213,7 +2649,7 @@ HOW TO USE
   }
 
   // src/tools/grid/draw.js
-  function draw5({ marks, found }) {
+  function draw6({ marks, found }) {
     marks(found);
   }
 
@@ -2234,14 +2670,14 @@ HOW TO USE
     // the ⚠ on a badge is what makes the read-out useful
     uses: [Scale],
     // its settings are Scale's, and belong on its own menu
-    badge: badge5,
-    legend: legend5,
-    compact: compact5,
+    badge: badge6,
+    legend: legend6,
+    compact: compact6,
     annotate,
     report: report5,
     rules: rules4,
     audit: audit3,
-    draw: draw5
+    draw: draw6
     // no options of its own any more: 'Suggest nearest step' was the
     // RECOMMENDATION facet wearing this tool's name, and it moved to the
     // badge face (was: 'grid' there adopts what anyone saved). The step
@@ -2257,7 +2693,7 @@ HOW TO USE
     const { pending } = this._form();
     return pending ? State.pins.indexOf(pending) : -1;
   }
-  function gestures() {
+  function gestures2() {
     return [{
       keys: "Ctrl/⌘+Shift+click",
       does: "chain to the previous pin — repeat for ①─②─③"
@@ -2305,7 +2741,7 @@ HOW TO USE
     });
     return rows;
   }
-  function reportTail2() {
+  function reportTail3() {
     const { pending } = this._form();
     return pending ? [`[#${pending.id}] waiting for its pair`] : [];
   }
@@ -2325,9 +2761,9 @@ HOW TO USE
     },
     groups,
     pendingIndex,
-    gestures,
+    gestures: gestures2,
     listRows,
-    reportTail: reportTail2
+    reportTail: reportTail3
   });
 
   // src/tools/input/pin/keep.js
@@ -2585,10 +3021,10 @@ HOW TO USE
   function fmt(ms) {
     return ms < 1e3 ? `${ms}ms` : `${(ms / 1e3).toFixed(1)}s`;
   }
-  function watch(ctx) {
+  function watch2(ctx) {
     Monitor.start(this, ctx);
   }
-  function unwatch() {
+  function unwatch2() {
     Monitor.stop();
   }
   function readLoad() {
@@ -2625,7 +3061,7 @@ HOW TO USE
   }
 
   // src/tools/perf/badge.js
-  function badge6(i) {
+  function badge7(i) {
     if (!Monitor.running) return null;
     const s = Targets.stats(i.el);
     if (s) {
@@ -2640,7 +3076,7 @@ HOW TO USE
     const n = Monitor.log.length;
     return `<span class="debug-overlay-sp">⚡ ${fps}fps</span>` + (n ? ` <span class="debug-overlay-warn">${n}× worst ${fmt(Monitor.worst())}</span>` : "");
   }
-  function compact6(i) {
+  function compact7(i) {
     if (!Monitor.running) return null;
     const s = Targets.stats(i.el);
     const churn = Number(Tools.setting(this, "churn")) || CONFIG.PERF.CHURN;
@@ -2648,7 +3084,7 @@ HOW TO USE
     if (!s && Monitor.log.length) return `<span class="debug-overlay-warn">⚡${fmt(Monitor.worst())}</span>`;
     return null;
   }
-  function legend6() {
+  function legend7() {
     return [
       { mark: "⚡ 58fps", means: "the PAGE, not this element: frames per second while monitoring" },
       { mark: "⚡1.2s", means: "amber: the longest main-thread freeze since arming" },
@@ -2671,7 +3107,7 @@ HOW TO USE
       detail: `${ago(e.t)}${e.src ? " · " + e.src : ""}${e.blame ? " · during: " + e.blame : ""}`
     }));
   }
-  function reportTail3() {
+  function reportTail4() {
     if (!Monitor.running && !Monitor.log.length) return [];
     const secs = Math.round((Date.now() - Monitor.startedAt) / 1e3);
     const L = [`## performance — monitored ${secs}s · tier: ${Monitor.tier}`];
@@ -2754,7 +3190,7 @@ HOW TO USE
   };
 
   // src/tools/perf/draw.js
-  function draw6({ marks, found }) {
+  function draw7({ marks, found }) {
     marks(found);
   }
 
@@ -2770,17 +3206,17 @@ HOW TO USE
     subject: "time",
     title: "Perf — freezes and jank while armed; the badge shows the page's pulse",
     startsOn: false,
-    watch,
-    unwatch,
+    watch: watch2,
+    unwatch: unwatch2,
     timeline,
-    badge: badge6,
-    compact: compact6,
-    legend: legend6,
+    badge: badge7,
+    compact: compact7,
+    legend: legend7,
     listRows: listRows2,
-    reportTail: reportTail3,
+    reportTail: reportTail4,
     audit: audit4,
     rules: rules5,
-    draw: draw6,
+    draw: draw7,
     options() {
       return [
         {
@@ -4155,11 +4591,11 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       issues: !!Tools.setting(BadgeFace, "issues"),
       suggest: !!Tools.setting(BadgeFace, "suggest")
     }),
-    build(info, compact7) {
+    build(info, compact8) {
       info.facets = Badges.facets();
       const parts = [];
       for (const t of Tools.active()) {
-        const fn = compact7 ? t.compact || null : t.badge || null;
+        const fn = compact8 ? t.compact || null : t.badge || null;
         if (!fn) continue;
         const html = fn.call(t, info);
         if (html) parts.push(html);
@@ -5335,10 +5771,10 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         out.push({ heading: "Keys", detail: "the parts of this that are not buttons" });
         out.push(...keys);
       }
-      const legend7 = only ? [] : Settings.legendRows();
-      if (legend7.length) {
+      const legend8 = only ? [] : Settings.legendRows();
+      if (legend8.length) {
         out.push({ heading: "Legend", detail: "what the marks and short names mean" });
-        out.push(...legend7);
+        out.push(...legend8);
       }
       return out;
     },

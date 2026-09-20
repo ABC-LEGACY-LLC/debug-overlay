@@ -3,7 +3,7 @@ import { badge, compact, legend } from './badge.js';
 import { report } from './report.js';
 import { rules, audit } from './rule.js';
 import { draw } from './draw.js';
-import { Colour } from './service.js';
+import { Colour } from '../../../subjects/colour.js';
 
 /* index — REGISTRATION ONLY. The tool's behaviour lives in the files
    beside this one; what is declared here is identity, appearance and wiring.

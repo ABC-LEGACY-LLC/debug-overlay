@@ -3963,6 +3963,103 @@ console.log('\nSTALENESS ANNOUNCES ITSELF');
 
 }
 
+console.log('\nWHO PAINTED THIS PIXEL');
+/**
+ * THE CASE THIS TOOL WAS ASKED FOR, reproduced: a grey wedge between a
+ * rounded, clipping card and what is behind it. Five rounds of reasoning went
+ * into that wedge on a real page and never resolved it, because Inspect
+ * answers "the topmost element at this point" and the topmost element is
+ * exactly the one that is NOT painting there.
+ *
+ * jsdom has no hit-testing and no layout, so the stack and the rects are
+ * supplied; what is under test is the judgement over them, which is the whole
+ * of the tool. Radii go in as longhand — jsdom does not expand the shorthand.
+ */
+{
+  const opts = { url: 'https://example.test/', pretendToBeVisual: true,
+                 runScripts: 'outside-only', virtualConsole: new VirtualConsole() };
+  const R = (l, t, r, b) => () => ({ left: l, top: t, right: r, bottom: b,
+                                     width: r - l, height: b - t, x: l, y: t });
+  const rad = 'border-top-left-radius:40px;border-top-right-radius:40px;' +
+              'border-bottom-right-radius:40px;border-bottom-left-radius:40px';
+  const d = new JSDOM(
+    `<!doctype html><html><body style="background:rgb(17,17,20)">` +
+    `<div id="card" style="${rad};overflow:hidden;background:rgb(30,30,36)">` +
+    `<div id="inner" style="background:rgb(30,30,36)"></div></div></body></html>`, opts);
+  const w = d.window;
+  w.localStorage.setItem('__debug_overlay_tools', JSON.stringify(['paint']));
+  w.localStorage.setItem('__debug_overlay_seen', JSON.stringify(idsOnDisk));
+  w.eval(source);
+
+  const card = w.document.getElementById('card');
+  const inner = w.document.getElementById('inner');
+  card.getBoundingClientRect = R(100, 100, 300, 300);
+  inner.getBoundingClientRect = R(100, 100, 300, 300);
+  w.document.body.getBoundingClientRect = R(0, 0, 400, 400);
+  // the hit test says all three boxes contain the point; that is all it says,
+  // and believing it is the mistake this tool exists to correct
+  w.document.elementsFromPoint = () => [inner, card, w.document.body];
+
+  w.dispatchEvent(new w.KeyboardEvent('keydown', { ...hot, bubbles: true }));
+  /* (105,105) is inside the card's BOX and outside its painted shape: the
+     top-left corner's ellipse is centred at (140,140) with r=40, and the
+     point sits ~49.5px away. That is the wedge. */
+  // dispatched ON a page element, so e.target is in body — which is exactly
+  // how the tool tells the page apart from the overlay
+  card.dispatchEvent(new w.MouseEvent('pointermove',
+    { bubbles: true, clientX: 105, clientY: 105 }));
+
+  let copied = null;
+  Object.defineProperty(w.navigator, 'clipboard',
+    { value: { writeText: async (t) => { copied = t; } }, configurable: true });
+  w.document.getElementById('__debug-overlay-bar').querySelector('[data-copy]')
+    .dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  const rep = copied || '';
+
+  ok('the report carries the probed pixel, not just a mark on the page',
+    /## paint — the pixel at \(105, 105\)/.test(rep),
+    rep.split('\n').find((l) => l.startsWith('## paint')) || '(no paint section)');
+  // THE ACCEPTANCE LINE
+  ok('the rounded card is named box only — not painted here',
+    /#card[^\n]*box only — not painted here \(outside r 40\)/.test(rep),
+    rep.split('\n').find((l) => /#card/.test(l)) || '(card absent from the stack)');
+  ok('and the element clipped away by it says which ancestor did that',
+    /#inner[^\n]*clipped away here by #card \(overflow: hidden\)/.test(rep),
+    rep.split('\n').find((l) => /#inner/.test(l)) || '(inner absent)');
+  ok('so the colour belongs to what is behind — body, and it says PAINTS',
+    /body[^\n]*PAINTS · background-color rgb\(17, 17, 20\)/.test(rep),
+    rep.split('\n').find((l) => /body/.test(l)) || '(body absent)');
+  ok('the composite is stated, bottom → top',
+    /composited bottom → top: rgb\(17,17,20\)/.test(rep),
+    rep.split('\n').find((l) => /composited/.test(l)) || '(no composite)');
+  /* The most valuable line the requester asked for is the DISAGREEMENT
+     between the walk and a sampled pixel — and this build cannot sample one.
+     Saying so is what keeps the composite a claim rather than a verified
+     fact; silence here would let a reader take it for the latter. */
+  ok('and it admits the composite is unverified, rather than implying it is not',
+    /sampled pixel: not available/.test(rep) && /is a CLAIM/.test(rep),
+    rep.split('\n').find((l) => /sampled pixel/.test(l)) || '(no honesty line)');
+
+  // the probe must HOLD when the pointer leaves the page for the panel —
+  // otherwise ⧉ reports the panel instead of the pixel you asked about
+  const barBtn = w.document.getElementById('__debug-overlay-bar').querySelector('[data-copy]');
+  barBtn.dispatchEvent(new w.MouseEvent('pointermove',
+    { bubbles: true, clientX: 640, clientY: 20 }));
+  barBtn.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  ok('the probe holds when the pointer moves onto the panel',
+    /the pixel at \(105, 105\)/.test(copied || ''),
+    (copied || '').split('\n').find((l) => l.startsWith('## paint')) || '(gone)');
+
+  // disarming a runtime takes its listener AND its answer with it
+  w.document.getElementById('__debug-overlay-bar').querySelector('[data-tool="paint"]')
+    .dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  barBtn.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  ok('disarming it removes the section entirely — no stale pixel',
+    !/## paint/.test(copied || ''),
+    'a stood-down runtime went on answering');
+  w.close();
+}
+
 console.log('\nTHE SESSION SURVIVES THE REFRESH');
 /**
  * DevTools survives a reload because it lives outside the page; a userscript

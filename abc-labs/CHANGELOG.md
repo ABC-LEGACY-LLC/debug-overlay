@@ -1,5 +1,19 @@
 # Changelog
 
+## 3.8.176 — 2026-09-20
+
+- New **Paint** tool (⛏, in the 🎨 colour family, off until you arm it): which
+  element actually paints the pixel you are pointing at. Inspect answers "the
+  topmost element here", which is a different question — on a rounded card the
+  topmost element is often the one *not* painting there, because the point sits
+  inside its box but outside its rounded shape, and the colour you see belongs
+  to whatever is behind. The report carries the whole stack top to bottom, each
+  layer marked painted / `box only — not painted here` / clipped away by an
+  ancestor's overflow, with its colour — plus `::before`/`::after` and
+  `backdrop-filter`, the two things hit-testing cannot see. The probe follows
+  the pointer and holds when you move onto the panel, so ⧉ reports the pixel
+  you meant.
+
 ## 3.8.175 — 2026-09-18
 
 - **The Tampermonkey userscript is withdrawn.** The extension is the only way

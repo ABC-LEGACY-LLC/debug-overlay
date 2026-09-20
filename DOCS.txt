@@ -136,6 +136,19 @@ HOW TO USE
                  margin:auto lands.
     🎨 colour    the colour family — one button; click it and its members
                  slide out sideways:
+       ⛏ paint     WHICH ELEMENT actually paints the pixel you are pointing
+                 at. Inspect answers "the topmost element here", which is a
+                 different question: on a rounded card the topmost element is
+                 often the one NOT painting, because the point sits in the
+                 box but outside the rounded shape — and the colour you see
+                 belongs to whatever is behind. Armed, the probe follows the
+                 pointer and HOLDS when you move onto the panel, so ⧉ reports
+                 the pixel you meant. The report carries the whole stack, top
+                 to bottom: painted / box only — not painted here / clipped
+                 away by an ancestor's overflow, each with its colour, plus
+                 ::before and ::after (which no hit test can see) and any
+                 backdrop-filter. OFF by default — it listens to every
+                 pointer move while armed.
        ◐ contrast  WCAG text contrast ratio, against AA or AAA (⚙)
     ⌨ a11y       the name, role and keyboard reach of what you point at —
                  COMPUTED off the rendered page, not read out of the source.

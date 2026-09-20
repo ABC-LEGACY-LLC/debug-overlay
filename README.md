@@ -321,7 +321,8 @@ src/                        the overlay — everything here becomes the bundle
   boot.js                   the entry module: init order + wiring
   tools/                    ← one FOLDER per armable TOOL, auto-discovered
     a11y/                   index · service (A11y) · badge · rule · draw · report
-    colour/contrast/        index · service (Colour) · badge · rule · draw · report
+    colour/contrast/        index · badge · rule · draw · report
+    colour/paint/           index · probe · shape · follow · badge · draw · report
     geometry/measure/       index · badge · report · draw
     dupid/                  index · badge · rule · draw · report
     grid/                   index · service (Scale) · badge · lens · rule · draw · report
@@ -331,6 +332,8 @@ src/                        the overlay — everything here becomes the bundle
   services/                 the four collectors — never edited for a new tool
     badge/ (index · options — the 🏷 face) · findings/ · report/ · settings/
   subjects/
+    colour.js               colour resolution, compositing, the WCAG level —
+                            contrast judges with it, paint composites with it
     geometry.js             shared rectangle maths — measure and group consult it
   core/                     config · state+Store · utils · registry · protocol
                             (protocol = the panel's contract on a wire — shared

@@ -123,7 +123,11 @@ for (const t of inBand('COMPONENT')) {
   console.log('    ' + t.id.padEnd(11) +
     ((has('badge') ? '✓' : '·') + (has('annotate') ? ' +⚠ lens' : '')).padEnd(14) +
     ((has('audit') || has('auditPage')) ? '✓' : '·').padEnd(12) +
-    (has('report') ? '✓' : '·').padEnd(10) +
+    /* reportTail counts. The column asks "does this fill the ⧉ report", and
+       a tool whose whole output is a tail section was printed as a dot —
+       which is the opposite of true for the one reader who works from the
+       copied text alone. */
+    ((has('report') || has('reportTail')) ? '✓' : '·').padEnd(10) +
     (has('options') ? 'own' : uses ? 'via ' + uses.toLowerCase() : '·'));
 }
 console.log('\nBADGE FACETS   three kinds of content on one line\n');

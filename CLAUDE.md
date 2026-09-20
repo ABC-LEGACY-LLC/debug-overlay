@@ -260,12 +260,14 @@ and WHERE each lives says how many consumers it has:
 | subject | file | owns |
 |---|---|---|
 | `scale` | `tools/grid/service.js` | `step`/`max`/`boxes` and the off-grid test |
-| `colour` | `tools/colour/contrast/service.js` | the WCAG `level`, colour resolution, the memoised cache, the 1×1 canvas |
+| `colour` | `subjects/colour.js` | the WCAG `level`, colour resolution, the memoised cache, the 1×1 canvas — contrast judges with it, paint composites with it |
 | `geometry` | `subjects/geometry.js` | rectangle maths — measure draws with it, group words its rows with it |
 
 `src/subjects/` is for a subject with TWO consumers. One with a single consumer
 lives inside that tool's folder as its `service.js` — a hierarchy is not built
-over one child — and moves the day a second consumer appears. That is not a
+over one child — and moves the day a second consumer appears. Colour made that
+move when ⛏ paint shipped: it needed the canvas colour reader and `over()`, and
+a second copy of either would have let two tools disagree about one pixel. That is not a
 convention anybody has to remember: reaching for another tool's `service.js`
 fails the import audit with the promotion steps in the message.
 
@@ -774,6 +776,7 @@ an inference from source.
 | off-token spacing (compliance-design-system) | ▦ grid | every value off the project's step, with the step configurable under ⚙ |
 | contrast (compliance-design-system) | ◐ contrast | computed ratio and pass/fail at the chosen WCAG level, read off painted pixels — so gradients and `opacity` are handled, and unreadable cases return `review` rather than a wrong number |
 | name, role, keyboard reach (psychology C2, any a11y pass) | ⌨ a11y | the accessible name and where it came from, the role, and whether Tab reaches it — computed off the rendered page; `review` where the name cannot be determined from here |
+| which element produced a colour on screen (composition-layout, compliance-design-system) | ⛏ paint | the paint stack at one pixel: per layer, painted / `box only — not painted here` / clipped away by an ancestor, with its colour, plus pseudo-elements and `backdrop-filter` — the two things hit-testing cannot see |
 | duplicate accessible ids (any) | # dupid | every duplicate id, marked in place |
 | freezes, jank, per-component cost (performance-interaction) | ⚡ perf | freeze log with tier and blame, plus `mut/s`, `resp`, `shift` for a pinned subtree, and page-load timings |
 
