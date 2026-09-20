@@ -39,4 +39,5 @@ export function unwatch() {
   // a stood-down probe describes nothing: the point was a fact about a
   // session, and keeping it would let the report answer after the tool stopped
   Probe.at = null;
+  Probe._cache = null;
 }

@@ -1,6 +1,8 @@
 import { Colour } from '../../../subjects/colour.js';
 import { U } from '../../../core/utils.js';
-import { radii, inRounded, padBox, padRadii, sideAt, shadowAt } from './shape.js';
+import { radii, inRounded, sideAt, shadowAt } from './shape.js';
+import { ancestry, clippedBy } from './ancestry.js';
+import { pseudo } from './pseudo.js';
 
 /**
  * WHO PAINTED THIS PIXEL — the question DevTools cannot answer.
@@ -17,6 +19,10 @@ import { radii, inRounded, padBox, padRadii, sideAt, shadowAt } from './shape.js
  * scrolls — the point you chose, not the point on the glass.
  */
 const EMPTY = { layers: [], dropped: 0, hosts: [], frames: [] };
+/** How long a walk stands while the pointer holds still. Short, because the
+ *  page can move under a still cursor; long enough that a motionless frame
+ *  costs nothing, which is the whole point. */
+const CACHE_MS = 250;
 
 /** A colour's alpha, or null when the colour space cannot be read. Unreadable
  *  is not zero: one is an absence of information, the other is a fact. */
@@ -24,27 +30,19 @@ const alphaOf = (v) => {
   const c = Colour.colour(v);
   return c ? (c.a == null ? 1 : c.a) : null;
 };
-/**
- * The nearest element at or above this one that sets `opacity` below 1, or
- * null. Opacity fades a whole subtree AS ONE GROUP — which is precisely what
- * a colour-over-colour fold cannot express — so the element that sets it is
- * the fact worth reporting, once.
- */
-function fadeOwner(el) {
-  try {
-    for (let e = el; e && e.nodeType === 1; e = e.parentElement) {
-      const v = parseFloat(getComputedStyle(e).opacity);
-      if (Number.isFinite(v) && v < 1) return { sel: U.selectorOf(e), v };
-    }
-  } catch {}
-  return null;
+/** This element's OWN opacity, when it sets one below 1. */
+function ownFade(cs, el) {
+  const v = parseFloat(cs.opacity);
+  return Number.isFinite(v) && v < 1 ? { el, sel: U.selectorOf(el), v } : null;
 }
 
 export const Probe = {
   at: null,        // { px, py } in page coordinates, or null
+  _cache: null,    // the last walk, keyed by the point it answered for
 
   set(clientX, clientY) {
     Probe.at = { px: clientX + scrollX, py: clientY + scrollY };
+    Probe._cache = null;   // a new point is a new answer
   },
   /** The probe in viewport coordinates, or null. */
   point() {
@@ -61,76 +59,19 @@ export const Probe = {
   ofPage: (el) => !!(document.body && document.body.contains(el)),
 
   /**
-   * An ancestor whose overflow removes this element AT THIS POINT, or null.
+   * EVERY element that clips this point away, found once.
    *
-   * This is the other half of the rounded-card case: the card clips, the child
-   * paints, and in the corner the child is simply not there. Walking to the
-   * root rather than stopping at the first clipper, because a page can nest
-   * them and only the innermost one that actually excludes the point matters.
-   */
-  clipper(el, x, y) {
-    for (let e = el.parentElement; e && e.nodeType === 1; e = e.parentElement) {
-      const cs = getComputedStyle(e);
-      /* NAMED positively, never as "not visible". An unknown or empty
-         overflow is an absence of information, and reading it as a clip
-         invents a verdict — the test caught exactly that, reporting a card
-         as clipped away by <html>. These are the values that actually
-         establish a clipping box. */
-      const clips = /\b(hidden|clip|auto|scroll|overlay)\b/.test(cs.overflow || '') ||
-                    (cs.clipPath && cs.clipPath !== 'none');
-      if (!clips) continue;
-      const r = e.getBoundingClientRect();
-      const bw = { t: parseFloat(cs.borderTopWidth) || 0, r: parseFloat(cs.borderRightWidth) || 0,
-                   b: parseFloat(cs.borderBottomWidth) || 0, l: parseFloat(cs.borderLeftWidth) || 0 };
-      const pb = padBox(r, bw);
-      const pr = padRadii(radii(cs, r.width, r.height), bw);
-      // clip-path is arbitrary geometry this cannot evaluate; say so rather
-      // than claim the point survived it
-      if (cs.clipPath && cs.clipPath !== 'none')
-        return { el: e, sel: U.selectorOf(e), why: `clip-path: ${cs.clipPath}`, sure: false };
-      if (!inRounded(x, y, pb, pr))
-        return { el: e, sel: U.selectorOf(e), why: `overflow: ${cs.overflow}`, sure: true };
-    }
-    return null;
-  },
-
-  /** A pseudo-element that paints but is invisible to elementsFromPoint. */
-  pseudo(el, which) {
-    let cs = null;
-    try { cs = getComputedStyle(el, which); } catch { return null; }
-    if (!cs) return null;
-    const content = cs.content;
-    if (!content || content === 'none' || content === 'normal') return null;
-    const bits = [];
-    const bg = cs.backgroundColor;
-    if (bg && bg !== 'transparent' && !/^rgba\(0, 0, 0, 0\)$/.test(bg)) bits.push(`bg ${bg}`);
-    if (cs.backgroundImage && cs.backgroundImage !== 'none') bits.push('background-image');
-    if (cs.maskImage && cs.maskImage !== 'none') bits.push('mask');
-    if (parseFloat(cs.borderTopWidth) || parseFloat(cs.borderLeftWidth)) bits.push('border');
-    return bits.length ? { which, bits, geo: Probe.geometry(cs) } : null;
-  },
-
-  /**
-   * WHERE the pseudo sits, which is the difference between the two that
-   * matter. `inset: 0` covers the whole element; `bottom: 0; height: 1px` is
-   * a hairline along one edge. Told only that both "may paint here", a reader
-   * cannot tell a wallpaper from a border — and on the case this tool was
-   * built for, those were the two layers that decided the colour.
+   * Whether a clipper excludes a point is a fact about the CLIPPER, not about
+   * each layer beneath it — and asking it per layer walked the whole ancestor
+   * chain once for every layer in the stack. On a 27-deep stack that is 800
+   * getComputedStyle calls for one frame, and the frame runs on every pointer
+   * move: ~48 000 style resolutions a second, which is a page that feels
+   * stuck. Reading properties is the cost in this codebase; this counts them.
    *
-   * Read from the getComputedStyle call that already found the pseudo, so it
-   * costs nothing extra. `auto` prints as `auto`: it is what the style says,
-   * and resolving it would mean claiming a geometry no API reports.
+   * Walked once per element, and a chain already seen ends the walk — if an
+   * element has been tested, everything above it has too, because every walk
+   * goes to the root.
    */
-  geometry(cs) {
-    const size = `${cs.width || 'auto'} × ${cs.height || 'auto'}`;
-    const set = ['top', 'right', 'bottom', 'left']
-      .map((k) => [k, cs[k]]).filter(([, v]) => v && v !== 'auto');
-    if (!set.length) return `no inset · ${size}`;
-    const vals = set.map(([, v]) => v);
-    if (set.length === 4 && vals.every((v) => v === vals[0])) return `inset ${vals[0]} · ${size}`;
-    return `${set.map(([k, v]) => `${k} ${v}`).join(' ')} · ${size}`;
-  },
-
   /**
    * The stack at a viewport point, top → bottom, each layer judged.
    *
@@ -148,11 +89,22 @@ export const Probe = {
    * the whole page.
    */
   walk(x, y) {
+    /* MEMOISED BY POINT. draw() runs on every frame and the renderer is
+       driven by the pointer, so a still cursor was paying for a full stack
+       walk sixty times a second to be told the same thing — the identical
+       shape the perf tool was caught in, re-deriving a watch set that only
+       changes on a pin. A short TTL rather than none, because the PAGE can
+       move under a still pointer and a stack from a second ago would then be
+       describing something that is no longer there. */
+    const now = performance.now();
+    const c = Probe._cache;
+    if (c && c.x === x && c.y === y && now - c.at < CACHE_MS) return c.value;
     let els = [];
     try { els = document.elementsFromPoint(x, y) || []; } catch { return EMPTY; }
     const page = els.filter(Probe.ofPage);
-    const layers = page.map((el) => Probe.layer(el, x, y));
-    return {
+    const anc = ancestry(x, y, page);
+    const layers = page.map((el) => Probe.layer(el, x, y, anc));
+    const value = {
       layers,
       // our own root hangs off documentElement, so anything dropped here is
       // the overlay's own furniture sitting over the pixel
@@ -166,6 +118,8 @@ export const Probe = {
       // cross-origin one could not be read even with permission
       frames: layers.filter((L) => /^(IFRAME|FRAME)$/.test(L.el.tagName)).map((L) => L.sel),
     };
+    Probe._cache = { x, y, at: now, value };
+    return value;
   },
 
   /**
@@ -174,14 +128,15 @@ export const Probe = {
    * two copies of this judgement is how a badge comes to disagree with the
    * report about the same pixel.
    */
-  layer(el, x, y) {
+  layer(el, x, y, anc) {
       const cs = getComputedStyle(el);
       const r = el.getBoundingClientRect();
       const bw = { t: parseFloat(cs.borderTopWidth) || 0, r: parseFloat(cs.borderRightWidth) || 0,
                    b: parseFloat(cs.borderBottomWidth) || 0, l: parseFloat(cs.borderLeftWidth) || 0 };
       const rad = radii(cs, r.width, r.height);
       const inShape = inRounded(x, y, r, rad);
-      const clip = Probe.clipper(el, x, y);
+      const A = anc || ancestry(x, y, [el]);
+      const clip = clippedBy(el, A.blockers);
       const side = inShape ? sideAt(x, y, r, bw) : null;
       const bgImage = cs.backgroundImage && cs.backgroundImage !== 'none' ? cs.backgroundImage : null;
       const backdrop = [cs.backdropFilter, cs.webkitBackdropFilter]
@@ -220,9 +175,14 @@ export const Probe = {
            wrapper made every layer beneath it report the same number, which
            is four lines for one fact: the same repetition Sweep.group exists
            to collapse. Named by its owner, it collapses to one. */
-        fader: fadeOwner(el),
+        /* The nearest element at or above this one that sets opacity below 1
+           — itself, or the first fader above it. Opacity fades a whole
+           subtree AS ONE GROUP, which is precisely what a colour-over-colour
+           fold cannot express, so the element that SETS it is the fact worth
+           reporting, once. */
+        fader: ownFade(cs, el) || A.faders.find((f) => f.el.contains(el)) || null,
         shadow: inShape ? null : shadowAt(x, y, r, cs),
-        pseudo: [Probe.pseudo(el, '::before'), Probe.pseudo(el, '::after')].filter(Boolean),
+        pseudo: [pseudo(el, '::before'), pseudo(el, '::after')].filter(Boolean),
         radius: U.radius(cs),
       };
   },

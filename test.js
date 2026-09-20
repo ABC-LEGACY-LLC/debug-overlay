@@ -4287,6 +4287,37 @@ console.log('\nWHO PAINTED THIS PIXEL');
       /1 overlay layer of our own removed from the top/.test(rep2), line(/overlay layer/));
 
     if (process.env.PAINT_SAMPLE) console.log('\n' + rep2.split('## paint')[1]);
+
+    /* THE BUDGET. draw() runs every frame and the renderer is driven by the
+       pointer, so anything this walk does per frame is paid sixty times a
+       second. Clipping and opacity were each asked PER LAYER while being a
+       fact about an ANCESTOR — two O(n²) walks over one chain, measured at
+       ~800 style reads for a single 27-deep frame. One ancestor pass and a
+       point-keyed cache brought it to ~100, and a frame with the pointer
+       held still to zero. Asserted rather than remembered: this project's
+       own budget says nothing may be re-derived per frame that changes per
+       session, and the number is what keeps that honest. */
+    const copy2 = () => bar2.querySelector('[data-copy]')
+      .dispatchEvent(new w2.MouseEvent('click', { bubbles: true }));
+    let reads = 0;
+    const realCS = w2.getComputedStyle.bind(w2);
+    w2.getComputedStyle = (...a) => { reads++; return realCS(...a); };
+    // a new point is a new answer, so this one pays for a full walk
+    glass.dispatchEvent(new w2.MouseEvent('pointermove',
+      { bubbles: true, clientX: 201, clientY: 121 }));
+    copy2();
+    const fresh = reads;
+    // the same point again: the walk already answered for it
+    reads = 0;
+    copy2(); copy2(); copy2();
+    ok('the same point is not walked twice — the answer is cached',
+      reads * 3 < fresh,
+      `${reads} style reads for three more reports, against ${fresh} for the first`);
+    ok('and one walk does not re-read an ancestor chain per layer',
+      fresh < 4 * 12,
+      `${fresh} style reads for a 4-layer stack — clipping and opacity are ` +
+      'facts about an ANCESTOR, so they are asked once, not once per layer');
+    w2.getComputedStyle = realCS;
     w2.close();
   }
 

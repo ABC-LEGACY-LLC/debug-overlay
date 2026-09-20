@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.8.182 — 2026-09-20
+
+- ⛏ **Paint no longer makes the page feel stuck.** Its stack walk asked two
+  questions per LAYER that are really facts about an ANCESTOR — what clips the
+  point, and what fades it — so a 27-deep stack cost about 800 style reads for
+  a single frame, and the frame runs on every pointer move. One ancestor pass
+  brought that to about 100, and the walk is now cached by its point, so a
+  frame with the pointer held still costs nothing at all.
+
 ## 3.8.180 — 2026-09-20
 
 - The build now emits a **Chrome Web Store package** alongside the sideload
