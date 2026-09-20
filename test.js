@@ -4345,6 +4345,40 @@ console.log('\nWHO PAINTED THIS PIXEL');
       off.captures() === 0, 'a pointer move reached the camera');
     off.w3.close();
 
+    /* CHROME'S REFUSAL, TURNED INTO AN INSTRUCTION. "Either the '<all_urls>'
+       or 'activeTab' permission is required" is true and useless: the
+       manifest DOES ask for activeTab, so a reader concludes the build is
+       broken. What happened is that activeTab is granted by invoking the
+       extension from the TOOLBAR, and ⧉ on the page is not an invocation.
+       Seen on a live page, and the raw text was all the report said. */
+    const denied = mk(true);
+    denied.w3.chrome.runtime.sendMessage = (m, cb) => {
+      if (m && m.type === 'debug-overlay-capture') {
+        cb({ ok: false, error: "Either the '<all_urls>' or 'activeTab' permission is required." });
+      }
+    };
+    denied.copy();
+    pendingChecks.push(() => {
+      const t = denied.text();
+      // the reason is wrapped to stay readable, so it is read as prose
+      const flat = t.replace(/\s+/g, ' ');
+      ok('a refused capture says which button to press, not just what Chrome said',
+        /press the Debug Overlay toolbar button here, then copy again/.test(flat),
+        t.split('\n').find((l) => /why:/.test(l)) || '(no reason)');
+      ok('…and keeps Chrome\'s own words as the evidence behind it',
+        /Chrome said: Either the '<all_urls>'/.test(flat), '(evidence dropped)');
+      /* Prose, wrapped. The stack's rows are a TABLE and are long on
+         purpose; this is the only block that has to read as sentences. */
+      const whyAt = t.split('\n').findIndex((l) => /why:/.test(l));
+      ok('…and the reason is wrapped, not one line trailing off the page',
+        whyAt >= 0 && /^\s+\S/.test(t.split('\n')[whyAt + 1] || ''),
+        (t.split('\n')[whyAt] || '').length + ' chars on one line');
+      ok('…while the composite is still a CLAIM, not quietly promoted',
+        /is a CLAIM computed/.test(t) && !/ΔRGB/.test(t),
+        'a refused sample left the report implying one had been taken');
+      denied.w3.close();
+    });
+
     // ON: one capture, on the copy, and the disagreement as a NUMBER
     const on = mk(true);
     on.copy();

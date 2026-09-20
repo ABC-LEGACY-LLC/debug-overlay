@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.8.189 — 2026-09-20
+
+- When a pixel capture is refused, ⛏ paint now says **which button to press**.
+  Chrome's own message — "Either the '<all_urls>' or 'activeTab' permission is
+  required" — is true and useless, because the manifest *does* ask for
+  activeTab: it is granted by invoking the extension from the toolbar, covers
+  that one tab, and is dropped when the tab changes origin. Pressing ⧉ on the
+  page is not an invocation, so it never grants anything on its own. The report
+  says that, and keeps Chrome's wording as the evidence behind it.
+
 ## 3.8.188 — 2026-09-20
 
 - ⛏ **Paint can now check its own arithmetic against the screen.** Turn on

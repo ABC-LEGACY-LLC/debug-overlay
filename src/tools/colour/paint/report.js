@@ -144,9 +144,17 @@ export function reportTail() {
 function sampleLines(colour) {
   const got = Sample.current();
   if (!got) {
-    return ['sampled pixel: not taken — the composite above is a CLAIM computed from',
-            `   the walk, and nothing here has verified it${Sample.why ? ` (${Sample.why})` : ''}.`,
-            '   Turn on "Sample the real pixel" under ⚙ to have ⧉ read the screen.'];
+    const L = ['sampled pixel: not taken — the composite above is a CLAIM computed',
+               '   from the walk, and nothing here has verified it.'];
+    /* A REASON IS NOT A FOOTNOTE. When the capture was attempted and refused,
+       what to do about it is the most useful line on the page — wrapped so it
+       stays readable rather than trailing off one long line. */
+    if (Sample.why) {
+      L.push('   why: ' + Sample.why.replace(/(.{88}) /g, '$1\n        '));
+    } else {
+      L.push('   Turn on "Sample the real pixel" under ⚙ to have ⧉ read the screen.');
+    }
+    return L;
   }
   const c = { r: Math.round(colour.r), g: Math.round(colour.g), b: Math.round(colour.b) };
   const d = { r: Math.abs(c.r - got.rgb.r), g: Math.abs(c.g - got.rgb.g), b: Math.abs(c.b - got.rgb.b) };

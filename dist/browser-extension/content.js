@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.188 — the extension gate */
+/* Debug Overlay v3.8.189 — the extension gate */
 
 /*
 HOW TO USE
@@ -417,7 +417,7 @@ HOW TO USE
     // manifest that ships it, and an overlay that cannot say which version it
     // is makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.188",
+    VERSION: "3.8.189",
     // Substituted like VERSION, from release.json: the MANIFEST the extension
     // publishes, which is the one file that moves with every release. It was
     // the userscript's meta header until that gate was withdrawn — and that
@@ -2392,9 +2392,15 @@ HOW TO USE
         if (rgb) Sample.at = { px: Probe.at.px, py: Probe.at.py, rgb };
         else Sample.why = "the capture arrived but that pixel could not be read";
       } catch (e) {
-        Sample.why = String(e && e.message || e) || "the tab could not be captured — press the toolbar button to re-grant activeTab";
+        Sample.why = explain(String(e && e.message || e));
       }
     })();
+  }
+  function explain(raw) {
+    if (/activeTab|all_urls|permission/i.test(raw)) {
+      return `activeTab has not been granted for this tab — press the Debug Overlay toolbar button here, then copy again. It is granted by invoking the extension from the toolbar, covers this one tab, and is dropped when the tab changes origin; ⧉ on the page is not an invocation. (Chrome said: ${raw})`;
+    }
+    return raw || "the tab could not be captured";
   }
   function ask() {
     return new Promise((resolve, reject) => {
@@ -2409,7 +2415,7 @@ HOW TO USE
       try {
         chrome.runtime.sendMessage({ type: "debug-overlay-capture" }, (r) => {
           if (chrome.runtime.lastError) return give(reject, new Error(chrome.runtime.lastError.message));
-          if (!r || !r.ok) return give(reject, new Error(r && r.error || "the tab could not be captured — press the toolbar button to re-grant activeTab"));
+          if (!r || !r.ok) return give(reject, new Error(r && r.error || "the tab could not be captured"));
           give(resolve, r.url);
         });
       } catch (e) {
@@ -2532,11 +2538,16 @@ HOW TO USE
   function sampleLines(colour) {
     const got = Sample.current();
     if (!got) {
-      return [
-        "sampled pixel: not taken — the composite above is a CLAIM computed from",
-        `   the walk, and nothing here has verified it${Sample.why ? ` (${Sample.why})` : ""}.`,
-        '   Turn on "Sample the real pixel" under ⚙ to have ⧉ read the screen.'
+      const L2 = [
+        "sampled pixel: not taken — the composite above is a CLAIM computed",
+        "   from the walk, and nothing here has verified it."
       ];
+      if (Sample.why) {
+        L2.push("   why: " + Sample.why.replace(/(.{88}) /g, "$1\n        "));
+      } else {
+        L2.push('   Turn on "Sample the real pixel" under ⚙ to have ⧉ read the screen.');
+      }
+      return L2;
     }
     const c = { r: Math.round(colour.r), g: Math.round(colour.g), b: Math.round(colour.b) };
     const d = { r: Math.abs(c.r - got.rgb.r), g: Math.abs(c.g - got.rgb.g), b: Math.abs(c.b - got.rgb.b) };

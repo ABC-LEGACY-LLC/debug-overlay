@@ -76,14 +76,34 @@ export function prepare() {
       if (rgb) Sample.at = { px: Probe.at.px, py: Probe.at.py, rgb };
       else Sample.why = 'the capture arrived but that pixel could not be read';
     } catch (e) {
-      /* The commonest failure is worth naming exactly: activeTab is granted
-         by pressing the toolbar button and dropped again on navigation, so a
-         panel left open across a page load no longer has it. That is a
-         sentence, not a shrug. */
-      Sample.why = String((e && e.message) || e) ||
-        'the tab could not be captured — press the toolbar button to re-grant activeTab';
+      Sample.why = explain(String((e && e.message) || e));
     }
   })();
+}
+
+/**
+ * CHROME'S SENTENCE, TURNED INTO AN INSTRUCTION.
+ *
+ * "Either the '<all_urls>' or 'activeTab' permission is required" is true and
+ * useless: the manifest DOES ask for activeTab, so a reader concludes the
+ * build is broken. What actually happened is that activeTab is not a standing
+ * permission — it is granted when you invoke the extension from Chrome's own
+ * chrome (the toolbar button), covers that one tab, and is dropped when the
+ * tab navigates to another origin. Pressing ⧉ on the page is not an
+ * invocation of the extension, so on its own it never grants anything.
+ *
+ * That is the price of not asking for <all_urls>, and it is the right price —
+ * but only if the report says which button to press. The raw text is kept in
+ * parentheses because it is the evidence.
+ */
+function explain(raw) {
+  if (/activeTab|all_urls|permission/i.test(raw)) {
+    return 'activeTab has not been granted for this tab — press the Debug Overlay ' +
+      'toolbar button here, then copy again. It is granted by invoking the extension ' +
+      'from the toolbar, covers this one tab, and is dropped when the tab changes ' +
+      `origin; ⧉ on the page is not an invocation. (Chrome said: ${raw})`;
+  }
+  return raw || 'the tab could not be captured';
 }
 
 /** Ask the worker, which is the only side that may capture. */
@@ -95,8 +115,8 @@ function ask() {
     try {
       chrome.runtime.sendMessage({ type: 'debug-overlay-capture' }, (r) => {
         if (chrome.runtime.lastError) return give(reject, new Error(chrome.runtime.lastError.message));
-        if (!r || !r.ok) return give(reject, new Error(r && r.error ||
-          'the tab could not be captured — press the toolbar button to re-grant activeTab'));
+        if (!r || !r.ok) return give(reject, new Error((r && r.error) ||
+          'the tab could not be captured'));
         give(resolve, r.url);
       });
     } catch (e) { give(reject, e); }
