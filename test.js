@@ -4215,6 +4215,15 @@ let remoteChecked = false;
   ok('a page nobody is driving carries no AI chip at all',
     !!chip && !chip.classList.contains('debug-overlay-live'),
     chip ? chip.className : '(no chip on the bar)');
+  /* THE HEARTBEAT IS ALSO THE DOOR PROBE, so it has to be ANSWERED. The
+     worker decides from delivery whether this page can be driven at all,
+     and a listener that stays silent gives "the message port closed" —
+     indistinguishable from no listener. Unanswered, the panel said "this
+     page has no AI door" beside a chip that was plainly live. */
+  let knock = null;
+  listener({ type: 'debug-overlay-session', live: false }, { id: 'ext-1' }, (r) => { knock = r; });
+  ok('a session heartbeat is ANSWERED, so delivery proves the door exists',
+    !!(knock && knock.ok && knock.door), JSON.stringify(knock));
 
   (async () => {
     try {

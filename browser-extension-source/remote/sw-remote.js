@@ -32,12 +32,30 @@
   const BEAT = 15000;
   const S = { ws: null, url: '', token: '', tabId: null, wanted: false,
               live: false, why: '', page: '', retry: 0, timer: 0, beat: 0 };
-  /** Tell the page it is (or is no longer) being driven. */
+  /**
+   * Tell the page it is (or is no longer) being driven — AND learn from the
+   * answer whether that page has a door at all.
+   *
+   * The heartbeat IS the probe, which is what stops the status going stale.
+   * The first version asked once, at connect, by running a `state` command:
+   * it counted as an action the AI never took, and a page that happened to
+   * be mid-reload was recorded as having no door for the rest of the
+   * session — the panel then said "no AI door" beside a chip that was
+   * plainly live. Asked every beat, the answer corrects itself.
+   *
+   * The page RESPONDS to this message (app/remote.js), which is what makes
+   * delivery provable: a listener that stays silent gives "the message port
+   * closed" and reads exactly like no listener at all.
+   */
   const tellTab = (tabId, live) => {
     if (tabId == null) return;
     try {
-      chrome.tabs.sendMessage(tabId, { type: 'debug-overlay-session', live },
-        () => void chrome.runtime.lastError);   // read = acknowledged
+      chrome.tabs.sendMessage(tabId, { type: 'debug-overlay-session', live }, (r) => {
+        const page = chrome.runtime.lastError || !r ? NO_DOOR : '';
+        // only ever about the tab we are bound to NOW — a farewell sent to
+        // the tab the panel just left says nothing about this one
+        if (tabId === S.tabId && page !== S.page) { S.page = page; tell(); }
+      });
     } catch {}
   };
   function beating(on) {
@@ -149,8 +167,7 @@
   /** Is there a door in the bound tab? Asked whenever the tab changes, so the
    *  panel can say so before the AI finds out. */
   function probe() {
-    if (S.tabId == null) return;
-    ask('state', [], () => {});
+    tellTab(S.tabId, S.live);
   }
 
   function call(m) {

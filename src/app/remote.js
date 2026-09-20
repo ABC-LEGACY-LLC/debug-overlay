@@ -332,8 +332,15 @@ export const Remote = {
       if (!msg || typeof msg.type !== 'string') return;
       // only OUR extension may drive this page; a foreign id is not answered
       if (sender && sender.id && runtime.id && sender.id !== runtime.id) return;
-      // the worker's heartbeat — the socket is up, and keeps being up
-      if (msg.type === 'debug-overlay-session') { Driver.beat(!!msg.live); return; }
+      /* The worker's heartbeat — the socket is up, and keeps being up. It
+         is ANSWERED, and the answer is the point: the worker uses delivery
+         to decide whether this page has a door at all, and a listener that
+         stays silent is indistinguishable from no listener. */
+      if (msg.type === 'debug-overlay-session') {
+        Driver.beat(!!msg.live);
+        respond({ ok: true, door: true });
+        return;
+      }
       if (msg.type !== 'debug-overlay-remote') return;
       const fn = commands[msg.cmd];
       if (!fn) {

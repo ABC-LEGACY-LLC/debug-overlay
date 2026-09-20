@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.8.199 — 2026-09-20
+
+- **Fixed: the side panel said "this page has no AI door" beside a chip that
+  was plainly live.** The check ran once, at connect, so a page that happened
+  to be mid-reload was recorded as doorless for the rest of the session. The
+  heartbeat is the check now — asked every 15s, it corrects itself, and the
+  page answers it so that delivery is provable (a listener that stays silent
+  is indistinguishable from no listener).
+- **Fixed: connecting counted as an action the AI never took.** That check
+  ran a real `state` command, which flashed the chip and incremented the
+  action count before the AI had done anything.
+
 ## 3.8.198 — 2026-09-20
 
 - **The page now says who is driving it.** While an AI session is connected
