@@ -643,10 +643,13 @@ async function rmConnect() {
   rmShow(await rmAsk({ type: 'debug-overlay-remote-connect',
                        url: rm.url.value.trim(), token: rm.token.value.trim(), tabId }));
 }
-/** A refusal is the server's answer, not an outage: stop wanting, so the
- *  reminder below does not knock forever with a wrong token. */
+/** The worker STOPPED WANTING, and said why: refused for a bad token, or
+ *  gave up on an address with nothing behind it. Either way that is an
+ *  answer, not an outage — stop wanting here too, so the reminder below
+ *  does not restart a knock the worker just decided to end. A worker that
+ *  merely restarted has no `why`, and that is what gets re-asked. */
 function rmSettle(s) {
-  if (s && !s.wanted && rmWanted && /^refused/.test(s.why || '')) { rmWanted = false; rmSave(); }
+  if (s && !s.wanted && rmWanted && s.why) { rmWanted = false; rmSave(); }
   rmShow(s);
 }
 rm.go.addEventListener('click', async () => {
@@ -661,13 +664,13 @@ chrome.runtime.onMessage?.addListener((m) => {
 rmLoad();
 (async () => {
   const s = await rmAsk({ type: 'debug-overlay-remote-status' });
-  if (rmWanted && s && !s.wanted && !/^refused/.test(s.why || '')) rmConnect();   // the worker forgot; this page did not
+  if (rmWanted && s && !s.wanted && !s.why) rmConnect();   // the worker forgot; this page did not
   else rmSettle(s);
 })();
 setInterval(async () => {
   if (!rmWanted) return;
   const s = await rmAsk({ type: 'debug-overlay-remote-status' });
-  if (s && !s.wanted) { if (/^refused/.test(s.why || '')) rmSettle(s); else rmConnect(); }
+  if (s && !s.wanted) { if (s.why) rmSettle(s); else rmConnect(); }
 }, 5000);
 
 bind();

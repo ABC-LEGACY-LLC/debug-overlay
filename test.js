@@ -472,6 +472,19 @@ console.log('\nONE GATE, AND ONE THAT IS FROZEN');
       /sidePanel\.open\(\{ tabId/.test(sw) &&
       /openPanelOnActionClick: !canOpen/.test(sw),
       'Chrome would consume the one gesture that grants the permission');
+    /* A REFUSED WEBSOCKET IS LOGGED BY THE BROWSER, not thrown — no
+       handler catches it and none suppresses it, so every retry lands on
+       the chrome://extensions Errors page permanently. Retrying a dead
+       address for ever fills that page with red for a session that simply
+       ended, and the extension then reads as broken to anyone who opens
+       it. The same defect the side panel's port already had, where "a real
+       install collected a page of them in a morning". */
+    ok(`the ${name} worker gives up on a dead address instead of retrying for ever`,
+      /\+\+S\.tries > TRIES/.test(sw) && /nothing is listening at \$\{S\.url\}/.test(sw),
+      'an endless retry logs a browser error every few seconds, permanently');
+    ok(`…and the ${name} one gives a dropped session a fresh budget`,
+      /if \(was\) S\.tries = 0;/.test(sw),
+      'a server restarting mid-session deserves the patience the first connect got');
     ok(`…and the ${name} one heals if it cannot open the panel — a dead button is worse`,
       /\.catch\(\(\) => \{\s*\n?\s*chrome\.sidePanel\.setPanelBehavior\(\{ openPanelOnActionClick: true/.test(sw),
       'a rejected open would leave the front door doing nothing, for ever');

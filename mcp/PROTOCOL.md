@@ -85,8 +85,12 @@ Coordinates are CSS pixels from the viewport's top-left. `rect` is
   says the same thing on its status line.
 - **`no tab bound …`** — the side panel has not told the worker which tab
   it is on yet; pressing Connect again binds it.
-- **The extension keeps reconnecting** every 0.9–10 s while the address has
-  no server. That is by design: start the server and it arrives.
+- **The extension reconnects for about 35 s**, then stops and says nothing
+  is listening. A refused WebSocket is logged by the browser's own network
+  stack — uncatchable, unsuppressable, and permanent on the extension's
+  Errors page — so an endless retry would fill that page with red for a
+  session that simply ended. A connection that was live and then dropped
+  gets a fresh budget.
 
 ## What the extension will never do
 

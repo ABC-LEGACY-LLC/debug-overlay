@@ -30,8 +30,22 @@
      signal. Re-asserted every BEAT ms, three times inside the page's own
      CONFIG.AI.STALE window; change one and change the other. */
   const BEAT = 15000;
+  /* HOW MANY TIMES TO KNOCK BEFORE SAYING NOBODY IS HOME.
+     A refused WebSocket is logged by the BROWSER's network stack, not
+     thrown — no handler can catch it and none can suppress it, so every
+     attempt lands on the chrome://extensions Errors page for good. An
+     endless retry therefore fills that page with red for a session that
+     simply ended, and the extension reads as broken to anyone who looks.
+     This project already paid for that lesson once, on the side panel's
+     port: "a real install collected a page of them in a morning."
+     Six tries with the backoff below is ~35s — long enough to cover
+     starting the server right after pressing Connect, short enough that
+     giving up is the normal end of a dead address rather than a surprise.
+     Then the panel SAYS nothing is there, which is the honest answer and
+     the one a person can act on. */
+  const TRIES = 6;
   const S = { ws: null, url: '', token: '', tabId: null, wanted: false,
-              live: false, why: '', page: '', retry: 0, timer: 0, beat: 0 };
+              live: false, why: '', page: '', retry: 0, timer: 0, beat: 0, tries: 0 };
   /**
    * Tell the page it is (or is no longer) being driven — AND learn from the
    * answer whether that page has a door at all.
@@ -86,6 +100,17 @@
 
   function later() {
     clearTimeout(S.timer);
+    if (++S.tries > TRIES) {
+      /* GIVING UP IS AN ANSWER. Said in the words the person needs — the
+         address that is empty, and the two things to do about it — rather
+         than leaving a status that says "connecting…" for ever over a
+         browser quietly logging a refusal every ten seconds. */
+      S.wanted = false;
+      S.why = `nothing is listening at ${S.url} — start the server, then press Connect`;
+      shut();
+      tell();
+      return;
+    }
     S.retry = Math.min(S.retry ? S.retry * 2 : 900, 10000);
     S.timer = setTimeout(open, S.retry);
   }
@@ -118,6 +143,10 @@
       S.live = false;
       beating(false);
       if (was) tellTab(S.tabId, false);   // the chip goes out with the session
+      // a session that actually ran and then dropped earns a fresh budget:
+      // the server restarting is the commonest reason, and it deserves the
+      // same patience the first connect got
+      if (was) S.tries = 0;
       if (S.wanted) {
         S.why = was ? 'connection dropped — reconnecting' : (S.why || 'no server there yet — retrying');
         later();
@@ -129,7 +158,7 @@
 
   function handle(m) {
     if (m.t === 'welcome') {
-      S.live = true; S.retry = 0; S.why = '';
+      S.live = true; S.retry = 0; S.tries = 0; S.why = '';
       tellTab(S.tabId, true);
       beating(true);
       tell();
@@ -191,6 +220,7 @@
       S.wanted = !!S.url;
       S.why = S.url ? '' : 'no address';
       S.retry = 0;
+      S.tries = 0;   // pressing Connect is a fresh ask, whatever the last one ended as
       open();
       probe();
       respond(status());

@@ -892,6 +892,20 @@ Chrome has suspended cannot send a farewell, so the worker re-asserts every
 `BEAT` ms (a literal there — it is not a module and cannot read CONFIG) and
 the page forgets the driver after `CONFIG.AI.STALE` without one. Change
 either and change the other; three beats inside the window is the margin.
+The heartbeat is also the door probe: delivery is the fact, the page answers
+it so delivery is provable, and asking separately meant a page caught
+mid-reload was recorded as doorless for the rest of the session.
+
+**A retry loop is never silent.** A refused WebSocket is logged by the
+BROWSER's network stack, not thrown — no handler catches it, none suppresses
+it, and on MV3 every one lands on the chrome://extensions Errors page
+permanently. So the worker knocks `TRIES` times and then STOPS, saying which
+address is empty; a session that was live and then dropped gets a fresh
+budget. This is the side panel's port defect a second time ("a real install
+collected a page of them in a morning"), and the shape of the fix is the
+same: the normal retry path must not look like a fault. A worker that gave
+up says `why`, and the side panel only re-asks when `why` is EMPTY — which
+means the worker restarted, not that it decided.
 
 `test.js` drives the door in jsdom through a fake `chrome.runtime.onMessage`,
 and drives the MCP server end to end — a real child process on a real port,

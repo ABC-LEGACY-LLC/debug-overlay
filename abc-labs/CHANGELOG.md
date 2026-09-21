@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.8.200 — 2026-09-21
+
+- **Fixed: the extension filled its own Errors page with red when no AI
+  server was running.** It retried a dead address for ever, and a refused
+  WebSocket is logged by the browser's network stack — uncatchable,
+  unsuppressable, and permanent on `chrome://extensions`. One ended session
+  became an error every ten seconds, and the extension read as broken to
+  anyone who looked.
+- It now knocks for about 35 seconds and stops, and the panel says
+  **nothing is listening at ws://… — start the server, then press Connect**.
+  A session that was live and then dropped gets a fresh budget, so
+  restarting the server mid-session still reconnects on its own.
+
 ## 3.8.199 — 2026-09-20
 
 - **Fixed: the side panel said "this page has no AI door" beside a chip that

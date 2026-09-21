@@ -131,7 +131,7 @@
   };
 
   // browser-extension-source/side-panel/side-panel.js
-  var VERSION = "3.8.199";
+  var VERSION = "3.8.200";
   var $ = (s) => document.querySelector(s);
   var body = document.body;
   var IC = {
@@ -734,7 +734,7 @@
     }));
   }
   function rmSettle(s) {
-    if (s && !s.wanted && rmWanted && /^refused/.test(s.why || "")) {
+    if (s && !s.wanted && rmWanted && s.why) {
       rmWanted = false;
       rmSave();
     }
@@ -753,14 +753,14 @@
   rmLoad();
   (async () => {
     const s = await rmAsk({ type: "debug-overlay-remote-status" });
-    if (rmWanted && s && !s.wanted && !/^refused/.test(s.why || "")) rmConnect();
+    if (rmWanted && s && !s.wanted && !s.why) rmConnect();
     else rmSettle(s);
   })();
   setInterval(async () => {
     if (!rmWanted) return;
     const s = await rmAsk({ type: "debug-overlay-remote-status" });
     if (s && !s.wanted) {
-      if (/^refused/.test(s.why || "")) rmSettle(s);
+      if (s.why) rmSettle(s);
       else rmConnect();
     }
   }, 5e3);

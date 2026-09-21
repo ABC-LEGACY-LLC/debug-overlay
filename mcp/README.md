@@ -86,6 +86,23 @@ with paint armed probes a pixel; a tool shipped tomorrow is driven the day
 it lands, because the AI learns the ids from `state` the way a person learns
 them from the bar.
 
+## When it will not connect
+
+**`ERR_CONNECTION_REFUSED` on the extension's Errors page** means nothing is
+listening at that address: the server is not running, or the port is not
+forwarded to the machine the browser is on. The browser logs that refusal
+itself, from its network stack — no handler can catch or suppress it — so
+the extension knocks for about 35 seconds, stops, and the panel says
+*nothing is listening at ws://…*. Start the server and press **Connect**
+again; the errors already listed are history, and "Clear all" removes them.
+
+A session that was live and then dropped gets a fresh budget, so restarting
+the server mid-session reconnects on its own.
+
+**"connected, but the page in this tab does not answer"** means the socket
+is up but that tab is running an overlay older than the AI door, or is a
+browser page that never carries one. Reload the tab.
+
 ## What the AI is told about each tool
 
 Every tool carries MCP annotations — `readOnlyHint` on `state`, `pins`,
