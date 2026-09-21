@@ -16,6 +16,7 @@ const SRC = path.join(__dirname, 'src');
 const HOOKS = ['badge', 'compact', 'report', 'reportTail', 'draw', 'listRows',
                'pendingIndex', 'annotate', 'audit', 'auditPage', 'options',
                'intercept', 'groups', 'gestures', 'keeps', 'selects', 'legend',
+               'status',
                'watch', 'unwatch', 'timeline', 'prepare'];
 
 /** Comments first: a file that merely EXPLAINS a hook is not implementing it. */
@@ -91,6 +92,8 @@ const SURFACES = [
     fills: ['audit', 'auditPage'] },
   { key: '⑥ report', core: 'report — header, scope, the ## rules section',
     fills: ['report', 'reportTail', 'prepare'] },
+  { key: '⑦ bar pulse', core: 'web-panel — power, who is driving, the pointer, the counts',
+    fills: ['status'] },
   { key: '⚙ settings', core: 'settings — grouping by affects, plus KEYS and LEGEND',
     fills: ['options', 'gestures', 'legend'] },
   { key: 'input', core: 'interactions — hover, click, the CURRENT selection, hotkeys',

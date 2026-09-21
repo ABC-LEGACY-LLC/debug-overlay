@@ -30,6 +30,22 @@ export function badge(i) {
                (n ? ` <span class="debug-overlay-warn">${n}× worst ${fmt(Monitor.worst())}</span>` : '');
 }
 
+/**
+ * THE PAGE'S PULSE, for the docked bar — the same numbers the badge prints,
+ * as plain text and without an element to ask about.
+ *
+ * It earns permanent space for the reason no badge can: it only means
+ * anything while it MOVES. A frame rate read off a screenshot is a number;
+ * a frame rate you are watching while you drag is the measurement. Silent
+ * when the monitor is not running, so an unarmed tool says nothing.
+ */
+export function status() {
+        if (!Monitor.running) return '';
+        const fps = Monitor.fps == null ? '–' : Monitor.fps;
+        const n = Monitor.log.length;
+        return `⚡ ${fps}fps` + (n ? ` · ${n}× worst ${fmt(Monitor.worst())}` : '');
+}
+
 /** Quiet unless something is wrong — the compact badge is for problems. */
 export function compact(i) {
         if (!Monitor.running) return null;

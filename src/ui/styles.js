@@ -312,6 +312,33 @@ import { CONFIG } from '../core/config.js';
        buttons. */
     #__debug-overlay-bar.debug-overlay-hidden { display: none; }
 
+    /* DOCKED — a side panel is driving, so the bar drops every control the
+       panel already carries and keeps only what it can say that the panel
+       cannot: who is driving, what the pointer is on, the live pulse, and
+       the two counts. Undocked it is untouched, because with no side panel
+       this is the only control surface there is. */
+    #__debug-overlay-bar.debug-overlay-docked { width: 172px; border-radius: var(--debug-overlay-r-card); }
+    #__debug-overlay-bar.debug-overlay-docked .debug-overlay-tool,
+    #__debug-overlay-bar.debug-overlay-docked .debug-overlay-fam,
+    #__debug-overlay-bar.debug-overlay-docked .debug-overlay-sep,
+    #__debug-overlay-bar.debug-overlay-docked [data-settings],
+    #__debug-overlay-bar.debug-overlay-docked [data-copy],
+    #__debug-overlay-bar.debug-overlay-docked [data-clear] { display: none; }
+    /* the read-outs exist only docked: undocked the badge says it better, on
+       the element itself, and the bar has no room to say it twice */
+    #__debug-overlay-bar .debug-overlay-read,
+    #__debug-overlay-bar .debug-overlay-pulse { display: none; }
+    #__debug-overlay-bar.debug-overlay-docked .debug-overlay-read,
+    #__debug-overlay-bar.debug-overlay-docked .debug-overlay-pulse {
+      display: block; width: 100%; padding: 4px 7px; border-radius: var(--debug-overlay-r-inner);
+      background: var(--debug-overlay-surface); font-size: 10px; line-height: 1.45;
+      white-space: pre-line; overflow: hidden; text-overflow: ellipsis; }
+    #__debug-overlay-bar.debug-overlay-docked .debug-overlay-read { color: var(--debug-overlay-ink-dim); }
+    #__debug-overlay-bar.debug-overlay-docked .debug-overlay-pulse { color: var(--debug-overlay-muted); }
+    /* empty says nothing, and an empty box says "something is missing" */
+    #__debug-overlay-bar.debug-overlay-docked .debug-overlay-read:empty,
+    #__debug-overlay-bar.debug-overlay-docked .debug-overlay-pulse:empty { display: none; }
+
     /* THE FIRST-RUN INSTRUCTION. The empty pin list already carried this
        sentence, and it was invisible: it lived inside the popover that opens
        from the pin chip, so it only ever reached people who had already

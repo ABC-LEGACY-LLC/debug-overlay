@@ -1442,6 +1442,44 @@ let sidePanelChecked = false;
       ok('the toggle brings the web panel back ON THE PAGE',
         !c3.bar.classList.contains('debug-overlay-hidden'),
         'the command never reached WebPanel.setVisible');
+      /* ---- AND IT COMES BACK DOCKED --------------------------------
+         Five of the side panel's seven sections mirror this bar, so shown
+         together they are one product wearing two faces and asking which is
+         in charge. The default hid the bar outright for that reason — but
+         the bar is also what appears in a SCREENSHOT, which is why anyone
+         turns it back on, and a screenshot wants what the page IS rather
+         than a second control panel. Docked it keeps only what the side
+         panel cannot say. */
+      ok('…and DOCKED, because every control on it is in the panel already',
+        c3.bar.classList.contains('debug-overlay-docked'), c3.bar.className);
+      /* The SHAPE is asserted on the shipped stylesheet, not on computed
+         style: jsdom resolves tag and class selectors but not the descendant
+         combinators these rules are built from, so getComputedStyle here
+         would report "not hidden" for every one of them and pass whatever
+         shipped. Same reason the `inert` rule is asserted as text. */
+      const sheet = [...c3.w.document.querySelectorAll('#__debug-overlay-root style')]
+        .map((s) => s.textContent).join('\n');
+      const hides = (sheet.match(/\.debug-overlay-docked[^{]*\{\s*display:\s*none/g) || []).join(' ') +
+        (sheet.match(/([^}]*\.debug-overlay-docked[^{]*)\{\s*display:\s*none/) || ['', ''])[1];
+      for (const gone of ['.debug-overlay-tool', '.debug-overlay-fam', '[data-settings]',
+                          '[data-copy]', '[data-clear]']) {
+        ok(`…so ${gone} leaves the bar — the panel already carries it`,
+          hides.includes(gone), hides.slice(0, 120) || '(no docked hide rule at all)');
+      }
+      /* WHAT IT KEEPS is the point. The counts answer "does this page have
+         problems" and "how much have I pinned" with nothing open, and the
+         read-outs say what the side panel has no way to know. */
+      ok('…while the two counts STAY: they are status, not control',
+        !hides.includes('[data-c]') && !hides.includes('[data-sweep]'),
+        'the bar kept no answer of its own');
+      ok('…and the pulse asks the registry BY HOOK, naming no tool',
+        // esbuild normalises quotes, so the assertion must not assume one
+        /withHook\(["']status["'], true\)/.test(source),
+        'a bar that names ⚡ cannot pick up whatever measures continuously next');
+      ok('…and the read-outs exist ONLY docked, where the badge cannot follow',
+        /\.debug-overlay-docked .debug-overlay-read/.test(sheet) &&
+        /#__debug-overlay-bar \.debug-overlay-read,\s*\n?\s*#__debug-overlay-bar \.debug-overlay-pulse \{ display: none/.test(sheet),
+        'undocked the badge says it better, on the element itself');
       ok('and the button shows the echoed truth, not the click',
         webBtn.getAttribute('aria-pressed') === 'true',
         'the side panel assumed instead of listening');
@@ -1490,6 +1528,10 @@ let sidePanelChecked = false;
           ok('closing the side panel gives the page its bar back',
             !c3.bar.classList.contains('debug-overlay-hidden'),
             'the bar stayed hidden with nothing left to replace it');
+          ok('…with its controls, because it is the only surface again',
+            !c3.bar.classList.contains('debug-overlay-docked') &&
+            c3.w.getComputedStyle(c3.bar.querySelector('.debug-overlay-tool')).display !== 'none',
+            'a bar left docked with no panel can arm nothing at all');
 
           /* THE BUG A REAL INSTALL FOUND, and the gap in the first fix for
              it. The clean/store build ships no options page and no host
@@ -4351,6 +4393,24 @@ let remoteChecked = false;
       ok('…and one command later, the session ending still takes it away',
         !chip.classList.contains('debug-overlay-live') && chip.textContent === 'AI',
         chip.className + ' — ' + chip.textContent);
+
+      /* ---- WHAT THE POINTER IS ON, HELD STILL ----------------------
+         The badge says this already and says it better, on the element
+         itself — but it moves with the cursor and covers what it
+         describes, so it cannot be the thing you read while you work.
+         That is the whole case for spending bar space on it. */
+      const read = bar.querySelector('[data-read]');
+      w.document.getElementById('kid').dispatchEvent(
+        new w.MouseEvent('mousemove', { bubbles: true, clientX: 30, clientY: 30 }));
+      for (let i = 0; i < 20 && !read.textContent; i++) await new Promise((r) => setTimeout(r, 10));
+      ok('the bar says what the pointer is on, with its size',
+        /\d+×\d+/.test(read.textContent), JSON.stringify(read.textContent) || '(never written)');
+      /* SILENT WHEN THERE IS NOTHING TO SAY. The pulse is asked of armed
+         tools only; nothing here measures continuously, so it prints
+         nothing rather than an empty box. */
+      ok('…and the pulse says nothing when no armed tool measures anything',
+        bar.querySelector('[data-pulse]').textContent === '',
+        JSON.stringify(bar.querySelector('[data-pulse]').textContent));
     } catch (e) {
       ok('the remote door block ran to the end', false, String((e && e.stack) || e));
     }

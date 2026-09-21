@@ -927,6 +927,37 @@ Node's own WebSocket client standing in for the extension — asserting the
 gate: wrong token refused and told so, second browser refused, a command with
 no browser answered with what to type where, never a hang.
 
+## The bar and the side panel are not two copies
+
+Five of the side panel's seven sections mirror the bar — every tool, ⌕ ⧉ ✕,
+the badge control, the three lists. The default hides the bar when a side
+panel connects, which is why that was invisible for so long; turn the bar
+back on (people do — it is what appears in a SCREENSHOT) and the duplication
+is the whole picture.
+
+So `WebPanel.setDocked(v)`, called by `app/bridge.js` on connect and
+disconnect. Docked, the bar drops every control the panel already carries
+and keeps only what the panel CANNOT say: power, who is driving, what the
+pointer is on, the live pulse, and the two counts. Undocked it is untouched
+— with no side panel the bar is the only control surface there is, and a bar
+left docked with nothing beside it can arm nothing at all. One state, two
+shapes, chosen automatically; no new setting, and no moment where both
+surfaces offer the same button.
+
+**`status()` is the pulse hook** — one short PLAIN-TEXT line, asked of armed
+tools on `CONFIG.PULSE_MS` while docked and never otherwise, because a frame
+rate changes without anything happening that would schedule a frame. It
+belongs to no role, like `report`: it repeats what the tool already does
+rather than being something the tool IS. Asked through
+`Tools.withHook('status', true)`, so whatever measures continuously next
+appears there without this file learning its name.
+
+**The pointer read-out is core, not a tool.** `ui/renderer.js` already knows
+the hovered element and derives the line only when that element CHANGES —
+it runs every frame, and both `labelOf` and the rect cost real work. The
+badge says the same thing better, on the element itself; what it cannot do
+is hold still, which is the entire case for spending bar space on it.
+
 ## Escalate to the human instead of guessing
 - A change that would require relaxing an audit rule.
 - Anything touching the manifest's matches or permissions, or the update URLs.

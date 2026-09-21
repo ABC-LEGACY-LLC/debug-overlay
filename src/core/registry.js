@@ -32,6 +32,11 @@ import { State } from './state.js';
           keeps()        → this tool KEEPS selections: while armed, a click's
                            selection persists as a pin instead of replacing
                            the previous one
+          status()       → one short PLAIN-TEXT line for the docked bar:
+                           what this tool is measuring right now, re-asked on
+                           a timer. Belongs to no role, like report — it
+                           repeats what the tool already does rather than
+                           being a thing the tool IS
           selects()      → this tool MAKES selections of its own, by some
                            gesture that is not the click — it pins directly
                            rather than changing what a click means

@@ -38,7 +38,8 @@ const toolLast = new Map();   // tool id → armed (per-id, or replay loses all 
 function send(name, ...args) {
   if (!port) return;
   try { port.postMessage(Protocol.state(name, ...args)); }
-  catch { port = null; WebPanel.setVisible(true); }   // died mid-send; give the bar back
+  // died mid-send; give the bar back, controls and all
+  catch { port = null; WebPanel.setVisible(true); WebPanel.setDocked(false); }
 }
 
 /** The roster the bar itself is built from: enough for the side panel to
@@ -193,6 +194,11 @@ export const Bridge = {
       port = p;
       watching = null;   // the new side panel says which view it holds, if any
       WebPanel.setVisible(wantsWebPanel());
+      /* A SECOND FACE IS HERE, so the bar stops being a copy of it. Every
+         control on the bar exists in that panel; what the bar can say and
+         the panel cannot is what the PAGE is doing, and that is what it
+         keeps. Undocked below, when the panel goes. */
+      WebPanel.setDocked(true);
       p.onMessage.addListener((msg) => {
         const m = Protocol.read(msg);
         if (m && m.kind === 'cmd') command(m);
@@ -202,6 +208,7 @@ export const Bridge = {
         port = null;
         watching = null;
         WebPanel.setVisible(true);
+        WebPanel.setDocked(false);   // the only control surface again
       });
     });
   },

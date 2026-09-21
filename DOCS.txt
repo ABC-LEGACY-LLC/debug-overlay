@@ -311,6 +311,27 @@ HOW TO USE
   suspended cannot send a farewell — and a chip still claiming a session
   that ended would be worse than no chip.
 
+  DOCKED — the bar stops being a second copy of the side panel. Open the
+  side panel and the on-page bar hides, because two controls claiming one
+  state is a lie about which is in charge. Turn it back on (the ⧉-ish button
+  in the side panel header) — people do, because the bar is what appears in
+  a SCREENSHOT — and it comes back DOCKED: no tool buttons, no ⚙, no ⧉, no
+  ✕, none of the things the panel is already carrying two feet away. What it
+  keeps is what only it can say:
+    · power, and who is driving (the AI chip)
+    · WHAT THE POINTER IS ON — name and size, held still. The badge says
+      this better, on the element itself, but it moves with the cursor and
+      covers what it describes, so it cannot be the thing you read while
+      you work.
+    · THE LIVE PULSE of any armed tool that measures continuously — ⚡ perf
+      prints frames per second and the freeze count. It earns permanent
+      space for the reason no badge can: it only means anything while it
+      MOVES. Silent when nothing armed measures anything.
+    · the pin count and the findings count — "how much have I pinned" and
+      "does this page have problems", answered with nothing open.
+  Close the side panel and the bar is exactly as it was, controls and all:
+  with no panel it is the only control surface there is.
+
   The rules between the buttons mark the PIPELINE, top to bottom: the input
   side (⬚ group, ▭ lasso, 📌 pin — what your input becomes), then the components
   (what describes the page), then ⌕ and ⚙, then the copy/clear band — the pin

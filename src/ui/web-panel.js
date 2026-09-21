@@ -67,6 +67,12 @@ import { List } from './list.js';
            OFF is exactly when a person needs to be told, and it can switch
            the overlay on itself. role=status so it is announced, not mimed. -->
       <span class="debug-overlay-ai" data-ai role="status" aria-live="polite">AI</span>
+      <!-- THE STATUS SIDE, shown only while the side panel is driving. Both
+           are read-outs: nothing here is a control, because the controls are
+           two feet away in the panel and a second copy of them is what made
+           the bar and the panel read as duplicates of each other. -->
+      <span class="debug-overlay-read" data-read title="What the pointer is on"></span>
+      <span class="debug-overlay-pulse" data-pulse title="Live pulse — what the armed tools are measuring"></span>
       <hr class="debug-overlay-sep debug-overlay-whenOn">
       ${toolRuns}
       <!-- its own band: ⌕ and ⚙ drive the services, they are not tools -->
@@ -108,6 +114,7 @@ import { List } from './list.js';
     // the 🏷 flyout's groups, kept so a settings change can re-render with
     // the axis the user had open still open
     let badgeGroups = [];
+    let pulseTimer = 0;   // runs only while docked — see setDocked
     function renderBadgeFly() {
       const fly = el.querySelector('[data-badge-fly]');
       const open = fly.dataset.open || '';
@@ -230,6 +237,71 @@ import { List } from './list.js';
         el.classList.toggle('debug-overlay-hidden', !v);
         if (!v) { hintEl?.remove(); hintEl = null; }   // the bar is gone; so is its hint
         if (v) { api.toggleList(false); api.closeFlyouts(); }
+      },
+
+      /**
+       * A SIDE PANEL IS DRIVING, so the bar stops being a second copy of it.
+       *
+       * Five of the side panel's seven sections mirror this bar — every tool,
+       * ⌕ ⧉ ✕, the badge control, the three lists. Shown together that is one
+       * product wearing two faces and asking which is in charge; the default
+       * hid the bar outright for exactly that reason. But the bar is also the
+       * surface that appears in a SCREENSHOT, which is why anyone turns it
+       * back on, and a screenshot wants what the page IS, not a control panel.
+       *
+       * So docked it keeps only what it can say and the panel cannot: power,
+       * who is driving, what the pointer is on, the live pulse, and the two
+       * counts. Undocked it is unchanged — with no side panel this is the
+       * only control surface there is, and stripping it would stranded
+       * anybody who never opened one.
+       */
+      setDocked(v) {
+        el.classList.toggle('debug-overlay-docked', !!v);
+        // the popover and the flyouts are the panel's job while it is here
+        if (v) { api.toggleList(false); api.closeFlyouts(); }
+        api.onState?.('docked', !!v);
+        /* The pulse is the one read-out that has to be ASKED FOR rather
+           than announced: a frame rate changes without anything happening
+           that would schedule a frame. The timer therefore exists only
+           while the bar is docked — the one time it has nothing else to
+           do — and never otherwise. */
+        clearInterval(pulseTimer);
+        pulseTimer = 0;
+        if (!v) { api.setPulse([]); return; }
+        api.refreshPulse();
+        pulseTimer = setInterval(api.refreshPulse, CONFIG.PULSE_MS);
+      },
+
+      /** Ask every armed tool what it is measuring. No tool is named: a tool
+       *  shipped tomorrow appears here the day it implements the hook. */
+      refreshPulse() {
+        const lines = [];
+        for (const t of Tools.withHook('status', true)) {
+          // one tool that cannot answer costs the others nothing
+          try { const s = t.status.call(t); if (s) lines.push(String(s)); } catch {}
+        }
+        api.setPulse(lines);
+      },
+
+      /** What the pointer is on — the badge's own subject, held still where
+       *  the badge itself moves with the cursor and covers what it describes. */
+      setPointing(text) {
+        const r = el.querySelector('[data-read]');
+        if (r.textContent === text) return;   // per frame; write only on change
+        r.textContent = text;
+        // empty keeps the standing title: the element still has to say what
+        // it is for, to a hover and to `npm run map`
+        r.title = text || 'What the pointer is on';
+      },
+
+      /** Whatever the armed tools are measuring continuously, one line each.
+       *  Plain text by contract — a bar read-out is not a place for markup. */
+      setPulse(lines) {
+        const p = el.querySelector('[data-pulse]');
+        const text = (lines || []).join('\n');
+        if (p.textContent === text) return;
+        p.textContent = text;
+        p.title = text || 'Live pulse — what the armed tools are measuring';
       },
       /**
        * Move the pin-count chip to sit right after one tool's button — the

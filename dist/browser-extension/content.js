@@ -1,4 +1,4 @@
-/* Debug Overlay v3.8.201 — the extension gate */
+/* Debug Overlay v3.8.202 — the extension gate */
 
 /*
 HOW TO USE
@@ -314,6 +314,27 @@ HOW TO USE
   suspended cannot send a farewell — and a chip still claiming a session
   that ended would be worse than no chip.
 
+  DOCKED — the bar stops being a second copy of the side panel. Open the
+  side panel and the on-page bar hides, because two controls claiming one
+  state is a lie about which is in charge. Turn it back on (the ⧉-ish button
+  in the side panel header) — people do, because the bar is what appears in
+  a SCREENSHOT — and it comes back DOCKED: no tool buttons, no ⚙, no ⧉, no
+  ✕, none of the things the panel is already carrying two feet away. What it
+  keeps is what only it can say:
+    · power, and who is driving (the AI chip)
+    · WHAT THE POINTER IS ON — name and size, held still. The badge says
+      this better, on the element itself, but it moves with the cursor and
+      covers what it describes, so it cannot be the thing you read while
+      you work.
+    · THE LIVE PULSE of any armed tool that measures continuously — ⚡ perf
+      prints frames per second and the freeze count. It earns permanent
+      space for the reason no badge can: it only means anything while it
+      MOVES. Silent when nothing armed measures anything.
+    · the pin count and the findings count — "how much have I pinned" and
+      "does this page have problems", answered with nothing open.
+  Close the side panel and the bar is exactly as it was, controls and all:
+  with no panel it is the only control surface there is.
+
   The rules between the buttons mark the PIPELINE, top to bottom: the input
   side (⬚ group, ▭ lasso, 📌 pin — what your input becomes), then the components
   (what describes the page), then ⌕ and ⚙, then the copy/clear band — the pin
@@ -481,7 +502,7 @@ HOW TO USE
     // manifest that ships it, and an overlay that cannot say which version it
     // is makes a stale install look exactly like a current one — which is the
     // failure this project has already had once, from the other end.
-    VERSION: "3.8.201",
+    VERSION: "3.8.202",
     // Substituted like VERSION, from release.json: the MANIFEST the extension
     // publishes, which is the one file that moves with every release. It was
     // the userscript's meta header until that gate was withdrawn — and that
@@ -603,6 +624,12 @@ HOW TO USE
        HOLD: how long a finished command stays named on the chip. Without it
        every fast command is a flicker nobody can read. */
     AI: { STALE: 45e3, HOLD: 2500, RECENT: 8 },
+    /* How often the docked bar re-asks the armed tools what they are
+       measuring. A second, because these are pulses a person watches rather
+       than numbers they read off a screenshot — and because it runs only
+       while a side panel is driving, which is the one time the bar has
+       nothing else to do. */
+    PULSE_MS: 1e3,
     PICK_FLASH: 700,
     // ms an element stays outlined after being picked
     LANE_SEP: 16,
@@ -3842,6 +3869,12 @@ HOW TO USE
     const n = Monitor.log.length;
     return `<span class="debug-overlay-sp">⚡ ${fps}fps</span>` + (n ? ` <span class="debug-overlay-warn">${n}× worst ${fmt(Monitor.worst())}</span>` : "");
   }
+  function status() {
+    if (!Monitor.running) return "";
+    const fps = Monitor.fps == null ? "–" : Monitor.fps;
+    const n = Monitor.log.length;
+    return `⚡ ${fps}fps` + (n ? ` · ${n}× worst ${fmt(Monitor.worst())}` : "");
+  }
   function compact7(i) {
     if (!Monitor.running) return null;
     const s = Targets.stats(i.el);
@@ -3977,6 +4010,7 @@ HOW TO USE
     timeline,
     badge: badge7,
     compact: compact7,
+    status,
     legend: legend7,
     listRows: listRows2,
     reportTail: reportTail4,
@@ -4317,6 +4351,33 @@ HOW TO USE
        the bar must leave the tab order too, or Tab lands on invisible
        buttons. */
     #__debug-overlay-bar.debug-overlay-hidden { display: none; }
+
+    /* DOCKED — a side panel is driving, so the bar drops every control the
+       panel already carries and keeps only what it can say that the panel
+       cannot: who is driving, what the pointer is on, the live pulse, and
+       the two counts. Undocked it is untouched, because with no side panel
+       this is the only control surface there is. */
+    #__debug-overlay-bar.debug-overlay-docked { width: 172px; border-radius: var(--debug-overlay-r-card); }
+    #__debug-overlay-bar.debug-overlay-docked .debug-overlay-tool,
+    #__debug-overlay-bar.debug-overlay-docked .debug-overlay-fam,
+    #__debug-overlay-bar.debug-overlay-docked .debug-overlay-sep,
+    #__debug-overlay-bar.debug-overlay-docked [data-settings],
+    #__debug-overlay-bar.debug-overlay-docked [data-copy],
+    #__debug-overlay-bar.debug-overlay-docked [data-clear] { display: none; }
+    /* the read-outs exist only docked: undocked the badge says it better, on
+       the element itself, and the bar has no room to say it twice */
+    #__debug-overlay-bar .debug-overlay-read,
+    #__debug-overlay-bar .debug-overlay-pulse { display: none; }
+    #__debug-overlay-bar.debug-overlay-docked .debug-overlay-read,
+    #__debug-overlay-bar.debug-overlay-docked .debug-overlay-pulse {
+      display: block; width: 100%; padding: 4px 7px; border-radius: var(--debug-overlay-r-inner);
+      background: var(--debug-overlay-surface); font-size: 10px; line-height: 1.45;
+      white-space: pre-line; overflow: hidden; text-overflow: ellipsis; }
+    #__debug-overlay-bar.debug-overlay-docked .debug-overlay-read { color: var(--debug-overlay-ink-dim); }
+    #__debug-overlay-bar.debug-overlay-docked .debug-overlay-pulse { color: var(--debug-overlay-muted); }
+    /* empty says nothing, and an empty box says "something is missing" */
+    #__debug-overlay-bar.debug-overlay-docked .debug-overlay-read:empty,
+    #__debug-overlay-bar.debug-overlay-docked .debug-overlay-pulse:empty { display: none; }
 
     /* THE FIRST-RUN INSTRUCTION. The empty pin list already carried this
        sentence, and it was invisible: it lived inside the popover that opens
@@ -4815,6 +4876,12 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
            OFF is exactly when a person needs to be told, and it can switch
            the overlay on itself. role=status so it is announced, not mimed. -->
       <span class="debug-overlay-ai" data-ai role="status" aria-live="polite">AI</span>
+      <!-- THE STATUS SIDE, shown only while the side panel is driving. Both
+           are read-outs: nothing here is a control, because the controls are
+           two feet away in the panel and a second copy of them is what made
+           the bar and the panel read as duplicates of each other. -->
+      <span class="debug-overlay-read" data-read title="What the pointer is on"></span>
+      <span class="debug-overlay-pulse" data-pulse title="Live pulse — what the armed tools are measuring"></span>
       <hr class="debug-overlay-sep debug-overlay-whenOn">
       ${toolRuns}
       <!-- its own band: ⌕ and ⚙ drive the services, they are not tools -->
@@ -4849,6 +4916,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
       const flashing = /* @__PURE__ */ new Map();
       let hintEl = null;
       let badgeGroups = [];
+      let pulseTimer = 0;
       function renderBadgeFly() {
         const fly = el2.querySelector("[data-badge-fly]");
         const open = fly.dataset.open || "";
@@ -4972,6 +5040,68 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
             api.toggleList(false);
             api.closeFlyouts();
           }
+        },
+        /**
+         * A SIDE PANEL IS DRIVING, so the bar stops being a second copy of it.
+         *
+         * Five of the side panel's seven sections mirror this bar — every tool,
+         * ⌕ ⧉ ✕, the badge control, the three lists. Shown together that is one
+         * product wearing two faces and asking which is in charge; the default
+         * hid the bar outright for exactly that reason. But the bar is also the
+         * surface that appears in a SCREENSHOT, which is why anyone turns it
+         * back on, and a screenshot wants what the page IS, not a control panel.
+         *
+         * So docked it keeps only what it can say and the panel cannot: power,
+         * who is driving, what the pointer is on, the live pulse, and the two
+         * counts. Undocked it is unchanged — with no side panel this is the
+         * only control surface there is, and stripping it would stranded
+         * anybody who never opened one.
+         */
+        setDocked(v) {
+          el2.classList.toggle("debug-overlay-docked", !!v);
+          if (v) {
+            api.toggleList(false);
+            api.closeFlyouts();
+          }
+          api.onState?.("docked", !!v);
+          clearInterval(pulseTimer);
+          pulseTimer = 0;
+          if (!v) {
+            api.setPulse([]);
+            return;
+          }
+          api.refreshPulse();
+          pulseTimer = setInterval(api.refreshPulse, CONFIG.PULSE_MS);
+        },
+        /** Ask every armed tool what it is measuring. No tool is named: a tool
+         *  shipped tomorrow appears here the day it implements the hook. */
+        refreshPulse() {
+          const lines = [];
+          for (const t of Tools.withHook("status", true)) {
+            try {
+              const s = t.status.call(t);
+              if (s) lines.push(String(s));
+            } catch {
+            }
+          }
+          api.setPulse(lines);
+        },
+        /** What the pointer is on — the badge's own subject, held still where
+         *  the badge itself moves with the cursor and covers what it describes. */
+        setPointing(text) {
+          const r = el2.querySelector("[data-read]");
+          if (r.textContent === text) return;
+          r.textContent = text;
+          r.title = text || "What the pointer is on";
+        },
+        /** Whatever the armed tools are measuring continuously, one line each.
+         *  Plain text by contract — a bar read-out is not a place for markup. */
+        setPulse(lines) {
+          const p = el2.querySelector("[data-pulse]");
+          const text = (lines || []).join("\n");
+          if (p.textContent === text) return;
+          p.textContent = text;
+          p.title = text || "Live pulse — what the armed tools are measuring";
         },
         /**
          * Move the pin-count chip to sit right after one tool's button — the
@@ -5521,6 +5651,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
   })();
 
   // src/ui/renderer.js
+  var lastPoint = null;
   var Render = /* @__PURE__ */ (() => {
     let raf = 0;
     function now() {
@@ -5580,6 +5711,17 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         box.className = "debug-overlay-box debug-overlay-pinbox debug-overlay-note";
         Place.put(box, i.r.left, i.r.top, i.r.width, i.r.height);
         layer.append(box);
+      }
+      const point = State.hoverEl || cur;
+      if (point !== lastPoint) {
+        lastPoint = point;
+        let say = "";
+        if (point && document.contains(point)) {
+          const r = point.getBoundingClientRect();
+          say = `${U.labelOf(point)}
+${Math.round(r.width)}×${Math.round(r.height)}`;
+        }
+        WebPanel.setPointing(say);
       }
       const hoverLive = !State.removeMode && State.hoverEl && State.hoverEl !== cur && document.contains(State.hoverEl) && !pinned.has(State.hoverEl);
       if (hoverLive) {
@@ -6187,6 +6329,9 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     events: null,
     // (toolId, events[], isBacklog) — timeline entries, plain data;
     // a backlog REPLACES that tool's entries for this page visit
+    docked: null,
+    // (bool) — a side panel is driving, so the bar
+    // dropped the controls this panel already carries
     driver: null,
     // ({live, busy, cmd, n, recent}) — an AI session
     // driving this page, and what it is doing now
@@ -6423,6 +6568,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
     } catch {
       port = null;
       WebPanel.setVisible(true);
+      WebPanel.setDocked(false);
     }
   }
   function roster() {
@@ -6552,6 +6698,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
         port = p;
         watching = null;
         WebPanel.setVisible(wantsWebPanel());
+        WebPanel.setDocked(true);
         p.onMessage.addListener((msg) => {
           const m = Protocol.read(msg);
           if (m && m.kind === "cmd") command(m);
@@ -6561,6 +6708,7 @@ ${Tools.rolesOf(t).join(" · ")}${Tools.feedsAudit(t) ? " · also runs in the pa
           port = null;
           watching = null;
           WebPanel.setVisible(true);
+          WebPanel.setDocked(false);
         });
       });
     }

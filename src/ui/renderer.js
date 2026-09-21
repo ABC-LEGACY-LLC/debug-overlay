@@ -6,6 +6,10 @@ import { Badges } from '../services/badge/index.js';
 import { layer } from './dom.js';
 import { WebPanel } from './web-panel.js';
 import { Place } from './placement.js';
+
+/* The element the docked bar is currently describing. Held so the read-out
+   is derived on a hover CHANGE rather than on every frame. */
+let lastPoint = null;
   /* ======================================================================
     RENDERER
      ====================================================================== */
@@ -95,6 +99,23 @@ import { Place } from './placement.js';
         box.className = 'debug-overlay-box debug-overlay-pinbox debug-overlay-note';
         Place.put(box, i.r.left, i.r.top, i.r.width, i.r.height);
         layer.append(box);
+      }
+
+      /* WHAT THE POINTER IS ON, for the docked bar. The badge says this
+         already and says it better — on the element itself — but it moves
+         with the cursor and covers what it describes, so it cannot be the
+         thing you read while you work. Derived only when the ELEMENT
+         changes: this runs every frame, and both labelOf and the rect cost
+         real work per call. */
+      const point = State.hoverEl || cur;
+      if (point !== lastPoint) {
+        lastPoint = point;
+        let say = '';
+        if (point && document.contains(point)) {
+          const r = point.getBoundingClientRect();
+          say = `${U.labelOf(point)}\n${Math.round(r.width)}×${Math.round(r.height)}`;
+        }
+        WebPanel.setPointing(say);
       }
 
       const hoverLive = !State.removeMode && State.hoverEl && State.hoverEl !== cur &&

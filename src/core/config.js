@@ -123,6 +123,12 @@
        HOLD: how long a finished command stays named on the chip. Without it
        every fast command is a flicker nobody can read. */
     AI: { STALE: 45000, HOLD: 2500, RECENT: 8 },
+    /* How often the docked bar re-asks the armed tools what they are
+       measuring. A second, because these are pulses a person watches rather
+       than numbers they read off a screenshot — and because it runs only
+       while a side panel is driving, which is the one time the bar has
+       nothing else to do. */
+    PULSE_MS: 1000,
     PICK_FLASH: 700,          // ms an element stays outlined after being picked
     LANE_SEP: 16,             // px between parallel dimension lines
     HOTKEY: { alt: true, shift: true, ctrl: false, code: 'KeyD' },

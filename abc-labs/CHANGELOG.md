@@ -1,5 +1,26 @@
 # Changelog
 
+## 3.8.202 — 2026-09-21
+
+- **The bar stops being a second copy of the side panel.** Five of the side
+  panel's seven sections mirrored it — every tool, ⌕ ⧉ ✕, the badge control,
+  the three lists. Open the side panel and turn the on-page bar back on (as
+  people do, because the bar is what appears in a screenshot) and you were
+  looking at one product wearing two faces.
+- **Docked, the bar keeps only what the panel cannot say:** power, who is
+  driving, **what the pointer is on** (name and size, held still — the badge
+  says it better but moves with the cursor and covers what it describes),
+  **the live pulse** of any armed tool that measures continuously, and the
+  pin and findings counts. No tool buttons, no ⚙, no ⧉, no ✕.
+- **Close the side panel and the bar is exactly as it was**, controls and
+  all. With no panel it is the only control surface there is, so a bar left
+  stripped would be able to arm nothing at all. One state, two shapes, chosen
+  automatically — no new setting.
+- New `status()` hook: one plain-text line a tool can contribute to that
+  strip, asked on a timer while docked and never otherwise. ⚡ perf answers it
+  with frames per second and the freeze count. Silent when nothing armed
+  measures anything.
+
 ## 3.8.201 — 2026-09-21
 
 - **Fixed: a host page's CSS reset could erase every icon in the bar.** The

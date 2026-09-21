@@ -31,6 +31,9 @@
     events: null,
     // (toolId, events[], isBacklog) — timeline entries, plain data;
     // a backlog REPLACES that tool's entries for this page visit
+    docked: null,
+    // (bool) — a side panel is driving, so the bar
+    // dropped the controls this panel already carries
     driver: null,
     // ({live, busy, cmd, n, recent}) — an AI session
     // driving this page, and what it is doing now
@@ -131,7 +134,7 @@
   };
 
   // browser-extension-source/side-panel/side-panel.js
-  var VERSION = "3.8.201";
+  var VERSION = "3.8.202";
   var $ = (s) => document.querySelector(s);
   var body = document.body;
   var IC = {
