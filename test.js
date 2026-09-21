@@ -253,6 +253,7 @@ console.log('\nHOST CSS CANNOT REACH IN');
     html{letter-spacing:4px;text-transform:uppercase;line-height:3;font-style:italic}
     hr{margin:1rem 0;color:inherit;border:0;border-top:1px solid;opacity:.25}
     img,svg,video,canvas{display:block;vertical-align:middle}
+    svg{fill:currentColor;stroke:none;visibility:hidden;opacity:.2}
     input[type="checkbox"]{position:absolute;opacity:0;width:1px;height:1px;margin:-1px}
     select{width:100%;appearance:none;padding:12px;text-transform:uppercase}
     button{text-transform:uppercase;letter-spacing:2px;margin:4px}
@@ -296,8 +297,17 @@ console.log('\nHOST CSS CANNOT REACH IN');
 
   // the differential proof: a hostile host may change nothing at all
   const wDirty = drive(HOSTILE);
+  /* fill/stroke/visibility are here because of what they do to an ICON. Our
+     glyphs are line drawings — `fill="none" stroke="currentColor"` — and
+     those are PRESENTATION ATTRIBUTES, which any CSS declaration outranks.
+     A host reset saying `svg { fill: currentColor }` therefore floods every
+     one of them into a small solid blob, and the root's `visibility: visible`
+     does not help: it is inherited, and a rule on the svg tag beats
+     inheritance. The buttons keep their shape and colour throughout, so the
+     bar looks intact and unreadable at the same time. */
   const PROPS = ['position', 'display', 'marginLeft', 'fontSize', 'float', 'opacity',
-                 'flexWrap', 'fontStyle', 'textTransform'];
+                 'flexWrap', 'fontStyle', 'textTransform',
+                 'fill', 'stroke', 'visibility'];
   const census = (w) => {
     const out = new Map();
     const walk = (n, path) => {

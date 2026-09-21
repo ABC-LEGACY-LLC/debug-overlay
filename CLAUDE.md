@@ -448,6 +448,20 @@ will drift from `release.json`. This exists because a stale install and a curren
 otherwise look identical, which is the same failure as a dead `@updateURL`
 seen from the other end.
 
+**The namespace defends the CLASS axis; declaring the property defends the
+TAG axis — and that includes what an icon is MADE of.** `ui/styles.js` says
+this already for inherited properties on the root, and the svg rule was the
+gap: our glyphs are line drawings whose `fill="none" stroke="currentColor"`
+are PRESENTATION ATTRIBUTES, which any CSS declaration outranks. A host reset
+saying `svg { fill: currentColor }` floods every icon into a small solid blob
+and `stroke: none` erases them; `visibility` on the root does not help,
+because it is inherited and a rule on the tag beats inheritance. The buttons
+keep their shape and colour throughout, so the bar looks intact and says
+nothing — the worst shape a failure can take on a tool people read values
+off, and invisible to every test that only checks our own markup. The svg
+rule re-asserts `fill`, `stroke`, `visibility` and `opacity`; a child with
+its own fill attribute still wins, so deliberately solid marks are untouched.
+
 ## Things a rule got wrong, and must not again
 - **Read `opacity`.** `color:#000; opacity:.1` was reported 21:1 PASS while the
   identical `rgba(0,0,0,.1)` was reported 1.25:1 FAIL. The sweep's gate only

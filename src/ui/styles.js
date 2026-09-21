@@ -428,7 +428,20 @@ import { CONFIG } from '../core/config.js';
        one size; the .debug-overlay-whenOn / .debug-overlay-pwr / .debug-overlay-fam-btn flex does the centring. */
     /* every svg we own, not just the bar's: Preflight sets display on the
        TAG, so a rule scoped to one container leaves the rest of them to it */
-    #__debug-overlay-root svg { display: inline-block; vertical-align: middle; }
+    /* OUR ICONS ARE LINE DRAWINGS, and fill="none" stroke="currentColor"
+       are PRESENTATION ATTRIBUTES — which any CSS declaration outranks. A
+       host reset saying "svg { fill: currentColor }" therefore floods every
+       glyph into a small solid blob, and "stroke: none" erases them outright.
+       Visibility is no safer for being set on the root: it is inherited,
+       and a rule on the svg TAG beats what the root passes down. The buttons
+       keep their shape and their colour through all of it, so the bar looks
+       perfectly intact and says nothing — which is the worst shape a failure
+       can take here. Re-asserted per the rule this file already states: the
+       namespace defends the class axis, and declaring the property is the
+       only defence on the tag axis. A child carrying its own fill attribute
+       still wins, so the few deliberately solid marks are untouched. */
+    #__debug-overlay-root svg { display: inline-block; vertical-align: middle;
+      visibility: visible; opacity: 1; fill: none; stroke: currentColor; }
     #__debug-overlay-bar button svg { width: 16px; height: 16px; pointer-events: none; }
     #__debug-overlay-bar .debug-overlay-grip svg { width: 14px; height: 14px; display: block; }
     #__debug-overlay-list .debug-overlay-tag svg { width: 14px; height: 14px; vertical-align: -3px; }

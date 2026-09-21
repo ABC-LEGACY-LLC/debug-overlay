@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.8.201 — 2026-09-21
+
+- **Fixed: a host page's CSS reset could erase every icon in the bar.** The
+  glyphs are line drawings whose `fill="none" stroke="currentColor"` are
+  presentation attributes, and any CSS declaration outranks those — so a page
+  saying `svg { fill: currentColor }` floods each one into a small solid blob,
+  and `stroke: none` erases it. `visibility` on the overlay's root does not
+  help either: it is inherited, and a rule on the `svg` tag beats what the
+  root passes down.
+- The buttons keep their shape and colour through all of it, so the bar looks
+  perfectly intact while saying nothing — the worst shape a failure can take
+  on a tool you read values off. The svg rule now re-asserts `fill`, `stroke`,
+  `visibility` and `opacity`, the same way the root already re-asserts every
+  inherited property a host commonly sets.
+- The suite's hostile-host census now covers those four, and was verified by
+  watching it fail before the fix.
+
 ## 3.8.200 — 2026-09-21
 
 - **Fixed: the extension filled its own Errors page with red when no AI
